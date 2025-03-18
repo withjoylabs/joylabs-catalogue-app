@@ -60,7 +60,7 @@ export default function BottomTabBar({ activeTab }: TabBarProps) {
         <View style={styles.fabContainer}>
           <TouchableOpacity 
             style={styles.fab}
-            onPress={() => {}}
+            onPress={() => router.push('/item/new')}
           >
             <Ionicons name="add" size={28} color="#fff" />
           </TouchableOpacity>

@@ -50,6 +50,7 @@ export interface CatalogueItem {
   tax?: boolean;
   crv?: boolean | number; // Container Recycling Value
   timestamp?: string;
+  description?: string; // Item description
 }
 
 export interface ScanHistoryItem extends CatalogueItem {

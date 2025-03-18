@@ -21,10 +21,17 @@ export default function RootLayout() {
     // Update the active tab based on the current route
     if (pathname === '/profile') {
       setActiveTab('profile');
-    } else if (pathname === '/') {
+    } else if (pathname === '/' || pathname.startsWith('/item/')) {
       setActiveTab('scan');
     }
   }, [pathname]);
+
+  // Function to check if we should show the tab bar
+  const shouldShowTabBar = () => {
+    return pathname === '/' || 
+           pathname === '/profile' ||
+           pathname.startsWith('/item/');
+  };
 
   return (
     <SafeAreaProvider>
@@ -67,9 +74,18 @@ export default function RootLayout() {
               }),
             }}
           />
+          <Stack.Screen
+            name="item/[id]"
+            options={{
+              title: 'Item Details',
+              headerShown: false,
+              animation: 'slide_from_bottom',
+              presentation: 'transparentModal',
+            }}
+          />
         </Stack>
-        {/* Only show the tab bar on main screens */}
-        {(pathname === '/' || pathname === '/profile') && (
+        {/* Show the tab bar on appropriate screens */}
+        {shouldShowTabBar() && (
           <BottomTabBar activeTab={activeTab} />
         )}
       </View>

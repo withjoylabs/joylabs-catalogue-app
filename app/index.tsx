@@ -82,7 +82,7 @@ export default function HomeScreen() {
   const handleItemPress = (item: ScanHistoryItem) => {
     console.log('Item pressed:', item);
     // Navigate to item details
-    // router.push(`/item/${item.id}`);
+    router.push(`/item/${item.id}`);
   };
   
   const sortedItems = [...MOCK_SCAN_HISTORY].sort((a, b) => {
