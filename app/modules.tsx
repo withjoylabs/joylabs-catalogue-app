@@ -10,27 +10,34 @@ import { Ionicons } from '@expo/vector-icons';
 const modules: Module[] = [
   { 
     id: '1', 
+    name: 'Catalogue Management', 
+    description: 'Manage your Square product catalogue', 
+    route: '/catalogue',
+    icon: 'list-outline'
+  },
+  { 
+    id: '2', 
     name: 'Profile', 
     description: 'User profile management', 
     route: '/profile',
     icon: 'person-circle-outline'
   },
   { 
-    id: '2', 
+    id: '3', 
     name: 'Settings', 
     description: 'App configuration', 
     route: '/settings',
     icon: 'settings-outline'
   },
   { 
-    id: '3', 
+    id: '4', 
     name: 'Notifications', 
     description: 'Push notification setup', 
     route: '/notifications',
     icon: 'notifications-outline'
   },
   { 
-    id: '4', 
+    id: '5', 
     name: 'Analytics', 
     description: 'Usage statistics', 
     route: '/analytics',

@@ -11,6 +11,14 @@ A modular React Native application built with Expo SDK 52 and TypeScript.
 - Theme system with light and dark mode support
 - Reusable UI components
 
+### Modules
+
+- **Catalogue Management**: Manage your Square product catalogue with features for scanning, searching, and organizing inventory
+- **Profile**: User profile and preferences
+- **Settings**: App configuration options
+- **Notifications**: Push notification settings
+- **Analytics**: Usage statistics and data visualization
+
 ## Project Structure
 
 ```
@@ -19,9 +27,15 @@ joylabs/
 │   ├── _layout.tsx       # Root layout
 │   ├── index.tsx         # Home screen
 │   ├── modules.tsx       # Modules listing screen
+│   ├── catalogue.tsx     # Catalogue management screen
 │   └── profile.tsx       # Profile screen
 ├── src/                  # Source code
 │   ├── components/       # Reusable UI components
+│   │   ├── CatalogueItemCard.tsx   # Catalogue item card
+│   │   ├── ConnectionStatusBar.tsx # Connection status UI
+│   │   ├── ModuleCard.tsx          # Module card
+│   │   ├── SearchBar.tsx           # Search UI
+│   │   └── SortHeader.tsx          # Sorting options UI
 │   ├── hooks/            # Custom React hooks
 │   ├── navigation/       # Navigation related code
 │   ├── screens/          # Screen components
@@ -56,6 +70,17 @@ npm run android
 # Run on Web
 npm run web
 ```
+
+## Catalogue Module Features
+
+The Catalogue Management module includes:
+
+- Connection status indicator for Square API
+- Item search functionality
+- Scan history with sorting options
+- Detailed item information display
+- Tab navigation for different sections
+- Support for tax and CRV (Container Recycling Value) indicators
 
 ## Adding New Modules
 

@@ -38,4 +38,20 @@ export interface AppTheme {
     large: number;
     xlarge: number;
   };
+}
+
+export interface CatalogueItem {
+  id: string;
+  name: string;
+  gtin?: string; // Global Trade Item Number
+  sku?: string;
+  price: number;
+  tax?: boolean;
+  crv?: boolean | number; // Container Recycling Value
+  timestamp?: string;
+}
+
+export interface ScanHistoryItem extends CatalogueItem {
+  scanId: string;
+  scanTime: string;
 } 

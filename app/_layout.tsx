@@ -19,6 +19,38 @@ export default function RootLayout() {
         contentStyle: { backgroundColor: 'white' },
         animation: Platform.OS === 'android' ? 'fade_from_bottom' : 'default',
       }}
-    />
+    >
+      <Stack.Screen
+        name="index"
+        options={{
+          title: 'Home',
+        }}
+      />
+      <Stack.Screen
+        name="modules"
+        options={{
+          title: 'Modules',
+        }}
+      />
+      <Stack.Screen
+        name="profile"
+        options={{
+          title: 'Profile',
+        }}
+      />
+      <Stack.Screen
+        name="catalogue"
+        options={{
+          title: 'Catalogue',
+          headerShown: false,
+          animation: 'slide_from_right',
+          presentation: 'card',
+          // Full screen modal on iOS for this screen
+          ...(Platform.OS === 'ios' && {
+            fullScreenGestureEnabled: true,
+          }),
+        }}
+      />
+    </Stack>
   );
 } 
