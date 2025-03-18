@@ -47,7 +47,7 @@ const CatalogueItemCard: React.FC<CatalogueItemCardProps> = ({
         </Text>
         
         <View style={styles.itemDetails}>
-          <Text style={styles.detailText}>Category: {item.reporting_category || 'None'}</Text>
+          <Text style={styles.detailText}>{item.reporting_category || 'None'}</Text>
           <Text style={styles.detailText}>GTIN: {item.gtin || 'None'}</Text>
           <Text style={styles.detailText}>SKU: {item.sku || 'None'}</Text>
         </View>
