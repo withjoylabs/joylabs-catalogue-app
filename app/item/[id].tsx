@@ -175,38 +175,41 @@ export default function ItemDetails() {
     router.back();
   };
   
-  // Advanced price input handling for cents-based entry
+  // Simple price input handling with proper decimal formatting
   const handlePriceChange = (value: string) => {
-    // Remove any non-digit characters
-    const digitsOnly = value.replace(/\D/g, '');
+    // Allow only numeric values and a single decimal point
+    // Replace any comma with a dot for locale handling
+    value = value.replace(/,/g, '.');
     
-    // If empty after removing non-digits, clear the field
-    if (!digitsOnly) {
-      setPriceText('');
-      updateItem('price', null);
-      return;
+    // Check if the value matches our allowed pattern
+    if (value === '' || /^\d*\.?\d{0,2}$/.test(value)) {
+      setPriceText(value);
+      
+      // Update the item's price if we have a valid number
+      const numericValue = parseFloat(value);
+      if (!isNaN(numericValue)) {
+        updateItem('price', numericValue);
+      } else {
+        updateItem('price', null);
+      }
     }
-    
-    // Convert to a number (cents)
-    const cents = parseInt(digitsOnly, 10);
-    
-    // Convert to dollars (divide by 100) and format with 2 decimal places
-    const formattedPrice = (cents / 100).toFixed(2);
-    
-    setPriceText(formattedPrice);
-    updateItem('price', parseFloat(formattedPrice));
+  };
+  
+  // Format the price when the field loses focus
+  const handlePriceBlur = () => {
+    if (priceText) {
+      const numericValue = parseFloat(priceText);
+      if (!isNaN(numericValue)) {
+        setPriceText(numericValue.toFixed(2));
+      }
+    }
   };
   
   // When price field is focused, select all text
   const handlePriceFocus = () => {
-    // Allow a brief moment for the field to render before selecting text
-    setTimeout(() => {
-      if (priceInputRef.current) {
-        priceInputRef.current.setNativeProps({
-          selection: { start: 0, end: priceText.length }
-        });
-      }
-    }, 50);
+    if (priceInputRef.current) {
+      priceInputRef.current.focus();
+    }
   };
   
   // Handle description field focus to scroll view
@@ -345,11 +348,10 @@ export default function ItemDetails() {
                     style={styles.priceInput}
                     value={priceText}
                     onChangeText={handlePriceChange}
-                    onFocus={handlePriceFocus}
+                    onBlur={handlePriceBlur}
                     placeholder="0.00"
-                    keyboardType="numeric"
+                    keyboardType="decimal-pad"
                     textAlign="right"
-                    caretHidden={false}
                     selectTextOnFocus={true}
                   />
                 </View>
