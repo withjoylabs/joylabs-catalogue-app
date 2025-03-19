@@ -175,41 +175,31 @@ export default function ItemDetails() {
     router.back();
   };
   
-  // Simple price input handling with proper decimal formatting
+  // Cents-based price input handling (fills from right)
   const handlePriceChange = (value: string) => {
-    // Allow only numeric values and a single decimal point
-    // Replace any comma with a dot for locale handling
-    value = value.replace(/,/g, '.');
+    // Remove any non-numeric characters
+    const digitsOnly = value.replace(/\D/g, '');
     
-    // Check if the value matches our allowed pattern
-    if (value === '' || /^\d*\.?\d{0,2}$/.test(value)) {
-      setPriceText(value);
-      
-      // Update the item's price if we have a valid number
-      const numericValue = parseFloat(value);
-      if (!isNaN(numericValue)) {
-        updateItem('price', numericValue);
-      } else {
-        updateItem('price', null);
-      }
+    // If empty after removing non-digits, clear the field
+    if (!digitsOnly) {
+      setPriceText('');
+      updateItem('price', null);
+      return;
     }
+    
+    // Treat input as cents (filling from right)
+    const cents = parseInt(digitsOnly, 10);
+    
+    // Convert to dollars with 2 decimal places
+    const dollars = (cents / 100).toFixed(2);
+    
+    setPriceText(dollars);
+    updateItem('price', parseFloat(dollars));
   };
   
-  // Format the price when the field loses focus
-  const handlePriceBlur = () => {
-    if (priceText) {
-      const numericValue = parseFloat(priceText);
-      if (!isNaN(numericValue)) {
-        setPriceText(numericValue.toFixed(2));
-      }
-    }
-  };
-  
-  // When price field is focused, select all text
+  // When price field is focused, select all text for easy replacement
   const handlePriceFocus = () => {
-    if (priceInputRef.current) {
-      priceInputRef.current.focus();
-    }
+    // Do nothing - rely on selectTextOnFocus property
   };
   
   // Handle description field focus to scroll view
@@ -348,9 +338,8 @@ export default function ItemDetails() {
                     style={styles.priceInput}
                     value={priceText}
                     onChangeText={handlePriceChange}
-                    onBlur={handlePriceBlur}
                     placeholder="0.00"
-                    keyboardType="decimal-pad"
+                    keyboardType="numeric"
                     textAlign="right"
                     selectTextOnFocus={true}
                   />
