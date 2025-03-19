@@ -175,43 +175,41 @@ export default function ItemDetails() {
     router.back();
   };
   
-  // Smoother cents-based price input handling
+  // Simple and efficient price input handling that eliminates jitter
   const handlePriceChange = (value: string) => {
-    // Only allow numeric characters
-    if (!/^\d*$/.test(value)) {
-      return; // Don't update if non-numeric characters are entered
-    }
+    // Remove all non-digit characters
+    const digitsOnly = value.replace(/\D/g, '');
     
-    // Store the raw numeric input
-    const rawValue = value;
-    
-    // If empty, clear the field
-    if (!rawValue) {
+    if (!digitsOnly) {
       setPriceText('');
       updateItem('price', null);
       return;
     }
     
-    // Format the value as dollars
-    const numValue = parseInt(rawValue, 10) / 100;
+    // Convert directly to cents and back to string for consistent handling
+    const centsValue = parseInt(digitsOnly, 10);
+    const dollarsValue = centsValue / 100;
     
-    // Update the stored price in the item
-    updateItem('price', numValue);
+    // Format with fixed 2 decimal places
+    let formattedValue;
     
-    // Format display value only when needed (reducing visual updates)
-    // Only show decimal places for values that need them
-    const needsDecimal = rawValue.length <= 2;
-    
-    if (needsDecimal) {
-      // For small values (less than $1), show with leading zeros
-      // e.g., "1" → "$0.01", "12" → "$0.12"
-      const formattedValue = (numValue).toFixed(2);
-      setPriceText(formattedValue);
+    if (centsValue < 10) {
+      // Single digit (e.g., 5 cents)
+      formattedValue = `0.0${centsValue}`;
+    } else if (centsValue < 100) {
+      // Double digit less than a dollar (e.g., 50 cents)
+      formattedValue = `0.${centsValue}`;
     } else {
-      // For larger values, let the preview show the decimal but keep
-      // the input field as just raw digits
-      setPriceText(rawValue);
+      // Dollar amount (e.g., $10.50)
+      const dollars = Math.floor(dollarsValue);
+      const cents = Math.round((dollarsValue - dollars) * 100);
+      // Ensure cents always has 2 digits
+      const centsStr = cents < 10 ? `0${cents}` : `${cents}`;
+      formattedValue = `${dollars}.${centsStr}`;
     }
+    
+    setPriceText(formattedValue);
+    updateItem('price', dollarsValue);
   };
   
   // When price field is focused, select all text for easy replacement
