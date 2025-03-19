@@ -175,26 +175,43 @@ export default function ItemDetails() {
     router.back();
   };
   
-  // Cents-based price input handling (fills from right)
+  // Smoother cents-based price input handling
   const handlePriceChange = (value: string) => {
-    // Remove any non-numeric characters
-    const digitsOnly = value.replace(/\D/g, '');
+    // Only allow numeric characters
+    if (!/^\d*$/.test(value)) {
+      return; // Don't update if non-numeric characters are entered
+    }
     
-    // If empty after removing non-digits, clear the field
-    if (!digitsOnly) {
+    // Store the raw numeric input
+    const rawValue = value;
+    
+    // If empty, clear the field
+    if (!rawValue) {
       setPriceText('');
       updateItem('price', null);
       return;
     }
     
-    // Treat input as cents (filling from right)
-    const cents = parseInt(digitsOnly, 10);
+    // Format the value as dollars
+    const numValue = parseInt(rawValue, 10) / 100;
     
-    // Convert to dollars with 2 decimal places
-    const dollars = (cents / 100).toFixed(2);
+    // Update the stored price in the item
+    updateItem('price', numValue);
     
-    setPriceText(dollars);
-    updateItem('price', parseFloat(dollars));
+    // Format display value only when needed (reducing visual updates)
+    // Only show decimal places for values that need them
+    const needsDecimal = rawValue.length <= 2;
+    
+    if (needsDecimal) {
+      // For small values (less than $1), show with leading zeros
+      // e.g., "1" → "$0.01", "12" → "$0.12"
+      const formattedValue = (numValue).toFixed(2);
+      setPriceText(formattedValue);
+    } else {
+      // For larger values, let the preview show the decimal but keep
+      // the input field as just raw digits
+      setPriceText(rawValue);
+    }
   };
   
   // When price field is focused, select all text for easy replacement
