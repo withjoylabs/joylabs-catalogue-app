@@ -1,6 +1,6 @@
-# JoyLabs
+# JoyLabs Catalogue App
 
-A modular React Native application built with Expo SDK 52 and TypeScript.
+A modular React Native application built with Expo SDK 52 and TypeScript, focused on catalogue management with barcode scanning capabilities.
 
 ## Features
 
@@ -8,16 +8,24 @@ A modular React Native application built with Expo SDK 52 and TypeScript.
 - File-based routing with Expo Router
 - TypeScript for type safety
 - Modular architecture for scalability
-- Theme system with light and dark mode support
 - Reusable UI components
+- Bottom tab navigation
+- Item details page with edit functionality
 
 ### Modules
 
-- **Catalogue Management**: Manage your Square product catalogue with features for scanning, searching, and organizing inventory
+- **Catalogue Management**: Manage your product catalogue with features for scanning, searching, and organizing inventory
 - **Profile**: User profile and preferences
-- **Settings**: App configuration options
-- **Notifications**: Push notification settings
-- **Analytics**: Usage statistics and data visualization
+
+## Recent Improvements
+
+- Changed item details from a modal to a regular page for better stability
+- Fixed navigation with consistently visible tab bar
+- Improved dropdown menu interaction
+- Enhanced tax and modifier UI
+- Fixed keyboard behavior to overlay buttons instead of pushing them
+- Added save functionality via the bottom tab bar
+- Improved scrolling for form fields
 
 ## Project Structure
 
@@ -25,21 +33,18 @@ A modular React Native application built with Expo SDK 52 and TypeScript.
 joylabs/
 ├── app/                  # Expo Router pages
 │   ├── _layout.tsx       # Root layout
-│   ├── index.tsx         # Home screen
-│   ├── modules.tsx       # Modules listing screen
-│   ├── catalogue.tsx     # Catalogue management screen
-│   └── profile.tsx       # Profile screen
+│   ├── index.tsx         # Home screen (Catalogue)
+│   ├── profile.tsx       # Profile screen
+│   └── item/
+│       └── [id].tsx      # Item details screen
 ├── src/                  # Source code
 │   ├── components/       # Reusable UI components
-│   │   ├── CatalogueItemCard.tsx   # Catalogue item card
+│   │   ├── BottomTabBar.tsx      # Bottom navigation
+│   │   ├── CatalogueItemCard.tsx # Catalogue item card
 │   │   ├── ConnectionStatusBar.tsx # Connection status UI
-│   │   ├── ModuleCard.tsx          # Module card
-│   │   ├── SearchBar.tsx           # Search UI
-│   │   └── SortHeader.tsx          # Sorting options UI
+│   │   ├── SearchBar.tsx         # Search UI
+│   │   └── SortHeader.tsx        # Sorting options UI
 │   ├── hooks/            # Custom React hooks
-│   ├── navigation/       # Navigation related code
-│   ├── screens/          # Screen components
-│   ├── services/         # API services
 │   ├── themes/           # Theme definitions
 │   ├── types/            # TypeScript type definitions
 │   └── utils/            # Utility functions
@@ -71,25 +76,28 @@ npm run android
 npm run web
 ```
 
-## Catalogue Module Features
+## Catalogue Features
 
 The Catalogue Management module includes:
 
-- Connection status indicator for Square API
+- Connection status indicator
 - Item search functionality
 - Scan history with sorting options
-- Detailed item information display
-- Tab navigation for different sections
+- Detailed item information display with form editing
+- Bottom tab navigation
 - Support for tax and CRV (Container Recycling Value) indicators
 
-## Adding New Modules
+## Item Details Features
 
-To add a new module to the app:
+The Item Details screen includes:
 
-1. Define the module interface in `src/types/index.ts`
-2. Create components in `src/components/`
-3. Create a screen in the `app/` directory
-4. Add the module to the modules list in `app/modules.tsx`
+- Editable fields for GTIN, SKU, name, price, and description
+- Category selection via dropdown
+- Tax location toggles
+- CRV modifier options
+- Image upload capability (placeholder)
+- Cancel and Print buttons
+- Save functionality via the green check button
 
 ## Contributing
 
@@ -97,4 +105,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
+This project is licensed under the MIT License - see the LICENSE file for details.
