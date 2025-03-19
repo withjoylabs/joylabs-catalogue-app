@@ -1,13 +1,18 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import { Ionicons as IoniconsType } from '@expo/vector-icons/build/Icons';
 import { lightTheme } from '../src/themes';
 import BottomTabBar from '../src/components/BottomTabBar';
 import ProfileTopTabs from '../src/components/ProfileTopTabs';
+import ConnectionStatusBar from '../src/components/ConnectionStatusBar';
+import { useCategories } from '../src/hooks';
+import { Category } from '../src/store';
 
 type SectionType = 'profile' | 'settings' | 'categories';
+type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -15,6 +20,13 @@ export default function ProfileScreen() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [darkModeEnabled, setDarkModeEnabled] = useState(false);
   const [scanSoundEnabled, setScanSoundEnabled] = useState(true);
+  const { 
+    categories, 
+    isCategoriesLoading, 
+    categoryError, 
+    connected, 
+    fetchCategories 
+  } = useCategories();
   
   // Dummy user data
   const user = {
@@ -22,6 +34,43 @@ export default function ProfileScreen() {
     email: 'john.doe@example.com',
     role: 'Store Manager',
     joinDate: 'January 2024',
+  };
+
+  // Fetch categories when the categories tab is selected
+  useEffect(() => {
+    if (activeSection === 'categories') {
+      fetchCategories();
+    }
+  }, [activeSection]);
+
+  // Get appropriate icon for a category based on its name
+  const getCategoryIcon = (categoryName: string): IoniconsName => {
+    const name = categoryName.toLowerCase();
+    if (name.includes('food') || name.includes('beverage') || name.includes('drink')) {
+      return 'fast-food-outline';
+    } else if (name.includes('clothing') || name.includes('apparel') || name.includes('wear')) {
+      return 'shirt-outline';
+    } else if (name.includes('home') || name.includes('kitchen') || name.includes('house')) {
+      return 'home-outline';
+    } else if (name.includes('sport') || name.includes('outdoor') || name.includes('fitness')) {
+      return 'fitness-outline';
+    } else if (name.includes('electronic') || name.includes('tech') || name.includes('digital')) {
+      return 'desktop-outline';
+    } else if (name.includes('beauty') || name.includes('health') || name.includes('personal')) {
+      return 'medical-outline';
+    } else if (name.includes('toy') || name.includes('game') || name.includes('play')) {
+      return 'game-controller-outline';
+    } else {
+      return 'pricetag-outline'; // Default icon
+    }
+  };
+  
+  // Function to handle adding a new category
+  const handleAddCategory = () => {
+    // In a real app, this would open a modal or navigate to a new screen
+    console.log('Add category clicked');
+    // Example implementation:
+    // router.push('/category/new');
   };
   
   const renderSection = () => {
@@ -184,50 +233,55 @@ export default function ProfileScreen() {
       case 'categories':
         return (
           <View style={styles.sectionContent}>
-            <View style={styles.categoryItem}>
-              <View style={styles.categoryHeader}>
-                <Ionicons name="fast-food-outline" size={24} color="#666" />
-                <Text style={styles.categoryTitle}>Food & Beverages</Text>
-              </View>
-              <Text style={styles.categoryCount}>128 items</Text>
-            </View>
+            <ConnectionStatusBar 
+              connected={connected} 
+              serviceName="Square" 
+            />
             
-            <View style={styles.categoryItem}>
-              <View style={styles.categoryHeader}>
-                <Ionicons name="shirt-outline" size={24} color="#666" />
-                <Text style={styles.categoryTitle}>Clothing & Accessories</Text>
+            {isCategoriesLoading ? (
+              <View style={styles.loadingContainer}>
+                <Text style={styles.loadingText}>Loading categories...</Text>
               </View>
-              <Text style={styles.categoryCount}>95 items</Text>
-            </View>
-            
-            <View style={styles.categoryItem}>
-              <View style={styles.categoryHeader}>
-                <Ionicons name="home-outline" size={24} color="#666" />
-                <Text style={styles.categoryTitle}>Home & Kitchen</Text>
+            ) : categoryError ? (
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>Error loading categories: {categoryError}</Text>
+                <TouchableOpacity style={styles.retryButton} onPress={fetchCategories}>
+                  <Text style={styles.retryButtonText}>Retry</Text>
+                </TouchableOpacity>
               </View>
-              <Text style={styles.categoryCount}>74 items</Text>
-            </View>
-            
-            <View style={styles.categoryItem}>
-              <View style={styles.categoryHeader}>
-                <Ionicons name="fitness-outline" size={24} color="#666" />
-                <Text style={styles.categoryTitle}>Sports & Outdoors</Text>
-              </View>
-              <Text style={styles.categoryCount}>63 items</Text>
-            </View>
-            
-            <View style={styles.categoryItem}>
-              <View style={styles.categoryHeader}>
-                <Ionicons name="desktop-outline" size={24} color="#666" />
-                <Text style={styles.categoryTitle}>Electronics</Text>
-              </View>
-              <Text style={styles.categoryCount}>52 items</Text>
-            </View>
-            
-            <TouchableOpacity style={styles.addButton}>
-              <Ionicons name="add-circle-outline" size={20} color="#fff" style={{marginRight: 8}} />
-              <Text style={styles.addButtonText}>Add New Category</Text>
-            </TouchableOpacity>
+            ) : (
+              <>
+                {categories.length === 0 ? (
+                  <View style={styles.emptyContainer}>
+                    <Ionicons name="grid-outline" size={48} color="#ddd" />
+                    <Text style={styles.emptyText}>No categories found</Text>
+                    <Text style={styles.emptySubText}>
+                      Connect to Square API to sync your categories
+                    </Text>
+                  </View>
+                ) : (
+                  categories.map((category) => (
+                    <View key={category.id} style={styles.categoryItem}>
+                      <View style={styles.categoryHeader}>
+                        <Ionicons name={getCategoryIcon(category.name)} size={24} color="#666" />
+                        <View style={styles.categoryDetails}>
+                          <Text style={styles.categoryTitle}>{category.name}</Text>
+                          <Text style={styles.categoryId}>ID: {category.id}</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.categoryCount}>
+                        {(category as any).itemCount || 0} items
+                      </Text>
+                    </View>
+                  ))
+                )}
+                
+                <TouchableOpacity style={styles.addButton} onPress={handleAddCategory}>
+                  <Ionicons name="add-circle-outline" size={20} color="#fff" style={{marginRight: 8}} />
+                  <Text style={styles.addButtonText}>Add New Category</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         );
     }
@@ -484,5 +538,64 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    color: '#666',
+    fontSize: 16,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    color: '#FF3B30',
+    fontSize: 16,
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  retryButton: {
+    backgroundColor: lightTheme.colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  emptyContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  emptyText: {
+    color: '#666',
+    fontSize: 18,
+    marginTop: 16,
+    marginBottom: 8,
+    fontWeight: '500',
+  },
+  emptySubText: {
+    color: '#999',
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  categoryDetails: {
+    flexDirection: 'column',
+    marginLeft: 16,
+  },
+  categoryId: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 2,
   },
 }); 

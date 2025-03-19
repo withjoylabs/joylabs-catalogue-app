@@ -17,18 +17,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { CatalogueItem } from '../../src/types';
 import DropDownPicker from 'react-native-dropdown-picker';
-
-// Sample categories for dropdown
-const CATEGORIES = [
-  { label: 'Beverages', value: 'Beverages' },
-  { label: 'Snacks', value: 'Snacks' },
-  { label: 'Groceries', value: 'Groceries' },
-  { label: 'Household', value: 'Household' },
-  { label: 'Drinks', value: 'Drinks' },
-  { label: 'Electronics', value: 'Electronics' },
-  { label: 'Health & Beauty', value: 'Health & Beauty' },
-  { label: 'Office Supplies', value: 'Office Supplies' },
-];
+import { useCategories } from '../../src/hooks';
 
 // Mock item for testing
 const EMPTY_ITEM: CatalogueItem = {
@@ -50,6 +39,7 @@ export default function ItemDetails() {
   const priceInputRef = useRef<TextInput>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const descriptionRef = useRef<TextInput>(null);
+  const { dropdownItems, isCategoriesLoading } = useCategories();
   
   // State for form fields
   const [item, setItem] = useState<CatalogueItem>(EMPTY_ITEM);
@@ -366,7 +356,7 @@ export default function ItemDetails() {
                 <DropDownPicker
                   open={open}
                   value={item.reporting_category || ''}
-                  items={CATEGORIES}
+                  items={dropdownItems}
                   setOpen={setOpen}
                   setValue={(val) => {
                     // Handle both function and direct value
