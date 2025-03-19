@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -9,7 +9,8 @@ import {
   Image, 
   Alert, 
   Switch,
-  Platform
+  Platform,
+  Keyboard
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -36,7 +37,7 @@ const EMPTY_ITEM: CatalogueItem = {
   gtin: '',
   sku: '',
   reporting_category: '',
-  price: 0,
+  price: null,
   tax: false,
   crv: false,
   description: ''
@@ -46,12 +47,16 @@ export default function ItemDetails() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
   const isNewItem = id === 'new';
+  const priceInputRef = useRef<TextInput>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const descriptionRef = useRef<TextInput>(null);
   
   // State for form fields
   const [item, setItem] = useState<CatalogueItem>(EMPTY_ITEM);
   const [hasChanges, setHasChanges] = useState(false);
   const [open, setOpen] = useState(false); // For dropdown
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [priceText, setPriceText] = useState<string>('');
   
   // Tax states
   const [toggleAllTaxes, setToggleAllTaxes] = useState(false);
@@ -80,6 +85,9 @@ export default function ItemDetails() {
       };
       
       setItem(mockItem);
+      if (mockItem.price) {
+        setPriceText(mockItem.price.toFixed(2));
+      }
       
       // Set corresponding tax states
       setToggleAllTaxes(mockItem.tax === true);
@@ -94,6 +102,26 @@ export default function ItemDetails() {
       }
     }
   }, [id, isNewItem]);
+  
+  // Listen for save events from the bottom tab bar
+  useEffect(() => {
+    const handleSaveEvent = () => {
+      handleSave();
+    };
+    
+    // For React Native we need a different approach since document is not available
+    // This is a simplified example - in a real app, you'd use a state management 
+    // library or context to communicate between components
+    if (Platform.OS === 'web') {
+      document.addEventListener('item:save', handleSaveEvent);
+      return () => {
+        document.removeEventListener('item:save', handleSaveEvent);
+      };
+    }
+    
+    // For native, we'll rely on the direct save button press
+    return () => {};
+  }, []);
   
   // Handlers for updating form values
   const updateItem = (key: keyof CatalogueItem, value: any) => {
@@ -147,6 +175,36 @@ export default function ItemDetails() {
     router.back();
   };
   
+  // Simplified price input handling
+  const handlePriceChange = (value: string) => {
+    setPriceText(value);
+    const numericValue = parseFloat(value);
+    if (!isNaN(numericValue)) {
+      updateItem('price', numericValue);
+    } else {
+      updateItem('price', null);
+    }
+  };
+  
+  // Handle description field focus to scroll view
+  const handleDescriptionFocus = () => {
+    // Close dropdown if open
+    setOpen(false);
+    
+    // Scroll to the description area with better positioning
+    setTimeout(() => {
+      if (scrollViewRef.current) {
+        // Scroll down somewhat but not too far
+        scrollViewRef.current.scrollTo({ y: 350, animated: true });
+      }
+    }, 300);
+  };
+  
+  // Handle general input focus (for closing dropdown)
+  const handleInputFocus = () => {
+    setOpen(false);
+  };
+  
   // Check if all fields are empty to determine if confirmation is needed
   const isEmpty = (item: CatalogueItem): boolean => {
     return (
@@ -164,8 +222,8 @@ export default function ItemDetails() {
   // Format price for display
   const formattedPrice = item.price ? `$${item.price.toFixed(2)}` : '$0.00';
   
-  // Determine what modifiers to show
-  const showTax = item.tax;
+  // Updated logic: show tax if any tax option is selected
+  const showTax = southBayTax || torranceTax;
   const showCrv = item.crv !== false;
   const crvText = typeof item.crv === 'number' ? `+CRV${item.crv}` : '';
   
@@ -184,7 +242,8 @@ export default function ItemDetails() {
         </TouchableOpacity>
       </View>
       
-      <ScrollView style={styles.scrollView}>
+      {/* Use View instead of ScrollView for outer container */}
+      <View style={styles.contentContainer}>
         {/* Preview section */}
         <View style={styles.previewContainer}>
           <View style={styles.previewInfo}>
@@ -207,155 +266,189 @@ export default function ItemDetails() {
           </TouchableOpacity>
         </View>
         
-        {/* Form section */}
-        <View style={styles.formContainer}>
-          {/* GTIN / SKU row */}
-          <View style={styles.formRow}>
-            <View style={styles.formColumn}>
-              <Text style={styles.label}>GTIN</Text>
-              <TextInput
-                style={styles.input}
-                value={item.gtin}
-                onChangeText={(value) => updateItem('gtin', value)}
-                placeholder="Enter GTIN"
-                keyboardType="numeric"
-              />
-            </View>
-            
-            <View style={styles.formColumn}>
-              <Text style={styles.label}>SKU</Text>
-              <TextInput
-                style={styles.input}
-                value={item.sku}
-                onChangeText={(value) => updateItem('sku', value)}
-                placeholder="Enter SKU"
-              />
-            </View>
-          </View>
-          
-          {/* Item Name */}
-          <Text style={styles.label}>Item Name</Text>
-          <TextInput
-            style={styles.input}
-            value={item.name}
-            onChangeText={(value) => updateItem('name', value)}
-            placeholder="Enter item name"
-          />
-          
-          {/* Price / Category row */}
-          <View style={styles.formRow}>
-            <View style={styles.formColumn}>
-              <Text style={styles.label}>Selling Price</Text>
-              <View style={styles.priceInputContainer}>
-                <Text style={styles.dollarSign}>$</Text>
+        {/* Scrollable container for form */}
+        <ScrollView 
+          ref={scrollViewRef}
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollViewContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Form section */}
+          <View style={styles.formContainer}>
+            {/* GTIN / SKU row */}
+            <View style={styles.formRow}>
+              <View style={styles.formColumn}>
+                <Text style={styles.label}>GTIN</Text>
                 <TextInput
-                  style={styles.priceInput}
-                  value={item.price ? item.price.toString() : ''}
-                  onChangeText={(value) => {
-                    const numericValue = parseFloat(value);
-                    updateItem('price', isNaN(numericValue) ? 0 : numericValue);
-                  }}
-                  placeholder="0.00"
-                  keyboardType="decimal-pad"
+                  style={styles.input}
+                  value={item.gtin}
+                  onChangeText={(value) => updateItem('gtin', value)}
+                  onFocus={handleInputFocus}
+                  placeholder="Enter GTIN"
+                  keyboardType="numeric"
+                />
+              </View>
+              
+              <View style={styles.formColumn}>
+                <Text style={styles.label}>SKU</Text>
+                <TextInput
+                  style={styles.input}
+                  value={item.sku}
+                  onChangeText={(value) => updateItem('sku', value)}
+                  onFocus={handleInputFocus}
+                  placeholder="Enter SKU"
                 />
               </View>
             </View>
             
-            <View style={styles.formColumn}>
-              <Text style={styles.label}>Category</Text>
-              <DropDownPicker
-                open={open}
-                value={item.reporting_category || ''}
-                items={CATEGORIES}
-                setOpen={setOpen}
-                setValue={(val) => updateItem('reporting_category', val)}
-                style={styles.dropdown}
-                dropDownContainerStyle={styles.dropdownContainer}
-                placeholderStyle={styles.dropdownPlaceholder}
-                placeholder="Select category"
-                zIndex={1000}
-              />
+            {/* Item Name */}
+            <Text style={styles.label}>Item Name</Text>
+            <TextInput
+              style={[styles.input, styles.marginBottom16]}
+              value={item.name}
+              onChangeText={(value) => updateItem('name', value)}
+              onFocus={handleInputFocus}
+              placeholder="Enter item name"
+            />
+            
+            {/* Price / Category row */}
+            <View style={styles.formRow}>
+              <View style={styles.formColumn}>
+                <Text style={styles.label}>Selling Price</Text>
+                <View style={styles.priceInputContainer}>
+                  <Text style={styles.dollarSign}>$</Text>
+                  <TextInput
+                    ref={priceInputRef}
+                    style={styles.priceInput}
+                    value={priceText}
+                    onChangeText={handlePriceChange}
+                    placeholder="0.00"
+                    keyboardType="decimal-pad"
+                    textAlign="right"
+                  />
+                </View>
+              </View>
+              
+              <View style={styles.formColumn}>
+                <Text style={styles.label}>Category</Text>
+                <DropDownPicker
+                  open={open}
+                  value={item.reporting_category || ''}
+                  items={CATEGORIES}
+                  setOpen={setOpen}
+                  setValue={(val) => {
+                    // Handle both function and direct value
+                    if (typeof val === 'function') {
+                      const newVal = val(item.reporting_category || '');
+                      updateItem('reporting_category', newVal);
+                    } else {
+                      updateItem('reporting_category', val);
+                    }
+                  }}
+                  style={styles.dropdown}
+                  dropDownContainerStyle={styles.dropdownContainer}
+                  placeholderStyle={styles.dropdownPlaceholder}
+                  placeholder="Select category"
+                  zIndex={1000}
+                  listMode="SCROLLVIEW"
+                />
+              </View>
             </View>
-          </View>
-          
-          {/* Taxes & Modifiers section */}
-          <View style={styles.formRow}>
-            <View style={styles.formColumn}>
-              <Text style={styles.label}>Taxes</Text>
-              <View style={styles.checkboxContainer}>
-                <View style={styles.checkboxRow}>
-                  <TouchableOpacity
-                    style={styles.checkbox}
-                    onPress={() => handleToggleAllTaxes(!toggleAllTaxes)}
-                  >
-                    {toggleAllTaxes && <Ionicons name="checkmark" size={20} color="#000" />}
-                  </TouchableOpacity>
-                  <Text style={styles.checkboxLabel}>Toggle All</Text>
+            
+            {/* Taxes & Modifiers section */}
+            <View style={styles.formRow}>
+              <View style={styles.formColumn}>
+                <Text style={styles.label}>Taxes</Text>
+                <View style={styles.checkboxContainer}>
+                  <View style={styles.checkboxRow}>
+                    <TouchableOpacity
+                      style={styles.checkbox}
+                      onPress={() => handleToggleAllTaxes(!toggleAllTaxes)}
+                    >
+                      {toggleAllTaxes && <Ionicons name="checkmark" size={20} color="#000" />}
+                    </TouchableOpacity>
+                    <Text style={styles.checkboxLabel}>Toggle All</Text>
+                  </View>
+                  
+                  <View style={styles.checkboxRow}>
+                    <TouchableOpacity
+                      style={styles.checkbox}
+                      onPress={() => {
+                        const newValue = !southBayTax;
+                        setSouthBayTax(newValue);
+                        // Update the main tax flag if any tax is selected
+                        updateItem('tax', newValue || torranceTax);
+                      }}
+                    >
+                      {southBayTax && <Ionicons name="checkmark" size={20} color="#000" />}
+                    </TouchableOpacity>
+                    <Text style={styles.checkboxLabel}>SOUTH BAY (9.5%)</Text>
+                  </View>
+                  
+                  <View style={styles.checkboxRow}>
+                    <TouchableOpacity
+                      style={styles.checkbox}
+                      onPress={() => {
+                        const newValue = !torranceTax;
+                        setTorranceTax(newValue);
+                        // Update the main tax flag if any tax is selected
+                        updateItem('tax', southBayTax || newValue);
+                      }}
+                    >
+                      {torranceTax && <Ionicons name="checkmark" size={20} color="#000" />}
+                    </TouchableOpacity>
+                    <Text style={styles.checkboxLabel}>TORRANCE (10%)</Text>
+                  </View>
                 </View>
-                
-                <View style={styles.checkboxRow}>
-                  <TouchableOpacity
-                    style={styles.checkbox}
-                    onPress={() => setSouthBayTax(!southBayTax)}
-                  >
-                    {southBayTax && <Ionicons name="checkmark" size={20} color="#000" />}
-                  </TouchableOpacity>
-                  <Text style={styles.checkboxLabel}>SOUTH BAY (9.5%)</Text>
-                </View>
-                
-                <View style={styles.checkboxRow}>
-                  <TouchableOpacity
-                    style={styles.checkbox}
-                    onPress={() => setTorranceTax(!torranceTax)}
-                  >
-                    {torranceTax && <Ionicons name="checkmark" size={20} color="#000" />}
-                  </TouchableOpacity>
-                  <Text style={styles.checkboxLabel}>TORRANCE (10%)</Text>
+              </View>
+              
+              <View style={styles.formColumn}>
+                <Text style={styles.label}>Modifiers</Text>
+                <View style={styles.checkboxContainer}>
+                  <View style={styles.checkboxRow}>
+                    <TouchableOpacity
+                      style={styles.checkbox}
+                      onPress={() => handleCrv('crv5', !crv5)}
+                    >
+                      {crv5 && <Ionicons name="checkmark" size={20} color="#000" />}
+                    </TouchableOpacity>
+                    <Text style={styles.checkboxLabel}>CRV5</Text>
+                  </View>
+                  
+                  <View style={styles.checkboxRow}>
+                    <TouchableOpacity
+                      style={styles.checkbox}
+                      onPress={() => handleCrv('crv10', !crv10)}
+                    >
+                      {crv10 && <Ionicons name="checkmark" size={20} color="#000" />}
+                    </TouchableOpacity>
+                    <Text style={styles.checkboxLabel}>CRV10</Text>
+                  </View>
                 </View>
               </View>
             </View>
             
-            <View style={styles.formColumn}>
-              <Text style={styles.label}>Modifiers</Text>
-              <View style={styles.checkboxContainer}>
-                <View style={styles.checkboxRow}>
-                  <TouchableOpacity
-                    style={styles.checkbox}
-                    onPress={() => handleCrv('crv5', !crv5)}
-                  >
-                    {crv5 && <Ionicons name="checkmark" size={20} color="#000" />}
-                  </TouchableOpacity>
-                  <Text style={styles.checkboxLabel}>CRV5</Text>
-                </View>
-                
-                <View style={styles.checkboxRow}>
-                  <TouchableOpacity
-                    style={styles.checkbox}
-                    onPress={() => handleCrv('crv10', !crv10)}
-                  >
-                    {crv10 && <Ionicons name="checkmark" size={20} color="#000" />}
-                  </TouchableOpacity>
-                  <Text style={styles.checkboxLabel}>CRV10</Text>
-                </View>
-              </View>
-            </View>
+            {/* Description */}
+            <Text style={styles.label} id="description-label">Description</Text>
+            <TextInput
+              ref={descriptionRef}
+              style={[styles.input, styles.multilineInput]}
+              value={item.description}
+              onChangeText={(value) => updateItem('description', value)}
+              onFocus={handleDescriptionFocus}
+              placeholder="Enter item description"
+              multiline
+              numberOfLines={4}
+            />
+            
+            {/* Add extra padding at the bottom to account for the tab bar and floating buttons */}
+            <View style={styles.bottomPadding} />
           </View>
-          
-          {/* Description */}
-          <Text style={styles.label}>Description</Text>
-          <TextInput
-            style={[styles.input, styles.multilineInput]}
-            value={item.description}
-            onChangeText={(value) => updateItem('description', value)}
-            placeholder="Enter item description"
-            multiline
-            numberOfLines={4}
-          />
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </View>
       
-      {/* Action Buttons */}
-      <View style={styles.actionButtonsContainer}>
+      {/* Floating Action Buttons Container */}
+      <View style={styles.floatingButtonsContainer}>
         <TouchableOpacity 
           style={[styles.actionButton, styles.cancelButton]}
           onPress={handleCancel}
@@ -374,14 +467,6 @@ export default function ItemDetails() {
           <Text style={styles.actionButtonText}>Print</Text>
         </TouchableOpacity>
       </View>
-      
-      {/* Save floating button */}
-      <TouchableOpacity 
-        style={styles.saveButton}
-        onPress={handleSave}
-      >
-        <Ionicons name="checkmark" size={40} color="#fff" />
-      </TouchableOpacity>
     </View>
   );
 }
@@ -390,6 +475,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
+  },
+  contentContainer: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',
@@ -417,6 +505,9 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  scrollViewContent: {
+    paddingBottom: 200, // Extra padding to ensure content is visible above bottom tab and floating buttons
   },
   previewContainer: {
     flexDirection: 'row',
@@ -446,7 +537,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   previewTag: {
-    fontSize: 16,
+    fontSize: 12, // Smaller tag text
     color: '#666',
   },
   imageContainer: {
@@ -493,11 +584,14 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
+  },
+  marginBottom16: {
     marginBottom: 16,
   },
   multilineInput: {
     minHeight: 120,
     textAlignVertical: 'top',
+    marginBottom: 16,
   },
   priceInputContainer: {
     flexDirection: 'row',
@@ -550,11 +644,21 @@ const styles = StyleSheet.create({
   checkboxLabel: {
     fontSize: 16,
   },
-  actionButtonsContainer: {
+  floatingButtonsContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     borderTopWidth: 1,
     borderTopColor: '#eee',
-    marginBottom: 80,
+    backgroundColor: '#fff',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    zIndex: 1000,
   },
   actionButton: {
     flex: 1,
@@ -575,22 +679,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginLeft: 8,
   },
-  saveButton: {
-    position: 'absolute',
-    bottom: 100,
-    right: '50%',
-    marginRight: -30,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#4cd964',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-    zIndex: 999,
-  },
+  bottomPadding: {
+    height: 100, // Extra padding to ensure content is visible above floating buttons and tab bar
+  }
 }); 

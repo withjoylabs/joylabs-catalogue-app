@@ -68,7 +68,7 @@ export default function RootLayout() {
               headerShown: false,
               animation: 'slide_from_right',
               presentation: 'card',
-              // Full screen modal on iOS for this screen
+              // Full screen gesture on iOS for this screen
               ...(Platform.OS === 'ios' && {
                 fullScreenGestureEnabled: true,
               }),
@@ -79,8 +79,8 @@ export default function RootLayout() {
             options={{
               title: 'Item Details',
               headerShown: false,
-              animation: 'slide_from_bottom',
-              presentation: 'transparentModal',
+              animation: 'slide_from_right',
+              presentation: 'card',
             }}
           />
         </Stack>

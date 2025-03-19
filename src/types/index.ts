@@ -46,7 +46,7 @@ export interface CatalogueItem {
   gtin?: string; // Global Trade Item Number
   sku?: string;
   reporting_category?: string; // Category field for Square API integration
-  price: number;
+  price: number | null;
   tax?: boolean;
   crv?: boolean | number; // Container Recycling Value
   timestamp?: string;

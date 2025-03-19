@@ -1,158 +1,150 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { useRouter, usePathname } from 'expo-router';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter, usePathname } from 'expo-router';
 
-type TabBarProps = {
+type BottomTabBarProps = {
   activeTab: string;
 };
 
-export default function BottomTabBar({ activeTab }: TabBarProps) {
+export default function BottomTabBar({ activeTab }: BottomTabBarProps) {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const pathname = usePathname();
+  const isItemDetails = pathname.startsWith('/item/');
   
-  const isActive = (tabName: string) => {
-    return activeTab === tabName;
+  // Handle save action when on item details page
+  const handleSaveAction = () => {
+    if (isItemDetails) {
+      // This sends a message to the item details screen via global event
+      // This is a workaround since we can't directly call the handleSave function
+      // from another component
+      const event = new CustomEvent('item:save');
+      document.dispatchEvent(event);
+    } else {
+      router.push('/item/new');
+    }
   };
-
+  
   return (
-    <View style={[styles.container, { paddingBottom: insets.bottom > 0 ? insets.bottom : 10 }]}>
-      <View style={styles.tabBar}>
+    <View style={styles.container}>
+      <TouchableOpacity 
+        style={styles.tabButton} 
+        onPress={() => router.push('/')}
+      >
+        <Ionicons 
+          name={activeTab === 'scan' ? 'barcode' : 'barcode-outline'} 
+          size={24} 
+          color={activeTab === 'scan' ? '#007AFF' : '#8E8E93'} 
+        />
+        <Text style={[styles.tabLabel, activeTab === 'scan' && styles.activeTabLabel]}>
+          Scan
+        </Text>
+      </TouchableOpacity>
+      
+      <TouchableOpacity 
+        style={styles.tabButton} 
+        onPress={() => router.push('/search')}
+      >
+        <Ionicons 
+          name="search" 
+          size={24} 
+          color="#8E8E93" 
+        />
+        <Text style={styles.tabLabel}>Search</Text>
+      </TouchableOpacity>
+      
+      {/* Floating action button - changes to a save button on item details screen */}
+      <View style={styles.fabContainer}>
         <TouchableOpacity 
-          style={styles.tabItem} 
-          onPress={() => router.push('/')}
+          style={[
+            styles.fabButton,
+            isItemDetails && styles.saveButton
+          ]} 
+          onPress={handleSaveAction}
         >
           <Ionicons 
-            name="barcode-outline" 
-            size={24} 
-            color={isActive('scan') ? "#0D6EFD" : "#888"} 
+            name={isItemDetails ? "checkmark" : "add"} 
+            size={28} 
+            color="#fff" 
           />
-          <Text 
-            style={[
-              styles.tabLabel,
-              isActive('scan') && { color: '#0D6EFD' }
-            ]}
-          >
-            Scan
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.tabItem}
-          onPress={() => router.push('/')}
-        >
-          <Ionicons 
-            name="search-outline" 
-            size={24} 
-            color={isActive('search') ? "#0D6EFD" : "#888"} 
-          />
-          <Text 
-            style={[
-              styles.tabLabel,
-              isActive('search') && { color: '#0D6EFD' }
-            ]}
-          >
-            Search
-          </Text>
-        </TouchableOpacity>
-        
-        <View style={styles.fabContainer}>
-          <TouchableOpacity 
-            style={styles.fab}
-            onPress={() => router.push('/item/new')}
-          >
-            <Ionicons name="add" size={28} color="#fff" />
-          </TouchableOpacity>
-        </View>
-        
-        <TouchableOpacity 
-          style={styles.tabItem}
-          onPress={() => router.push('/')}
-        >
-          <Ionicons 
-            name="grid-outline" 
-            size={24} 
-            color={isActive('categories') ? "#0D6EFD" : "#888"} 
-          />
-          <Text 
-            style={[
-              styles.tabLabel,
-              isActive('categories') && { color: '#0D6EFD' }
-            ]}
-          >
-            Categories
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.tabItem} 
-          onPress={() => router.push('/profile')}
-        >
-          <Ionicons 
-            name="person-outline" 
-            size={24} 
-            color={isActive('profile') ? "#0D6EFD" : "#888"} 
-          />
-          <Text 
-            style={[
-              styles.tabLabel,
-              isActive('profile') && { color: '#0D6EFD' }
-            ]}
-          >
-            Profile
-          </Text>
         </TouchableOpacity>
       </View>
+      
+      <TouchableOpacity 
+        style={styles.tabButton} 
+        onPress={() => router.push('/categories')}
+      >
+        <Ionicons 
+          name="grid" 
+          size={24} 
+          color="#8E8E93" 
+        />
+        <Text style={styles.tabLabel}>Categories</Text>
+      </TouchableOpacity>
+      
+      <TouchableOpacity 
+        style={styles.tabButton} 
+        onPress={() => router.push('/profile')}
+      >
+        <Ionicons 
+          name={activeTab === 'profile' ? 'person' : 'person-outline'} 
+          size={24} 
+          color={activeTab === 'profile' ? '#007AFF' : '#8E8E93'} 
+        />
+        <Text style={[styles.tabLabel, activeTab === 'profile' && styles.activeTabLabel]}>
+          Profile
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    width: '100%',
-    position: 'absolute',
-    bottom: 0,
-    backgroundColor: '#fff',
-  },
-  tabBar: {
     flexDirection: 'row',
-    borderTopWidth: 1,
-    borderTopColor: '#e1e1e1',
-    paddingTop: 8,
-    backgroundColor: '#fff',
-    height: 70,
-    position: 'relative',
-  },
-  tabItem: {
-    flex: 1,
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 4,
+    paddingBottom: Platform.OS === 'ios' ? 20 : 0,
+    paddingHorizontal: 10,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    height: Platform.OS === 'ios' ? 80 : 60,
   },
-  tabLabel: {
-    fontSize: 12,
-    marginTop: 4,
-    color: '#888',
+  tabButton: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 8,
   },
   fabContainer: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-  },
-  fab: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#0D6EFD',
     justifyContent: 'center',
     alignItems: 'center',
-    position: 'absolute',
-    top: -30,
+  },
+  fabButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#007AFF',
+    justifyContent: 'center',
+    alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+    marginBottom: 10,
+  },
+  saveButton: {
+    backgroundColor: '#4CD964', // Green color for save button
+  },
+  tabLabel: {
+    fontSize: 12,
+    marginTop: 2,
+    color: '#8E8E93',
+  },
+  activeTabLabel: {
+    color: '#007AFF',
   },
 }); 
