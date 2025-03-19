@@ -175,15 +175,38 @@ export default function ItemDetails() {
     router.back();
   };
   
-  // Simplified price input handling
+  // Advanced price input handling for cents-based entry
   const handlePriceChange = (value: string) => {
-    setPriceText(value);
-    const numericValue = parseFloat(value);
-    if (!isNaN(numericValue)) {
-      updateItem('price', numericValue);
-    } else {
+    // Remove any non-digit characters
+    const digitsOnly = value.replace(/\D/g, '');
+    
+    // If empty after removing non-digits, clear the field
+    if (!digitsOnly) {
+      setPriceText('');
       updateItem('price', null);
+      return;
     }
+    
+    // Convert to a number (cents)
+    const cents = parseInt(digitsOnly, 10);
+    
+    // Convert to dollars (divide by 100) and format with 2 decimal places
+    const formattedPrice = (cents / 100).toFixed(2);
+    
+    setPriceText(formattedPrice);
+    updateItem('price', parseFloat(formattedPrice));
+  };
+  
+  // When price field is focused, select all text
+  const handlePriceFocus = () => {
+    // Allow a brief moment for the field to render before selecting text
+    setTimeout(() => {
+      if (priceInputRef.current) {
+        priceInputRef.current.setNativeProps({
+          selection: { start: 0, end: priceText.length }
+        });
+      }
+    }, 50);
   };
   
   // Handle description field focus to scroll view
@@ -322,9 +345,12 @@ export default function ItemDetails() {
                     style={styles.priceInput}
                     value={priceText}
                     onChangeText={handlePriceChange}
+                    onFocus={handlePriceFocus}
                     placeholder="0.00"
-                    keyboardType="decimal-pad"
+                    keyboardType="numeric"
                     textAlign="right"
+                    caretHidden={false}
+                    selectTextOnFocus={true}
                   />
                 </View>
               </View>
