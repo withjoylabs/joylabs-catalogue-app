@@ -328,8 +328,29 @@ export default function ItemDetails() {
     router.back();
   };
   
+  // Handle price input changes
+  const handlePriceChange = useCallback((value: string) => {
+    // Remove any non-numeric characters
+    const numericValue = value.replace(/[^0-9]/g, '');
+    
+    // Convert to dollars with 2 decimal places
+    const dollars = (parseInt(numericValue) / 100).toFixed(2);
+    setPriceText(dollars);
+    
+    // Update item state with numeric value
+    setItem(prev => ({
+      ...prev,
+      price: parseFloat(dollars)
+    }));
+  }, []);
+  
   // Format price for display
-  const formattedPrice = item.price ? `$${item.price.toFixed(2)}` : '$0.00';
+  const formattedPrice = useMemo(() => {
+    if (typeof item.price === 'number' && !isNaN(item.price)) {
+      return `$${item.price.toFixed(2)}`;
+    }
+    return '$0.00';
+  }, [item.price]);
   
   // Updated logic: show tax if any tax option is selected
   const showTax = southBayTax || torranceTax;
@@ -453,12 +474,12 @@ export default function ItemDetails() {
                       ref={priceInputRef}
                       style={styles.priceInput}
                       value={priceText}
-                      onChangeText={(value) => updateItem('price', value)}
+                      onChangeText={handlePriceChange}
                       placeholder="0.00"
-                      keyboardType="numeric"
+                      keyboardType="number-pad"
                       textAlign="right"
                       selectTextOnFocus={true}
-                      returnKeyType="next"
+                      returnKeyType="done"
                       enablesReturnKeyAutomatically={true}
                     />
                   </View>
