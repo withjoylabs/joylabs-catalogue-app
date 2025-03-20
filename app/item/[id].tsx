@@ -264,7 +264,7 @@ export default function ItemDetails() {
       };
       
       setItem(mockItem);
-      if (mockItem.price) {
+      if (typeof mockItem.price === 'number') {
         setPriceText(mockItem.price.toFixed(2));
       }
       
@@ -333,6 +333,15 @@ export default function ItemDetails() {
     // Remove any non-numeric characters
     const numericValue = value.replace(/[^0-9]/g, '');
     
+    if (!numericValue) {
+      setPriceText('');
+      setItem(prev => ({
+        ...prev,
+        price: null
+      }));
+      return;
+    }
+    
     // Convert to dollars with 2 decimal places
     const dollars = (parseInt(numericValue) / 100).toFixed(2);
     setPriceText(dollars);
@@ -344,12 +353,12 @@ export default function ItemDetails() {
     }));
   }, []);
   
-  // Format price for display
+  // Format price for display in preview
   const formattedPrice = useMemo(() => {
     if (typeof item.price === 'number' && !isNaN(item.price)) {
       return `$${item.price.toFixed(2)}`;
     }
-    return '$0.00';
+    return '';  // Return empty string for variable pricing
   }, [item.price]);
   
   // Updated logic: show tax if any tax option is selected
@@ -475,7 +484,7 @@ export default function ItemDetails() {
                       style={styles.priceInput}
                       value={priceText}
                       onChangeText={handlePriceChange}
-                      placeholder="0.00"
+                      placeholder="Variable"
                       keyboardType="number-pad"
                       textAlign="right"
                       selectTextOnFocus={true}
