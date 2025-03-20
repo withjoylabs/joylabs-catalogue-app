@@ -132,15 +132,18 @@ export default function ItemDetails() {
 
   // Handle category selection
   const handleCategorySelect = useCallback((categoryValue: string, categoryLabel: string) => {
-    Keyboard.dismiss();
-    setCategorySearch(categoryLabel);
-    setShowCategoryModal(false);
-    setIsCategoryFocused(false);
-    
-    setItem(prev => ({
-      ...prev,
-      reporting_category: categoryValue
-    }));
+    // Batch state updates in a single animation frame
+    requestAnimationFrame(() => {
+      Keyboard.dismiss();
+      setCategorySearch(categoryLabel);
+      setShowCategoryModal(false);
+      setIsCategoryFocused(false);
+      
+      setItem(prev => ({
+        ...prev,
+        reporting_category: categoryValue
+      }));
+    });
   }, []);
 
   // Handle category input changes
@@ -153,29 +156,40 @@ export default function ItemDetails() {
     );
     
     if (category) {
-      setItem(prev => ({
-        ...prev,
-        reporting_category: category.value
-      }));
+      // Batch state updates
+      requestAnimationFrame(() => {
+        setItem(prev => ({
+          ...prev,
+          reporting_category: category.value
+        }));
+      });
     }
   }, [dropdownItems]);
 
   // Handle keyboard dismiss
   const handleKeyboardDismiss = useCallback(() => {
+    // Only run if we're actually focused
+    if (!isCategoryFocused) return;
+    
     Keyboard.dismiss();
     setIsCategoryFocused(false);
     
-    // If there's no exact match, clear the input
-    if (!dropdownItems.some(item => 
+    // Batch state updates
+    const exactMatch = dropdownItems.find(item => 
       item.label.toLowerCase() === categorySearch.toLowerCase()
-    )) {
-      setCategorySearch('');
-      setItem(prev => ({
-        ...prev,
-        reporting_category: ''
-      }));
+    );
+    
+    if (!exactMatch) {
+      // Batch the state updates together
+      requestAnimationFrame(() => {
+        setCategorySearch('');
+        setItem(prev => ({
+          ...prev,
+          reporting_category: ''
+        }));
+      });
     }
-  }, [categorySearch, dropdownItems]);
+  }, [categorySearch, dropdownItems, isCategoryFocused]);
 
   // Handlers for updating form values
   const updateItem = (key: keyof CatalogueItem, value: any) => {
@@ -335,55 +349,57 @@ export default function ItemDetails() {
   };
 
   return (
-    <TouchableWithoutFeedback onPress={handleKeyboardDismiss}>
-      <View style={styles.container}>
-        <StatusBar style="auto" />
-        
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Item Details</Text>
-          <TouchableOpacity 
-            style={styles.deleteButton}
-            onPress={() => Alert.alert('Delete', 'Are you sure you want to delete this item?')}
-          >
-            <Text style={styles.deleteButtonText}>Delete</Text>
+    <View style={styles.container}>
+      <StatusBar style="auto" />
+      
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Item Details</Text>
+        <TouchableOpacity 
+          style={styles.deleteButton}
+          onPress={() => Alert.alert('Delete', 'Are you sure you want to delete this item?')}
+        >
+          <Text style={styles.deleteButtonText}>Delete</Text>
+        </TouchableOpacity>
+      </View>
+      
+      {/* Content Container */}
+      <View style={styles.contentContainer}>
+        {/* Preview section */}
+        <View style={styles.previewContainer}>
+          <View style={styles.previewInfo}>
+            <Text style={styles.previewName}>{item.name || 'Enter Item Name'}</Text>
+            <View style={styles.previewPriceContainer}>
+              <Text style={styles.previewPrice}>{formattedPrice}</Text>
+              <View style={styles.previewTags}>
+                {showTax && <Text style={styles.previewTag}>+TAX</Text>}
+                {showCrv && <Text style={styles.previewTag}>{crvText}</Text>}
+              </View>
+            </View>
+          </View>
+          
+          <TouchableOpacity style={styles.imageContainer}>
+            {/* Placeholder image area */}
+            <View style={styles.imagePlaceholder}>
+              <Ionicons name="image-outline" size={40} color="#888" />
+              <Text style={styles.imagePlaceholderText}>Tap to add image</Text>
+            </View>
           </TouchableOpacity>
         </View>
         
-        {/* Use View instead of ScrollView for outer container */}
-        <View style={styles.contentContainer}>
-          {/* Preview section */}
-          <View style={styles.previewContainer}>
-            <View style={styles.previewInfo}>
-              <Text style={styles.previewName}>{item.name || 'Enter Item Name'}</Text>
-              <View style={styles.previewPriceContainer}>
-                <Text style={styles.previewPrice}>{formattedPrice}</Text>
-                <View style={styles.previewTags}>
-                  {showTax && <Text style={styles.previewTag}>+TAX</Text>}
-                  {showCrv && <Text style={styles.previewTag}>{crvText}</Text>}
-                </View>
-              </View>
-            </View>
-            
-            <TouchableOpacity style={styles.imageContainer}>
-              {/* Placeholder image area */}
-              <View style={styles.imagePlaceholder}>
-                <Ionicons name="image-outline" size={40} color="#888" />
-                <Text style={styles.imagePlaceholderText}>Tap to add image</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-          
-          {/* Scrollable container for form */}
-          <ScrollView 
-            ref={scrollViewRef}
-            style={styles.scrollView}
-            contentContainerStyle={styles.scrollViewContent}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="interactive"
-            showsVerticalScrollIndicator={false}
-          >
-            {/* Form section */}
+        {/* Scrollable container for form */}
+        <ScrollView 
+          ref={scrollViewRef}
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollViewContent}
+          keyboardShouldPersistTaps="always"
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={true}
+          scrollEventThrottle={16}
+          onScrollBeginDrag={Keyboard.dismiss}
+        >
+          {/* Form section */}
+          <TouchableWithoutFeedback onPress={handleKeyboardDismiss}>
             <View style={styles.formContainer}>
               {/* GTIN / SKU row */}
               <View style={styles.formRow}>
@@ -616,79 +632,79 @@ export default function ItemDetails() {
               {/* Add extra padding at the bottom to account for the tab bar and floating buttons */}
               <View style={styles.bottomPadding} />
             </View>
-          </ScrollView>
-        </View>
-        
-        {/* Floating Action Buttons Container */}
-        <View style={styles.floatingButtonsContainer}>
-          <TouchableOpacity 
-            style={[styles.actionButton, styles.cancelButton]}
-            onPress={handleCancel}
-          >
-            <Ionicons name="close" size={24} color="#fff" />
-            <Text style={styles.actionButtonText}>
-              {showConfirmation ? 'Confirm?' : 'Cancel'}
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.actionButton, styles.printButton]}
-            onPress={() => console.log('Print functionality to be implemented')}
-          >
-            <Ionicons name="print" size={24} color="#fff" />
-            <Text style={styles.actionButtonText}>Print</Text>
-          </TouchableOpacity>
-        </View>
-        
-        {/* Completely rebuild the category modal */}
-        <Modal
-          visible={showCategoryModal}
-          transparent={true}
-          animationType="fade"
-          onRequestClose={() => setShowCategoryModal(false)}
-          statusBarTranslucent={true}
-        >
-          <TouchableWithoutFeedback onPress={() => setShowCategoryModal(false)}>
-            <View style={styles.categoryModalContainer}>
-              <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
-                <View style={styles.categoryModalContent}>
-                  {/* Modal Header */}
-                  <View style={styles.categoryModalHeader}>
-                    <Text style={styles.categoryModalTitle}>Select a Category</Text>
-                    <TouchableOpacity 
-                      onPress={() => setShowCategoryModal(false)}
-                      style={styles.categoryModalCloseButton}
-                      hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
-                    >
-                      <Ionicons name="close" size={24} color="#333" />
-                    </TouchableOpacity>
-                  </View>
-                  
-                  {/* Category List - implemented with ScrollView for better performance */}
-                  <ScrollView 
-                    style={styles.categoryModalListScroll}
-                    contentContainerStyle={styles.categoryModalListContainer}
-                    showsVerticalScrollIndicator={true}
-                    keyboardShouldPersistTaps="handled"
-                  >
-                    {dropdownItems.map((category) => (
-                      <TouchableOpacity
-                        key={category.value}
-                        style={styles.categoryModalItem}
-                        onPress={() => handleCategorySelect(category.value, category.label)}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={styles.categoryModalItemText}>{category.label}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
-              </TouchableWithoutFeedback>
-            </View>
           </TouchableWithoutFeedback>
-        </Modal>
+        </ScrollView>
       </View>
-    </TouchableWithoutFeedback>
+      
+      {/* Floating Action Buttons Container */}
+      <View style={styles.floatingButtonsContainer}>
+        <TouchableOpacity 
+          style={[styles.actionButton, styles.cancelButton]}
+          onPress={handleCancel}
+        >
+          <Ionicons name="close" size={24} color="#fff" />
+          <Text style={styles.actionButtonText}>
+            {showConfirmation ? 'Confirm?' : 'Cancel'}
+          </Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={[styles.actionButton, styles.printButton]}
+          onPress={() => console.log('Print functionality to be implemented')}
+        >
+          <Ionicons name="print" size={24} color="#fff" />
+          <Text style={styles.actionButtonText}>Print</Text>
+        </TouchableOpacity>
+      </View>
+      
+      {/* Completely rebuild the category modal */}
+      <Modal
+        visible={showCategoryModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowCategoryModal(false)}
+        statusBarTranslucent={true}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowCategoryModal(false)}>
+          <View style={styles.categoryModalContainer}>
+            <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
+              <View style={styles.categoryModalContent}>
+                {/* Modal Header */}
+                <View style={styles.categoryModalHeader}>
+                  <Text style={styles.categoryModalTitle}>Select a Category</Text>
+                  <TouchableOpacity 
+                    onPress={() => setShowCategoryModal(false)}
+                    style={styles.categoryModalCloseButton}
+                    hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                  >
+                    <Ionicons name="close" size={24} color="#333" />
+                  </TouchableOpacity>
+                </View>
+                
+                {/* Category List - implemented with ScrollView for better performance */}
+                <ScrollView 
+                  style={styles.categoryModalListScroll}
+                  contentContainerStyle={styles.categoryModalListContainer}
+                  showsVerticalScrollIndicator={true}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  {dropdownItems.map((category) => (
+                    <TouchableOpacity
+                      key={category.value}
+                      style={styles.categoryModalItem}
+                      onPress={() => handleCategorySelect(category.value, category.label)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.categoryModalItemText}>{category.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+    </View>
   );
 }
 
@@ -699,6 +715,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     flex: 1,
+    backgroundColor: '#fff',
   },
   header: {
     flexDirection: 'row',
@@ -726,6 +743,7 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+    backgroundColor: '#fff',
   },
   scrollViewContent: {
     paddingBottom: 200, // Extra padding to ensure content is visible above bottom tab and floating buttons
