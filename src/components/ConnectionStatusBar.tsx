@@ -3,17 +3,17 @@ import { View, Text, StyleSheet } from 'react-native';
 
 interface ConnectionStatusBarProps {
   connected: boolean;
-  serviceName: string;
+  message: string;
 }
 
 const ConnectionStatusBar: React.FC<ConnectionStatusBarProps> = ({
   connected,
-  serviceName
+  message
 }) => {
   return (
     <View style={styles.container}>
       <Text style={styles.statusText}>
-        Connected to {serviceName}
+        {message}
       </Text>
       <View style={[
         styles.statusIndicator, 

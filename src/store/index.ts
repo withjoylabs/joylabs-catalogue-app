@@ -49,6 +49,9 @@ interface AppState {
   sortBy: 'name' | 'price' | 'date' | 'category';
   sortOrder: 'asc' | 'desc';
   
+  // Connection state
+  isSquareConnected: boolean;
+  
   // Actions
   setProducts: (products: Product[]) => void;
   setSelectedProduct: (product: Product | null) => void;
@@ -63,6 +66,8 @@ interface AppState {
   setSearchQuery: (query: string) => void;
   setSortBy: (sortBy: 'name' | 'price' | 'date' | 'category') => void;
   setSortOrder: (sortOrder: 'asc' | 'desc') => void;
+  
+  setSquareConnected: (isSquareConnected: boolean) => void;
 }
 
 // Create store using zustand
@@ -84,6 +89,9 @@ export const useAppStore = create<AppState>((set: any) => ({
   sortBy: 'name',
   sortOrder: 'asc',
   
+  // Initial connection state
+  isSquareConnected: false,
+  
   // Products actions
   setProducts: (products: Product[]) => set({ products }),
   setSelectedProduct: (selectedProduct: Product | null) => set({ selectedProduct }),
@@ -100,4 +108,7 @@ export const useAppStore = create<AppState>((set: any) => ({
   setSearchQuery: (searchQuery: string) => set({ searchQuery }),
   setSortBy: (sortBy: 'name' | 'price' | 'date' | 'category') => set({ sortBy }),
   setSortOrder: (sortOrder: 'asc' | 'desc') => set({ sortOrder }),
+  
+  // Connection actions
+  setSquareConnected: (isSquareConnected: boolean) => set({ isSquareConnected }),
 }));

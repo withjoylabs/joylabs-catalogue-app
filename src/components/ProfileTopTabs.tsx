@@ -5,10 +5,10 @@ import { lightTheme } from '../themes';
 
 type ProfileTopTabsProps = {
   activeSection: string;
-  onTabChange: (section: string) => void;
+  onChangeSection: (section: string) => void;
 };
 
-export default function ProfileTopTabs({ activeSection, onTabChange }: ProfileTopTabsProps) {
+export default function ProfileTopTabs({ activeSection, onChangeSection }: ProfileTopTabsProps) {
   return (
     <View style={styles.tabBar}>
       <TouchableOpacity 
@@ -16,7 +16,7 @@ export default function ProfileTopTabs({ activeSection, onTabChange }: ProfileTo
           styles.tab, 
           activeSection === 'profile' && styles.activeTab
         ]}
-        onPress={() => onTabChange('profile')}
+        onPress={() => onChangeSection('profile')}
       >
         <Ionicons 
           name="person" 
@@ -38,7 +38,7 @@ export default function ProfileTopTabs({ activeSection, onTabChange }: ProfileTo
           styles.tab, 
           activeSection === 'settings' && styles.activeTab
         ]}
-        onPress={() => onTabChange('settings')}
+        onPress={() => onChangeSection('settings')}
       >
         <Ionicons 
           name="settings" 
@@ -60,7 +60,7 @@ export default function ProfileTopTabs({ activeSection, onTabChange }: ProfileTo
           styles.tab, 
           activeSection === 'categories' && styles.activeTab
         ]}
-        onPress={() => onTabChange('categories')}
+        onPress={() => onChangeSection('categories')}
       >
         <Ionicons 
           name="grid" 

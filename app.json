@@ -8,7 +8,6 @@
     "userInterfaceStyle": "light",
     "scheme": "joylabs",
     "splash": {
-      "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -16,20 +15,66 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.joylabs.app",
+      "associatedDomains": [
+        "applinks:gki8kva7e3.execute-api.us-west-1.amazonaws.com"
+      ],
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.joylabs.app",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "joylabs",
+              "host": "*",
+              "pathPrefix": "/square-callback"
+            },
+            {
+              "scheme": "https",
+              "host": "gki8kva7e3.execute-api.us-west-1.amazonaws.com",
+              "pathPrefix": "/production/api/auth/square/callback"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-secure-store"
     ],
-    "newArchEnabled": true
+    "newArchEnabled": true,
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/d450e380-5fce-48bf-acca-bb0b336fbd5b"
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "d450e380-5fce-48bf-acca-bb0b336fbd5b"
+      }
+    },
+    "owner": "snapmotive"
   }
 }

@@ -7,6 +7,7 @@ interface SearchBarProps {
   value: string;
   onChangeText: (text: string) => void;
   onSubmit?: () => void;
+  onClear?: () => void;
   placeholder?: string;
 }
 
@@ -14,6 +15,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
   value,
   onChangeText,
   onSubmit,
+  onClear,
   placeholder = 'Ready to Scan Item'
 }) => {
   return (
@@ -30,6 +32,11 @@ const SearchBar: React.FC<SearchBarProps> = ({
           returnKeyType="search"
           clearButtonMode="while-editing"
         />
+        {value.length > 0 && (
+          <TouchableOpacity onPress={onClear} style={styles.clearButton}>
+            <Ionicons name="close-circle" size={18} color="#aaa" />
+          </TouchableOpacity>
+        )}
       </View>
       
       <TouchableOpacity 
@@ -68,6 +75,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     height: 46,
     color: '#333',
+  },
+  clearButton: {
+    padding: 4,
   },
   goButton: {
     backgroundColor: lightTheme.colors.primary,

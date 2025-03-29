@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, FlatList, StyleSheet, SafeAreaView, StatusBar, Text, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import ConnectionStatusBar from '../src/components/ConnectionStatusBar';
@@ -7,6 +7,8 @@ import SortHeader from '../src/components/SortHeader';
 import CatalogueItemCard from '../src/components/CatalogueItemCard';
 import { ScanHistoryItem } from '../src/types';
 import { Ionicons } from '@expo/vector-icons';
+import { useApi } from '../src/providers/ApiProvider';
+import logger from '../src/utils/logger';
 
 // Mock data for the scan history
 const MOCK_SCAN_HISTORY: ScanHistoryItem[] = [
@@ -72,16 +74,26 @@ export default function HomeScreen() {
   const router = useRouter();
   const [search, setSearch] = useState('');
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'name' | 'price'>('newest');
-  const [connected, setConnected] = useState(true);
+  
+  // Use the API provider to get connection status instead of managing it here
+  const { isConnected } = useApi();
+  
+  // Log that we've loaded the home screen
+  useEffect(() => {
+    logger.info('Home', 'Home screen mounted');
+  }, []);
   
   const handleSearch = () => {
-    console.log('Searching for:', search);
-    // Implementation would go here
+    if (!search.trim()) return;
+    logger.info('Home', 'Searching for product', { query: search });
+    router.push({
+      pathname: '/scan',
+      params: { query: search }
+    });
   };
   
   const handleItemPress = (item: ScanHistoryItem) => {
-    console.log('Item pressed:', item);
-    // Navigate to item details
+    logger.info('Home', 'Item selected from history', { itemId: item.id });
     router.push(`/item/${item.id}`);
   };
   
@@ -94,7 +106,9 @@ export default function HomeScreen() {
       case 'name':
         return a.name.localeCompare(b.name);
       case 'price':
-        return b.price - a.price;
+        const aPrice = typeof a.price === 'number' ? a.price : 0;
+        const bPrice = typeof b.price === 'number' ? b.price : 0;
+        return bPrice - aPrice;
       default:
         return 0;
     }
@@ -106,8 +120,8 @@ export default function HomeScreen() {
       
       <View style={styles.mainContainer}>
         <ConnectionStatusBar 
-          connected={connected} 
-          serviceName="Square" 
+          connected={isConnected} 
+          message="Square Connection Status" 
         />
         
         <SearchBar 

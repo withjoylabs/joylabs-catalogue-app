@@ -16,719 +16,569 @@ import {
   TouchableWithoutFeedback,
   Dimensions,
   StatusBar as RNStatusBar,
-  Animated
+  Animated,
+  ActivityIndicator
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { CatalogueItem } from '../../src/types';
 import { useCategories } from '../../src/hooks';
+import { useCatalogItems } from '../../src/hooks/useCatalogItems';
+import { ConvertedItem, ConvertedCategory } from '../../src/types/api';
+import { lightTheme } from '../../src/themes';
 
-// Mock item for testing
-const EMPTY_ITEM: CatalogueItem = {
+// Empty item template for new items
+const EMPTY_ITEM: ConvertedItem = {
   id: '',
   name: '',
-  gtin: '',
   sku: '',
-  reporting_category: '',
-  price: null,
-  tax: false,
-  crv: false,
-  description: ''
+  price: undefined,
+  description: '',
+  categoryId: '',
+  category: '',
+  isActive: true,
+  images: [],
+  updatedAt: new Date().toISOString(),
+  createdAt: new Date().toISOString()
 };
-
-// Mock categories for testing
-const MOCK_CATEGORIES = [
-  { value: 'beverages', label: 'Beverages' },
-  { value: 'bakery', label: 'Bakery' },
-  { value: 'canned_goods', label: 'Canned Goods' },
-  { value: 'dairy', label: 'Dairy' },
-  { value: 'dry_goods', label: 'Dry Goods & Pasta' },
-  { value: 'frozen_foods', label: 'Frozen Foods' },
-  { value: 'meat', label: 'Meat & Seafood' },
-  { value: 'produce', label: 'Produce' },
-  { value: 'cleaners', label: 'Cleaners' },
-  { value: 'paper_goods', label: 'Paper Goods' },
-  { value: 'personal_care', label: 'Personal Care' },
-  { value: 'other', label: 'Other' },
-];
 
 export default function ItemDetails() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
   const isNewItem = id === 'new';
-  const priceInputRef = useRef<TextInput>(null);
-  const scrollViewRef = useRef<ScrollView>(null);
-  const descriptionRef = useRef<TextInput>(null);
   
-  // Get categories or use mock data if none available
-  const categoriesResult = useCategories();
-  // Ensure we always have categories available
-  const dropdownItems = categoriesResult?.dropdownItems?.length 
-    ? categoriesResult.dropdownItems 
-    : MOCK_CATEGORIES;
+  // Hooks for categories and items
+  const { 
+    categories, 
+    getCategoryById,
+    dropdownItems
+  } = useCategories();
   
-  // Log categories for debugging
-  useEffect(() => {
-    console.log("Available categories:", dropdownItems.length);
-  }, [dropdownItems]);
+  const {
+    getProductById,
+    createProduct,
+    updateProduct,
+    deleteProduct,
+    isProductsLoading,
+    productError
+  } = useCatalogItems();
   
-  // State for form fields
-  const [item, setItem] = useState<CatalogueItem>(EMPTY_ITEM);
-  const [hasChanges, setHasChanges] = useState(false);
-  const [showConfirmation, setShowConfirmation] = useState(false);
-  const [priceText, setPriceText] = useState<string>('');
+  // State for the current item
+  const [item, setItem] = useState<ConvertedItem>(EMPTY_ITEM);
+  const [originalItem, setOriginalItem] = useState<ConvertedItem | null>(null);
+  const [isEdited, setIsEdited] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
-  // Tax states
-  const [toggleAllTaxes, setToggleAllTaxes] = useState(false);
-  const [southBayTax, setSouthBayTax] = useState(false);
-  const [torranceTax, setTorranceTax] = useState(false);
-  
-  // Modifiers states
-  const [crv5, setCrv5] = useState(false);
-  const [crv10, setCrv10] = useState(false);
-  
-  // Additional state to maintain dropdown anchor position
-  const [dropdownAnchorMode, setDropdownAnchorMode] = useState<'top' | 'bottom'>('bottom');
-  
-  // Category field states
-  const [categorySearch, setCategorySearch] = useState('');
+  // Category selection modal state
   const [showCategoryModal, setShowCategoryModal] = useState(false);
-  const [isCategoryFocused, setIsCategoryFocused] = useState(false);
-  const categoryInputRef = useRef<TextInput>(null);
+  const [categorySearch, setCategorySearch] = useState('');
+  const [filteredCategories, setFilteredCategories] = useState<ConvertedCategory[]>([]);
   
-  // Memoized category search index for O(1) lookups
-  const categorySearchIndex = useMemo(() => {
-    const index: { [key: string]: string[] } = {};
-    dropdownItems.forEach(item => {
-      // Split the label into words and index each word
-      const words = item.label.toLowerCase().split(/\s+/);
-      words.forEach(word => {
-        if (!index[word]) {
-          index[word] = [];
-        }
-        index[word].push(item.label);
-      });
-    });
-    return index;
-  }, [dropdownItems]);
-
-  // Memoized filtered categories based on search
-  const filteredCategories = useMemo(() => {
-    const searchTerm = categorySearch.toLowerCase().trim();
-    if (!searchTerm) return dropdownItems;
-
-    // Split search into words
-    const searchWords = searchTerm.split(/\s+/);
-    
-    // Find categories that match all search words
-    return dropdownItems.filter(item => {
-      const itemWords = item.label.toLowerCase().split(/\s+/);
-      return searchWords.every(searchWord => 
-        itemWords.some(itemWord => itemWord.includes(searchWord))
-      );
-    }).slice(0, 30); // Limit to 30 results for performance
-  }, [categorySearch, dropdownItems]);
-
-  // Handle category selection
-  const handleCategorySelect = useCallback((categoryValue: string, categoryLabel: string) => {
-    // Batch state updates in a single animation frame
-    requestAnimationFrame(() => {
-      Keyboard.dismiss();
-      setCategorySearch(categoryLabel);
-      setShowCategoryModal(false);
-      setIsCategoryFocused(false);
-      
-      setItem(prev => ({
-        ...prev,
-        reporting_category: categoryValue
-      }));
-    });
-  }, []);
-
-  // Handle category input changes
-  const handleCategoryInputChange = useCallback((text: string) => {
-    setCategorySearch(text);
-    
-    // Find exact match
-    const category = dropdownItems.find(
-      item => item.label.toLowerCase() === text.toLowerCase()
-    );
-    
-    if (category) {
-      // Batch state updates
-      requestAnimationFrame(() => {
-        setItem(prev => ({
-          ...prev,
-          reporting_category: category.value
-        }));
-      });
-    }
-  }, [dropdownItems]);
-
-  // Handle keyboard dismiss
-  const handleKeyboardDismiss = useCallback(() => {
-    // Only run if we're actually focused
-    if (!isCategoryFocused) return;
-    
-    Keyboard.dismiss();
-    setIsCategoryFocused(false);
-    
-    // Batch state updates
-    const exactMatch = dropdownItems.find(item => 
-      item.label.toLowerCase() === categorySearch.toLowerCase()
-    );
-    
-    if (!exactMatch) {
-      // Batch the state updates together
-      requestAnimationFrame(() => {
-        setCategorySearch('');
-        setItem(prev => ({
-          ...prev,
-          reporting_category: ''
-        }));
-      });
-    }
-  }, [categorySearch, dropdownItems, isCategoryFocused]);
-
-  // Handlers for updating form values
-  const updateItem = (key: keyof CatalogueItem, value: any) => {
-    setItem(prev => ({ ...prev, [key]: value }));
-    setHasChanges(true);
-  };
-
-  // Check if all fields are empty to determine if confirmation is needed
-  const isEmpty = (item: CatalogueItem): boolean => {
-    return (
-      !item.name &&
-      !item.gtin &&
-      !item.sku &&
-      !item.reporting_category &&
-      (!item.price || item.price === 0) &&
-      !item.tax &&
-      !item.crv &&
-      !item.description
-    );
-  };
-
-  // Optimize input focus handling with useCallback
-  const handleInputFocus = useCallback(() => {
-    // No-op for now
-  }, []);
-
-  // Optimize scroll behavior for description field
-  const handleDescriptionFocus = useCallback(() => {
-    // Use requestAnimationFrame for smoother scrolling
-    requestAnimationFrame(() => {
-      if (scrollViewRef.current) {
-        scrollViewRef.current.scrollTo({ y: 350, animated: true });
-      }
-    });
-  }, []);
-
-  // Listen for save events from the bottom tab bar
+  // Confirmation modal state
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  
+  // Fetch the item data on component mount
   useEffect(() => {
-    const handleSaveEvent = () => {
-      handleSave();
+    const fetchItemData = async () => {
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        if (isNewItem) {
+          setItem(EMPTY_ITEM);
+          setOriginalItem(null);
+        } else if (id) {
+          const fetchedItem = await getProductById(id as string);
+          if (fetchedItem) {
+            setItem(fetchedItem);
+            setOriginalItem(fetchedItem);
+          } else {
+            setError('Item not found');
+            setItem(EMPTY_ITEM);
+          }
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load item');
+        console.error('Error fetching item:', err);
+      } finally {
+        setIsLoading(false);
+      }
     };
     
-    // For React Native we need a different approach since document is not available
-    // This is a simplified example - in a real app, you'd use a state management 
-    // library or context to communicate between components
-    if (Platform.OS === 'web') {
-      document.addEventListener('item:save', handleSaveEvent);
-      return () => {
-        document.removeEventListener('item:save', handleSaveEvent);
-      };
+    fetchItemData();
+  }, [id, getProductById, isNewItem]);
+  
+  // Filter categories when search text changes
+  useEffect(() => {
+    if (categories) {
+      if (!categorySearch) {
+        setFilteredCategories(categories);
+      } else {
+        const searchLower = categorySearch.toLowerCase();
+        const filtered = categories.filter(
+          category => category.name.toLowerCase().includes(searchLower)
+        );
+        setFilteredCategories(filtered);
+      }
+    }
+  }, [categories, categorySearch]);
+  
+  // Check if item has been edited
+  useEffect(() => {
+    if (!originalItem && !isNewItem) {
+      setIsEdited(false);
+      return;
     }
     
-    // For native, we'll rely on the direct save button press
-    return () => {};
-  }, []);
-  
-  // Initialize item state from scan history or use empty item
-  useEffect(() => {
-    if (!isNewItem && id) {
-      // This would normally fetch from API or local storage
-      // For now, just use mock data if available
-      const mockItem: CatalogueItem = {
-        id: id as string,
-        name: 'Example Item 1',
-        gtin: '78432786234',
-        sku: 'ASBD123',
-        reporting_category: 'Drinks',
-        price: 14.99,
-        tax: true,
-        crv: 5,
-        description: ''
-      };
-      
-      setItem(mockItem);
-      if (typeof mockItem.price === 'number') {
-        setPriceText(mockItem.price.toFixed(2));
-      }
-      
-      // Set corresponding tax states
-      setToggleAllTaxes(mockItem.tax === true);
-      setSouthBayTax(mockItem.tax === true);
-      setTorranceTax(mockItem.tax === true);
-      
-      // Set CRV modifiers
-      if (mockItem.crv === 5) {
-        setCrv5(true);
-      } else if (mockItem.crv === 10) {
-        setCrv10(true);
-      }
+    if (isNewItem) {
+      // For new items, check if any required field has been filled
+      setIsEdited(
+        !!item.name.trim() || 
+        !!(item.sku && item.sku.trim()) || 
+        item.price !== undefined ||
+        !!(item.description && item.description.trim()) ||
+        !!item.categoryId
+      );
+      return;
     }
-  }, [id, isNewItem]);
-
-  const handleToggleAllTaxes = (value: boolean) => {
-    setToggleAllTaxes(value);
-    setSouthBayTax(value);
-    setTorranceTax(value);
-    updateItem('tax', value);
+    
+    // For existing items, compare with original values
+    const hasChanged = 
+      originalItem?.name !== item.name ||
+      originalItem?.sku !== item.sku ||
+      originalItem?.price !== item.price ||
+      originalItem?.description !== item.description ||
+      originalItem?.categoryId !== item.categoryId;
+      
+    setIsEdited(hasChanged);
+  }, [item, originalItem, isNewItem]);
+  
+  // Update a field in the item state
+  const updateItem = (key: keyof ConvertedItem, value: any) => {
+    setItem(prev => ({ ...prev, [key]: value }));
   };
   
-  const handleCrv = (type: 'crv5' | 'crv10', value: boolean) => {
-    if (type === 'crv5') {
-      setCrv5(value);
-      if (value) {
-        setCrv10(false);
-        updateItem('crv', 5);
-      } else if (!crv10) {
-        updateItem('crv', false);
-      }
-    } else {
-      setCrv10(value);
-      if (value) {
-        setCrv5(false);
-        updateItem('crv', 10);
-      } else if (!crv5) {
-        updateItem('crv', false);
-      }
-    }
+  // Check if the item form is empty (for cancel confirmation)
+  const isEmpty = (): boolean => {
+    return (
+      !item.name.trim() && 
+      !(item.sku && item.sku.trim()) && 
+      item.price === undefined &&
+      !(item.description && item.description.trim()) &&
+      !item.categoryId
+    );
   };
   
+  // Get the current category name
+  const selectedCategoryName = useMemo(() => {
+    if (!item.categoryId) return '';
+    const category = getCategoryById(item.categoryId);
+    return category ? category.name : '';
+  }, [item.categoryId, getCategoryById]);
+  
+  // Handle selecting a category
+  const handleSelectCategory = (category: ConvertedCategory) => {
+    updateItem('categoryId', category.id);
+    updateItem('category', category.name);
+    setShowCategoryModal(false);
+  };
+  
+  // Handle cancel button press
   const handleCancel = () => {
-    if (hasChanges && !isEmpty(item)) {
-      setShowConfirmation(true);
+    if (isEdited && !isEmpty()) {
+      setShowCancelModal(true);
     } else {
       router.back();
     }
   };
   
+  // Handle confirm cancel
   const handleConfirmCancel = () => {
-    setShowConfirmation(false);
+    setShowCancelModal(false);
     router.back();
   };
   
-  const handleSave = () => {
-    console.log('Saving item:', item);
-    // Here you would save to API or local storage
-    router.back();
-  };
-  
-  // Handle price input changes
-  const handlePriceChange = useCallback((value: string) => {
-    // Remove any non-numeric characters
-    const numericValue = value.replace(/[^0-9]/g, '');
-    
-    if (!numericValue) {
-      setPriceText('');
-      setItem(prev => ({
-        ...prev,
-        price: null
-      }));
+  // Handle save button press
+  const handleSave = async () => {
+    // Validate required fields
+    if (!item.name.trim()) {
+      Alert.alert('Error', 'Item name is required');
       return;
     }
     
-    // Convert to dollars with 2 decimal places
-    const dollars = (parseInt(numericValue) / 100).toFixed(2);
-    setPriceText(dollars);
+    setIsSaving(true);
+    setError(null);
     
-    // Update item state with numeric value
-    setItem(prev => ({
-      ...prev,
-      price: parseFloat(dollars)
-    }));
-  }, []);
-  
-  // Format price for display in preview
-  const formattedPrice = useMemo(() => {
-    if (typeof item.price === 'number' && !isNaN(item.price)) {
-      return `$${item.price.toFixed(2)}`;
+    try {
+      let savedItem;
+      
+      if (isNewItem) {
+        savedItem = await createProduct(item);
+        Alert.alert('Success', 'Item created successfully');
+      } else {
+        savedItem = await updateProduct(item);
+        Alert.alert('Success', 'Item updated successfully');
+      }
+      
+      if (savedItem) {
+        setItem(savedItem);
+        setOriginalItem(savedItem);
+        setIsEdited(false);
+      }
+      
+      router.back();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save item');
+      Alert.alert('Error', 'Failed to save item. Please try again.');
+      console.error('Error saving item:', err);
+    } finally {
+      setIsSaving(false);
     }
-    return '';  // Return empty string for variable pricing
-  }, [item.price]);
+  };
   
-  // Updated logic: show tax if any tax option is selected
-  const showTax = southBayTax || torranceTax;
-  const showCrv = item.crv !== false;
-  const crvText = typeof item.crv === 'number' ? `+CRV${item.crv}` : '';
-
-  // Add this helper function before the styles
-  const highlightMatchingText = (text: string, query: string) => {
-    const parts = text.split(new RegExp(`(${query})`, 'gi'));
-    return parts.map((part, index) => 
-      part.toLowerCase() === query.toLowerCase() ? (
-        <Text key={index} style={styles.highlightedText}>{part}</Text>
-      ) : (
-        <Text key={index}>{part}</Text>
-      )
+  // Handle delete button press
+  const handleDelete = () => {
+    Alert.alert(
+      'Delete Item',
+      'Are you sure you want to delete this item? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete', 
+          style: 'destructive',
+          onPress: confirmDelete
+        }
+      ]
     );
   };
-
-  return (
-    <View style={styles.container}>
-      <StatusBar style="auto" />
-      
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Item Details</Text>
-        <TouchableOpacity 
-          style={styles.deleteButton}
-          onPress={() => Alert.alert('Delete', 'Are you sure you want to delete this item?')}
-        >
-          <Text style={styles.deleteButtonText}>Delete</Text>
+  
+  // Handle delete confirmation
+  const confirmDelete = async () => {
+    if (!item.id || isNewItem) return;
+    
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      await deleteProduct(item.id);
+      Alert.alert('Success', 'Item deleted successfully');
+      router.back();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete item');
+      Alert.alert('Error', 'Failed to delete item. Please try again.');
+      console.error('Error deleting item:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Render component for matching text in search results
+  const highlightMatchingText = (text: string, query: string) => {
+    if (!query) return <Text>{text}</Text>;
+    
+    const parts = text.split(new RegExp(`(${query})`, 'gi'));
+    
+    return (
+      <Text>
+        {parts.map((part, index) => 
+          part.toLowerCase() === query.toLowerCase() ? (
+            <Text key={index} style={styles.highlightedText}>{part}</Text>
+          ) : (
+            <Text key={index}>{part}</Text>
+          )
+        )}
+      </Text>
+    );
+  };
+  
+  // Track selected category in modal
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
+  
+  // Update selected category when item changes
+  useEffect(() => {
+    setSelectedCategoryId(item.categoryId || '');
+  }, [item.categoryId]);
+  
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <StatusBar style="dark" />
+        <ActivityIndicator size="large" color={lightTheme.colors.primary} />
+        <Text style={styles.loadingText}>Loading item...</Text>
+      </View>
+    );
+  }
+  
+  if (error && !isNewItem) {
+    return (
+      <View style={styles.errorContainer}>
+        <StatusBar style="dark" />
+        <Ionicons name="alert-circle-outline" size={48} color="red" />
+        <Text style={styles.errorText}>{error}</Text>
+        <TouchableOpacity style={styles.errorButton} onPress={() => router.back()}>
+          <Text style={styles.errorButtonText}>Go Back</Text>
         </TouchableOpacity>
       </View>
+    );
+  }
+  
+  return (
+    <View style={styles.container}>
+      <StatusBar style="dark" />
       
-      {/* Content Container */}
-      <View style={styles.contentContainer}>
-        {/* Preview section */}
-        <View style={styles.previewContainer}>
-          <View style={styles.previewInfo}>
-            <Text style={styles.previewName}>{item.name || 'Enter Item Name'}</Text>
-            <View style={styles.previewPriceContainer}>
-              <Text style={styles.previewPrice}>{formattedPrice}</Text>
-              <View style={styles.previewTags}>
-                {showTax && <Text style={styles.previewTag}>+TAX</Text>}
-                {showCrv && <Text style={styles.previewTag}>{crvText}</Text>}
-              </View>
-            </View>
+      <Stack.Screen
+        options={{
+          title: isNewItem ? 'Add New Item' : 'Edit Item',
+          headerShown: true,
+          headerStyle: {
+            backgroundColor: '#fff',
+          },
+          headerTitleStyle: {
+            color: '#333',
+            fontWeight: 'bold',
+          },
+          headerLeft: () => (
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={handleCancel}
+              disabled={isSaving}
+            >
+              <Text style={[styles.headerButtonText, isSaving && styles.disabledText]}>
+                Cancel
+              </Text>
+            </TouchableOpacity>
+          ),
+          headerRight: () => (
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={handleSave}
+              disabled={!isEdited || isSaving}
+            >
+              {isSaving ? (
+                <ActivityIndicator size="small" color={lightTheme.colors.primary} />
+              ) : (
+                <Text
+                  style={[
+                    styles.headerButtonText, 
+                    styles.saveButton,
+                    (!isEdited || isSaving) && styles.disabledText
+                  ]}
+                >
+                  Save
+                </Text>
+              )}
+            </TouchableOpacity>
+          ),
+        }}
+      />
+      
+      <ScrollView style={styles.content}>
+        {/* QR Code Button (only for existing items that have been saved) */}
+        {!isNewItem && item.id && (
+          <TouchableOpacity 
+            style={styles.qrCodeButton}
+            onPress={() => Alert.alert('QR Code', 'QR code generation will be implemented in a future update.')}
+          >
+            <Ionicons name="qr-code-outline" size={24} color={lightTheme.colors.primary} />
+            <Text style={styles.qrCodeButtonText}>Generate QR Code</Text>
+          </TouchableOpacity>
+        )}
+        
+        {/* Item Name */}
+        <View style={styles.fieldContainer}>
+          <Text style={styles.label}>Item Name*</Text>
+          <TextInput
+            style={styles.input}
+            value={item.name}
+            onChangeText={(text) => updateItem('name', text)}
+            placeholder="Enter item name"
+            placeholderTextColor="#999"
+          />
+        </View>
+        
+        {/* Item SKU */}
+        <View style={styles.fieldContainer}>
+          <Text style={styles.label}>SKU</Text>
+          <TextInput
+            style={styles.input}
+            value={item.sku || ''}
+            onChangeText={(text) => updateItem('sku', text)}
+            placeholder="Enter SKU (optional)"
+            placeholderTextColor="#999"
+          />
+        </View>
+        
+        {/* Item Price */}
+        <View style={styles.fieldContainer}>
+          <Text style={styles.label}>Price</Text>
+          <View style={styles.priceInputContainer}>
+            <Text style={styles.currencySymbol}>$</Text>
+            <TextInput
+              style={styles.priceInput}
+              value={item.price !== undefined ? item.price.toString() : ''}
+              onChangeText={(text) => {
+                const price = text === '' ? undefined : parseFloat(text);
+                updateItem('price', price);
+              }}
+              placeholder="0.00"
+              placeholderTextColor="#999"
+              keyboardType="decimal-pad"
+            />
           </View>
-          
-          <TouchableOpacity style={styles.imageContainer}>
-            {/* Placeholder image area */}
-            <View style={styles.imagePlaceholder}>
-              <Ionicons name="image-outline" size={40} color="#888" />
-              <Text style={styles.imagePlaceholderText}>Tap to add image</Text>
-            </View>
+        </View>
+        
+        {/* Item Category */}
+        <View style={styles.fieldContainer}>
+          <Text style={styles.label}>Category</Text>
+          <TouchableOpacity 
+            style={styles.categorySelector}
+            onPress={() => setShowCategoryModal(true)}
+          >
+            <Text style={selectedCategoryName ? styles.categoryText : styles.placeholderText}>
+              {selectedCategoryName || 'Select a category (optional)'}
+            </Text>
+            <Ionicons name="chevron-down" size={20} color="#888" />
           </TouchableOpacity>
         </View>
         
-        {/* Scrollable container for form */}
-        <ScrollView 
-          ref={scrollViewRef}
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollViewContent}
-          keyboardShouldPersistTaps="always"
-          keyboardDismissMode="on-drag"
-          showsVerticalScrollIndicator={true}
-          scrollEventThrottle={16}
-          onScrollBeginDrag={Keyboard.dismiss}
-        >
-          {/* Form section */}
-          <TouchableWithoutFeedback onPress={handleKeyboardDismiss}>
-            <View style={styles.formContainer}>
-              {/* GTIN / SKU row */}
-              <View style={styles.formRow}>
-                <View style={styles.formColumn}>
-                  <Text style={styles.label}>GTIN</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={item.gtin}
-                    onChangeText={(value) => updateItem('gtin', value)}
-                    onFocus={handleInputFocus}
-                    placeholder="Enter GTIN"
-                    keyboardType="numeric"
-                    returnKeyType="next"
-                    enablesReturnKeyAutomatically={true}
-                  />
-                </View>
-                
-                <View style={styles.formColumn}>
-                  <Text style={styles.label}>SKU</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={item.sku}
-                    onChangeText={(value) => updateItem('sku', value)}
-                    onFocus={handleInputFocus}
-                    placeholder="Enter SKU"
-                    returnKeyType="next"
-                    enablesReturnKeyAutomatically={true}
-                  />
-                </View>
-              </View>
-              
-              {/* Item Name */}
-              <Text style={styles.label}>Item Name</Text>
-              <TextInput
-                style={[styles.input, styles.marginBottom16]}
-                value={item.name}
-                onChangeText={(value) => updateItem('name', value)}
-                onFocus={handleInputFocus}
-                placeholder="Enter item name"
-                returnKeyType="next"
-                enablesReturnKeyAutomatically={true}
-              />
-              
-              {/* Price / Category row */}
-              <View style={styles.formRow}>
-                <View style={styles.formColumn}>
-                  <Text style={styles.label}>Selling Price</Text>
-                  <View style={styles.priceInputContainer}>
-                    <Text style={styles.dollarSign}>$</Text>
-                    <TextInput
-                      ref={priceInputRef}
-                      style={styles.priceInput}
-                      value={priceText}
-                      onChangeText={handlePriceChange}
-                      placeholder="Variable"
-                      keyboardType="number-pad"
-                      textAlign="right"
-                      selectTextOnFocus={true}
-                      returnKeyType="done"
-                      enablesReturnKeyAutomatically={true}
-                    />
-                  </View>
-                </View>
-                
-                <View style={styles.formColumn}>
-                  <Text style={styles.label}>Category</Text>
-                  <View style={styles.categoryContainer}>
-                    <View style={styles.categoryInputContainer}>
-                      <TextInput
-                        ref={categoryInputRef}
-                        style={styles.categoryInput}
-                        value={categorySearch}
-                        onChangeText={handleCategoryInputChange}
-                        placeholder="Type to search categories"
-                        onFocus={() => setIsCategoryFocused(true)}
-                        onBlur={() => setIsCategoryFocused(false)}
-                        numberOfLines={1}
-                        multiline={false}
-                        maxLength={100}
-                        returnKeyType="done"
-                        enablesReturnKeyAutomatically={true}
-                      />
-                      
-                      <View style={styles.categoryInputButtons}>
-                        {categorySearch ? (
-                          <TouchableOpacity
-                            style={styles.clearInputButton}
-                            onPress={() => {
-                              setCategorySearch('');
-                              setItem(prev => ({
-                                ...prev,
-                                reporting_category: ''
-                              }));
-                              if (categoryInputRef.current) {
-                                categoryInputRef.current.focus();
-                              }
-                            }}
-                          >
-                            <Ionicons name="close-circle" size={18} color="#999" />
-                          </TouchableOpacity>
-                        ) : null}
-                        
-                        <TouchableOpacity
-                          style={styles.categoryBrowseButton}
-                          onPress={() => setShowCategoryModal(true)}
-                        >
-                          <Ionicons name="list" size={20} color="#666" />
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-
-                    {/* Category dropdown */}
-                    {isCategoryFocused && filteredCategories.length > 0 && (
-                      <View style={styles.categoryDropdown}>
-                        <ScrollView 
-                          style={styles.categoryDropdownScroll}
-                          keyboardShouldPersistTaps="handled"
-                          showsVerticalScrollIndicator={true}
-                        >
-                          {filteredCategories.map((category) => (
-                            <TouchableOpacity
-                              key={category.value}
-                              style={styles.categoryDropdownItem}
-                              onPress={() => handleCategorySelect(category.value, category.label)}
-                            >
-                              <Text style={styles.categoryDropdownText}>
-                                {categorySearch ? (
-                                  highlightMatchingText(category.label, categorySearch)
-                                ) : (
-                                  category.label
-                                )}
-                              </Text>
-                            </TouchableOpacity>
-                          ))}
-                        </ScrollView>
-                      </View>
-                    )}
-                  </View>
-                </View>
-              </View>
-              
-              {/* Taxes & Modifiers section */}
-              <View style={styles.formRow}>
-                <View style={styles.formColumn}>
-                  <Text style={styles.label}>Taxes</Text>
-                  <View style={styles.checkboxContainer}>
-                    <View style={styles.checkboxRow}>
-                      <TouchableOpacity
-                        style={styles.checkbox}
-                        onPress={() => handleToggleAllTaxes(!toggleAllTaxes)}
-                      >
-                        {toggleAllTaxes && <Ionicons name="checkmark" size={20} color="#000" />}
-                      </TouchableOpacity>
-                      <Text style={styles.checkboxLabel}>Toggle All</Text>
-                    </View>
-                    
-                    <View style={styles.checkboxRow}>
-                      <TouchableOpacity
-                        style={styles.checkbox}
-                        onPress={() => {
-                          const newValue = !southBayTax;
-                          setSouthBayTax(newValue);
-                          // Update the main tax flag if any tax is selected
-                          updateItem('tax', newValue || torranceTax);
-                        }}
-                      >
-                        {southBayTax && <Ionicons name="checkmark" size={20} color="#000" />}
-                      </TouchableOpacity>
-                      <Text style={styles.checkboxLabel}>SOUTH BAY (9.5%)</Text>
-                    </View>
-                    
-                    <View style={styles.checkboxRow}>
-                      <TouchableOpacity
-                        style={styles.checkbox}
-                        onPress={() => {
-                          const newValue = !torranceTax;
-                          setTorranceTax(newValue);
-                          // Update the main tax flag if any tax is selected
-                          updateItem('tax', southBayTax || newValue);
-                        }}
-                      >
-                        {torranceTax && <Ionicons name="checkmark" size={20} color="#000" />}
-                      </TouchableOpacity>
-                      <Text style={styles.checkboxLabel}>TORRANCE (10%)</Text>
-                    </View>
-                  </View>
-                </View>
-                
-                <View style={styles.formColumn}>
-                  <Text style={styles.label}>Modifiers</Text>
-                  <View style={styles.checkboxContainer}>
-                    <View style={styles.checkboxRow}>
-                      <TouchableOpacity
-                        style={styles.checkbox}
-                        onPress={() => handleCrv('crv5', !crv5)}
-                      >
-                        {crv5 && <Ionicons name="checkmark" size={20} color="#000" />}
-                      </TouchableOpacity>
-                      <Text style={styles.checkboxLabel}>CRV5</Text>
-                    </View>
-                    
-                    <View style={styles.checkboxRow}>
-                      <TouchableOpacity
-                        style={styles.checkbox}
-                        onPress={() => handleCrv('crv10', !crv10)}
-                      >
-                        {crv10 && <Ionicons name="checkmark" size={20} color="#000" />}
-                      </TouchableOpacity>
-                      <Text style={styles.checkboxLabel}>CRV10</Text>
-                    </View>
-                  </View>
-                </View>
-              </View>
-              
-              {/* Description */}
-              <Text style={styles.label} id="description-label">Description</Text>
-              <TextInput
-                ref={descriptionRef}
-                style={[styles.input, styles.multilineInput]}
-                value={item.description}
-                onChangeText={(value) => updateItem('description', value)}
-                onFocus={handleDescriptionFocus}
-                placeholder="Enter item description"
-                multiline
-                numberOfLines={4}
-                returnKeyType="done"
-                blurOnSubmit={true}
-              />
-              
-              {/* Add extra padding at the bottom to account for the tab bar and floating buttons */}
-              <View style={styles.bottomPadding} />
-            </View>
-          </TouchableWithoutFeedback>
-        </ScrollView>
-      </View>
-      
-      {/* Floating Action Buttons Container */}
-      <View style={styles.floatingButtonsContainer}>
-        <TouchableOpacity 
-          style={[styles.actionButton, styles.cancelButton]}
-          onPress={handleCancel}
-        >
-          <Ionicons name="close" size={24} color="#fff" />
-          <Text style={styles.actionButtonText}>
-            {showConfirmation ? 'Confirm?' : 'Cancel'}
-          </Text>
-        </TouchableOpacity>
+        {/* Item Description */}
+        <View style={styles.fieldContainer}>
+          <Text style={styles.label}>Description</Text>
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            value={item.description || ''}
+            onChangeText={(text) => updateItem('description', text)}
+            placeholder="Enter item description (optional)"
+            placeholderTextColor="#999"
+            multiline
+            textAlignVertical="top"
+            numberOfLines={4}
+          />
+        </View>
         
-        <TouchableOpacity 
-          style={[styles.actionButton, styles.printButton]}
-          onPress={() => console.log('Print functionality to be implemented')}
-        >
-          <Ionicons name="print" size={24} color="#fff" />
-          <Text style={styles.actionButtonText}>Print</Text>
-        </TouchableOpacity>
-      </View>
+        {/* Item Status */}
+        <View style={styles.fieldContainer}>
+          <View style={styles.switchRow}>
+            <Text style={styles.label}>Active</Text>
+            <TouchableOpacity 
+              style={[styles.switchButton, item.isActive ? styles.switchButtonActive : styles.switchButtonInactive]} 
+              onPress={() => updateItem('isActive', !item.isActive)}
+            >
+              <View style={[styles.switchThumb, item.isActive ? styles.switchThumbActive : styles.switchThumbInactive]} />
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.helperText}>
+            {item.isActive ? 'Item is active and will appear in your catalogue' : 'Item is inactive and will be hidden'}
+          </Text>
+        </View>
+        
+        {/* Delete Button (only for existing items) */}
+        {!isNewItem && (
+          <TouchableOpacity 
+            style={styles.deleteButton}
+            onPress={handleDelete}
+            disabled={isSaving}
+          >
+            <Ionicons name="trash-outline" size={20} color="white" />
+            <Text style={styles.deleteButtonText}>Delete Item</Text>
+          </TouchableOpacity>
+        )}
+        
+        {/* Add spacing at the bottom */}
+        <View style={{ height: 40 }} />
+      </ScrollView>
       
-      {/* Completely rebuild the category modal */}
+      {/* Category Selection Modal */}
       <Modal
         visible={showCategoryModal}
+        animationType="slide"
         transparent={true}
-        animationType="fade"
         onRequestClose={() => setShowCategoryModal(false)}
-        statusBarTranslucent={true}
       >
-        <TouchableWithoutFeedback onPress={() => setShowCategoryModal(false)}>
-          <View style={styles.categoryModalContainer}>
-            <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
-              <View style={styles.categoryModalContent}>
-                {/* Modal Header */}
-                <View style={styles.categoryModalHeader}>
-                  <Text style={styles.categoryModalTitle}>Select a Category</Text>
-                  <TouchableOpacity 
-                    onPress={() => setShowCategoryModal(false)}
-                    style={styles.categoryModalCloseButton}
-                    hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Category</Text>
+              <TouchableOpacity
+                onPress={() => setShowCategoryModal(false)}
+                style={styles.closeButton}
+              >
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+            
+            <TextInput
+              style={styles.searchInput}
+              value={categorySearch}
+              onChangeText={setCategorySearch}
+              placeholder="Search categories"
+              placeholderTextColor="#999"
+              clearButtonMode="while-editing"
+            />
+            
+            <FlatList
+              data={filteredCategories}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.categoryItem,
+                    item.id === selectedCategoryId && styles.selectedCategoryItem
+                  ]}
+                  onPress={() => handleSelectCategory(item)}
+                >
+                  <View style={[styles.categoryColor, { backgroundColor: item.color || '#ddd' }]} />
+                  {highlightMatchingText(item.name, categorySearch)}
+                  {item.id === selectedCategoryId && (
+                    <Ionicons name="checkmark" size={20} color={lightTheme.colors.primary} />
+                  )}
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={() => (
+                <View style={styles.emptyList}>
+                  <Text style={styles.emptyListText}>
+                    {categories.length === 0
+                      ? 'No categories available. Create categories in the profile section.'
+                      : 'No matching categories found.'}
+                  </Text>
+                </View>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
+      
+      {/* Cancel Confirmation Modal */}
+      <Modal
+        visible={showCancelModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowCancelModal(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowCancelModal(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.confirmModalContent}>
+                <Text style={styles.confirmModalTitle}>Discard Changes?</Text>
+                <Text style={styles.confirmModalText}>
+                  You have unsaved changes. Are you sure you want to discard them?
+                </Text>
+                <View style={styles.confirmModalButtons}>
+                  <TouchableOpacity
+                    style={[styles.confirmModalButton, styles.cancelButton]}
+                    onPress={() => setShowCancelModal(false)}
                   >
-                    <Ionicons name="close" size={24} color="#333" />
+                    <Text style={styles.cancelButtonText}>Keep Editing</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.confirmModalButton, styles.discardButton]}
+                    onPress={handleConfirmCancel}
+                  >
+                    <Text style={styles.discardButtonText}>Discard</Text>
                   </TouchableOpacity>
                 </View>
-                
-                {/* Category List - implemented with ScrollView for better performance */}
-                <ScrollView 
-                  style={styles.categoryModalListScroll}
-                  contentContainerStyle={styles.categoryModalListContainer}
-                  showsVerticalScrollIndicator={true}
-                  keyboardShouldPersistTaps="handled"
-                >
-                  {dropdownItems.map((category) => (
-                    <TouchableOpacity
-                      key={category.value}
-                      style={styles.categoryModalItem}
-                      onPress={() => handleCategorySelect(category.value, category.label)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.categoryModalItemText}>{category.label}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
               </View>
             </TouchableWithoutFeedback>
           </View>
@@ -743,323 +593,299 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  contentContainer: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 60,
-    paddingBottom: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  deleteButton: {
-    backgroundColor: '#ff3b30',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 25,
-  },
-  deleteButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  scrollView: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  scrollViewContent: {
-    paddingBottom: 200, // Extra padding to ensure content is visible above bottom tab and floating buttons
-  },
-  previewContainer: {
-    flexDirection: 'row',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  previewInfo: {
+  loadingContainer: {
     flex: 1,
     justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
   },
-  previewName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  previewPriceContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-  },
-  previewPrice: {
-    fontSize: 38,
-    fontWeight: 'bold',
-    marginRight: 10,
-  },
-  previewTags: {
-    marginBottom: 8,
-  },
-  previewTag: {
-    fontSize: 12, // Smaller tag text
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
     color: '#666',
   },
-  imageContainer: {
-    width: 140,
-    height: 140,
+  errorContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 8,
-    overflow: 'hidden',
+    backgroundColor: '#fff',
+    padding: 20,
   },
-  imagePlaceholder: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: '#f0f0f0',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 8,
-  },
-  imagePlaceholderText: {
-    marginTop: 8,
-    color: '#888',
-    fontSize: 12,
+  errorText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: 'red',
     textAlign: 'center',
   },
-  formContainer: {
+  errorButton: {
+    marginTop: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    backgroundColor: lightTheme.colors.primary,
+    borderRadius: 8,
+  },
+  errorButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  headerButton: {
+    padding: 10,
+  },
+  headerButtonText: {
+    fontSize: 16,
+    color: lightTheme.colors.primary,
+  },
+  saveButton: {
+    fontWeight: '600',
+  },
+  disabledText: {
+    opacity: 0.5,
+  },
+  content: {
+    flex: 1,
     padding: 16,
   },
-  formRow: {
-    flexDirection: 'row',
-    marginBottom: 16,
-  },
-  formColumn: {
-    flex: 1,
-    marginRight: 10,
+  fieldContainer: {
+    marginBottom: 20,
   },
   label: {
-    fontSize: 16,
-    marginBottom: 8,
+    fontSize: 14,
     fontWeight: '500',
+    color: '#555',
+    marginBottom: 8,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ccc',
+    borderColor: '#ddd',
     borderRadius: 8,
-    padding: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     fontSize: 16,
+    color: '#333',
+    backgroundColor: '#fff',
   },
-  marginBottom16: {
-    marginBottom: 16,
-  },
-  multilineInput: {
-    minHeight: 120,
-    textAlignVertical: 'top',
-    marginBottom: 16,
+  textArea: {
+    minHeight: 100,
+    paddingTop: 12,
   },
   priceInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#ccc',
+    borderColor: '#ddd',
     borderRadius: 8,
-    marginBottom: 16,
+    backgroundColor: '#fff',
   },
-  dollarSign: {
+  currencySymbol: {
     paddingLeft: 12,
-    fontSize: 16,
-  },
-  priceInput: {
-    flex: 1,
-    padding: 12,
-    fontSize: 16,
-  },
-  categoryContainer: {
-    position: 'relative',
-    zIndex: 1000,
-  },
-  categoryInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    backgroundColor: '#fff',
-    marginBottom: 16,
-  },
-  categoryInput: {
-    flex: 1,
-    padding: 12,
-    fontSize: 16,
-    minWidth: 0,
-  },
-  categoryInputButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 'auto',
-  },
-  clearInputButton: {
-    padding: 8,
-  },
-  categoryBrowseButton: {
-    padding: 8,
-    marginLeft: 4,
-    borderLeftWidth: 1,
-    borderLeftColor: '#ddd',
-  },
-  categoryDropdown: {
-    position: 'absolute',
-    top: '100%',
-    left: 0,
-    right: 0,
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    marginTop: -12,
-    maxHeight: 200,
-    zIndex: 1000,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-  },
-  categoryDropdownScroll: {
-    maxHeight: 200,
-  },
-  categoryDropdownItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  categoryDropdownText: {
     fontSize: 16,
     color: '#333',
   },
-  highlightedText: {
-    backgroundColor: '#fff3cd',
-    fontWeight: '600',
-  },
-  checkboxContainer: {
-    marginBottom: 16,
-  },
-  checkboxRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderWidth: 1,
-    borderColor: '#000',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 8,
-  },
-  checkboxLabel: {
-    fontSize: 16,
-  },
-  floatingButtonsContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-    backgroundColor: '#fff',
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    zIndex: 1000,
-  },
-  actionButton: {
+  priceInput: {
     flex: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+    fontSize: 16,
+    color: '#333',
+  },
+  categorySelector: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#fff',
+  },
+  categoryText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  placeholderText: {
+    fontSize: 16,
+    color: '#999',
+  },
+  switchRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  switchButton: {
+    width: 51,
+    height: 31,
+    borderRadius: 25,
+    padding: 5,
+  },
+  switchButtonActive: {
+    backgroundColor: lightTheme.colors.primary,
+  },
+  switchButtonInactive: {
+    backgroundColor: '#e0e0e0',
+  },
+  switchThumb: {
+    width: 21,
+    height: 21,
+    borderRadius: 21,
+    backgroundColor: 'white',
+  },
+  switchThumbActive: {
+    transform: [{ translateX: 20 }],
+  },
+  switchThumbInactive: {
+    transform: [{ translateX: 0 }],
+  },
+  helperText: {
+    fontSize: 12,
+    color: '#777',
+    marginTop: 4,
+  },
+  deleteButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
+    backgroundColor: '#d9534f',
+    borderRadius: 8,
+    paddingVertical: 12,
+    marginTop: 20,
   },
-  cancelButton: {
-    backgroundColor: '#ff3b30',
-  },
-  printButton: {
-    backgroundColor: '#007aff',
-  },
-  actionButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
+  deleteButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '500',
     marginLeft: 8,
   },
-  bottomPadding: {
-    height: 100, // Extra padding to ensure content is visible above floating buttons and tab bar
-  },
-  categoryModalContainer: {
+  modalContainer: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.5)',
   },
-  categoryModalContent: {
+  modalContent: {
     backgroundColor: 'white',
-    borderRadius: 16,
-    width: '100%',
-    maxWidth: 400,
-    maxHeight: 500,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 10,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    maxHeight: Dimensions.get('window').height * 0.8,
   },
-  categoryModalHeader: {
+  modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
-    backgroundColor: '#f9f9f9',
   },
-  categoryModalTitle: {
+  modalTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
   },
-  categoryModalCloseButton: {
-    padding: 6,
-    borderRadius: 20,
+  closeButton: {
+    padding: 4,
   },
-  categoryModalListScroll: {
-    maxHeight: 400,
-  },
-  categoryModalListContainer: {
-    paddingVertical: 8,
-  },
-  categoryModalItem: {
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  categoryModalItemText: {
+  searchInput: {
+    margin: 16,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     fontSize: 16,
     color: '#333',
+    backgroundColor: '#f9f9f9',
+  },
+  categoryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  selectedCategoryItem: {
+    backgroundColor: '#f0f8ff',
+  },
+  categoryColor: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    marginRight: 12,
+  },
+  highlightedText: {
+    backgroundColor: '#ffff99',
+    fontWeight: '500',
+  },
+  emptyList: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  emptyListText: {
+    color: '#666',
+    textAlign: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    padding: 20,
+  },
+  confirmModalContent: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 20,
+    width: '85%',
+    maxWidth: 400,
+  },
+  confirmModalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 12,
+  },
+  confirmModalText: {
+    fontSize: 16,
+    color: '#555',
+    marginBottom: 20,
+  },
+  confirmModalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  confirmModalButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginLeft: 12,
+  },
+  cancelButton: {
+    backgroundColor: '#f0f0f0',
+  },
+  cancelButtonText: {
+    color: '#333',
+    fontWeight: '500',
+  },
+  discardButton: {
+    backgroundColor: '#d9534f',
+  },
+  discardButtonText: {
+    color: 'white',
+    fontWeight: '500',
+  },
+  qrCodeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f0f0f0',
+    borderRadius: 8,
+    paddingVertical: 12,
+    marginBottom: 20,
+  },
+  qrCodeButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333',
+    marginLeft: 8,
   },
 }); 

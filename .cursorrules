@@ -1,0 +1,12 @@
+Do NOT modify backend code. If backend changes are neccessary, give me detailed prompts to give me to my backend.
+
+WE ARE ALWAYS IN PRODUCTION. DO NOT USE SANDBOX, TEST, OR DEV MODES. ENSURE ALL PLACEHOLDERS ARE REPLACED OR REMOVED IF NO LONGER NECCESSARY.
+
+
+WE ARE ALWAYS IN PRODUCTION. DO NOT USE SANDBOX, TEST, OR DEV MODES. ENSURE ALL PLACEHOLDERS ARE REPLACED OR REMOVED IF NO LONGER NECCESSARY.
+
+Our redirect url for Square Console has to be HTTPS and we can only use ONE redirect url.
+
+our redirect url on square is https://gki8kva7e3.execute-api.us-west-1.amazonaws.com/production/api/auth/square/callback. we are using deeplinking for our expo development.
+
+we DO NOT have any custom urls such as joylabs.com
