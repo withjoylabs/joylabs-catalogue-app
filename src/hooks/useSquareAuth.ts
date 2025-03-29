@@ -121,7 +121,7 @@ export const useSquareAuth = (): UseSquareAuthResult => {
   
   const { setSquareConnected } = useAppStore();
 
-  // Check for existing tokens on mount
+  // Check for existing tokens on mount and periodically validate them
   useEffect(() => {
     const checkExistingConnection = async () => {
       try {
@@ -131,9 +131,9 @@ export const useSquareAuth = (): UseSquareAuthResult => {
         // Log token details for debugging
         if (accessToken) {
           logger.info('SquareAuth', '✅ Found access token on startup - length: ' + accessToken.length);
-      setIsConnected(true);
-      setSquareConnected(true);
-      
+          setIsConnected(true);
+          setSquareConnected(true);
+          
           const storedMerchantId = await SecureStore.getItemAsync(MERCHANT_ID_KEY);
           if (storedMerchantId) {
             logger.info('SquareAuth', '✅ Found merchant ID: ' + storedMerchantId.substring(0, 4) + '...');
@@ -149,6 +149,9 @@ export const useSquareAuth = (): UseSquareAuthResult => {
           } else {
             logger.warn('SquareAuth', '⚠️ No business name found despite having access token');
           }
+          
+          // Validate the token by making a simple API call
+          validateAccessToken(accessToken);
         } else {
           logger.info('SquareAuth', '❌ No access token found on startup');
           
@@ -185,7 +188,15 @@ export const useSquareAuth = (): UseSquareAuthResult => {
       verifyTokenStorage();
     }, 2000);
     
-    return () => clearTimeout(verifyTimer);
+    // Set up an interval to periodically verify access token is still valid
+    const validationInterval = setInterval(() => {
+      validateTokensIfConnected();
+    }, 30 * 60 * 1000); // Check every 30 minutes
+    
+    return () => {
+      clearTimeout(verifyTimer);
+      clearInterval(validationInterval);
+    };
   }, [setSquareConnected]);
   
   // Handle deep link callback
@@ -1069,6 +1080,110 @@ export const useSquareAuth = (): UseSquareAuthResult => {
     }
   };
   
+  // Function to validate the current access token
+  const validateAccessToken = async (token: string) => {
+    try {
+      const response = await fetch(
+        `${config.api.baseUrl}/v2/merchants/me`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      if (!response.ok) {
+        logger.warn('SquareAuth', `❌ Access token validation failed with status ${response.status}`);
+        
+        if (response.status === 401) {
+          // Token is invalid, try to refresh it
+          const refreshed = await tryRefreshToken();
+          if (!refreshed) {
+            // If refresh failed, disconnect
+            logger.warn('SquareAuth', '❌ Token refresh failed, disconnecting from Square');
+            setIsConnected(false);
+            setSquareConnected(false);
+          }
+        }
+        return false;
+      }
+      
+      logger.info('SquareAuth', '✅ Access token validation succeeded');
+      return true;
+    } catch (error) {
+      logger.error('SquareAuth', '❌ Error validating access token', error);
+      return false;
+    }
+  };
+  
+  // Function to try refreshing the token
+  const tryRefreshToken = async (): Promise<boolean> => {
+    try {
+      const refreshToken = await SecureStore.getItemAsync(SQUARE_REFRESH_TOKEN_KEY);
+      if (!refreshToken) {
+        logger.warn('SquareAuth', '❌ No refresh token available');
+        return false;
+      }
+      
+      logger.info('SquareAuth', '🔄 Attempting to refresh access token');
+      
+      const response = await fetch(
+        `${config.api.baseUrl}/api/auth/refresh-token`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            refresh_token: refreshToken
+          })
+        }
+      );
+      
+      if (!response.ok) {
+        logger.error('SquareAuth', `❌ Token refresh failed with status ${response.status}`);
+        return false;
+      }
+      
+      const data = await response.json();
+      
+      if (data.access_token) {
+        logger.info('SquareAuth', '✅ Token refreshed successfully');
+        await SecureStore.setItemAsync(SQUARE_ACCESS_TOKEN_KEY, data.access_token);
+        
+        if (data.refresh_token) {
+          await SecureStore.setItemAsync(SQUARE_REFRESH_TOKEN_KEY, data.refresh_token);
+        }
+        
+        return true;
+      } else {
+        logger.error('SquareAuth', '❌ Token refresh response did not contain access_token');
+        return false;
+      }
+    } catch (error) {
+      logger.error('SquareAuth', '❌ Error during token refresh', error);
+      return false;
+    }
+  };
+  
+  // Function to validate tokens if we're connected
+  const validateTokensIfConnected = async () => {
+    if (!isConnected) return;
+    
+    logger.debug('SquareAuth', '🔄 Running periodic token validation');
+    
+    const accessToken = await SecureStore.getItemAsync(SQUARE_ACCESS_TOKEN_KEY);
+    if (accessToken) {
+      validateAccessToken(accessToken);
+    } else {
+      logger.warn('SquareAuth', '❌ No access token found during periodic validation');
+      setIsConnected(false);
+      setSquareConnected(false);
+    }
+  };
+
   return {
     isConnected,
     isConnecting,

@@ -127,12 +127,62 @@ const getAuthToken = async (): Promise<string | null> => {
   }
   
   if (token) {
-    logger.debug('API', `Retrieved auth token (length: ${token.length})`);
+    logger.debug('API', `Retrieved auth token (length: ${token.length}, first 10 chars: ${token.substring(0, 10)}...)`);
   } else {
     logger.debug('API', 'No auth token found in SecureStore');
+    
+    // Check if we can refresh the token
+    try {
+      const refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_STORAGE_KEY);
+      if (refreshToken) {
+        logger.info('API', 'No access token but refresh token found, attempting token refresh');
+        const refreshed = await refreshAccessToken(refreshToken);
+        if (refreshed) {
+          logger.info('API', 'Successfully refreshed access token');
+          token = await SecureStore.getItemAsync('square_access_token');
+        } else {
+          logger.warn('API', 'Failed to refresh access token');
+        }
+      } else {
+        logger.warn('API', 'No refresh token found, cannot refresh access token');
+      }
+    } catch (error) {
+      logger.error('API', 'Error checking/refreshing access token', { error });
+    }
   }
   
   return token;
+};
+
+// Add a standalone function to refresh access token
+const refreshAccessToken = async (refreshToken: string): Promise<boolean> => {
+  try {
+    logger.info('API', 'Attempting to refresh access token');
+    
+    const response = await axios.post(
+      `${config.api.baseUrl}/api/auth/refresh-token`,
+      { refresh_token: refreshToken },
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+    
+    if (response.data && response.data.access_token) {
+      logger.info('API', 'Received new access token from refresh endpoint');
+      await SecureStore.setItemAsync('square_access_token', response.data.access_token);
+      
+      if (response.data.refresh_token) {
+        logger.info('API', 'Received new refresh token from refresh endpoint');
+        await SecureStore.setItemAsync(REFRESH_TOKEN_STORAGE_KEY, response.data.refresh_token);
+      }
+      
+      return true;
+    } else {
+      logger.warn('API', 'Refresh token response did not contain access_token', response.data);
+      return false;
+    }
+  } catch (error) {
+    logger.error('API', 'Error refreshing access token', { error });
+    return false;
+  }
 };
 
 const getAuthHeaders = async (): Promise<Record<string, string>> => {

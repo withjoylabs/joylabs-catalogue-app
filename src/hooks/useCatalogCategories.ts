@@ -51,13 +51,11 @@ export function useCatalogCategories(): UseCategoriesResult {
         return;
       }
       
-      console.log('DEBUG: Using access token (first 10 chars):', accessToken.substring(0, 10) + '...');
-      console.log('DEBUG: Token length:', accessToken.length);
-      
       logger.info('Categories', 'Fetching catalog categories');
       
-      // Make request to the catalog API
-      const url = `${config.square.endpoints.catalogItems}?types=CATEGORY`;
+      // Make request to the catalog API through our proxy server
+      // This uses the v2/catalog/list endpoint with proper pagination parameters
+      const url = `${config.api.baseUrl}/v2/catalog/list?page=1&limit=20&types=CATEGORY`;
       console.log('DEBUG: API URL:', url);
       
       const response = await fetch(
@@ -81,7 +79,7 @@ export function useCatalogCategories(): UseCategoriesResult {
           setError('Your Square access token has expired. Please reconnect to Square.');
           logger.error('Categories', 'Authentication error when fetching categories', { status: response.status });
         } else {
-          const errorData = await response.json();
+          const errorData = await response.json().catch(() => ({}));
           console.log('DEBUG: Error response:', JSON.stringify(errorData));
           
           setError(errorData.message || `Error fetching categories: ${response.status}`);
@@ -93,15 +91,16 @@ export function useCatalogCategories(): UseCategoriesResult {
       
       const data = await response.json();
       
-      if (!data.success) {
-        setError(data.message || 'Failed to fetch categories');
-        logger.error('Categories', 'API returned error', data);
+      // Check for Square API response structure
+      if (!data.objects) {
+        setError('Invalid response format from Square API');
+        logger.error('Categories', 'Invalid API response format', data);
         setIsLoading(false);
         return;
       }
       
       // Process categories from the response
-      const categoryObjects = data.objects ? data.objects.filter((obj: CatalogObject) => obj.type === 'CATEGORY') : [];
+      const categoryObjects = data.objects.filter((obj: CatalogObject) => obj.type === 'CATEGORY');
       
       const formattedCategories: Category[] = categoryObjects.map((obj: CatalogObject) => ({
         id: obj.id,
