@@ -49,7 +49,28 @@ joylabs/
 │   ├── types/            # TypeScript type definitions
 │   └── utils/            # Utility functions
 ├── assets/               # Static assets
+├── docs/                 # Documentation
+│   ├── ARCHITECTURE.md   # Detailed architecture documentation
+│   └── API.md            # API documentation
 ```
+
+## Architecture Overview
+
+JoyLabs uses a modern client-server architecture with three main components:
+
+1. **React Native Frontend** (this repository): Built with Expo and TypeScript, providing a mobile interface for Square merchants
+2. **AWS Lambda Backend**: Serverless functions that handle authentication and proxy requests to Square
+3. **Square API**: External service providing merchant data, catalog, and inventory information
+
+Key architectural features:
+
+- **OAuth 2.0 Authentication**: Secure Square integration using PKCE flow
+- **API Client**: Centralized API handling with caching and error management
+- **Custom Hooks**: Domain-specific hooks for categories, items, and API state
+- **Context Providers**: React Context for shared state management
+- **File-based Routing**: Using Expo Router for declarative navigation
+
+For detailed architecture documentation, see [ARCHITECTURE.md](docs/ARCHITECTURE.md) and [API.md](docs/API.md) in the docs directory.
 
 ## Installation
 
