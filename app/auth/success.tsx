@@ -4,6 +4,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSquareAuth } from '../../src/hooks/useSquareAuth';
 import * as SecureStore from 'expo-secure-store';
 import logger from '../../src/utils/logger';
+import tokenService from '../../src/services/tokenService';
 
 export default function AuthSuccess() {
   const router = useRouter();

@@ -72,14 +72,14 @@ export default function BottomTabBar({ activeTab }: BottomTabBarProps) {
       
       <TouchableOpacity 
         style={styles.tabButton} 
-        onPress={() => router.push('/categories')}
+        onPress={() => router.push('/labels')}
       >
         <Ionicons 
-          name="grid" 
+          name="pricetag-outline" 
           size={24} 
           color="#8E8E93" 
         />
-        <Text style={styles.tabLabel}>Categories</Text>
+        <Text style={styles.tabLabel}>Labels</Text>
       </TouchableOpacity>
       
       <TouchableOpacity 

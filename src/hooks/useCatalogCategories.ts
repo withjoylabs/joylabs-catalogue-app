@@ -1,40 +1,38 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import * as SecureStore from 'expo-secure-store';
-import { Alert } from 'react-native';
-import logger from '../utils/logger';
 import config from '../config';
+import logger from '../utils/logger';
+import tokenService from '../services/tokenService';
+import api from '../api';
 
-// Type definitions for categories
-interface Category {
+export interface Category {
   id: string;
   name: string;
-  imageUrl?: string;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+  isDeleted: boolean;
+  presentAtAllLocations: boolean;
 }
 
-// Add an interface for catalog objects
-interface CatalogObject {
-  id: string;
-  type: string;
-  categoryData?: {
-    name: string;
-    imageIds?: string[];
-  };
+export interface CategoriesResponse {
+  categories: Category[];
+  cursor?: string;
 }
 
-interface UseCategoriesResult {
+export interface UseCategoriesResult {
   categories: Category[];
   isLoading: boolean;
   error: string | null;
-  refreshCategories: () => Promise<void>;
+  fetchCategories: () => Promise<void>;
+  refetchCategories: () => Promise<void>;
 }
 
+// Main hook for accessing catalog categories
 export function useCatalogCategories(): UseCategoriesResult {
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Constants for accessing tokens
-  const SQUARE_ACCESS_TOKEN_KEY = 'square_access_token';
 
   // Function to fetch categories from the API
   const fetchCategories = useCallback(async () => {
@@ -42,8 +40,8 @@ export function useCatalogCategories(): UseCategoriesResult {
       setIsLoading(true);
       setError(null);
       
-      // Get the Square access token
-      const accessToken = await SecureStore.getItemAsync(SQUARE_ACCESS_TOKEN_KEY);
+      // Get the Square access token using tokenService
+      const accessToken = await tokenService.getAccessToken();
       
       if (!accessToken) {
         setError('No Square access token found. Please connect to Square first.');
@@ -53,93 +51,67 @@ export function useCatalogCategories(): UseCategoriesResult {
       
       logger.info('Categories', 'Fetching catalog categories');
       
-      // Make request to the catalog API through our proxy server
-      // This uses the v2/catalog/list endpoint with proper pagination parameters
-      const url = `${config.api.baseUrl}/v2/catalog/list?page=1&limit=20&types=CATEGORY`;
-      console.log('DEBUG: API URL:', url);
+      // Use the api.catalog.getCategories method which handles all the details
+      const response = await api.catalog.getCategories();
       
-      const response = await fetch(
-        url,
-        {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-      
-      if (!response.ok) {
-        // Handle different types of errors
-        if (response.status === 401) {
-          console.log('DEBUG: Received 401 Unauthorized error');
-          const responseText = await response.text();
-          console.log('DEBUG: Response body:', responseText);
-          
-          setError('Your Square access token has expired. Please reconnect to Square.');
-          logger.error('Categories', 'Authentication error when fetching categories', { status: response.status });
-        } else {
-          const errorData = await response.json().catch(() => ({}));
-          console.log('DEBUG: Error response:', JSON.stringify(errorData));
-          
-          setError(errorData.message || `Error fetching categories: ${response.status}`);
-          logger.error('Categories', 'Error fetching categories', { status: response.status, error: errorData });
-        }
-        setIsLoading(false);
-        return;
+      if (!response || !response.success) {
+        throw new Error(response?.error?.message || 'Failed to fetch categories');
       }
       
-      const data = await response.json();
+      // Handle either response format (objects array or direct categories array)
+      let categoriesData: Category[] = [];
       
-      // Check for Square API response structure
-      if (!data.objects) {
-        setError('Invalid response format from Square API');
-        logger.error('Categories', 'Invalid API response format', data);
-        setIsLoading(false);
-        return;
+      if (Array.isArray(response.objects)) {
+        // Square API format - objects array with type CATEGORY
+        categoriesData = response.objects
+          ?.filter((obj: any) => obj.type === 'CATEGORY' && !obj.is_deleted)
+          ?.map((obj: any) => ({
+            id: obj.id,
+            name: obj.category_data?.name || 'Unnamed Category',
+            createdAt: obj.created_at,
+            updatedAt: obj.updated_at,
+            version: obj.version,
+            isDeleted: obj.is_deleted || false,
+            presentAtAllLocations: obj.present_at_all_locations || false
+          })) || [];
+      } else if (Array.isArray(response.categories)) {
+        // Direct categories array - backend may return in this format
+        categoriesData = response.categories.map((cat: any) => ({
+          id: cat.id,
+          name: cat.name || cat.category_data?.name || 'Unnamed Category',
+          createdAt: cat.created_at || cat.createdAt,
+          updatedAt: cat.updated_at || cat.updatedAt,
+          version: cat.version || 0,
+          isDeleted: cat.is_deleted || cat.isDeleted || false,
+          presentAtAllLocations: cat.present_at_all_locations || cat.presentAtAllLocations || false
+        }));
       }
       
-      // Process categories from the response
-      const categoryObjects = data.objects.filter((obj: CatalogObject) => obj.type === 'CATEGORY');
-      
-      const formattedCategories: Category[] = categoryObjects.map((obj: CatalogObject) => ({
-        id: obj.id,
-        name: obj.categoryData?.name || 'Unnamed Category',
-        imageUrl: obj.categoryData?.imageIds?.[0] ? `https://image.squarecdn.com/${obj.categoryData.imageIds[0]}` : undefined
-      }));
-      
-      logger.info('Categories', `Fetched ${formattedCategories.length} categories`);
-      setCategories(formattedCategories);
+      setCategories(categoriesData);
+      logger.info('Categories', `Fetched ${categoriesData.length} categories`);
     } catch (err: any) {
-      setError(`Error: ${err.message || 'Unknown error'}`);
-      logger.error('Categories', 'Exception when fetching categories', err);
-      
-      // Show alert for network errors
-      if (!err.response && err.message?.includes('Network')) {
-        Alert.alert(
-          'Network Error',
-          'Unable to connect to Square. Please check your internet connection.'
-        );
-      }
+      logger.error('Categories', 'Error fetching categories', err);
+      setError(err.message || 'Failed to fetch categories');
     } finally {
       setIsLoading(false);
     }
   }, []);
   
-  // Fetch categories on mount
-  useEffect(() => {
-    fetchCategories();
+  // Function to force a refetch
+  const refetchCategories = useCallback(async () => {
+    await fetchCategories();
   }, [fetchCategories]);
   
-  // Public function to manually refresh categories
-  const refreshCategories = useCallback(async () => {
-    await fetchCategories();
+  // Initial fetch on mount
+  useEffect(() => {
+    fetchCategories();
   }, [fetchCategories]);
   
   return {
     categories,
     isLoading,
     error,
-    refreshCategories
+    fetchCategories,
+    refetchCategories
   };
 } 

@@ -5,6 +5,7 @@ import { NetworkState } from 'expo-network';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import config from '../config';
 import logger from '../utils/logger';
+import tokenService, { TOKEN_KEYS } from '../services/tokenService';
 
 // API Error Types
 export class ApiError extends Error {
@@ -102,103 +103,28 @@ const checkNetworkConnectivity = async (): Promise<{
   }
 };
 
-// Token management
-// IMPORTANT: This key MUST match the SQUARE_ACCESS_TOKEN_KEY in useSquareAuth hook
-const TOKEN_STORAGE_KEY = 'square_access_token';
+// Token management - DEPRECATED: Use tokenService instead
+// These remain for backward compatibility but delegate to tokenService
+const TOKEN_STORAGE_KEY = TOKEN_KEYS.ACCESS_TOKEN;
+const REFRESH_TOKEN_STORAGE_KEY = TOKEN_KEYS.REFRESH_TOKEN;
+const MERCHANT_ID_STORAGE_KEY = TOKEN_KEYS.MERCHANT_ID;
+const BUSINESS_NAME_STORAGE_KEY = TOKEN_KEYS.BUSINESS_NAME;
 
-// Add constants to match the keys in useSquareAuth.ts
-const REFRESH_TOKEN_STORAGE_KEY = 'square_refresh_token';
-const MERCHANT_ID_STORAGE_KEY = 'square_merchant_id';
-const BUSINESS_NAME_STORAGE_KEY = 'square_business_name';
-
+// Use tokenService for token operations
 const getAuthToken = async (): Promise<string | null> => {
-  // Try to get the token using the key defined in useSquareAuth hook
-  let token = await SecureStore.getItemAsync('square_access_token');
-  
-  // If we didn't find the token, try the local key as fallback
-  if (!token && TOKEN_STORAGE_KEY !== 'square_access_token') {
-    token = await SecureStore.getItemAsync(TOKEN_STORAGE_KEY);
-    
-    if (token) {
-      logger.warn('API', 'Found token with legacy key, migrating to new key');
-      // Migrate the token to the new key for future use
-      await SecureStore.setItemAsync('square_access_token', token);
-    }
-  }
-  
-  if (token) {
-    logger.debug('API', `Retrieved auth token (length: ${token.length}, first 10 chars: ${token.substring(0, 10)}...)`);
-  } else {
-    logger.debug('API', 'No auth token found in SecureStore');
-    
-    // Check if we can refresh the token
-    try {
-      const refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_STORAGE_KEY);
-      if (refreshToken) {
-        logger.info('API', 'No access token but refresh token found, attempting token refresh');
-        const refreshed = await refreshAccessToken(refreshToken);
-        if (refreshed) {
-          logger.info('API', 'Successfully refreshed access token');
-          token = await SecureStore.getItemAsync('square_access_token');
-        } else {
-          logger.warn('API', 'Failed to refresh access token');
-        }
-      } else {
-        logger.warn('API', 'No refresh token found, cannot refresh access token');
-      }
-    } catch (error) {
-      logger.error('API', 'Error checking/refreshing access token', { error });
-    }
-  }
-  
-  return token;
-};
-
-// Add a standalone function to refresh access token
-const refreshAccessToken = async (refreshToken: string): Promise<boolean> => {
-  try {
-    logger.info('API', 'Attempting to refresh access token');
-    
-    const response = await axios.post(
-      `${config.api.baseUrl}/api/auth/refresh-token`,
-      { refresh_token: refreshToken },
-      { headers: { 'Content-Type': 'application/json' } }
-    );
-    
-    if (response.data && response.data.access_token) {
-      logger.info('API', 'Received new access token from refresh endpoint');
-      await SecureStore.setItemAsync('square_access_token', response.data.access_token);
-      
-      if (response.data.refresh_token) {
-        logger.info('API', 'Received new refresh token from refresh endpoint');
-        await SecureStore.setItemAsync(REFRESH_TOKEN_STORAGE_KEY, response.data.refresh_token);
-      }
-      
-      return true;
-    } else {
-      logger.warn('API', 'Refresh token response did not contain access_token', response.data);
-      return false;
-    }
-  } catch (error) {
-    logger.error('API', 'Error refreshing access token', { error });
-    return false;
-  }
+  return tokenService.getAccessToken();
 };
 
 const getAuthHeaders = async (): Promise<Record<string, string>> => {
-  const token = await getAuthToken();
-  if (token) {
-    return { 'Authorization': `Bearer ${token}` };
-  }
-  return {};
+  return tokenService.getAuthHeaders();
 };
 
 const setAuthToken = async (token: string): Promise<void> => {
-  return SecureStore.setItemAsync(TOKEN_STORAGE_KEY, token);
+  return tokenService.setAccessToken(token);
 };
 
 const clearAuthToken = async (): Promise<void> => {
-  return SecureStore.deleteItemAsync(TOKEN_STORAGE_KEY);
+  return tokenService.clearAuthData();
 };
 
 // Secret name management for AWS Secrets
@@ -381,8 +307,9 @@ const createApiClient = (): AxiosInstance => {
         data: config.data
       });
       
-      // Add authentication token if available
-      const token = await getAuthToken();
+      // Get valid token using tokenService to ensure we always have a working token
+      // This will automatically refresh token if needed
+      const token = await tokenService.ensureValidToken();
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       } else {
@@ -512,36 +439,29 @@ const createApiClient = (): AxiosInstance => {
         try {
           logger.info('API', 'Attempting to refresh token due to 401 response');
           
-          // Check if refresh token exists
-          const refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_STORAGE_KEY);
+          // Use tokenService to refresh token
+          const newToken = await tokenService.ensureValidToken();
           
-          if (refreshToken) {
-            // Attempt to refresh the token
-            const refreshResult = await api.auth.refreshToken();
+          if (newToken) {
+            logger.info('API', 'Token refresh successful, retrying the original request');
             
-            if (refreshResult && refreshResult.access_token) {
-              logger.info('API', 'Token refresh successful, retrying the original request');
-              
-              // Set the new auth token on the original request
-              if (!originalRequest.headers) {
-                originalRequest.headers = {};
-              }
-              originalRequest.headers.Authorization = `Bearer ${refreshResult.access_token}`;
-              
-              // Retry the original request with the new token
-              return axios(originalRequest);
-            } else {
-              logger.warn('API', 'Token refresh failed - no access token returned');
+            // Set the new auth token on the original request
+            if (!originalRequest.headers) {
+              originalRequest.headers = {};
             }
+            originalRequest.headers.Authorization = `Bearer ${newToken}`;
+            
+            // Retry the original request with the new token
+            return axios(originalRequest);
           } else {
-            logger.warn('API', 'No refresh token available, cannot refresh token');
+            logger.warn('API', 'Token refresh failed - no new token returned');
           }
         } catch (refreshError) {
           logger.error('API', 'Error refreshing token', refreshError);
         }
         
-        // Clear the invalid token
-        await clearAuthToken();
+        // If refresh failed, clear the invalid token
+        await tokenService.clearAuthData();
         
         // Perform API reachability check (unchanged from before)
         try {
@@ -969,95 +889,33 @@ const api = {
       return { success: true };
     },
 
+    // Update token refresh method to use tokenService
     refreshToken: async () => {
       try {
         logger.info('API', 'Attempting to refresh Square access token');
+        const newToken = await tokenService.ensureValidToken();
         
-        // Get the refresh token
-        const refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_STORAGE_KEY);
-        
-        if (!refreshToken) {
-          logger.error('API', 'No refresh token available for token refresh');
-          throw new Error('No refresh token available');
+        if (newToken) {
+          return {
+            success: true,
+            access_token: newToken
+          };
         }
         
-        // Make sure Square credentials are loaded
-        if (!config.square || !config.square.appId) {
-          throw new Error('Square configuration not loaded');
-        }
-        
-        // Get client ID from config
-        const clientId = config.square.appId;
-        
-        // Create the refresh token request payload
-        const payload = {
-          client_id: clientId,
-          grant_type: 'refresh_token',
-          refresh_token: refreshToken
+        return {
+          success: false,
+          error: 'Failed to refresh token'
         };
-        
-        logger.debug('API', 'Sending refresh token request to Square API');
-        
-        // Get the token URL from config
-        const tokenUrl = config.square.endpoints.token;
-        if (!tokenUrl) {
-          logger.error('API', 'Square token URL not configured');
-          throw new Error('Square token URL not configured');
-        }
-        
-        // Make the request with proper headers required by Square
-        const response = await axios.post(tokenUrl, payload, {
-          headers: { 
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'User-Agent': 'JoyLabsApp/1.0.0',
-            'Square-Version': '2025-01-23' // Latest version
-          },
-          timeout: 15000 // 15 second timeout for token refresh
-        });
-        
-        logger.info('API', 'Square token refresh successful', {
-          statusCode: response.status,
-          hasAccessToken: !!response.data.access_token,
-          hasMerchantId: !!response.data.merchant_id,
-          tokenType: response.data.token_type,
-          expiresIn: response.data.expires_in
-        });
-        
-        // Save the new access token
-        if (response.data.access_token) {
-          await setAuthToken(response.data.access_token);
-        }
-        
-        // Save the new refresh token if provided
-        if (response.data.refresh_token) {
-          await SecureStore.setItemAsync(REFRESH_TOKEN_STORAGE_KEY, response.data.refresh_token);
-        }
-        
-        return response.data;
-      } catch (error: any) {
-        logger.error('API', 'Failed to refresh Square token', {
-          error: error.message,
-          status: error.response?.status,
-          data: error.response?.data
-        });
-        
-        // Clear tokens on refresh failure
-        await clearAuthToken();
-        await SecureStore.deleteItemAsync(REFRESH_TOKEN_STORAGE_KEY);
-        
-        throw new ApiError(
-          'Failed to refresh authentication. Please reconnect to Square.',
-          'REFRESH_FAILED',
-          error.response?.status || 0
-        );
+      } catch (error) {
+        logger.error('API', 'Failed to refresh Square token', error);
+        throw error;
       }
     },
   },
   
   // Catalog endpoints
   catalog: {
-    getItems: async (page = 1, limit = 20, types = 'ITEM,CATEGORY') => {
+    getItems: async (page = 1, limit = 20, types = 'ITEM') => {
       try {
         const endpoint = config.square.endpoints.catalogItems;
         const url = `${endpoint}?page=${page}&limit=${limit}&types=${encodeURIComponent(types)}`;
@@ -1162,20 +1020,130 @@ const api = {
       try {
         logger.info('API', 'Searching catalog items', { searchParams });
         
-        // Use a custom cache key based on the search params to allow caching search results
-        const cacheKey = `search_${JSON.stringify(searchParams)}`;
+        // Ensure we're using the proper search format as documented
+        // If object_types is not provided, default to ITEM
+        const enhancedParams = {
+          ...searchParams
+        };
         
-        const url = config.square.endpoints.catalogSearch;
-        const response = await apiClient.post(url, searchParams, {
+        // If object_types is not explicitly set and we're not using a complex query
+        if (!searchParams.object_types && !searchParams.query?.exact_query) {
+          enhancedParams.object_types = ['ITEM'];
+        }
+        
+        // Use a custom cache key based on the search params to allow caching search results
+        const cacheKey = `search_${JSON.stringify(enhancedParams)}`;
+        
+        // Use the properly formatted search endpoint directly
+        const url = `${config.api.baseUrl}/v2/catalog/search`;
+        const response = await apiClient.post(url, enhancedParams, {
           cache: { 
             key: cacheKey,
             ttl: 2 * 60 * 1000 // Cache search results for 2 minutes
           }
         });
         
-    return response.data;
+        return response.data;
       } catch (error) {
         logger.error('API', 'Failed to search catalog items', { error, searchParams });
+        throw error;
+      }
+    },
+    
+    getCategories: async () => {
+      try {
+        logger.info('API', 'Fetching catalog categories using dedicated endpoint');
+        
+        // Use the dedicated categories endpoint
+        const url = config.square.endpoints.catalogListCategories;
+        const cacheKey = 'categories_list';
+        
+        logger.debug('API', 'Categories request params', { url });
+        
+        const response = await apiClient.get(url, {
+          cache: { 
+            key: cacheKey,
+            ttl: 5 * 60 * 1000 // Cache categories for 5 minutes
+          }
+        });
+        
+        // Add success flag if needed based on objects field
+        if (!response.data.hasOwnProperty('success')) {
+          response.data.success = !!response.data.objects;
+        }
+        
+        // Log detailed response information for debugging
+        logger.debug('API', 'Categories response details', {
+          success: response.data.success,
+          hasObjects: !!response.data.objects,
+          objectCount: response.data.objects?.length || 0,
+          hasCursor: !!response.data.cursor,
+          count: response.data.count,
+          metadataExists: !!response.data.metadata,
+          status: response.status
+        });
+        
+        return response.data;
+      } catch (error) {
+        logger.error('API', 'Failed to fetch categories', { error });
+        throw error;
+      }
+    },
+    
+    searchCategories: async (namePrefix?: string, limit = 100) => {
+      try {
+        logger.info('API', 'Searching catalog categories', { namePrefix, limit });
+        
+        // Build the search request as specified in the backend documentation
+        const searchParams: any = {
+          object_types: ["CATEGORY"],
+          limit
+        };
+        
+        // Add appropriate query type based on input
+        if (namePrefix) {
+          // Use prefix query when a prefix is provided
+          searchParams.query = {
+            prefix_query: {
+              attribute_name: "name",
+              attribute_prefix: namePrefix
+            }
+          };
+        } else {
+          // Use text query with empty string to get all categories when no prefix
+          searchParams.query = {
+            text_query: {
+              query: ""
+            }
+          };
+        }
+        
+        // Use a custom cache key
+        const cacheKey = `search_categories_${namePrefix || 'all'}_${limit}`;
+        
+        logger.debug('API', 'Category search request params', { 
+          namePrefix, 
+          limit,
+          searchParams: JSON.stringify(searchParams)
+        });
+        
+        // Use the search endpoint directly
+        const url = config.square.endpoints.catalogSearch;
+        const response = await apiClient.post(url, searchParams, {
+          cache: { 
+            key: cacheKey,
+            ttl: 5 * 60 * 1000 // Cache category searches for 5 minutes
+          }
+        });
+        
+        // Add success flag if needed
+        if (!response.data.hasOwnProperty('success')) {
+          response.data.success = !!response.data.objects;
+        }
+        
+        return response.data;
+      } catch (error) {
+        logger.error('API', 'Failed to search categories', { error, namePrefix });
         throw error;
       }
     }

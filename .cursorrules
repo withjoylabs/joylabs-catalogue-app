@@ -10,3 +10,5 @@ Our redirect url for Square Console has to be HTTPS and we can only use ONE redi
 our redirect url on square is https://gki8kva7e3.execute-api.us-west-1.amazonaws.com/production/api/auth/square/callback. we are using deeplinking for our expo development.
 
 we DO NOT have any custom urls such as joylabs.com
+
+your lack of thoroughness is costing me a lot of valuable time. your assumptions that other parts of the codebase is correct is harming our developmental efforts. i need you to check every instance that relies on your changes and implementations before you just tell me you've fixed something. test and double check yourself!

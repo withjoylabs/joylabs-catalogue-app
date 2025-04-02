@@ -30,6 +30,7 @@ const linking = {
       profile: 'profile',
       modules: 'modules',
       catalogue: 'catalogue',
+      labels: 'labels',
       'item/[id]': 'item/:id',
       'auth/success': 'auth/success',
       debug: 'debug',

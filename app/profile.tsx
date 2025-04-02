@@ -14,6 +14,7 @@ import { useApi } from '../src/providers/ApiProvider';
 import { useSquareAuth } from '../src/hooks/useSquareAuth';
 import * as SecureStore from 'expo-secure-store';
 import config from '../src/config';
+import tokenService from '../src/services/tokenService';
 
 type SectionType = 'profile' | 'settings' | 'categories';
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
@@ -222,18 +223,32 @@ export default function ProfileScreen() {
   };
   
   const testSquareToken = async () => {
-    const result = await testConnection();
-    if (result.success) {
-      Alert.alert('Success', 'Square token is valid. Merchant ID: ' + result.data?.merchantId);
-    } else {
-      Alert.alert('Error', result.error || 'Unknown error testing Square token');
+    try {
+      const tokenInfo = await tokenService.getTokenInfo();
+      
+      if (!tokenInfo.accessToken) {
+        Alert.alert('No Token', 'No Square access token found');
+        return;
+      }
+      
+      console.log('Access token found with length:', tokenInfo.accessToken.length);
+      console.log('First few characters:', tokenInfo.accessToken.substring(0, 10) + '...');
+      console.log('Token status:', tokenInfo.status);
+      
+      Alert.alert(
+        'Square Token',
+        `Token found (${tokenInfo.accessToken.length} chars)\nStatus: ${tokenInfo.status}\nExpires: ${tokenInfo.expiresAt || 'unknown'}`
+      );
+    } catch (error: any) {
+      console.error('Error checking token:', error);
+      Alert.alert('Error', `Failed to check token: ${error.message}`);
     }
   };
   
   // Add this function after testSquareToken
   const testDirectSquareCatalog = async () => {
     try {
-      const accessToken = await SecureStore.getItemAsync(SQUARE_ACCESS_TOKEN_KEY);
+      const accessToken = await tokenService.getAccessToken();
       
       if (!accessToken) {
         Alert.alert('Error', 'No access token found');
@@ -270,7 +285,7 @@ export default function ProfileScreen() {
   // Add this function to test the backend endpoint directly
   const testBackendCatalogEndpoint = async () => {
     try {
-      const accessToken = await SecureStore.getItemAsync(SQUARE_ACCESS_TOKEN_KEY);
+      const accessToken = await tokenService.getAccessToken();
       
       if (!accessToken) {
         Alert.alert('Error', 'No access token found');
@@ -602,7 +617,6 @@ export default function ProfileScreen() {
                           <Text style={styles.categoryDescription}>{category.description}</Text>
                         )}
                       </View>
-                      <Ionicons name="chevron-forward" size={20} color="#ccc" />
                     </View>
                   ))
                 )}
@@ -835,9 +849,9 @@ const styles = StyleSheet.create({
   },
   categoryItem: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 16,
+    paddingRight: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
@@ -851,6 +865,7 @@ const styles = StyleSheet.create({
   categoryInfo: {
     flexDirection: 'column',
     marginLeft: 16,
+    flex: 1,
   },
   categoryName: {
     fontSize: 16,

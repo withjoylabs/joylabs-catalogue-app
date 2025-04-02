@@ -58,22 +58,50 @@ export const useCatalogItems = () => {
     
     try {
       logger.info('CatalogItems', 'Fetching catalog items', { cursor: cursor || undefined, limit });
-      // Call the catalog API to get items
-      const response = await api.catalog.getItems(cursor || undefined, limit);
+      // Call the catalog API to get items with explicit ITEM type parameter
+      const response = await api.catalog.getItems(
+        cursor ? parseInt(cursor as string, 10) : undefined, 
+        limit,
+        'ITEM' // Always include ITEM type parameter
+      );
       
       if (!response.success) {
         throw new Error(response.error?.message || 'Failed to fetch products');
       }
       
-      // Filter for just the items and transform them
-      const itemObjects = response.data?.items?.filter((item: CatalogObject) => item.type === 'ITEM') || [];
+      // Filter for just the items and transform them - handle different response formats
+      let itemObjects: CatalogObject[] = [];
+      
+      if (Array.isArray(response.objects)) {
+        // If response has objects array (from search endpoint)
+        itemObjects = response.objects.filter((item: CatalogObject) => 
+          item.type === 'ITEM' && !item.is_deleted
+        );
+      } else if (Array.isArray(response.items)) {
+        // If response has items array (from list endpoint)
+        itemObjects = response.items.filter((item: CatalogObject) => 
+          item.type === 'ITEM' && !item.is_deleted
+        );
+      } else if (response.data?.items) {
+        // If response has data.items (nested structure)
+        itemObjects = response.data.items.filter((item: CatalogObject) => 
+          item.type === 'ITEM' && !item.is_deleted
+        );
+      }
+      
       const transformedItems = itemObjects
         .map((item: CatalogObject) => transformCatalogItemToItem(item))
         .filter((item: ConvertedItem | null): item is ConvertedItem => item !== null)
         .map((item: ConvertedItem) => ({
           ...item,
           // Fill in category name from ID
-          category: item.categoryId ? categoryMapRef.current[item.categoryId] || '' : ''
+          category: item.categoryId ? categoryMapRef.current[item.categoryId] || '' : '',
+          // Ensure required properties have default values
+          price: item.price || 0,
+          description: item.description || '',
+          sku: item.sku || '',
+          barcode: item.barcode || '',
+          stockQuantity: item.stockQuantity || 0
         }));
       
       if (cursor) {
@@ -84,9 +112,10 @@ export const useCatalogItems = () => {
         setProducts(transformedItems);
       }
       
-      // Update cursor
-      setCursor(response.data?.cursor || null);
-      setHasMore(!!response.data?.cursor);
+      // Update cursor - handle different response formats
+      const responseCursor = response.cursor || response.data?.cursor || null;
+      setCursor(responseCursor);
+      setHasMore(!!responseCursor);
       setConnected(true);
       logger.info('CatalogItems', `Successfully fetched ${transformedItems.length} products`);
     } catch (error: unknown) {

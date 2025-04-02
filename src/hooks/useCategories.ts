@@ -22,7 +22,7 @@ export const useCategories = () => {
   } = useAppStore();
   
   // Get Square connection status from ApiProvider
-  const { isConnected: isSquareConnected } = useApi();
+  const { isConnected: isSquareConnected, refreshData } = useApi();
   
   const [dropdownItems, setDropdownItems] = useState<DropdownItem[]>([]);
   const [connected, setConnected] = useState(false);
@@ -52,22 +52,78 @@ export const useCategories = () => {
     
     try {
       logger.info('Categories', 'Fetching catalog categories');
-      // Call the catalog API to get items of type CATEGORY
-      const response = await api.catalog.getItems();
+      
+      // Try the direct API call first, since refreshData might be causing issues
+      const response = await api.catalog.getCategories();
+      
+      // Log response for debugging - include more details
+      logger.debug('Categories', 'Categories API response structure', {
+        success: response.success,
+        hasObjects: !!response.objects,
+        objectCount: response.objects?.length || 0,
+        responseKeys: Object.keys(response),
+        hasCursor: !!response.cursor,
+        count: response.count,
+        metadataPresent: !!response.metadata
+      });
+      
+      // Use refreshData as a background refresh only if available
+      if (refreshData) {
+        try {
+          // Don't await this to avoid blocking UI
+          refreshData('categories').catch(err => {
+            logger.warn('Categories', 'Background refresh failed', { error: err.message });
+          });
+        } catch (refreshError) {
+          // Ignore refresh errors since we already have the data
+          logger.warn('Categories', 'Error in background refresh', { error: refreshError });
+        }
+      }
       
       if (!response.success) {
         throw new Error(response.error?.message || 'Failed to fetch categories');
       }
       
-      // Filter for just the categories and transform them
-      const categoryObjects = response.data?.items?.filter((item: CatalogObject) => item.type === 'CATEGORY') || [];
+      // Handle different response formats with simplified priority
+      let categoryObjects: CatalogObject[] = [];
+      
+      if (Array.isArray(response.objects)) {
+        // Backend now returns objects directly
+        logger.debug('Categories', 'Using objects array from response', { 
+          count: response.objects.length
+        });
+        categoryObjects = response.objects.filter((item: CatalogObject) => 
+          item.type === 'CATEGORY' && !item.is_deleted
+        );
+      } else if (Array.isArray(response.categories)) {
+        // Fallback for previous response format
+        logger.debug('Categories', 'Using categories array from response', { 
+          count: response.categories.length
+        });
+        categoryObjects = response.categories.filter((item: CatalogObject) => 
+          item.type === 'CATEGORY' && !item.is_deleted
+        );
+      } else if (Array.isArray(response.items)) {
+        // Fallback for old list endpoint format
+        categoryObjects = response.items.filter((item: CatalogObject) => 
+          item.type === 'CATEGORY' && !item.is_deleted
+        );
+      } else if (response.data?.items) {
+        // Fallback for nested structure
+        categoryObjects = response.data.items.filter((item: CatalogObject) => 
+          item.type === 'CATEGORY' && !item.is_deleted
+        );
+      }
+      
       const transformedCategories = categoryObjects
         .map((item: CatalogObject) => transformCatalogCategoryToCategory(item))
         .filter((category: ConvertedCategory | null): category is ConvertedCategory => category !== null) // Remove null values
         .map((category: ConvertedCategory) => ({
           ...category,
           itemCount: 0 // We'll update this separately if needed
-        }));
+        }))
+        // Sort categories alphabetically by name
+        .sort((a, b) => a.name.localeCompare(b.name));
       
       setCategories(transformedCategories);
       updateDropdownItems(transformedCategories);
@@ -87,7 +143,7 @@ export const useCategories = () => {
       if (showLoading) setCategoriesLoading(false);
       else setIsRefreshing(false);
     }
-  }, [isCategoriesLoading, setCategoriesLoading, setCategoryError, setCategories, isSquareConnected]);
+  }, [isCategoriesLoading, setCategoriesLoading, setCategoryError, setCategories, isSquareConnected, refreshData]);
 
   // Function to refresh categories without showing the loading state
   const refreshCategories = useCallback(() => {

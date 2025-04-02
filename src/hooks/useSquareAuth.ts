@@ -8,17 +8,20 @@ import config from '../config';
 import { useAppStore } from '../store';
 import logger from '../utils/logger';
 import Constants from 'expo-constants';
+import tokenService, { TOKEN_KEYS } from '../services/tokenService';
+import api from '../api';
 
 // Initialize WebBrowser
 WebBrowser.maybeCompleteAuthSession();
 
 // Constants for secure storage keys
+// DEPRECATED: Use TOKEN_KEYS from tokenService instead
 const SQUARE_CODE_VERIFIER_KEY = 'square_code_verifier';
 const SQUARE_STATE_KEY = 'square_state';
-const SQUARE_ACCESS_TOKEN_KEY = 'square_access_token';
-const SQUARE_REFRESH_TOKEN_KEY = 'square_refresh_token';
-const MERCHANT_ID_KEY = 'square_merchant_id';
-const BUSINESS_NAME_KEY = 'square_business_name';
+const SQUARE_ACCESS_TOKEN_KEY = TOKEN_KEYS.ACCESS_TOKEN;
+const SQUARE_REFRESH_TOKEN_KEY = TOKEN_KEYS.REFRESH_TOKEN;
+const MERCHANT_ID_KEY = TOKEN_KEYS.MERCHANT_ID;
+const BUSINESS_NAME_KEY = TOKEN_KEYS.BUSINESS_NAME;
 
 // Base64URL encode utility
 const base64URLEncode = (buffer: Uint8Array): string => {
@@ -110,6 +113,7 @@ export interface UseSquareAuthResult {
   }>;
   testConnection: () => Promise<{success: boolean, data?: any, error?: string, tokenStatus?: any}>;
   testExactCallback: () => Promise<{success: boolean, hasAccessToken: boolean, accessTokenLength?: number, hasRefreshToken?: boolean, hasMerchantId?: boolean, hasBusinessName?: boolean, error?: string}>;
+  processCallback: (url: string) => Promise<any>;
 }
 
 export const useSquareAuth = (): UseSquareAuthResult => {
@@ -121,59 +125,52 @@ export const useSquareAuth = (): UseSquareAuthResult => {
   
   const { setSquareConnected } = useAppStore();
 
-  // Check for existing tokens on mount and periodically validate them
+  // Check for existing Square connection on mount
   useEffect(() => {
     const checkExistingConnection = async () => {
       try {
-        logger.info('SquareAuth', '🔄 Checking existing connection on component mount...');
-        const accessToken = await SecureStore.getItemAsync(SQUARE_ACCESS_TOKEN_KEY);
+        logger.debug('SquareAuth', 'Checking for existing Square connection');
         
-        // Log token details for debugging
-        if (accessToken) {
-          logger.info('SquareAuth', '✅ Found access token on startup - length: ' + accessToken.length);
+        // Use tokenService to check for tokens
+        const tokenInfo = await tokenService.getTokenInfo();
+        
+        if (tokenInfo.accessToken) {
+          logger.info('SquareAuth', '✅ Found existing Square connection');
           setIsConnected(true);
           setSquareConnected(true);
           
-          const storedMerchantId = await SecureStore.getItemAsync(MERCHANT_ID_KEY);
-          if (storedMerchantId) {
-            logger.info('SquareAuth', '✅ Found merchant ID: ' + storedMerchantId.substring(0, 4) + '...');
-            setMerchantId(storedMerchantId);
-          } else {
-            logger.warn('SquareAuth', '⚠️ No merchant ID found despite having access token');
+          // Set merchant info if available
+          if (tokenInfo.merchantId) {
+            setMerchantId(tokenInfo.merchantId);
           }
           
-          const storedBusinessName = await SecureStore.getItemAsync(BUSINESS_NAME_KEY);
-          if (storedBusinessName) {
-            logger.info('SquareAuth', '✅ Found business name: ' + storedBusinessName);
-            setBusinessName(storedBusinessName);
-          } else {
-            logger.warn('SquareAuth', '⚠️ No business name found despite having access token');
+          if (tokenInfo.businessName) {
+            setBusinessName(tokenInfo.businessName);
           }
-          
-          // Validate the token by making a simple API call
-          validateAccessToken(accessToken);
         } else {
-          logger.info('SquareAuth', '❌ No access token found on startup');
+          logger.info('SquareAuth', '❌ No existing Square connection found');
+          setIsConnected(false);
+          setSquareConnected(false);
+        }
+        
+        // Test SecureStore is working
+        try {
+          const testKey = 'square_test_key';
+          const testValue = 'test_value_' + new Date().getTime();
+          logger.info('SquareAuth', '🧪 Testing SecureStore with test key');
           
-          // Test SecureStore is working
-          try {
-            const testKey = 'square_test_key';
-            const testValue = 'test_value_' + new Date().getTime();
-            logger.info('SquareAuth', '🧪 Testing SecureStore with test key');
-            
-            await SecureStore.setItemAsync(testKey, testValue);
-            const retrievedValue = await SecureStore.getItemAsync(testKey);
-            
-            if (retrievedValue === testValue) {
-              logger.info('SquareAuth', '✅ SecureStore test passed');
-            } else {
-              logger.error('SquareAuth', '❌ SecureStore test failed - retrieved value does not match');
-            }
-            
-            await SecureStore.deleteItemAsync(testKey);
-          } catch (storeErr) {
-            logger.error('SquareAuth', '❌ SecureStore test failed with error', storeErr);
+          await SecureStore.setItemAsync(testKey, testValue);
+          const retrievedValue = await SecureStore.getItemAsync(testKey);
+          
+          if (retrievedValue === testValue) {
+            logger.info('SquareAuth', '✅ SecureStore test passed');
+          } else {
+            logger.error('SquareAuth', '❌ SecureStore test failed - retrieved value does not match');
           }
+          
+          await SecureStore.deleteItemAsync(testKey);
+        } catch (storeErr) {
+          logger.error('SquareAuth', '❌ SecureStore test failed with error', storeErr);
         }
       } catch (err) {
         logger.error('SquareAuth', '❌ Error checking existing connection', err);
@@ -188,15 +185,7 @@ export const useSquareAuth = (): UseSquareAuthResult => {
       verifyTokenStorage();
     }, 2000);
     
-    // Set up an interval to periodically verify access token is still valid
-    const validationInterval = setInterval(() => {
-      validateTokensIfConnected();
-    }, 30 * 60 * 1000); // Check every 30 minutes
-    
-    return () => {
-      clearTimeout(verifyTimer);
-      clearInterval(validationInterval);
-    };
+    return () => clearTimeout(verifyTimer);
   }, [setSquareConnected]);
   
   // Handle deep link callback
@@ -285,83 +274,52 @@ export const useSquareAuth = (): UseSquareAuthResult => {
               throw new Error('Access token not found in callback URL');
             }
 
-            // Extract token values
+            // Extract tokens from response
             const accessToken = params.access_token;
             const refreshToken = params.refresh_token;
             const merchantId = params.merchant_id;
-            let businessName = params.business_name;
+            const businessName = params.business_name;
+            const expiresIn = params.expires_in ? parseInt(params.expires_in) : undefined;
             
-            // Fix potential double encoding issues with business name
-            if (businessName && businessName.includes('%')) {
-              try {
-                businessName = decodeURIComponent(businessName);
-                logger.debug('SquareAuth', 'Decoded business name from potential double encoding');
-              } catch (decodeErr) {
-                logger.warn('SquareAuth', 'Failed to decode business name', { businessName });
-              }
+            if (!accessToken) {
+              throw new Error('No access token found in Square callback');
             }
             
-            // Store tokens immediately while we have them in memory
-            logger.info('SquareAuth', '💾 Storing Square connection data to SecureStore');
+            logger.info('SquareAuth', '🔑 Received Square access token from callback');
             
-            try {
-              // Store access token with immediate verification
-              logger.debug('SquareAuth', `Storing access token (length: ${accessToken.length})`);
-              await SecureStore.setItemAsync(SQUARE_ACCESS_TOKEN_KEY, accessToken);
-              
-              // Verify the token was stored correctly
-              const storedToken = await SecureStore.getItemAsync(SQUARE_ACCESS_TOKEN_KEY);
-              if (storedToken && storedToken === accessToken) {
-                logger.info('SquareAuth', '✅ Access token stored and verified successfully');
-              } else {
-                logger.error('SquareAuth', '❌ Access token verification failed - not found after storage');
-                throw new Error('Failed to store access token - verification failed');
-              }
-              
-              // Store refresh token
-              if (refreshToken) {
-                logger.debug('SquareAuth', `Storing refresh token (length: ${refreshToken.length})`);
-                await SecureStore.setItemAsync(SQUARE_REFRESH_TOKEN_KEY, refreshToken);
-                logger.debug('SquareAuth', '✅ Refresh token stored');
-              }
-              
-              // Store merchant ID
-              if (merchantId) {
-                logger.debug('SquareAuth', `Storing merchant ID: ${merchantId}`);
-                await SecureStore.setItemAsync(MERCHANT_ID_KEY, merchantId);
-                setMerchantId(merchantId);
-                logger.debug('SquareAuth', '✅ Merchant ID stored');
-              }
-              
-              // Store business name
-              if (businessName) {
-                logger.debug('SquareAuth', `Storing business name: ${businessName}`);
-                await SecureStore.setItemAsync(BUSINESS_NAME_KEY, businessName);
-                setBusinessName(businessName);
-                logger.debug('SquareAuth', '✅ Business name stored');
-              }
-              
-              // Clean up PKCE values
-              await SecureStore.deleteItemAsync(SQUARE_CODE_VERIFIER_KEY);
-              await SecureStore.deleteItemAsync(SQUARE_STATE_KEY);
-              
-              // Update app state
-              setIsConnected(true);
-              setIsConnecting(false);
-              setSquareConnected(true);
-              
-              logger.info('SquareAuth', '🎉 Square connection successfully completed');
-              
-              // Verify token storage after a short delay
-              setTimeout(async () => {
-                const verificationResult = await verifyTokenStorage();
-                logger.info('SquareAuth', '🔒 Verification after callback:', verificationResult);
-              }, 500);
-              
-            } catch (storageErr) {
-              logger.error('SquareAuth', '❌ Error storing tokens', storageErr);
-              throw new Error(`Failed to store connection data: ${(storageErr as Error).message}`);
+            // Store tokens using tokenService
+            await tokenService.storeAuthData({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+              merchant_id: merchantId,
+              business_name: businessName,
+              expires_in: expiresIn
+            });
+            
+            // Clean up PKCE values
+            await SecureStore.deleteItemAsync(SQUARE_CODE_VERIFIER_KEY);
+            await SecureStore.deleteItemAsync(SQUARE_STATE_KEY);
+            
+            // Update app state
+            setIsConnected(true);
+            setIsConnecting(false);
+            setSquareConnected(true);
+            
+            if (merchantId) {
+              setMerchantId(merchantId);
             }
+            
+            if (businessName) {
+              setBusinessName(businessName);
+            }
+            
+            logger.info('SquareAuth', '🎉 Square connection successfully completed');
+            
+            // Verify token storage after a short delay
+            setTimeout(async () => {
+              const verificationResult = await verifyTokenStorage();
+              logger.info('SquareAuth', '🔒 Verification after callback:', verificationResult);
+            }, 500);
           } catch (err) {
             logger.error('SquareAuth', 'Error handling Square callback', err);
             setError(err as Error);
@@ -469,8 +427,8 @@ export const useSquareAuth = (): UseSquareAuthResult => {
     checkAndResetState();
   }, [isConnecting, setSquareConnected]);
 
-  // Update the connect function to access the handleDeepLink function
-  const connect = async () => {
+  // Update the connect function to use tokenService for validation
+  const connect = async (): Promise<void> => {
     logger.debug('SquareAuth', 'Starting Square connection flow');
     try {
       logger.debug('SquareAuth', 'Setting connecting state');
@@ -618,67 +576,28 @@ export const useSquareAuth = (): UseSquareAuthResult => {
     }
   };
   
-  const disconnect = async () => {
+  // Update disconnect function to use tokenService
+  const disconnect = async (): Promise<void> => {
     try {
-      logger.debug('SquareAuth', 'Starting Square disconnection');
+      logger.debug('SquareAuth', 'Disconnecting from Square');
       
-      // Call Square API to revoke tokens
-      const accessToken = await SecureStore.getItemAsync(SQUARE_ACCESS_TOKEN_KEY);
-      const refreshToken = await SecureStore.getItemAsync(SQUARE_REFRESH_TOKEN_KEY);
+      // Clear all tokens using tokenService
+      await tokenService.clearAuthData();
       
-      if (accessToken) {
-        try {
-          logger.info('SquareAuth', 'Revoking Square access token');
-          
-          // Use the correct Square OAuth revocation endpoint
-          const response = await fetch('https://connect.squareup.com/oauth2/revoke', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Square-Version': '2023-09-25',
-              'Authorization': `Bearer ${accessToken}`
-            },
-            body: JSON.stringify({
-              client_id: config.square.appId,
-              access_token: accessToken
-            }),
-          });
-
-          if (!response.ok) {
-            const responseText = await response.text();
-            logger.error('SquareAuth', 'Token revocation failed', {
-              status: response.status,
-              response: responseText
-            });
-            // Continue with local cleanup even if token revocation fails
-          } else {
-            logger.info('SquareAuth', 'Successfully revoked Square token');
-          }
-        } catch (revokeError) {
-          // Log error but continue with cleanup
-          logger.error('SquareAuth', 'Error revoking Square token', revokeError);
-          // We'll still clean up local tokens even if the revocation request fails
-        }
-      }
-
-      // Clean up stored tokens
-      logger.info('SquareAuth', 'Cleaning up local tokens');
-      await SecureStore.deleteItemAsync(SQUARE_ACCESS_TOKEN_KEY);
-      await SecureStore.deleteItemAsync(SQUARE_REFRESH_TOKEN_KEY);
-      await SecureStore.deleteItemAsync(MERCHANT_ID_KEY);
-      await SecureStore.deleteItemAsync(BUSINESS_NAME_KEY);
-      
-      logger.debug('SquareAuth', 'Successfully disconnected from Square');
-      
-      // Update local state
-      setMerchantId(null);
-      setBusinessName(null);
+      // Update state
       setIsConnected(false);
       setSquareConnected(false);
+      setMerchantId(null);
+      setBusinessName(null);
       setError(null);
+      
+      logger.info('SquareAuth', '✅ Disconnected from Square successfully');
+      
+      return Promise.resolve();
     } catch (err) {
-      logger.error('SquareAuth', 'Error disconnecting from Square', err);
+      logger.error('SquareAuth', '❌ Error disconnecting from Square', err);
       setError(err as Error);
+      return Promise.reject(err);
     }
   };
 
@@ -931,29 +850,28 @@ export const useSquareAuth = (): UseSquareAuthResult => {
     }
   }, [isConnecting, setSquareConnected]);
 
-  // Add a new function to diagnose token storage near line 500
+  // Update the verifyTokenStorage function to use tokenService
   const verifyTokenStorage = async () => {
     try {
       logger.info('SquareAuth', '🔍 Verifying token storage...');
-      const accessToken = await SecureStore.getItemAsync(SQUARE_ACCESS_TOKEN_KEY);
-      const refreshToken = await SecureStore.getItemAsync(SQUARE_REFRESH_TOKEN_KEY);
-      const merchId = await SecureStore.getItemAsync(MERCHANT_ID_KEY);
-      const bizName = await SecureStore.getItemAsync(BUSINESS_NAME_KEY);
+      const tokenInfo = await tokenService.getTokenInfo();
       
       logger.info('SquareAuth', '🔒 Token verification result:', {
-        hasAccessToken: !!accessToken,
-        accessTokenLength: accessToken ? accessToken.length : 0,
-        hasRefreshToken: !!refreshToken,
-        hasMerchantId: !!merchId,
-        hasBusinessName: !!bizName
+        hasAccessToken: !!tokenInfo.accessToken,
+        accessTokenLength: tokenInfo.accessToken ? tokenInfo.accessToken.length : 0,
+        hasRefreshToken: !!tokenInfo.refreshToken,
+        hasMerchantId: !!tokenInfo.merchantId,
+        hasBusinessName: !!tokenInfo.businessName,
+        status: tokenInfo.status
       });
       
       return {
-        hasAccessToken: !!accessToken,
-        accessTokenLength: accessToken ? accessToken.length : 0,
-        hasRefreshToken: !!refreshToken,
-        hasMerchantId: !!merchId,
-        hasBusinessName: !!bizName
+        hasAccessToken: !!tokenInfo.accessToken,
+        accessTokenLength: tokenInfo.accessToken ? tokenInfo.accessToken.length : 0,
+        hasRefreshToken: !!tokenInfo.refreshToken,
+        hasMerchantId: !!tokenInfo.merchantId,
+        hasBusinessName: !!tokenInfo.businessName,
+        status: tokenInfo.status
       };
     } catch (err) {
       logger.error('SquareAuth', '❌ Error verifying token storage', err);
@@ -1079,108 +997,145 @@ export const useSquareAuth = (): UseSquareAuthResult => {
       };
     }
   };
-  
-  // Function to validate the current access token
-  const validateAccessToken = async (token: string) => {
+
+  // Add processCallback implementation for handling OAuth callback URLs
+  const processCallback = async (url: string): Promise<any> => {
     try {
-      const response = await fetch(
-        `${config.api.baseUrl}/v2/merchants/me`,
-        {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
+      logger.info('SquareAuth', '🔄 Processing callback URL', { url: url.substring(0, 30) + '...' });
+      
+      // Extract and clean the URL
+      let cleanUrl = url;
+      if (cleanUrl.includes('#')) {
+        const fragmentIndex = cleanUrl.indexOf('#');
+        cleanUrl = cleanUrl.substring(0, fragmentIndex);
+        logger.debug('SquareAuth', `Removed URL fragment at position ${fragmentIndex}`);
+      }
+      
+      // Extract parameters directly from the query string
+      const params: Record<string, string> = {};
+      
+      if (cleanUrl.includes('?')) {
+        const queryStr = cleanUrl.split('?')[1];
+        const pairs = queryStr.split('&');
+        
+        for (const pair of pairs) {
+          if (pair.includes('=')) {
+            const [key, value] = pair.split('=');
+            if (key && value) {
+              try {
+                params[key] = decodeURIComponent(value);
+              } catch (e) {
+                params[key] = value;
+                logger.warn('SquareAuth', `Failed to decode param ${key}, using raw value`);
+              }
+            }
           }
         }
-      );
-      
-      if (!response.ok) {
-        logger.warn('SquareAuth', `❌ Access token validation failed with status ${response.status}`);
-        
-        if (response.status === 401) {
-          // Token is invalid, try to refresh it
-          const refreshed = await tryRefreshToken();
-          if (!refreshed) {
-            // If refresh failed, disconnect
-            logger.warn('SquareAuth', '❌ Token refresh failed, disconnecting from Square');
-            setIsConnected(false);
-            setSquareConnected(false);
-          }
-        }
-        return false;
-      }
-      
-      logger.info('SquareAuth', '✅ Access token validation succeeded');
-      return true;
-    } catch (error) {
-      logger.error('SquareAuth', '❌ Error validating access token', error);
-      return false;
-    }
-  };
-  
-  // Function to try refreshing the token
-  const tryRefreshToken = async (): Promise<boolean> => {
-    try {
-      const refreshToken = await SecureStore.getItemAsync(SQUARE_REFRESH_TOKEN_KEY);
-      if (!refreshToken) {
-        logger.warn('SquareAuth', '❌ No refresh token available');
-        return false;
-      }
-      
-      logger.info('SquareAuth', '🔄 Attempting to refresh access token');
-      
-      const response = await fetch(
-        `${config.api.baseUrl}/api/auth/refresh-token`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            refresh_token: refreshToken
-          })
-        }
-      );
-      
-      if (!response.ok) {
-        logger.error('SquareAuth', `❌ Token refresh failed with status ${response.status}`);
-        return false;
-      }
-      
-      const data = await response.json();
-      
-      if (data.access_token) {
-        logger.info('SquareAuth', '✅ Token refreshed successfully');
-        await SecureStore.setItemAsync(SQUARE_ACCESS_TOKEN_KEY, data.access_token);
-        
-        if (data.refresh_token) {
-          await SecureStore.setItemAsync(SQUARE_REFRESH_TOKEN_KEY, data.refresh_token);
-        }
-        
-        return true;
       } else {
-        logger.error('SquareAuth', '❌ Token refresh response did not contain access_token');
-        return false;
+        logger.warn('SquareAuth', 'No query string found in callback URL');
+      }
+      
+      logger.info('SquareAuth', 'Extracted parameters from callback URL', {
+        paramCount: Object.keys(params).length,
+        hasCode: !!params.code,
+        hasState: !!params.state
+      });
+      
+      // If we have code and state, this is the initial OAuth code grant
+      if (params.code && params.state) {
+        logger.info('SquareAuth', 'Processing OAuth code grant callback');
+        
+        // Retrieve the code verifier
+        const codeVerifier = await SecureStore.getItemAsync(SQUARE_CODE_VERIFIER_KEY);
+        if (!codeVerifier) {
+          throw new Error('Code verifier not found. Cannot complete OAuth flow.');
+        }
+        
+        // Exchange code for token using API
+        const tokenResponse = await api.auth.exchangeToken(params.code, codeVerifier);
+        
+        // Store the tokens using tokenService
+        await tokenService.storeAuthData({
+          access_token: tokenResponse.access_token,
+          refresh_token: tokenResponse.refresh_token,
+          merchant_id: tokenResponse.merchant_id,
+          business_name: tokenResponse.business_name,
+          expires_in: tokenResponse.expires_in
+        });
+        
+        // Update local state
+        setIsConnected(true);
+        setIsConnecting(false);
+        setSquareConnected(true);
+        
+        if (tokenResponse.merchant_id) {
+          setMerchantId(tokenResponse.merchant_id);
+        }
+        
+        if (tokenResponse.business_name) {
+          setBusinessName(tokenResponse.business_name);
+        }
+        
+        // Clean up PKCE values
+        await SecureStore.deleteItemAsync(SQUARE_CODE_VERIFIER_KEY);
+        await SecureStore.deleteItemAsync(SQUARE_STATE_KEY);
+        
+        logger.info('SquareAuth', '🎉 OAuth code exchange completed successfully');
+        
+        return {
+          success: true,
+          data: {
+            accessToken: true,
+            merchantId: tokenResponse.merchant_id,
+            businessName: tokenResponse.business_name
+          }
+        };
+      } 
+      // If we have access_token directly, this is an implicit grant or direct token callback
+      else if (params.access_token) {
+        logger.info('SquareAuth', 'Processing direct token callback');
+        
+        // Store tokens using tokenService
+        await tokenService.storeAuthData({
+          access_token: params.access_token,
+          refresh_token: params.refresh_token,
+          merchant_id: params.merchant_id,
+          business_name: params.business_name,
+          expires_in: params.expires_in ? parseInt(params.expires_in) : undefined
+        });
+        
+        // Update local state
+        setIsConnected(true);
+        setIsConnecting(false);
+        setSquareConnected(true);
+        
+        if (params.merchant_id) {
+          setMerchantId(params.merchant_id);
+        }
+        
+        if (params.business_name) {
+          setBusinessName(params.business_name);
+        }
+        
+        logger.info('SquareAuth', '🎉 Direct token callback processed successfully');
+        
+        return {
+          success: true,
+          data: {
+            accessToken: true,
+            merchantId: params.merchant_id,
+            businessName: params.business_name
+          }
+        };
+      } else {
+        logger.error('SquareAuth', 'Invalid callback URL - missing code/state or access_token');
+        throw new Error('Invalid callback URL format. Missing required parameters.');
       }
     } catch (error) {
-      logger.error('SquareAuth', '❌ Error during token refresh', error);
-      return false;
-    }
-  };
-  
-  // Function to validate tokens if we're connected
-  const validateTokensIfConnected = async () => {
-    if (!isConnected) return;
-    
-    logger.debug('SquareAuth', '🔄 Running periodic token validation');
-    
-    const accessToken = await SecureStore.getItemAsync(SQUARE_ACCESS_TOKEN_KEY);
-    if (accessToken) {
-      validateAccessToken(accessToken);
-    } else {
-      logger.warn('SquareAuth', '❌ No access token found during periodic validation');
-      setIsConnected(false);
-      setSquareConnected(false);
+      logger.error('SquareAuth', 'Error processing callback URL', error);
+      setError(error as Error);
+      setIsConnecting(false);
+      throw error;
     }
   };
 
@@ -1196,5 +1151,6 @@ export const useSquareAuth = (): UseSquareAuthResult => {
     forceResetConnectionState,
     testConnection,
     testExactCallback,
+    processCallback
   };
 }; 

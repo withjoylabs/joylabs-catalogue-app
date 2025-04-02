@@ -34,6 +34,9 @@ const config = {
       catalogItems: `${API_BASE_URL}/v2/catalog/list`,
       catalogItem: `${API_BASE_URL}/v2/catalog/item`,
       catalogSearch: `${API_BASE_URL}/v2/catalog/search`,
+      catalogCategories: `${API_BASE_URL}/v2/catalog/categories`,
+      catalogList: `${API_BASE_URL}/v2/catalog/list`,
+      catalogListCategories: `${API_BASE_URL}/v2/catalog/list-categories`,
       
       // Webhook endpoints
       webhooks: `${API_BASE_URL}/api/webhooks/square`,

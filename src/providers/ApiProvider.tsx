@@ -3,6 +3,7 @@ import { useSquareAuth } from '../hooks/useSquareAuth';
 import logger from '../utils/logger';
 import api from '../api';
 import { useAppStore } from '../store';
+import tokenService from '../services/tokenService';
 
 // Create context with initial values
 interface ApiContextType {
@@ -12,7 +13,7 @@ interface ApiContextType {
   error: Error | null;
   connectToSquare: () => Promise<void>;
   disconnectFromSquare: () => Promise<void>;
-  refreshData: () => Promise<void>;
+  refreshData: (dataType?: 'categories' | 'items' | 'all') => Promise<void>;
   verifyConnection: () => Promise<boolean>;
 }
 
@@ -50,23 +51,65 @@ export const ApiProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     setSquareConnected(isConnected);
   }, [isConnected, setSquareConnected]);
+
+  // Verify connection status on mount
+  useEffect(() => {
+    if (!initialConnectionChecked) {
+      const checkInitialConnection = async () => {
+        try {
+          // Use tokenService to verify token validity
+          const tokenInfo = await tokenService.getTokenInfo();
+          logger.info('ApiProvider', 'Initial connection check', {
+            hasToken: !!tokenInfo.accessToken,
+            tokenStatus: tokenInfo.status
+          });
+          
+          setInitialConnectionChecked(true);
+        } catch (error) {
+          logger.error('ApiProvider', 'Error in initial connection check', error);
+          setInitialConnectionChecked(true);
+        }
+      };
+      
+      checkInitialConnection();
+    }
+  }, [initialConnectionChecked]);
   
-  // Define function to refresh all data
-  const refreshData = async () => {
+  // Function to refresh data from the API
+  const refreshData = async (dataType?: 'categories' | 'items' | 'all') => {
     if (!isConnected) {
       logger.info('ApiProvider', 'Skipping data refresh - not connected to Square');
       return;
     }
     
-    logger.info('ApiProvider', 'Manually refreshing data');
+    const refreshType = dataType || 'all';
+    logger.info('ApiProvider', `Manually refreshing data (type: ${refreshType})`);
     
     try {
-      // Refresh catalog items
-      logger.info('ApiProvider', 'Refreshing catalog items');
-      await api.catalog.getItems(undefined, 100)
-        .catch((error: Error) => {
-          logger.error('ApiProvider', 'Failed to refresh catalog items', { error: error.message });
-        });
+      // Refresh categories if specified
+      if (refreshType === 'categories' || refreshType === 'all') {
+        logger.info('ApiProvider', 'Refreshing catalog categories');
+        await api.catalog.getCategories()
+          .then(response => {
+            logger.info('ApiProvider', 'Categories refresh response', { 
+              success: response.success,
+              hasObjects: !!response.objects,
+              objectCount: response.objects?.length || 0
+            });
+          })
+          .catch((error: Error) => {
+            logger.error('ApiProvider', 'Failed to refresh categories', { error: error.message });
+          });
+      }
+      
+      // Refresh catalog items if specified
+      if (refreshType === 'items' || refreshType === 'all') {
+        logger.info('ApiProvider', 'Refreshing catalog items');
+        await api.catalog.getItems(undefined, 100, 'ITEM')  // Only fetch ITEM type
+          .catch((error: Error) => {
+            logger.error('ApiProvider', 'Failed to refresh catalog items', { error: error.message });
+          });
+      }
       
       logger.info('ApiProvider', 'Data refresh completed');
     } catch (error) {
@@ -75,9 +118,31 @@ export const ApiProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // Simple connection verification
-  const verifyConnection = async () => {
-    return isConnected;
+  // Improved connection verification using tokenService
+  const verifyConnection = async (): Promise<boolean> => {
+    try {
+      // Check if we have a valid token
+      const tokenStatus = await tokenService.checkTokenStatus();
+      
+      // If token is missing or expired and we can't refresh, return false
+      if (tokenStatus === 'missing') {
+        logger.info('ApiProvider', 'Connection verification failed - no token');
+        return false;
+      }
+      
+      // If token is expired or unknown, try to refresh it
+      if (tokenStatus === 'expired' || tokenStatus === 'unknown') {
+        logger.info('ApiProvider', 'Token needs refresh during verification');
+        const newToken = await tokenService.ensureValidToken();
+        return !!newToken;
+      }
+      
+      // If token is valid, return true
+      return tokenStatus === 'valid';
+    } catch (error) {
+      logger.error('ApiProvider', 'Error verifying connection', error);
+      return false;
+    }
   };
   
   // Create the context value
