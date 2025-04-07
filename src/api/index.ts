@@ -6,6 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import config from '../config';
 import logger from '../utils/logger';
 import tokenService, { TOKEN_KEYS } from '../services/tokenService';
+import NetInfo from '@react-native-community/netinfo';
 
 // API Error Types
 export class ApiError extends Error {
@@ -1416,8 +1417,96 @@ const api = {
         return { success: false, webhooks: [], message: error.message || 'Unknown error' };
       }
     }
-  }
+  },
+
+  // --- NEW FUNCTION for Catalog Sync --- 
+
+  /**
+   * Fetches a single page of catalog objects from the backend.
+   * 
+   * @param authToken The JWT authentication token.
+   * @param limit The maximum number of objects per page.
+   * @param cursor The pagination cursor from the previous page, or null/undefined for the first page.
+   * @returns Promise resolving with the API response data.
+   * @throws {ApiError} If the API call fails or returns an error response.
+   */
+  fetchCatalogPage: async (
+    limit: number,
+    cursor?: string | null,
+    types?: string // Optional comma-separated types string
+  ): Promise<CatalogListResponse> => {
+    logger.debug('API', 'Fetching catalog page', { limit, cursor: cursor ? 'present' : 'none', types });
+
+    const params: Record<string, any> = {
+      limit: limit,
+    };
+    if (cursor) {
+      params.cursor = cursor;
+    }
+    if (types) {
+      params.types = types;
+    }
+
+    try {
+      // Use the configured apiClient which includes interceptors
+      const response = await apiClient.get<CatalogListResponse>('/v2/catalog/list', {
+        params: params,
+        // Caching might not be ideal for a full sync, ensure it's disabled or managed carefully
+        cache: false, 
+        // Retry logic might be handled by the sync service itself, but can be enabled here too
+        retry: {
+          count: 2, // Example: Retry twice on specific errors
+          delay: 1000, // Example: 1 second delay
+          statusCodes: [429, 500, 502, 503, 504] // Retry on rate limit / server errors
+        }
+      });
+
+      // The success interceptor should handle basic success checks,
+      // but we can add extra validation if needed.
+      if (!response.data || response.data.success !== true) {
+         logger.error('API', 'Catalog list API call reported failure', { responseData: response.data });
+        throw new ApiError(
+          response.data?.message || 'Failed to fetch catalog page, API reported failure.',
+          response.data?.error?.code || 'FETCH_FAILED',
+          response.status,
+          response.data?.error
+        );
+      }
+
+      logger.debug('API', 'Successfully fetched catalog page', { objectCount: response.data.objects?.length || 0, hasCursor: !!response.data.cursor });
+      return response.data;
+
+    } catch (error) {
+       logger.error('API', 'Error fetching catalog page', { error });
+       // Re-throw the error (it should already be an ApiError if thrown by interceptors)
+       // If it's not, wrap it for consistency
+      if (error instanceof ApiError) {
+        throw error;
+      } else if (axios.isAxiosError(error)) {
+         throw new ApiError(
+           error.response?.data?.message || error.message || 'Network or server error during catalog fetch.',
+           error.response?.data?.error?.code || 'NETWORK_ERROR',
+           error.response?.status || 500,
+           error.response?.data?.error
+         );
+      } else {
+        throw new ApiError(
+           error instanceof Error ? error.message : 'An unknown error occurred during catalog fetch.',
+           'UNKNOWN_ERROR'
+         );
+      }
+    }
+  },
 };
+
+// Type definition for the expected API response structure
+export interface CatalogListResponse {
+  success: boolean;
+  objects: any[]; // Replace 'any' with a more specific CatalogObject type if available
+  cursor?: string | null; // Cursor is optional, might be null or absent
+  message?: string; // For error responses
+  error?: any; // For error responses
+}
 
 export { api, apiClient, getAuthToken, getAuthHeaders, setAuthToken, clearAuthToken, appendSecretName, getSecretName };
 export default api;

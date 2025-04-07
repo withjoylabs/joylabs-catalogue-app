@@ -439,14 +439,15 @@ export default function ProfileScreen() {
         );
       case 'sync':
         return (
-          <View style={styles.sectionContentFlex}>
-            <ConnectionStatusBar
+          <View style={styles.sectionContentFlex}>{
+            /* Ensure no whitespace before/after components */
+          }<ConnectionStatusBar
               connected={isConnected}
               message={isConnected ? "Connected to Square" : "Not connected to Square"}
-            />
-            <SyncStatusComponent />
-            <SyncLogsView />
-            <View style={styles.troubleshootingContainer}>
+            />{
+          }<SyncStatusComponent />{
+          }<SyncLogsView />{
+          }<View style={styles.troubleshootingContainer}>
               <Text style={styles.sectionTitle}>Troubleshooting</Text>
               <Text style={styles.sectionDescription}>
                 If you're experiencing database errors, you can try resetting the local database
@@ -462,8 +463,9 @@ export default function ProfileScreen() {
                   <Text style={styles.connectionButtonText}>Reset Database</Text>
                 )}
               </TouchableOpacity>
-            </View>
-          </View>
+            </View>{
+          /* Ensure no whitespace after last component */
+          }</View>
         );
       default:
         return null;
@@ -482,8 +484,6 @@ export default function ProfileScreen() {
         </TouchableOpacity>
         <View style={styles.headerActions}></View>
       </View>
-
-      {/* Debug Tools Section - Placed between Header and TopTabs */}
       {showDebugTools && (
         <View style={styles.debugContainer}>
           <Text style={styles.debugTitle}>Debug Tools</Text>
@@ -538,16 +538,21 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
       )}
-
       <ProfileTopTabs
         activeSection={activeSection}
         onChangeSection={(section) => setActiveSection(section as SectionType)}
       />
-
-      {/* ScrollView should now correctly fill the space between top tabs and the *layout's* bottom tab */}
-      <ScrollView style={styles.contentScrollView}>
-        {renderSection()}
-      </ScrollView>
+      {
+        activeSection === 'sync' ? (
+          <View style={styles.contentFlexContainer}>
+            {renderSection()}
+          </View>
+        ) : (
+          <ScrollView style={styles.contentScrollView}>
+            {renderSection()}
+          </ScrollView>
+        )
+      }
     </View>
   );
 }
@@ -785,5 +790,8 @@ const styles = StyleSheet.create({
    sectionContentFlex: {
      flex: 1,
      padding: 20,
+   },
+   contentFlexContainer: { // New style for the sync tab wrapper
+     flex: 1, // Make View take remaining space
    },
  }); 
