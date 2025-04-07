@@ -324,6 +324,30 @@ class TokenService {
   }
 
   /**
+   * Check if token is valid
+   * @returns Promise resolving to boolean indicating if the token is valid
+   */
+  async hasValidToken(): Promise<boolean> {
+    try {
+      logger.debug('TokenService', 'Checking if token is valid');
+      
+      // Check if token exists
+      const token = await this.getAccessToken();
+      if (!token) {
+        logger.debug('TokenService', 'No token found');
+        return false;
+      }
+      
+      // Check token status
+      const status = await this.checkTokenStatus();
+      return status === 'valid';
+    } catch (error) {
+      logger.error('TokenService', 'Error checking if token is valid', error);
+      return false;
+    }
+  }
+
+  /**
    * Get all token information
    */
   async getTokenInfo(): Promise<TokenInfo> {

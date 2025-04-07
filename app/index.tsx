@@ -9,6 +9,7 @@ import { ScanHistoryItem } from '../src/types';
 import { Ionicons } from '@expo/vector-icons';
 import { useApi } from '../src/providers/ApiProvider';
 import logger from '../src/utils/logger';
+import { DatabaseProvider } from '../src/components/DatabaseProvider';
 
 // Mock data for the scan history
 const MOCK_SCAN_HISTORY: ScanHistoryItem[] = [
@@ -70,7 +71,15 @@ const MOCK_SCAN_HISTORY: ScanHistoryItem[] = [
   },
 ];
 
-export default function HomeScreen() {
+export default function App() {
+  return (
+    <DatabaseProvider>
+      <RootLayoutNav />
+    </DatabaseProvider>
+  );
+}
+
+function RootLayoutNav() {
   const router = useRouter();
   const [search, setSearch] = useState('');
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'name' | 'price'>('newest');

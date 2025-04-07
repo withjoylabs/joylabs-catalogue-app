@@ -1016,9 +1016,14 @@ const api = {
       }
     },
     
-    searchItems: async (searchParams: any) => {
+    searchItems: async (searchParams: any, forceRefresh: boolean = false) => {
       try {
-        logger.info('API', 'Searching catalog items', { searchParams });
+        logger.info('API', 'Searching catalog items', { 
+          searchParams,
+          forceRefresh,
+          hasCursor: !!searchParams.cursor,
+          objectTypes: searchParams.object_types || searchParams.objectTypes
+        });
         
         // Ensure we're using the proper search format as documented
         // If object_types is not provided, default to ITEM
@@ -1026,9 +1031,26 @@ const api = {
           ...searchParams
         };
         
-        // If object_types is not explicitly set and we're not using a complex query
-        if (!searchParams.object_types && !searchParams.query?.exact_query) {
-          enhancedParams.object_types = ['ITEM'];
+        // Convert snake_case to camelCase for Square SDK compatibility
+        if (enhancedParams.object_types && !enhancedParams.objectTypes) {
+          enhancedParams.objectTypes = enhancedParams.object_types;
+          delete enhancedParams.object_types;
+        }
+        
+        // If objectTypes is not explicitly set and we're not using a complex query
+        if (!enhancedParams.objectTypes && !searchParams.query?.exact_query) {
+          enhancedParams.objectTypes = ['ITEM'];
+        }
+        
+        // Convert other common snake_case parameters to camelCase
+        if (enhancedParams.include_related_objects !== undefined) {
+          enhancedParams.includeRelatedObjects = enhancedParams.include_related_objects;
+          delete enhancedParams.include_related_objects;
+        }
+        
+        if (enhancedParams.include_deleted_objects !== undefined) {
+          enhancedParams.includeDeletedObjects = enhancedParams.include_deleted_objects;
+          delete enhancedParams.include_deleted_objects;
         }
         
         // Use a custom cache key based on the search params to allow caching search results
@@ -1036,17 +1058,104 @@ const api = {
         
         // Use the properly formatted search endpoint directly
         const url = `${config.api.baseUrl}/v2/catalog/search`;
-        const response = await apiClient.post(url, enhancedParams, {
-          cache: { 
-            key: cacheKey,
-            ttl: 2 * 60 * 1000 // Cache search results for 2 minutes
-          }
+        
+        // Set cache options based on forceRefresh parameter
+        const cacheOptions = forceRefresh 
+          ? { cache: false, forceRefresh: true }
+          : { 
+              cache: { 
+                key: cacheKey,
+                ttl: 2 * 60 * 1000 // Cache search results for 2 minutes
+              }
+            };
+            
+        logger.debug('API', `Searching catalog with${forceRefresh ? ' NO' : ''} cache`, {
+          url,
+          cursor: searchParams.cursor,
+          objectTypes: enhancedParams.objectTypes,
+          baseUrl: config.api.baseUrl 
         });
         
-        return response.data;
+        // Before making the request, ensure we have a valid token
+        const tokenInfo = await tokenService.getTokenInfo();
+        if (!tokenInfo || !tokenInfo.accessToken) {
+          logger.error('API', 'No access token available for catalog search');
+          return { 
+            success: false, 
+            error: { message: 'Authentication required - no valid token' } 
+          };
+        }
+        
+        // Add the token to the request headers
+        const headers = {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${tokenInfo.accessToken}`,
+          'Cache-Control': 'no-cache'
+        };
+        
+        // Try using a direct fetch to bypass potential apiClient issues
+        logger.debug('API', 'Making direct fetch for catalog search', { 
+          url, 
+          objectTypes: enhancedParams.objectTypes,
+          hasToken: !!tokenInfo.accessToken
+        });
+        
+        const response = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(enhancedParams)
+        });
+        
+        if (!response.ok) {
+          logger.error('API', 'Catalog search request failed', { 
+            status: response.status, 
+            statusText: response.statusText 
+          });
+          
+          // Try to get more error details
+          let errorBody = '';
+          try {
+            errorBody = await response.text();
+            logger.error('API', 'Error response body', { body: errorBody.substring(0, 500) });
+          } catch (bodyError) {
+            logger.error('API', 'Could not read error response body', { error: bodyError });
+          }
+          
+          return { 
+            success: false, 
+            error: { 
+              message: `API error (${response.status}): ${response.statusText}`,
+              statusCode: response.status,
+              responseBody: errorBody.substring(0, 200) // Include part of the error body
+            } 
+          };
+        }
+        
+        // Parse the response body
+        const data = await response.json();
+        
+        // Add a success flag if it doesn't exist
+        if (!data.hasOwnProperty('success')) {
+          data.success = true;
+        }
+        
+        // Log success with partial data to avoid huge logs
+        logger.info('API', 'Catalog search successful', { 
+          objectCount: data.objects?.length || 0,
+          hasCursor: !!data.cursor,
+          relationshipCount: data.related_objects?.length || 0
+        });
+        
+        return { ...data, success: true };
       } catch (error) {
-        logger.error('API', 'Failed to search catalog items', { error, searchParams });
-        throw error;
+        logger.error('API', 'Exception in catalog search', { 
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : 'No stack trace'
+        });
+        return { 
+          success: false, 
+          error: { message: error instanceof Error ? error.message : String(error) } 
+        };
       }
     },
     
@@ -1096,7 +1205,7 @@ const api = {
         
         // Build the search request as specified in the backend documentation
         const searchParams: any = {
-          object_types: ["CATEGORY"],
+          objectTypes: ["CATEGORY"],
           limit
         };
         
@@ -1144,6 +1253,74 @@ const api = {
         return response.data;
       } catch (error) {
         logger.error('API', 'Failed to search categories', { error, namePrefix });
+        throw error;
+      }
+    },
+    
+    getMerchantInfo: async () => {
+      try {
+        logger.info('API', 'Fetching merchant information');
+        
+        // Use the merchant info endpoint with /api/ prefix
+        const url = `${config.api.baseUrl}/api/merchants`;
+        const cacheKey = 'merchant_info';
+        
+        logger.debug('API', 'Merchant info request', { url });
+        
+        const response = await apiClient.get(url, {
+          cache: { 
+            key: cacheKey,
+            ttl: 24 * 60 * 60 * 1000 // Cache merchant info for 24 hours
+          }
+        });
+        
+        logger.debug('API', 'Merchant info response details', {
+          success: response.data.success,
+          hasMerchants: !!response.data.merchant?.length,
+          merchantCount: response.data.merchant?.length || 0,
+          status: response.status
+        });
+        
+        return {
+          ...response.data,
+          success: !!response.data.merchant?.length
+        };
+      } catch (error) {
+        logger.error('API', 'Failed to fetch merchant information', { error });
+        throw error;
+      }
+    },
+    
+    getLocations: async () => {
+      try {
+        logger.info('API', 'Fetching merchant locations');
+        
+        // Use the locations endpoint with /api/ prefix
+        const url = `${config.api.baseUrl}/api/locations`;
+        const cacheKey = 'locations_list';
+        
+        logger.debug('API', 'Locations request', { url });
+        
+        const response = await apiClient.get(url, {
+          cache: { 
+            key: cacheKey,
+            ttl: 24 * 60 * 60 * 1000 // Cache locations for 24 hours
+          }
+        });
+        
+        logger.debug('API', 'Locations response details', {
+          success: response.data.success,
+          hasLocations: !!response.data.locations?.length,
+          locationCount: response.data.locations?.length || 0,
+          status: response.status
+        });
+        
+        return {
+          ...response.data,
+          success: !!response.data.locations?.length
+        };
+      } catch (error) {
+        logger.error('API', 'Failed to fetch locations', { error });
         throw error;
       }
     }

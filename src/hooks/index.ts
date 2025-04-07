@@ -1,2 +1,1 @@
-export * from './useTheme';
-export * from './useCategories'; 
+export * from './useTheme'; 

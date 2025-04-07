@@ -1,22 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Dispatch, SetStateAction } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, ActivityIndicator, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { Ionicons as IoniconsType } from '@expo/vector-icons/build/Icons';
 import { lightTheme } from '../src/themes';
-import BottomTabBar from '../src/components/BottomTabBar';
 import ProfileTopTabs from '../src/components/ProfileTopTabs';
 import ConnectionStatusBar from '../src/components/ConnectionStatusBar';
-import { useCategories } from '../src/hooks';
-import { Category } from '../src/store';
 import { useApi } from '../src/providers/ApiProvider';
 import { useSquareAuth } from '../src/hooks/useSquareAuth';
 import * as SecureStore from 'expo-secure-store';
 import config from '../src/config';
 import tokenService from '../src/services/tokenService';
+import SyncStatusComponent from '../src/components/SyncStatusComponent';
+import SyncLogsView from '../src/components/SyncLogsView';
+import * as modernDb from '../src/database/modernDb';
+import logger from '../src/utils/logger';
 
-type SectionType = 'profile' | 'settings' | 'categories';
+// Update SectionType to remove 'categories'
+type SectionType = 'profile' | 'settings' | 'sync';
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
 
 // Square secure storage key constant
@@ -31,16 +33,9 @@ export default function ProfileScreen() {
   const [testingConnection, setTestingConnection] = useState(false);
   const [resettingState, setResettingState] = useState(false);
   const [testingExactCallback, setTestingExactCallback] = useState(false);
-  const { 
-    categories, 
-    isCategoriesLoading, 
-    categoryError, 
-    connected, 
-    fetchCategories 
-  } = useCategories();
-  
-  // Use the API context
-  const { 
+  const [debugTaps, setDebugTaps] = useState(0);
+  const [showDebugTools, setShowDebugTools] = useState(false);
+  const {
     isConnected,
     merchantId,
     isLoading: isConnectingToSquare,
@@ -48,31 +43,24 @@ export default function ProfileScreen() {
     connectToSquare,
     disconnectFromSquare
   } = useApi();
-  
+
   // Add the testDeepLink function
   const { testDeepLink } = useSquareAuth();
-  
+
   // Get direct access to the useSquareAuth hook functions
-  const { 
+  const {
     testConnection,
     forceResetConnectionState,
     testExactCallback
   } = useSquareAuth();
-  
-  // Fetch categories when the categories tab is selected
-  useEffect(() => {
-    if (activeSection === 'categories') {
-      fetchCategories();
-    }
-  }, [activeSection]);
 
   // Handle any Square connection errors
   useEffect(() => {
     if (squareError) {
-      Alert.alert('Error', `Square connection error: ${squareError}`);
+      Alert.alert('Error', `Square connection error: ${squareError instanceof Error ? squareError.message : String(squareError)}`);
     }
   }, [squareError]);
-  
+
   // Add useEffect to check connection state on page load
   useEffect(() => {
     const checkSquareConnection = async () => {
@@ -80,7 +68,7 @@ export default function ProfileScreen() {
       try {
         const tokenStatus = await forceResetConnectionState();
         console.log('Square connection check result:', tokenStatus);
-        
+
         if (tokenStatus.hasAccessToken) {
           console.log('Found Square token on profile screen load, length:', tokenStatus.accessTokenLength);
         } else {
@@ -90,10 +78,10 @@ export default function ProfileScreen() {
         console.error('Error checking Square connection on profile load:', error);
       }
     };
-    
+
     checkSquareConnection();
   }, []); // Empty dependency array means this runs once when component mounts
-  
+
   // Dummy user data
   const user = {
     name: 'John Doe',
@@ -102,50 +90,19 @@ export default function ProfileScreen() {
     joinDate: 'January 2024',
   };
 
-  // Get appropriate icon for a category based on its name
-  const getCategoryIcon = (categoryName: string): IoniconsName => {
-    const name = categoryName.toLowerCase();
-    if (name.includes('food') || name.includes('beverage') || name.includes('drink')) {
-      return 'fast-food-outline';
-    } else if (name.includes('clothing') || name.includes('apparel') || name.includes('wear')) {
-      return 'shirt-outline';
-    } else if (name.includes('home') || name.includes('kitchen') || name.includes('house')) {
-      return 'home-outline';
-    } else if (name.includes('sport') || name.includes('outdoor') || name.includes('fitness')) {
-      return 'fitness-outline';
-    } else if (name.includes('electronic') || name.includes('tech') || name.includes('digital')) {
-      return 'desktop-outline';
-    } else if (name.includes('beauty') || name.includes('health') || name.includes('personal')) {
-      return 'medical-outline';
-    } else if (name.includes('toy') || name.includes('game') || name.includes('play')) {
-      return 'game-controller-outline';
-    } else {
-      return 'pricetag-outline'; // Default icon
-    }
-  };
-  
-  // Function to handle adding a new category
-  const handleAddCategory = () => {
-    // In a real app, this would open a modal or navigate to a new screen
-    console.log('Add category clicked');
-    // Example implementation:
-    // router.push('/category/new');
-  };
-  
   // Function to test Square connection
   const testSquareConnection = async () => {
     try {
       setTestingConnection(true);
       console.log('Testing Square API connection...');
-      
-      // Use the direct test function from the hook
+
       const result = await testConnection();
-      
+
       console.log('Square API test result:', result);
-      
+
       if (result.success) {
         Alert.alert(
-          'Success', 
+          'Success',
           `Connected to Square!\n\nMerchant: ${result.data?.businessName || 'Unknown'}\nMerchant ID: ${result.data?.merchantId || 'Unknown'}`
         );
       } else {
@@ -158,26 +115,22 @@ export default function ProfileScreen() {
       setTestingConnection(false);
     }
   };
-  
+
   // Function to reset connection state
   const resetConnectionState = async () => {
     try {
       setResettingState(true);
       console.log('Resetting connection state...');
-      
-      // Call the hook function to reset state
+
       const tokenStatus = await forceResetConnectionState();
       console.log('Connection state reset complete', tokenStatus);
-      
-      // Force update UI immediately based on token status
+
       if (tokenStatus.hasAccessToken) {
         Alert.alert('Success', `Connection state has been reset. Found active token (length: ${tokenStatus.accessTokenLength}).`);
       } else {
         Alert.alert('Success', 'Connection state has been reset. No active tokens found.');
-        
-        // Force refresh the UI
+
         setTimeout(() => {
-          // This will trigger a UI refresh by reconnecting the API hook
           setActiveSection(activeSection === 'profile' ? 'settings' : 'profile');
           setActiveSection('profile');
         }, 500);
@@ -189,28 +142,25 @@ export default function ProfileScreen() {
       setResettingState(false);
     }
   };
-  
+
   // Add a function to test the exact callback URL
   const testExactSquareCallback = async () => {
     try {
       setTestingExactCallback(true);
       console.log('Testing exact Square callback URL...');
-      
+
       const result = await testExactCallback();
-      
+
       console.log('Square callback test result:', result);
-      
+
       if (result.success) {
         Alert.alert(
-          'Success', 
-          'Successfully processed test callback with Square tokens!\n\n' +
-          `Access Token: ${result.hasAccessToken ? 'Yes' : 'No'}\n` +
-          `Merchant ID: ${result.hasMerchantId ? 'Yes' : 'No'}\n` +
-          `Business Name: ${result.hasBusinessName ? 'Yes' : 'No'}`
+          'Success',
+          `Successfully processed test callback with Square tokens!\n\nAccess Token: ${result.hasAccessToken ? 'Yes' : 'No'}\nMerchant ID: ${result.hasMerchantId ? 'Yes' : 'No'}\nBusiness Name: ${result.hasBusinessName ? 'Yes' : 'No'}`
         );
       } else {
         Alert.alert(
-          'Error', 
+          'Error',
           `Failed to process test callback: ${result.error || 'Unknown error'}`
         );
       }
@@ -221,20 +171,20 @@ export default function ProfileScreen() {
       setTestingExactCallback(false);
     }
   };
-  
+
   const testSquareToken = async () => {
     try {
       const tokenInfo = await tokenService.getTokenInfo();
-      
+
       if (!tokenInfo.accessToken) {
         Alert.alert('No Token', 'No Square access token found');
         return;
       }
-      
+
       console.log('Access token found with length:', tokenInfo.accessToken.length);
       console.log('First few characters:', tokenInfo.accessToken.substring(0, 10) + '...');
       console.log('Token status:', tokenInfo.status);
-      
+
       Alert.alert(
         'Square Token',
         `Token found (${tokenInfo.accessToken.length} chars)\nStatus: ${tokenInfo.status}\nExpires: ${tokenInfo.expiresAt || 'unknown'}`
@@ -244,20 +194,19 @@ export default function ProfileScreen() {
       Alert.alert('Error', `Failed to check token: ${error.message}`);
     }
   };
-  
+
   // Add this function after testSquareToken
   const testDirectSquareCatalog = async () => {
     try {
       const accessToken = await tokenService.getAccessToken();
-      
+
       if (!accessToken) {
         Alert.alert('Error', 'No access token found');
         return;
       }
-      
+
       console.log('Testing Square catalog API directly with token:', accessToken.substring(0, 10) + '...');
-      
-      // Make a direct call to Square's catalog API
+
       const response = await fetch('https://connect.squareup.com/v2/catalog/list?types=CATEGORY', {
         method: 'GET',
         headers: {
@@ -266,11 +215,11 @@ export default function ProfileScreen() {
           'Content-Type': 'application/json'
         }
       });
-      
+
       console.log('Square direct catalog response status:', response.status);
       const data = await response.json();
       console.log('Square direct catalog response:', JSON.stringify(data).substring(0, 200) + '...');
-      
+
       if (response.ok) {
         Alert.alert('Success', `Direct Square catalog API works! Found ${data.objects?.length || 0} catalog objects`);
       } else {
@@ -281,65 +230,70 @@ export default function ProfileScreen() {
       Alert.alert('Error', `Failed to test direct catalog: ${error.message}`);
     }
   };
-  
+
   // Add this function to test the backend endpoint directly
   const testBackendCatalogEndpoint = async () => {
     try {
       const accessToken = await tokenService.getAccessToken();
-      
+
       if (!accessToken) {
         Alert.alert('Error', 'No access token found');
         return;
       }
-      
-      console.log('Testing backend catalog endpoint with token:', accessToken.substring(0, 10) + '...');
-      console.log('Token length:', accessToken.length);
-      
-      // Make a direct call to the backend catalog endpoint
-      const url = `${config.api.baseUrl}/v2/catalog/list?types=CATEGORY`;
-      console.log('Backend URL:', url);
-      
-      const response = await fetch(url, {
+
+      console.log('Testing backend catalog API with token:', accessToken.substring(0, 10) + '...');
+
+      const response = await fetch(`${config.api.baseUrl}/api/catalog/list-categories`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json'
         }
       });
-      
-      console.log('Backend response status:', response.status);
-      
-      // Try to get response body regardless of status
-      let responseText;
-      try {
-        responseText = await response.text();
-        console.log('Backend response body:', responseText);
-      } catch (e) {
-        console.log('Failed to get response text:', e);
-      }
-      
-      // If we have text, try to parse it as JSON
-      let data;
-      try {
-        if (responseText) {
-          data = JSON.parse(responseText);
-          console.log('Backend response data:', JSON.stringify(data).substring(0, 200) + '...');
-        }
-      } catch (e) {
-        console.log('Response is not valid JSON:', e);
-      }
-      
-      if (response.ok) {
-        Alert.alert('Success', `Backend catalog endpoint works! ${data?.objects?.length || 0} objects found`);
+
+      console.log('Backend catalog response status:', response.status);
+      const data = await response.json();
+      console.log('Backend catalog response:', JSON.stringify(data).substring(0, 200) + '...');
+
+      if (response.ok && data.success && data.categories) {
+        Alert.alert('Success', `Backend catalog API works! Found ${data.categories?.length || 0} categories`);
       } else {
-        Alert.alert('Error', `Backend catalog endpoint failed (${response.status}): ${data?.message || responseText || response.statusText}`);
+        const errorMessage = data?.error?.message || data?.message || (response.ok ? 'Unknown success error' : response.statusText);
+        Alert.alert('Error', `Backend catalog API failed: ${errorMessage}`);
       }
     } catch (error: any) {
       console.error('Error testing backend catalog endpoint:', error);
-      Alert.alert('Error', `Failed to test backend endpoint: ${error.message}`);
+      Alert.alert('Error', `Failed to test backend catalog: ${error.message}`);
     }
   };
-  
+
+  // Function to reset the database
+  const resetDatabase = async () => {
+    try {
+      setResettingState(true);
+      logger.info('Profile', 'Starting database reset...');
+      await modernDb.resetDatabase();
+      logger.info('Profile', 'Database reset successful');
+      Alert.alert('Success', 'Local database has been reset.');
+    } catch (error: any) {
+      logger.error('Profile', 'Database reset failed', { error });
+      Alert.alert('Error', `Failed to reset database: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setResettingState(false);
+    }
+  };
+
+  // Function to handle logo tap for debug menu
+  const handleLogoTap = () => {
+    const newTapCount = debugTaps + 1;
+    setDebugTaps(newTapCount);
+
+    if (newTapCount >= 5) {
+      setShowDebugTools(!showDebugTools);
+      setDebugTaps(0);
+    }
+  };
+
   const renderSection = () => {
     switch (activeSection) {
       case 'profile':
@@ -352,23 +306,23 @@ export default function ProfileScreen() {
               <Text style={styles.userName}>{user.name}</Text>
               <Text style={styles.userRole}>{user.role}</Text>
             </View>
-            
+
             <View style={styles.infoContainer}>
               <Text style={styles.infoLabel}>Email</Text>
               <Text style={styles.infoValue}>{user.email}</Text>
             </View>
-            
+
             <View style={styles.infoContainer}>
               <Text style={styles.infoLabel}>Member since</Text>
               <Text style={styles.infoValue}>{user.joinDate}</Text>
             </View>
-            
+
             <View style={styles.connectionContainer}>
               <Text style={styles.connectionTitle}>Square Connection</Text>
               <Text style={styles.connectionDescription}>
                 Connect your Square account to sync your inventory, items, and categories.
               </Text>
-              
+
               {isConnected ? (
                 <View>
                   <View style={styles.connectedInfo}>
@@ -381,7 +335,7 @@ export default function ProfileScreen() {
                       </Text>
                     )}
                   </View>
-                  
+
                   <TouchableOpacity
                     style={[styles.connectionButton, { backgroundColor: '#007bff', marginBottom: 10 }]}
                     onPress={testSquareConnection}
@@ -393,7 +347,7 @@ export default function ProfileScreen() {
                       <Text style={styles.connectionButtonText}>Test Square Connection</Text>
                     )}
                   </TouchableOpacity>
-                  
+
                   <TouchableOpacity
                     style={[styles.connectionButton, styles.disconnectButton]}
                     onPress={disconnectFromSquare}
@@ -422,97 +376,24 @@ export default function ProfileScreen() {
                       <Text style={styles.connectionButtonText}>Connect to Square</Text>
                     )}
                   </TouchableOpacity>
-                  
-                  {/* Add a button to directly test Square API regardless of connection state */}
+
+                  {/* Direct API Test Button */}
                   <TouchableOpacity
                     style={[styles.connectionButton, { backgroundColor: '#28a745', marginTop: 10 }]}
-                    onPress={testSquareConnection}
-                    disabled={testingConnection}
+                    onPress={testDirectSquareCatalog}
                   >
-                    {testingConnection ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <Text style={styles.connectionButtonText}>Direct API Test</Text>
-                    )}
+                    <Text style={styles.connectionButtonText}>Direct API Test</Text>
                   </TouchableOpacity>
                 </View>
               )}
-              
-              {/* Add reset connection state button */}
-              <TouchableOpacity
-                style={[
-                  styles.connectionButton, 
-                  { backgroundColor: '#dc3545', marginTop: 10 }
-                ]}
-                onPress={resetConnectionState}
-                disabled={resettingState}
-              >
-                {resettingState ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={styles.connectionButtonText}>Reset Connection State</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-            
-            {/* Add deep link testing section */}
-            <View style={[styles.connectionContainer, { marginTop: 20 }]}>
-              <Text style={styles.connectionTitle}>Deep Link Testing</Text>
-              <Text style={styles.connectionDescription}>
-                Test the deep linking functionality{'\n'}
-                {/* Hash fragments like #_=_ in callback URLs are now automatically handled */}
-              </Text>
-              
-              <TouchableOpacity
-                style={[styles.connectionButton, { backgroundColor: '#666' }]}
-                onPress={() => {
-                  console.log('Testing deep link');
-                  testDeepLink();
-                }}
-              >
-                <Text style={styles.connectionButtonText}>Test Deep Link</Text>
-              </TouchableOpacity>
-              
-              {/* Add token validity check button */}
-              <TouchableOpacity
-                style={[styles.connectionButton, { backgroundColor: '#6200ee', marginTop: 10 }]}
-                onPress={testSquareToken}
-              >
-                <Text style={styles.connectionButtonText}>Check Square Token Validity</Text>
-              </TouchableOpacity>
-              
-              {/* Add direct catalog test button */}
-              <TouchableOpacity
-                style={[styles.connectionButton, { backgroundColor: '#009688', marginTop: 10 }]}
-                onPress={testDirectSquareCatalog}
-              >
-                <Text style={styles.connectionButtonText}>Test Direct Square Catalog</Text>
-              </TouchableOpacity>
-              
-              {/* Add backend test button */}
-              <TouchableOpacity
-                style={[styles.connectionButton, { backgroundColor: '#ff5722', marginTop: 10 }]}
-                onPress={testBackendCatalogEndpoint}
-              >
-                <Text style={styles.connectionButtonText}>Test Backend Endpoint</Text>
-              </TouchableOpacity>
-              
-              {/* Add a button for the exact callback test */}
-              <TouchableOpacity
-                style={[styles.connectionButton, { backgroundColor: '#8e44ad', marginTop: 10 }]}
-                onPress={testExactSquareCallback}
-                disabled={testingExactCallback}
-              >
-                {testingExactCallback ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={styles.connectionButtonText}>Test Exact Callback</Text>
-                )}
-              </TouchableOpacity>
+
+              {/* Display Square connection error */}
+              {squareError && (
+                <Text style={styles.errorText}>Error: {squareError instanceof Error ? squareError.message : String(squareError)}</Text>
+              )}
             </View>
           </View>
         );
-      
       case 'settings':
         return (
           <View style={styles.sectionContent}>
@@ -528,7 +409,7 @@ export default function ProfileScreen() {
                 value={notificationsEnabled}
               />
             </View>
-            
+
             <View style={styles.settingContainer}>
               <View style={styles.settingTextContainer}>
                 <Text style={styles.settingLabel}>Dark Mode</Text>
@@ -541,7 +422,7 @@ export default function ProfileScreen() {
                 value={darkModeEnabled}
               />
             </View>
-            
+
             <View style={styles.settingContainer}>
               <View style={styles.settingTextContainer}>
                 <Text style={styles.settingLabel}>Scan Sound</Text>
@@ -556,75 +437,34 @@ export default function ProfileScreen() {
             </View>
           </View>
         );
-      
-      case 'categories':
+      case 'sync':
         return (
-          <View style={styles.sectionContent}>
-            <ConnectionStatusBar 
-              connected={connected || isConnected} 
-              message={connected || isConnected ? "Connected to Square" : "Not connected to Square"}
+          <View style={styles.sectionContentFlex}>
+            <ConnectionStatusBar
+              connected={isConnected}
+              message={isConnected ? "Connected to Square" : "Not connected to Square"}
             />
-            
-            {isCategoriesLoading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={lightTheme.colors.primary} />
-                <Text style={styles.loadingText}>Loading categories...</Text>
-              </View>
-            ) : categoryError ? (
-              <View style={styles.errorContainer}>
-                <Ionicons name="alert-circle-outline" size={24} color="red" />
-                <Text style={styles.errorText}>{categoryError}</Text>
-                <TouchableOpacity 
-                  style={styles.retryButton} 
-                  onPress={() => fetchCategories()}
-                >
-                  <Text style={styles.retryButtonText}>Retry</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <>
-                <TouchableOpacity 
-                  style={styles.addCategoryButton}
-                  onPress={handleAddCategory}
-                >
-                  <Ionicons name="add-circle-outline" size={24} color={lightTheme.colors.primary} />
-                  <Text style={styles.addCategoryText}>Add Category</Text>
-                </TouchableOpacity>
-                
-                {categories.length === 0 ? (
-                  <View style={styles.emptyContainer}>
-                    <Ionicons name="folder-open-outline" size={48} color="#ccc" />
-                    <Text style={styles.emptyText}>No categories found</Text>
-                    <Text style={styles.emptySubtext}>
-                      {connected || isConnected 
-                        ? "Create categories to organize your items"
-                        : "Connect to Square to sync your categories"}
-                    </Text>
-                  </View>
+            <SyncStatusComponent />
+            <SyncLogsView />
+            <View style={styles.troubleshootingContainer}>
+              <Text style={styles.sectionTitle}>Troubleshooting</Text>
+              <Text style={styles.sectionDescription}>
+                If you're experiencing database errors, you can try resetting the local database
+              </Text>
+              <TouchableOpacity
+                style={[styles.connectionButton, { backgroundColor: '#dc3545', marginTop: 10 }]}
+                onPress={resetDatabase}
+                disabled={resettingState}
+              >
+                {resettingState ? (
+                  <ActivityIndicator size="small" color="#fff" />
                 ) : (
-                  categories.map((category: Category) => (
-                    <View key={category.id} style={styles.categoryItem}>
-                      <View style={[styles.categoryIcon, { backgroundColor: category.color }]}>
-                        <Ionicons 
-                          name={getCategoryIcon(category.name)} 
-                          size={24} 
-                          color="#fff" 
-                        />
-                      </View>
-                      <View style={styles.categoryInfo}>
-                        <Text style={styles.categoryName}>{category.name}</Text>
-                        {category.description && (
-                          <Text style={styles.categoryDescription}>{category.description}</Text>
-                        )}
-                      </View>
-                    </View>
-                  ))
+                  <Text style={styles.connectionButtonText}>Reset Database</Text>
                 )}
-              </>
-            )}
+              </TouchableOpacity>
+            </View>
           </View>
         );
-      
       default:
         return null;
     }
@@ -634,246 +474,316 @@ export default function ProfileScreen() {
     <View style={styles.container}>
       <StatusBar style="dark" />
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Profile</Text>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color="black" />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={handleLogoTap}>
+          <Text style={styles.headerTitle}>Profile</Text>
+        </TouchableOpacity>
+        <View style={styles.headerActions}></View>
       </View>
-      
-      <ProfileTopTabs 
-        activeSection={activeSection} 
-        onChangeSection={(section) => setActiveSection(section as SectionType)} 
+
+      {/* Debug Tools Section - Placed between Header and TopTabs */}
+      {showDebugTools && (
+        <View style={styles.debugContainer}>
+          <Text style={styles.debugTitle}>Debug Tools</Text>
+          {/* Row 1 */}
+          <View style={styles.debugRow}>
+            <TouchableOpacity
+              style={[styles.debugButton, testingConnection && styles.debugButtonDisabled]}
+              onPress={testSquareConnection} disabled={testingConnection}
+            >
+              <Text style={styles.debugButtonText}>{testingConnection ? 'Testing...' : 'Test Connection'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.debugButton, resettingState && styles.debugButtonDisabled]}
+              onPress={resetConnectionState} disabled={resettingState}
+            >
+              <Text style={styles.debugButtonText}>{resettingState ? 'Resetting...' : 'Reset State'}</Text>
+            </TouchableOpacity>
+          </View>
+          {/* Row 2 */}
+          <View style={styles.debugRow}>
+            <TouchableOpacity
+              style={[styles.debugButton, testingExactCallback && styles.debugButtonDisabled]}
+              onPress={testExactSquareCallback} disabled={testingExactCallback}
+            >
+              <Text style={styles.debugButtonText}>{testingExactCallback ? 'Testing...' : 'Test Exact Callback'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.debugButton} onPress={testSquareToken}>
+              <Text style={styles.debugButtonText}>Test Token</Text>
+            </TouchableOpacity>
+          </View>
+          {/* Row 3 */}
+          <View style={styles.debugRow}>
+            <TouchableOpacity style={styles.debugButton} onPress={testDeepLink}>
+              <Text style={styles.debugButtonText}>Test Deep Link</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.debugButton} onPress={testDirectSquareCatalog}>
+              <Text style={styles.debugButtonText}>Test Direct Catalog</Text>
+            </TouchableOpacity>
+          </View>
+          {/* Row 4 */}
+          <View style={styles.debugRow}>
+            <TouchableOpacity style={styles.debugButton} onPress={testBackendCatalogEndpoint}>
+              <Text style={styles.debugButtonText}>Test Backend Catalog</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.debugButton} onPress={resetDatabase}>
+              <Text style={styles.debugButtonText}>Reset Database</Text>
+            </TouchableOpacity>
+          </View>
+          {/* Reset taps */}
+          <TouchableOpacity style={[styles.debugButton, styles.resetTapsButton]} onPress={() => setDebugTaps(0)}>
+            <Text style={styles.debugButtonText}>Reset Debug Taps</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      <ProfileTopTabs
+        activeSection={activeSection}
+        onChangeSection={(section) => setActiveSection(section as SectionType)}
       />
-      
-      <ScrollView style={styles.content}>
+
+      {/* ScrollView should now correctly fill the space between top tabs and the *layout's* bottom tab */}
+      <ScrollView style={styles.contentScrollView}>
         {renderSection()}
       </ScrollView>
     </View>
   );
 }
 
+// ** Use original styles **
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 60,
-    paddingBottom: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  content: {
-    flex: 1,
-  },
-  sectionContent: {
-    padding: 20,
-  },
-  avatarContainer: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: lightTheme.colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarText: {
-    color: 'white',
-    fontSize: 36,
-    fontWeight: 'bold',
-  },
-  userName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  userRole: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-  },
-  infoContainer: {
-    marginBottom: 24,
-  },
-  infoLabel: {
-    fontSize: 16,
-    color: '#666',
-  },
-  infoValue: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#333',
-  },
-  connectionContainer: {
-    marginTop: 20,
-    marginBottom: 20,
-  },
-  connectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 10,
-  },
-  connectionDescription: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 10,
-  },
-  connectedInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  connectedText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#333',
-  },
-  merchantIdText: {
-    fontSize: 14,
-    color: '#666',
-    marginLeft: 8,
-  },
-  connectionButton: {
-    backgroundColor: lightTheme.colors.primary,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  connectionButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  disconnectButton: {
-    backgroundColor: '#FFF0F0',
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  settingContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  settingTextContainer: {
-    flexDirection: 'column',
-  },
-  settingLabel: {
-    fontSize: 16,
-    color: '#333',
-  },
-  settingDescription: {
-    fontSize: 14,
-    color: '#666',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  loadingText: {
-    color: '#666',
-    fontSize: 16,
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  errorText: {
-    color: '#FF3B30',
-    fontSize: 16,
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  retryButton: {
-    backgroundColor: lightTheme.colors.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  addCategoryButton: {
-    flexDirection: 'row',
-    backgroundColor: lightTheme.colors.primary,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 20,
-  },
-  addCategoryText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  emptyContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 40,
-  },
-  emptyText: {
-    color: '#666',
-    fontSize: 18,
-    marginTop: 16,
-    marginBottom: 8,
-    fontWeight: '500',
-  },
-  emptySubtext: {
-    color: '#999',
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  categoryItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingRight: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  categoryIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  categoryInfo: {
-    flexDirection: 'column',
-    marginLeft: 16,
-    flex: 1,
-  },
-  categoryName: {
-    fontSize: 16,
-    color: '#333',
-    fontWeight: '500',
-  },
-  categoryDescription: {
-    fontSize: 14,
-    color: '#666',
-  },
-}); 
+   container: {
+     flex: 1,
+     backgroundColor: '#fff',
+   },
+   header: {
+     flexDirection: 'row',
+     justifyContent: 'space-between',
+     alignItems: 'center',
+     paddingHorizontal: 16,
+     paddingTop: 60, // Adjust as needed for status bar height
+     paddingBottom: 10,
+     backgroundColor: '#fff',
+     borderBottomWidth: 1,
+     borderBottomColor: '#eee',
+   },
+   backButton: {
+      padding: 8,
+   },
+   headerTitle: {
+     fontSize: 20,
+     fontWeight: 'bold',
+     color: '#333',
+     textAlign: 'center',
+   },
+   headerActions: {
+      width: 40,
+      height: 40,
+   },
+   contentScrollView: {
+     flex: 1, // Make ScrollView take remaining space
+   },
+   sectionContent: {
+     padding: 20,
+   },
+   avatarContainer: {
+     alignItems: 'center',
+     marginBottom: 20,
+   },
+   avatar: {
+     width: 100,
+     height: 100,
+     borderRadius: 50,
+     backgroundColor: lightTheme.colors.primary,
+     justifyContent: 'center',
+     alignItems: 'center',
+     marginBottom: 10,
+   },
+   avatarText: {
+     color: 'white',
+     fontSize: 36,
+     fontWeight: 'bold',
+   },
+   userName: {
+     fontSize: 24,
+     fontWeight: 'bold',
+     textAlign: 'center',
+     marginBottom: 4,
+   },
+   userRole: {
+     fontSize: 16,
+     color: '#666',
+     textAlign: 'center',
+   },
+   infoContainer: {
+     marginBottom: 15,
+     paddingBottom: 10,
+     borderBottomWidth: 1,
+     borderBottomColor: '#f0f0f0',
+   },
+   infoLabel: {
+     fontSize: 14,
+     color: '#888',
+     marginBottom: 4,
+   },
+   infoValue: {
+     fontSize: 16,
+     fontWeight: '500',
+     color: '#333',
+   },
+   connectionContainer: {
+     marginTop: 30,
+     marginBottom: 20,
+     padding: 15,
+     backgroundColor: '#f8f8f8',
+     borderRadius: 8,
+     borderWidth: 1,
+     borderColor: '#eee',
+   },
+   connectionTitle: {
+     fontSize: 16,
+     fontWeight: '600',
+     color: '#333',
+     marginBottom: 8,
+   },
+   connectionDescription: {
+     fontSize: 14,
+     color: '#666',
+     marginBottom: 15,
+     lineHeight: 20,
+   },
+   connectedInfo: {
+     flexDirection: 'row',
+     alignItems: 'center',
+     marginBottom: 15,
+     paddingVertical: 10,
+     paddingHorizontal: 15,
+     backgroundColor: '#e7f3ff',
+     borderRadius: 6,
+   },
+   connectedText: {
+     fontSize: 15,
+     fontWeight: '500',
+     color: '#00529B',
+   },
+   merchantIdText: {
+     fontSize: 13,
+     color: '#00529B',
+     marginLeft: 8,
+     fontFamily: 'monospace',
+   },
+   connectionButton: {
+     backgroundColor: lightTheme.colors.primary,
+     paddingVertical: 12,
+     borderRadius: 8,
+     alignItems: 'center',
+     marginTop: 10,
+   },
+   connectionButtonText: {
+     color: 'white',
+     fontSize: 15,
+     fontWeight: '600',
+   },
+   disconnectButton: {
+     backgroundColor: '#e74c3c',
+     marginTop: 10,
+   },
+   settingContainer: {
+     flexDirection: 'row',
+     justifyContent: 'space-between',
+     alignItems: 'center',
+     paddingVertical: 15,
+     borderBottomWidth: 1,
+     borderBottomColor: '#eee',
+   },
+   settingTextContainer: {
+     flex: 1,
+     marginRight: 10,
+   },
+   settingLabel: {
+     fontSize: 16,
+     color: '#333',
+     marginBottom: 2,
+   },
+   settingDescription: {
+     fontSize: 13,
+     color: '#777',
+   },
+   sectionTitle: { // Style for Troubleshooting title
+     fontSize: 18,
+     fontWeight: 'bold',
+     marginTop: 20,
+     marginBottom: 15,
+     color: '#444',
+   },
+    sectionDescription: { // Style for Troubleshooting description
+        fontSize: 14,
+        color: '#666',
+        marginBottom: 16,
+        lineHeight: 20,
+    },
+   troubleshootingContainer: {
+     marginTop: 30,
+     marginBottom: 40,
+     padding: 15,
+     backgroundColor: '#fff8e1',
+     borderRadius: 8,
+     borderWidth: 1,
+     borderColor: '#ffecb3',
+   },
+   // Debug styles
+   debugContainer: {
+     padding: 16,
+     backgroundColor: '#f0f0f0',
+     borderTopWidth: 1,
+     borderTopColor: '#ddd',
+   },
+   debugTitle: {
+     fontSize: 16,
+     fontWeight: 'bold',
+     marginBottom: 16,
+     color: '#555',
+   },
+   debugRow: {
+     flexDirection: 'row',
+     justifyContent: 'space-around',
+     alignItems: 'center',
+     marginBottom: 12,
+   },
+   debugButton: {
+     backgroundColor: '#555',
+     paddingVertical: 10,
+     paddingHorizontal: 15,
+     borderRadius: 6,
+     flex: 1,
+     marginHorizontal: 5,
+     alignItems: 'center',
+   },
+   debugButtonDisabled: {
+     backgroundColor: '#bbb',
+     opacity: 0.7,
+   },
+   debugButtonText: {
+     color: 'white',
+     fontSize: 13,
+     fontWeight: '500',
+     textAlign: 'center',
+   },
+   resetTapsButton: {
+     backgroundColor: '#e74c3c',
+     marginTop: 10,
+   },
+   // General Error Text Style
+   errorText: {
+     color: '#e74c3c',
+     fontSize: 14,
+     marginTop: 10,
+     textAlign: 'center',
+   },
+   sectionContentFlex: {
+     flex: 1,
+     padding: 20,
+   },
+ }); 

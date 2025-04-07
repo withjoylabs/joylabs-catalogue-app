@@ -9,73 +9,39 @@ type ProfileTopTabsProps = {
 };
 
 export default function ProfileTopTabs({ activeSection, onChangeSection }: ProfileTopTabsProps) {
+  // Define the tabs to display
+  const tabs = [
+    { key: 'profile', label: 'Profile', icon: 'person' as const },
+    { key: 'settings', label: 'Settings', icon: 'settings' as const },
+    { key: 'sync', label: 'Sync Catalog', icon: 'sync' as const },
+  ];
+
   return (
     <View style={styles.tabBar}>
-      <TouchableOpacity 
-        style={[
-          styles.tab, 
-          activeSection === 'profile' && styles.activeTab
-        ]}
-        onPress={() => onChangeSection('profile')}
-      >
-        <Ionicons 
-          name="person" 
-          size={24} 
-          color={activeSection === 'profile' ? lightTheme.colors.primary : '#888'} 
-        />
-        <Text 
+      {tabs.map((tab) => (
+        <TouchableOpacity
+          key={tab.key}
           style={[
-            styles.tabLabel, 
-            activeSection === 'profile' && styles.activeTabLabel
+            styles.tab,
+            activeSection === tab.key && styles.activeTab
           ]}
+          onPress={() => onChangeSection(tab.key)}
         >
-          Profile
-        </Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity 
-        style={[
-          styles.tab, 
-          activeSection === 'settings' && styles.activeTab
-        ]}
-        onPress={() => onChangeSection('settings')}
-      >
-        <Ionicons 
-          name="settings" 
-          size={24} 
-          color={activeSection === 'settings' ? lightTheme.colors.primary : '#888'} 
-        />
-        <Text 
-          style={[
-            styles.tabLabel, 
-            activeSection === 'settings' && styles.activeTabLabel
-          ]}
-        >
-          Settings
-        </Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity 
-        style={[
-          styles.tab, 
-          activeSection === 'categories' && styles.activeTab
-        ]}
-        onPress={() => onChangeSection('categories')}
-      >
-        <Ionicons 
-          name="grid" 
-          size={24} 
-          color={activeSection === 'categories' ? lightTheme.colors.primary : '#888'} 
-        />
-        <Text 
-          style={[
-            styles.tabLabel, 
-            activeSection === 'categories' && styles.activeTabLabel
-          ]}
-        >
-          Categories
-        </Text>
-      </TouchableOpacity>
+          <Ionicons
+            name={tab.icon}
+            size={24}
+            color={activeSection === tab.key ? lightTheme.colors.primary : '#888'}
+          />
+          <Text
+            style={[
+              styles.tabLabel,
+              activeSection === tab.key && styles.activeTabLabel
+            ]}
+          >
+            {tab.label}
+          </Text>
+        </TouchableOpacity>
+      ))}
     </View>
   );
 }

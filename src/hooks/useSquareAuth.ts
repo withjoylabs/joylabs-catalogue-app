@@ -114,6 +114,7 @@ export interface UseSquareAuthResult {
   testConnection: () => Promise<{success: boolean, data?: any, error?: string, tokenStatus?: any}>;
   testExactCallback: () => Promise<{success: boolean, hasAccessToken: boolean, accessTokenLength?: number, hasRefreshToken?: boolean, hasMerchantId?: boolean, hasBusinessName?: boolean, error?: string}>;
   processCallback: (url: string) => Promise<any>;
+  hasValidToken: () => Promise<boolean>;
 }
 
 export const useSquareAuth = (): UseSquareAuthResult => {
@@ -691,6 +692,40 @@ export const useSquareAuth = (): UseSquareAuthResult => {
     return tokenStatus;
   };
   
+  // Add hasValidToken method to check if the token is valid
+  const hasValidToken = async (): Promise<boolean> => {
+    try {
+      logger.debug('SquareAuth', 'Checking if token is valid');
+      
+      // Check if we have an access token
+      const accessToken = await SecureStore.getItemAsync(SQUARE_ACCESS_TOKEN_KEY);
+      if (!accessToken) {
+        logger.debug('SquareAuth', 'No access token found');
+        return false;
+      }
+      
+      // Check if token has expired based on stored expiry
+      const expiryTime = await SecureStore.getItemAsync(TOKEN_KEYS.TOKEN_EXPIRY);
+      if (expiryTime) {
+        const expiry = new Date(expiryTime);
+        const now = new Date();
+        
+        // If token is expired, return false
+        if (expiry < now) {
+          logger.debug('SquareAuth', 'Token is expired');
+          return false;
+        }
+      }
+      
+      // Token exists and is not expired
+      logger.debug('SquareAuth', 'Token exists and is not expired');
+      return true;
+    } catch (error) {
+      logger.error('SquareAuth', 'Error checking token validity', error);
+      return false;
+    }
+  };
+  
   // Update the testConnection function
   const testConnection = async () => {
     try {
@@ -1139,6 +1174,7 @@ export const useSquareAuth = (): UseSquareAuthResult => {
     }
   };
 
+  // Return hook values and methods
   return {
     isConnected,
     isConnecting,
@@ -1151,6 +1187,7 @@ export const useSquareAuth = (): UseSquareAuthResult => {
     forceResetConnectionState,
     testConnection,
     testExactCallback,
-    processCallback
+    processCallback,
+    hasValidToken
   };
 }; 

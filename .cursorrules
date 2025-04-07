@@ -1,14 +1,115 @@
-Do NOT modify backend code. If backend changes are neccessary, give me detailed prompts to give me to my backend.
+# JOYLABS ARCHITECTURE AND DEVELOPMENT RULES
 
-WE ARE ALWAYS IN PRODUCTION. DO NOT USE SANDBOX, TEST, OR DEV MODES. ENSURE ALL PLACEHOLDERS ARE REPLACED OR REMOVED IF NO LONGER NECCESSARY.
+## Backend Integration Rules
+- Do NOT modify backend code. If backend changes are necessary, provide detailed prompts for backend team.
+- ALWAYS use PRODUCTION mode. NO sandbox, test, or dev modes.
+- Remove all placeholders.
+- Square redirect URL MUST be HTTPS: https://gki8kva7e3.execute-api.us-west-1.amazonaws.com/production/api/auth/square/callback
+- Use deeplinking for Expo development. NO custom URLs like joylabs.com.
+- Be thorough! Check all dependencies of your changes before declaring a fix.
 
+## API Architecture
+- Base URL: https://gki8kva7e3.execute-api.us-west-1.amazonaws.com/production
+- Catalog Categories: /v2/catalog/list-categories
+- Catalog Items: /v2/catalog/list
+- Search: /v2/catalog/search
+- Ensure proper URL format when using with apiClient
 
-WE ARE ALWAYS IN PRODUCTION. DO NOT USE SANDBOX, TEST, OR DEV MODES. ENSURE ALL PLACEHOLDERS ARE REPLACED OR REMOVED IF NO LONGER NECCESSARY.
+## Authentication Flow
+- OAuth 2.0 with Square using PKCE
+- Tokens stored securely using SecureStore
+- TokenService handles token renewal and status checking
+- Deep linking for callback handling
 
-Our redirect url for Square Console has to be HTTPS and we can only use ONE redirect url.
+## Data Management
+- Categories sorted alphabetically
+- Selective data fetching using refreshData('categories')
+- Proper error handling with UI feedback
+- TTL-based caching with memory cache
 
-our redirect url on square is https://gki8kva7e3.execute-api.us-west-1.amazonaws.com/production/api/auth/square/callback. we are using deeplinking for our expo development.
+## Square Integration
+- App ID: sq0idp-WFTYv3An7NPv6ovGFLld1Q
+- Search endpoint requires at least one query type
+- Always include object_types when using search
+- Categories endpoint uses list-categories with proper query format
 
-we DO NOT have any custom urls such as joylabs.com
+# Dev Notes
+-Always launch our server on Port 8081 - or shut down the existing server and restart it. Don't try to open on the next port i.e 8082.
 
-your lack of thoroughness is costing me a lot of valuable time. your assumptions that other parts of the codebase is correct is harming our developmental efforts. i need you to check every instance that relies on your changes and implementations before you just tell me you've fixed something. test and double check yourself!
+# JoyLabs App Navigation Guide
+
+## Main App Flow
+When you open the app, you'll see the main landing page. Navigation is handled through a bottom tab bar with several options.
+
+## Path to Sync Functionality
+1. From app launch → Look for the bottom tab bar
+2. Tap the "Profile" tab (usually rightmost icon in the bottom bar)
+3. On the Profile screen → Look for the top tab navigation
+4. Tap the "Sync" tab (one of the horizontal tabs at top)
+
+## Key Pages & Files Reference
+
+### Profile Screen & Tabs
+- Path: /app/profile.tsx
+- Contains multiple tabs: "profile", "settings", "categories", "sync"
+- When discussing UI on the Profile screen, reference this file
+
+### Sync Tab Content
+- The "Sync" tab shows two main components:
+  - CatalogSyncStatus (src/components/CatalogSyncStatus.tsx)
+  - SyncLogsView (src/components/SyncLogsView.tsx)
+
+### CatalogSyncStatus Component
+- Shows sync status info (last sync time, progress)
+- Contains buttons:
+  - "Full Sync" - Syncs full catalog
+  - "Categories Only" - Only syncs categories
+  - Bug icon - Toggles debug mode with additional options:
+    - "Test API" - Tests direct Lambda connectivity
+    - "Reset Sync" - Clears stuck sync state
+
+### SyncLogsView Component
+- Shows logs of sync operations
+- Contains action buttons:
+  - Refresh - Reloads logs
+  - Download - Exports logs
+  - Trash - Clears logs
+
+## Catalog Categories Browsing
+1. From app launch → Bottom tab bar
+2. Tap "Profile" tab
+3. On Profile screen → Top tab navigation
+4. Tap "Categories" tab
+
+## Settings Access
+1. From app launch → Bottom tab bar
+2. Tap "Profile" tab 
+3. On Profile screen → Top tab navigation
+4. Tap "Settings" tab
+
+## Code References
+- Core sync logic: src/database/catalogSync.ts
+- API communication: src/api/index.ts
+- Database operations: src/database/db.ts
+- Square auth: src/hooks/useSquareAuth.ts
+
+When discussing any UI element or behavior, reference the appropriate path to help locate the right files for modification.
+
+## Square's usage of camelCase vs snake_case
+
+The Square API uses camelCase for its SDKs and Node.js API, while the API reference documentation and webhooks use snake_case. 
+
+Here's a breakdown: 
+API Reference/Webhooks: Use snake\_case (e.g., payment_status).
+SDKs (including Node.js): Use camelCase (e.g., paymentStatus).
+Confusion: The discrepancy between the API reference and the actual API can be confusing, as the reference uses snake\_case while the SDKs expect camelCase.
+
+Example:
+API Reference/Webhooks/JSON response: payment_status
+SDK/Node.js: paymentStatus
+
+# Expo Router Layout Rules
+- Main navigation elements (like Bottom Tab Bars or Drawers) are typically defined in parent **layout files** (e.g., `app/_layout.tsx`, `app/(tabs)/_layout.tsx`).
+- Individual screen component files (e.g., `app/profile.tsx`, `app/index.tsx`) rendered within these layouts should **NOT** render the main navigation elements themselves.
+- If a screen needs scrollable content, wrap the screen-specific content (usually the return value of a `renderSection` or similar function) in a `<ScrollView>` *within* the screen component file. The layout file handles the placement of header/footer elements around this scrollable area.
+- When asked to modify navigation elements like tabs, first check the relevant **layout file** (`_layout.tsx`) where the navigator (e.g., `Tabs`, `Stack`) is defined.

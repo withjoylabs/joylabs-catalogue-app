@@ -34,6 +34,16 @@ export const ApiProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Track connection status changes to avoid excessive refreshes
   const [initialConnectionChecked, setInitialConnectionChecked] = useState(false);
   
+  // Track last refresh times to prevent excessive API calls
+  const [lastRefreshTimes, setLastRefreshTimes] = useState<Record<string, number>>({
+    categories: 0,
+    items: 0,
+    all: 0
+  });
+  
+  // Minimum time between refreshes (5 minutes)
+  const MIN_REFRESH_INTERVAL = 5 * 60 * 1000;
+  
   // Access the app store to sync Square connection state
   const { setSquareConnected } = useAppStore();
   
@@ -83,7 +93,22 @@ export const ApiProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     
     const refreshType = dataType || 'all';
+    const now = Date.now();
+    const lastRefresh = lastRefreshTimes[refreshType] || 0;
+    
+    // Skip if refreshed recently (within last 5 minutes)
+    if (now - lastRefresh < MIN_REFRESH_INTERVAL) {
+      logger.info('ApiProvider', `Skipping ${refreshType} refresh - refreshed recently`);
+      return;
+    }
+    
     logger.info('ApiProvider', `Manually refreshing data (type: ${refreshType})`);
+    
+    // Update last refresh time
+    setLastRefreshTimes(prev => ({
+      ...prev,
+      [refreshType]: now
+    }));
     
     try {
       // Refresh categories if specified

@@ -19,6 +19,10 @@ import { useFonts } from 'expo-font';
 import * as Device from 'expo-device';
 import { ApiProvider } from '../src/providers/ApiProvider';
 import logger from '../src/utils/logger';
+import { DatabaseProvider } from '../src/components/DatabaseProvider';
+// Import the font file if needed, assuming Ionicons is the primary one
+// If you have other custom fonts, add them here and to useFonts below
+// import IoniconsFont from '@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf'; // Example path, might vary
 
 // Configure linking
 const linking = {
@@ -48,8 +52,14 @@ export default function RootLayout() {
   const [debugTapCount, setDebugTapCount] = useState(0);
   const [debugModeActive, setDebugModeActive] = useState(false);
   
-  // Remove the font loading that's causing build errors
-  const [loaded, error] = useState(true);
+  // ** Restore useFonts hook **
+  // Load required fonts. Add other fonts to this object if needed.
+  const [fontsLoaded, fontError] = useFonts({
+    // Make sure the key matches the font family name if used in styles
+    'Ionicons': require('@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf'),
+    // Add other fonts like this:
+    // 'SpaceMono-Regular': require('../assets/fonts/SpaceMono-Regular.ttf'),
+  });
   
   // Log application start with device information
   useEffect(() => {
@@ -75,6 +85,15 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     }, 500);
   }, [pathname]);
+  
+  // ** Update splash screen hiding logic **
+  useEffect(() => {
+    const startTime = Date.now();
+    if (fontsLoaded || fontError) {
+      console.log('APP - Fonts loaded or error occurred, hiding splash screen after', Date.now() - startTime, 'ms');
+      SplashScreen.hideAsync();
+    }
+  }, [fontsLoaded, fontError]);
   
   useEffect(() => {
     // Update the active tab based on the current route
@@ -150,14 +169,21 @@ export default function RootLayout() {
     };
   }, []);
 
-  // Render loading or error state if needed
+  // ** Update font error logging **
   useEffect(() => {
-    if (error) {
-      console.error('ROOT LAYOUT - Error loading fonts:', error);
+    if (fontError) {
+      // Log the actual error from useFonts
+      console.error('ROOT LAYOUT - Error loading fonts:', fontError);
+      logger.error('App', 'Font loading failed', { error: fontError });
+      // Optionally show an alert or fallback UI
+      // Alert.alert('Font Error', 'Failed to load essential fonts. The app might look strange.');
+    } else if (fontsLoaded) {
+      console.log('ROOT LAYOUT - Fonts loaded successfully');
     }
-  }, [error]);
+  }, [fontsLoaded, fontError]); // Depend on the actual state variables from useFonts
 
-  if (!loaded) {
+  // ** Update loading indicator logic **
+  if (!fontsLoaded && !fontError) { // Show loading only if fonts are not loaded AND there's no error yet
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
         <ActivityIndicator size="large" color="#000" />
@@ -167,104 +193,106 @@ export default function RootLayout() {
   }
 
   return (
-    <ApiProvider>
-      <SafeAreaProvider>
-        <View style={{ flex: 1 }}>
-          <Stack
-            initialRouteName="index"
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: '#fff' },
-              animation: Platform.OS === 'android' ? 'fade_from_bottom' : 'default',
-            }}
-          >
-            <Stack.Screen
-              name="index"
-              options={{
-                title: 'Home',
-              }}
-            />
-            <Stack.Screen
-              name="modules"
-              options={{
-                title: 'Modules',
-              }}
-            />
-            <Stack.Screen
-              name="profile"
-              options={{
-                title: 'Profile',
-              }}
-            />
-            <Stack.Screen
-              name="catalogue"
-              options={{
-                title: 'Catalogue',
+    <DatabaseProvider>
+      <ApiProvider>
+        <SafeAreaProvider>
+          <View style={{ flex: 1 }}>
+            <Stack
+              initialRouteName="index"
+              screenOptions={{
                 headerShown: false,
-                animation: 'slide_from_right',
-                presentation: 'card',
-                // Full screen gesture on iOS for this screen
-                ...(Platform.OS === 'ios' && {
-                  fullScreenGestureEnabled: true,
-                }),
+                contentStyle: { backgroundColor: '#fff' },
+                animation: Platform.OS === 'android' ? 'fade_from_bottom' : 'default',
               }}
-            />
-            <Stack.Screen
-              name="item/[id]"
-              options={{
-                title: 'Item Details',
-                headerShown: false,
-                animation: 'slide_from_right',
-                presentation: 'card',
+            >
+              <Stack.Screen
+                name="index"
+                options={{
+                  title: 'Home',
+                }}
+              />
+              <Stack.Screen
+                name="modules"
+                options={{
+                  title: 'Modules',
+                }}
+              />
+              <Stack.Screen
+                name="profile"
+                options={{
+                  title: 'Profile',
+                }}
+              />
+              <Stack.Screen
+                name="catalogue"
+                options={{
+                  title: 'Catalogue',
+                  headerShown: false,
+                  animation: 'slide_from_right',
+                  presentation: 'card',
+                  // Full screen gesture on iOS for this screen
+                  ...(Platform.OS === 'ios' && {
+                    fullScreenGestureEnabled: true,
+                  }),
+                }}
+              />
+              <Stack.Screen
+                name="item/[id]"
+                options={{
+                  title: 'Item Details',
+                  headerShown: false,
+                  animation: 'slide_from_right',
+                  presentation: 'card',
+                }}
+              />
+              <Stack.Screen
+                name="auth/success"
+                options={{
+                  title: 'Authentication',
+                  headerShown: false,
+                  // This screen should only be accessed via deep linking, never as an initial route
+                }}
+              />
+              <Stack.Screen
+                name="debug"
+                options={{
+                  title: 'Debug Logs',
+                  headerShown: true,
+                  animation: 'slide_from_bottom',
+                  presentation: 'modal',
+                }}
+              />
+            </Stack>
+            
+            {/* Debug mode indicator and trigger */}
+            <TouchableOpacity 
+              style={{ 
+                position: 'absolute', 
+                top: Platform.OS === 'ios' ? 40 : 10, 
+                right: 10, 
+                width: 40, 
+                height: 40,
+                opacity: debugModeActive ? 0.8 : 0,
+                zIndex: 9999,
+                justifyContent: 'center',
+                alignItems: 'center',
+                backgroundColor: debugModeActive ? 'rgba(0,0,0,0.1)' : 'transparent',
+                borderRadius: 20
               }}
-            />
-            <Stack.Screen
-              name="auth/success"
-              options={{
-                title: 'Authentication',
-                headerShown: false,
-                // This screen should only be accessed via deep linking, never as an initial route
-              }}
-            />
-            <Stack.Screen
-              name="debug"
-              options={{
-                title: 'Debug Logs',
-                headerShown: true,
-                animation: 'slide_from_bottom',
-                presentation: 'modal',
-              }}
-            />
-          </Stack>
-          
-          {/* Debug mode indicator and trigger */}
-          <TouchableOpacity 
-            style={{ 
-              position: 'absolute', 
-              top: Platform.OS === 'ios' ? 40 : 10, 
-              right: 10, 
-              width: 40, 
-              height: 40,
-              opacity: debugModeActive ? 0.8 : 0,
-              zIndex: 9999,
-              justifyContent: 'center',
-              alignItems: 'center',
-              backgroundColor: debugModeActive ? 'rgba(0,0,0,0.1)' : 'transparent',
-              borderRadius: 20
-            }}
-            onPress={handleDebugTap}
-          >
-            {debugModeActive && (
-              <Ionicons name="bug-outline" size={24} color="#E53935" />
+              onPress={handleDebugTap}
+            >
+              {debugModeActive && (
+                <Ionicons name="bug-outline" size={24} color="#E53935" />
+              )}
+            </TouchableOpacity>
+            
+            {/* Show the tab bar on appropriate screens */}
+            {shouldShowTabBar() && (
+              <BottomTabBar activeTab={activeTab} />
             )}
-          </TouchableOpacity>
-          
-          {/* Show the tab bar on appropriate screens */}
-          {shouldShowTabBar() && (
-            <BottomTabBar activeTab={activeTab} />
-          )}
-        </View>
-      </SafeAreaProvider>
-    </ApiProvider>
+          </View>
+        </SafeAreaProvider>
+      </ApiProvider>
+    </DatabaseProvider>
   );
 } 
