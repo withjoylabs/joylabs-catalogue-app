@@ -449,7 +449,7 @@ export class CatalogSyncService {
     let cursor: string | null | undefined = currentStatus.last_page_cursor; // Start from stored cursor if available
     let page = 1;
     let totalObjectsProcessed = 0;
-    const limit = 300; // Page size (adjustable)
+    const limit = 1000; // Page size (adjustable)
     const typesToFetch = 'ITEM,CATEGORY,MODIFIER_LIST,MODIFIER,TAX,DISCOUNT,IMAGE'; // All relevant types
     let successfulCompletion = false;
 
