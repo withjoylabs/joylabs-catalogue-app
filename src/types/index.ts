@@ -1,5 +1,7 @@
 // Define common types for the application
 
+import { ConvertedItem } from './api'; // Add import for ConvertedItem
+
 export interface Module {
   id: string;
   name: string;
@@ -53,7 +55,8 @@ export interface CatalogueItem {
   description?: string; // Item description
 }
 
-export interface ScanHistoryItem extends CatalogueItem {
-  scanId: string;
-  scanTime: string;
+export interface ScanHistoryItem extends ConvertedItem {
+  scanId: string; // Unique ID for the scan event
+  scanTime: string; // ISO string representation of the scan time
+  // Properties from ConvertedItem are inherited
 } 

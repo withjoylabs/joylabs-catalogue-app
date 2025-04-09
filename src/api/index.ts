@@ -8,6 +8,16 @@ import logger from '../utils/logger';
 import tokenService, { TOKEN_KEYS } from '../services/tokenService';
 import NetInfo from '@react-native-community/netinfo';
 
+// API Response Type
+export interface ApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  error?: ApiError;
+  message?: string;
+  objects?: any[]; // For list responses
+  cursor?: string | null; // For pagination
+}
+
 // API Error Types
 export class ApiError extends Error {
   code: string;
@@ -1324,6 +1334,48 @@ const api = {
         logger.error('API', 'Failed to fetch locations', { error });
         throw error;
       }
+    },
+    searchCatalog: async (
+      queryValue: string, 
+      queryType: 'UPC' | 'SKU' | 'NAME' // Keep type for logging/future use if needed
+    ): Promise<ApiResponse> => {
+      try {
+        logger.info('API:Catalog', 'Searching catalog via custom backend', { queryType, queryValue });
+        
+        // Using the custom backend endpoint - sending queryValue as textFilter
+        const response = await apiClient.post<any>('/api/catalog/search-catalog-items', 
+          { 
+            textFilter: queryValue // Send query using the expected textFilter parameter
+          }, 
+          { /* No cache for backend endpoint */ }
+        );
+        
+        const responseData = response.data || {};
+        
+        // Add success flag if it doesn't exist (backend might not provide it)
+        if (!responseData.hasOwnProperty('success')) {
+          responseData.success = true; // Assume success if no explicit error
+        }
+        
+        // Log success
+        logger.info('API:Catalog', 'Custom backend search successful', { 
+          queryType, 
+          queryValue, 
+          objectCount: responseData.objects?.length || responseData.items?.length || 0,
+          hasCursor: !!responseData.cursor
+        });
+        
+        return { ...responseData, success: true };
+
+      } catch (error) {
+        const apiError = handleApiError(error, 'Failed to search catalog via backend');
+        logger.error('API:Catalog', 'Custom backend search failed', { 
+          queryType, 
+          queryValue, 
+          error: apiError.message 
+        });
+        return { success: false, error: apiError };
+      }
     }
   },
   
@@ -1507,6 +1559,26 @@ export interface CatalogListResponse {
   message?: string; // For error responses
   error?: any; // For error responses
 }
+
+// Basic Error Handler (Implement more robust handling as needed)
+const handleApiError = (error: any, defaultMessage: string): ApiError => {
+  if (axios.isAxiosError(error)) {
+    const serverError = error.response?.data;
+    const message = serverError?.message || serverError?.error || error.message || defaultMessage;
+    const code = serverError?.code || 'AXIOS_ERROR';
+    const status = error.response?.status || 500;
+    logger.warn('API', `Axios Error: ${message}`, { code, status, url: error.config?.url });
+    return new ApiError(message, code, status, serverError);
+  } else if (error instanceof ApiError) {
+    return error; // Re-throw known API errors
+  } else if (error instanceof Error) {
+    logger.error('API', `Generic Error: ${error.message}`, { error });
+    return new ApiError(error.message, 'GENERIC_ERROR', 500, error);
+  } else {
+    logger.error('API', 'Unknown Error', { error });
+    return new ApiError(defaultMessage, 'UNKNOWN_ERROR', 500, error);
+  }
+};
 
 export { api, apiClient, getAuthToken, getAuthHeaders, setAuthToken, clearAuthToken, appendSecretName, getSecretName };
 export default api;

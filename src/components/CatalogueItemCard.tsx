@@ -14,11 +14,14 @@ const CatalogueItemCard: React.FC<CatalogueItemCardProps> = ({
   index,
   onPress 
 }) => {
-  // Format the price to have 2 decimal places
-  const formattedPrice = `$${item.price.toFixed(2)}`;
+  // Format the price safely, handling null/undefined
+  const formattedPrice = typeof item.price === 'number' 
+    ? `$${item.price.toFixed(2)}` 
+    : '$--.--'; // Display placeholder if price is not a valid number
   
-  // Format the additional information sections
-  const additionalInfo = [];
+  // Remove unused additionalInfo array
+  // const additionalInfo = [];
+  /* Remove access to non-existent properties
   if (item.tax) additionalInfo.push('+ TAX');
   if (item.crv) {
     if (typeof item.crv === 'number') {
@@ -27,6 +30,7 @@ const CatalogueItemCard: React.FC<CatalogueItemCardProps> = ({
       additionalInfo.push('+ CRV');
     }
   }
+  */
 
   return (
     <TouchableOpacity 
@@ -47,9 +51,13 @@ const CatalogueItemCard: React.FC<CatalogueItemCardProps> = ({
         </Text>
         
         <View style={styles.itemDetails}>
-          <Text style={styles.detailText}>{item.reporting_category || 'None'}</Text>
-          <Text style={styles.detailText}>GTIN: {item.gtin || 'None'}</Text>
-          <Text style={styles.detailText}>SKU: {item.sku || 'None'}</Text>
+          {/* Remove properties not on ScanHistoryItem */} 
+          {/* <Text style={styles.detailText}>{item.reporting_category || 'None'}</Text> */}
+          {/* <Text style={styles.detailText}>GTIN: {item.gtin || 'None'}</Text> */}
+          {/* Display SKU if available */} 
+          {item.sku && <Text style={styles.detailText}>SKU: {item.sku}</Text>}
+          {/* Display Barcode/UPC if available */} 
+          {item.barcode && <Text style={styles.detailText}>UPC: {item.barcode}</Text>}
         </View>
         
         {item.scanTime && (
@@ -60,9 +68,19 @@ const CatalogueItemCard: React.FC<CatalogueItemCardProps> = ({
       <View style={styles.rightSection}>
         <Text style={styles.priceText}>{formattedPrice}</Text>
         
-        {additionalInfo.map((info, i) => (
-          <Text key={i} style={styles.additionalInfoText}>{info}</Text>
-        ))}
+        {/* Display Tax info if available */}
+        {item.taxIds && item.taxIds.length > 0 && (
+          <Text style={styles.additionalInfoText}>
+            +Tax ({item.taxIds.length})
+          </Text>
+        )}
+        
+        {/* Display CRV info if available */}
+        {item.crvType && (
+          <Text style={styles.additionalInfoText}>
+            +{item.crvType} 
+          </Text>
+        )}
       </View>
     </TouchableOpacity>
   );

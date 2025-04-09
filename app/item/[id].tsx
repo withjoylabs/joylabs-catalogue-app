@@ -22,7 +22,7 @@ import {
 import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { useCategories } from '../../src/hooks';
+// import { useCategories } from '../../src/hooks'; // Commented out
 import { useCatalogItems } from '../../src/hooks/useCatalogItems';
 import { ConvertedItem, ConvertedCategory } from '../../src/types/api';
 import { lightTheme } from '../../src/themes';
@@ -48,11 +48,11 @@ export default function ItemDetails() {
   const isNewItem = id === 'new';
   
   // Hooks for categories and items
-  const { 
-    categories, 
-    getCategoryById,
-    dropdownItems
-  } = useCategories();
+  // const { // Commented out
+  //   categories, // Commented out
+  //   getCategoryById, // Commented out
+  //   dropdownItems // Commented out
+  // } = useCategories(); // Commented out
   
   const {
     getProductById,
@@ -71,33 +71,29 @@ export default function ItemDetails() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // Category selection modal state
-  const [showCategoryModal, setShowCategoryModal] = useState(false);
-  const [categorySearch, setCategorySearch] = useState('');
-  const [filteredCategories, setFilteredCategories] = useState<ConvertedCategory[]>([]);
+  // Category selection modal state - Commented out
+  // const [showCategoryModal, setShowCategoryModal] = useState(false);
+  // const [categorySearch, setCategorySearch] = useState('');
+  // const [filteredCategories, setFilteredCategories] = useState<ConvertedCategory[]>([]);
   
   // Confirmation modal state
   const [showCancelModal, setShowCancelModal] = useState(false);
   
   // Fetch the item data on component mount
   useEffect(() => {
-    const fetchItemData = async () => {
+    const fetchItemData = async (itemId: string) => {
       setIsLoading(true);
       setError(null);
       
       try {
-        if (isNewItem) {
+        // Await the result from the now async getProductById
+        const fetchedItem = await getProductById(itemId);
+        if (fetchedItem) {
+          setItem(fetchedItem);
+          setOriginalItem(fetchedItem);
+        } else {
+          setError('Item not found');
           setItem(EMPTY_ITEM);
-          setOriginalItem(null);
-        } else if (id) {
-          const fetchedItem = await getProductById(id as string);
-          if (fetchedItem) {
-            setItem(fetchedItem);
-            setOriginalItem(fetchedItem);
-          } else {
-            setError('Item not found');
-            setItem(EMPTY_ITEM);
-          }
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load item');
@@ -107,23 +103,35 @@ export default function ItemDetails() {
       }
     };
     
-    fetchItemData();
+    // Handle initial state and fetching logic
+    if (isNewItem) {
+      setItem(EMPTY_ITEM);
+      setOriginalItem(null);
+      setIsLoading(false); // No loading needed for a new item form
+    } else if (typeof id === 'string') {
+      fetchItemData(id);
+    } else {
+      // Handle case where ID is somehow invalid
+      setError('Invalid Item ID');
+      setIsLoading(false);
+    }
+    
   }, [id, getProductById, isNewItem]);
   
-  // Filter categories when search text changes
-  useEffect(() => {
-    if (categories) {
-      if (!categorySearch) {
-        setFilteredCategories(categories);
-      } else {
-        const searchLower = categorySearch.toLowerCase();
-        const filtered = categories.filter(
-          category => category.name.toLowerCase().includes(searchLower)
-        );
-        setFilteredCategories(filtered);
-      }
-    }
-  }, [categories, categorySearch]);
+  // Filter categories when search text changes - Commented out
+  // useEffect(() => {
+  //   if (categories) {
+  //     if (!categorySearch) {
+  //       setFilteredCategories(categories);
+  //     } else {
+  //       const searchLower = categorySearch.toLowerCase();
+  //       const filtered = categories.filter(
+  //         category => category.name.toLowerCase().includes(searchLower)
+  //       );
+  //       setFilteredCategories(filtered);
+  //     }
+  //   }
+  // }, [categories, categorySearch]);
   
   // Check if item has been edited
   useEffect(() => {
@@ -171,19 +179,19 @@ export default function ItemDetails() {
     );
   };
   
-  // Get the current category name
-  const selectedCategoryName = useMemo(() => {
-    if (!item.categoryId) return '';
-    const category = getCategoryById(item.categoryId);
-    return category ? category.name : '';
-  }, [item.categoryId, getCategoryById]);
+  // Get the current category name - Commented out
+  // const selectedCategoryName = useMemo(() => {
+  //   if (!item.categoryId) return '';
+  //   const category = getCategoryById(item.categoryId);
+  //   return category ? category.name : '';
+  // }, [item.categoryId, getCategoryById]);
   
-  // Handle selecting a category
-  const handleSelectCategory = (category: ConvertedCategory) => {
-    updateItem('categoryId', category.id);
-    updateItem('category', category.name);
-    setShowCategoryModal(false);
-  };
+  // Handle selecting a category - Commented out
+  // const handleSelectCategory = (category: ConvertedCategory) => {
+  //   updateItem('categoryId', category.id);
+  //   updateItem('category', category.name);
+  //   setShowCategoryModal(false);
+  // };
   
   // Handle cancel button press
   const handleCancel = () => {
@@ -218,7 +226,11 @@ export default function ItemDetails() {
         savedItem = await createProduct(item);
         Alert.alert('Success', 'Item created successfully');
       } else {
-        savedItem = await updateProduct(item);
+        // Ensure id is a string before passing
+        if (typeof id !== 'string') {
+            throw new Error('Invalid item ID for update');
+        }
+        savedItem = await updateProduct(id, item); 
         Alert.alert('Success', 'Item updated successfully');
       }
       
@@ -375,8 +387,8 @@ export default function ItemDetails() {
       />
       
       <ScrollView style={styles.content}>
-        {/* QR Code Button (only for existing items that have been saved) */}
-        {!isNewItem && item.id && (
+        {/* QR Code Button (Removed) */}
+        {/* {!isNewItem && item.id && (
           <TouchableOpacity 
             style={styles.qrCodeButton}
             onPress={() => Alert.alert('QR Code', 'QR code generation will be implemented in a future update.')}
@@ -384,7 +396,7 @@ export default function ItemDetails() {
             <Ionicons name="qr-code-outline" size={24} color={lightTheme.colors.primary} />
             <Text style={styles.qrCodeButtonText}>Generate QR Code</Text>
           </TouchableOpacity>
-        )}
+        )} */}
         
         {/* Item Name */}
         <View style={styles.fieldContainer}>
@@ -407,6 +419,19 @@ export default function ItemDetails() {
             onChangeText={(text) => updateItem('sku', text)}
             placeholder="Enter SKU (optional)"
             placeholderTextColor="#999"
+          />
+        </View>
+        
+        {/* Item GTIN/UPC */}
+        <View style={styles.fieldContainer}>
+          <Text style={styles.label}>GTIN / UPC</Text>
+          <TextInput
+            style={styles.input}
+            value={item.barcode || ''}
+            onChangeText={(text) => updateItem('barcode', text)}
+            placeholder="Enter GTIN or UPC (optional)"
+            placeholderTextColor="#999"
+            keyboardType="numeric"
           />
         </View>
         
@@ -433,13 +458,13 @@ export default function ItemDetails() {
         <View style={styles.fieldContainer}>
           <Text style={styles.label}>Category</Text>
           <TouchableOpacity 
-            style={styles.categorySelector}
-            onPress={() => setShowCategoryModal(true)}
+            style={styles.categorySelector} 
+            // onPress={() => setShowCategoryModal(true)} // Commented out
           >
-            <Text style={selectedCategoryName ? styles.categoryText : styles.placeholderText}>
-              {selectedCategoryName || 'Select a category (optional)'}
+            <Text style={styles.categoryText}>
+              {/* {selectedCategoryName || 'Select Category'}  Commented out */} Select Category (Disabled)
             </Text>
-            <Ionicons name="chevron-down" size={20} color="#888" />
+            <Ionicons name="chevron-down" size={20} color={lightTheme.colors.text} />
           </TouchableOpacity>
         </View>
         
@@ -490,65 +515,45 @@ export default function ItemDetails() {
         <View style={{ height: 40 }} />
       </ScrollView>
       
-      {/* Category Selection Modal */}
-      <Modal
+      {/* Category Selection Modal - Commented out */}
+      {/* <Modal
         visible={showCategoryModal}
         animationType="slide"
         transparent={true}
         onRequestClose={() => setShowCategoryModal(false)}
       >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Category</Text>
-              <TouchableOpacity
-                onPress={() => setShowCategoryModal(false)}
-                style={styles.closeButton}
-              >
-                <Ionicons name="close" size={24} color="#333" />
-              </TouchableOpacity>
-            </View>
-            
-            <TextInput
-              style={styles.searchInput}
-              value={categorySearch}
-              onChangeText={setCategorySearch}
-              placeholder="Search categories"
-              placeholderTextColor="#999"
-              clearButtonMode="while-editing"
-            />
-            
-            <FlatList
-              data={filteredCategories}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[
-                    styles.categoryItem,
-                    item.id === selectedCategoryId && styles.selectedCategoryItem
-                  ]}
-                  onPress={() => handleSelectCategory(item)}
-                >
-                  <View style={[styles.categoryColor, { backgroundColor: item.color || '#ddd' }]} />
-                  {highlightMatchingText(item.name, categorySearch)}
-                  {item.id === selectedCategoryId && (
-                    <Ionicons name="checkmark" size={20} color={lightTheme.colors.primary} />
+        <TouchableWithoutFeedback onPress={() => setShowCategoryModal(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Select Category</Text>
+                <TextInput
+                  style={styles.modalSearchInput}
+                  placeholder="Search categories..."
+                  value={categorySearch}
+                  onChangeText={setCategorySearch}
+                />
+                <FlatList
+                  data={filteredCategories}
+                  keyExtractor={(cat) => cat.id}
+                  renderItem={({ item: cat }) => (
+                    <TouchableOpacity 
+                      style={styles.modalItem} 
+                      onPress={() => handleSelectCategory(cat)}
+                    >
+                      <Text style={styles.modalItemText}>{cat.name}</Text>
+                    </TouchableOpacity>
                   )}
+                  ListEmptyComponent={<Text style={styles.modalEmptyText}>No categories found</Text>}
+                />
+                <TouchableOpacity style={styles.modalCloseButton} onPress={() => setShowCategoryModal(false)}>
+                  <Text style={styles.modalCloseButtonText}>Close</Text>
                 </TouchableOpacity>
-              )}
-              ListEmptyComponent={() => (
-                <View style={styles.emptyList}>
-                  <Text style={styles.emptyListText}>
-                    {categories.length === 0
-                      ? 'No categories available. Create categories in the profile section.'
-                      : 'No matching categories found.'}
-                  </Text>
-                </View>
-              )}
-            />
+              </View>
+            </TouchableWithoutFeedback>
           </View>
-        </View>
-      </Modal>
+        </TouchableWithoutFeedback>
+      </Modal> */}
       
       {/* Cancel Confirmation Modal */}
       <Modal
@@ -703,10 +708,6 @@ const styles = StyleSheet.create({
   categoryText: {
     fontSize: 16,
     color: '#333',
-  },
-  placeholderText: {
-    fontSize: 16,
-    color: '#999',
   },
   switchRow: {
     flexDirection: 'row',

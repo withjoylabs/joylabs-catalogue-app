@@ -97,6 +97,8 @@ export interface ConvertedItem {
   lastScanned?: Date;
   createdAt: string;
   updatedAt: string;
+  taxIds?: string[];
+  crvType?: 'CRV5' | 'CRV10';
 }
 
 export interface ConvertedCategory {

@@ -1,6 +1,8 @@
 import { SQLiteDatabase, openDatabaseAsync, SQLiteBindValue } from 'expo-sqlite';
 import * as FileSystem from 'expo-file-system';
 import logger from '../utils/logger';
+import { ConvertedItem } from '../types/api';
+import { transformCatalogItemToItem } from '../utils/catalogTransformers';
 
 // Constants
 const DATABASE_NAME = 'joylabs.db';
@@ -731,8 +733,19 @@ export async function upsertCatalogObjects(objects: CatalogObjectFromApi[]): Pro
         const isDeleted = obj.is_deleted ? 1 : 0;
         const dataJson = JSON.stringify(obj); // Store the whole object
 
+        // ---- REMOVE TEMPORARY DEBUG LOGGING ----
+        /*
+        const targetId = 'VMQX2FPCHRX6N5KT2KVKIQ23';
+        if (obj.id === targetId) {
+          // Log basic info when the target ID is processed
+          logger.warn('Database', `*** Processing upsert for target ID ${targetId} ***`, { objectType: obj.type, isDeleted: isDeleted });
+        }
+        */
+        // ---- END REMOVED TEMPORARY DEBUG LOGGING ----
+
         switch (obj.type) {
           case 'ITEM':
+            // First, insert the main item data
             await statements.ITEM.executeAsync(
               obj.id,
               obj.updated_at,
@@ -742,8 +755,77 @@ export async function upsertCatalogObjects(objects: CatalogObjectFromApi[]): Pro
               obj.item_data?.name,
               obj.item_data?.description,
               obj.item_data?.category_id,
-              dataJson
+              dataJson // Store the full original object JSON for the item row
             );
+            
+            // **NEW: Process nested variations for this item**
+            if (obj.item_data?.variations && Array.isArray(obj.item_data.variations)) {
+              for (const variation of obj.item_data.variations) {
+                // Ensure variation has necessary data and type
+                if (variation && variation.type === 'ITEM_VARIATION' && variation.item_variation_data) {
+                  const variationVersionStr = String(variation.version);
+                  const variationIsDeleted = variation.is_deleted ? 1 : 0;
+                  // Store the full original variation object JSON for the variation row
+                  const variationDataJson = JSON.stringify(variation);
+                  
+                  // Use the ITEM_VARIATION prepared statement
+                  try {
+                    // Log parameters BEFORE attempting execution
+                    logger.debug('Database::Upsert::Variation', 'Attempting variation insert', {
+                      variationId: variation.id,
+                      itemId: obj.id, // Explicitly use parent item ID
+                      updated_at: variation.updated_at,
+                      version: variationVersionStr,
+                      isDeleted: variationIsDeleted,
+                      name: variation.item_variation_data.name,
+                      sku: variation.item_variation_data.sku,
+                      pricing_type: variation.item_variation_data.pricing_type,
+                      price_amount: variation.item_variation_data.price_money?.amount,
+                      price_currency: variation.item_variation_data.price_money?.currency,
+                      dataJsonLength: variationDataJson.length
+                    });
+                    
+                     await statements.ITEM_VARIATION.executeAsync(
+                      variation.id,                         // PK
+                      variation.updated_at,
+                      variationVersionStr,
+                      variationIsDeleted,
+                      obj.id,                               // FK - Explicitly use parent obj.id
+                      variation.item_variation_data.name,
+                      variation.item_variation_data.sku,
+                      variation.item_variation_data.pricing_type,
+                      variation.item_variation_data.price_money?.amount,
+                      variation.item_variation_data.price_money?.currency,
+                      variationDataJson                   // Full variation JSON
+                    );
+                  } catch (nestedVariationError) {
+                     const errorMsg = nestedVariationError instanceof Error ? nestedVariationError.message : String(nestedVariationError);
+                     logger.error('Database', 'Failed to insert/update nested ITEM_VARIATION', { 
+                        variationId: variation.id, 
+                        itemId: obj.id, 
+                        error: errorMsg,
+                        // Log all parameters attempted for insert
+                        attemptedParams: {
+                          id: variation.id,
+                          updated_at: variation.updated_at,
+                          version: variationVersionStr,
+                          isDeleted: variationIsDeleted,
+                          item_id: obj.id,
+                          name: variation.item_variation_data.name,
+                          sku: variation.item_variation_data.sku,
+                          pricing_type: variation.item_variation_data.pricing_type,
+                          price_amount: variation.item_variation_data.price_money?.amount,
+                          price_currency: variation.item_variation_data.price_money?.currency,
+                          dataJsonLength: variationDataJson.length
+                        },
+                        variationObject: variationDataJson // Log the variation JSON
+                     });
+                     // Decide if we should throw/rollback the whole transaction or continue
+                     // For now, we log and continue to try and save other variations/items
+                  }
+                }
+              }
+            }
             break;
           case 'CATEGORY':
             await statements.CATEGORY.executeAsync(
@@ -756,19 +838,43 @@ export async function upsertCatalogObjects(objects: CatalogObjectFromApi[]): Pro
             );
             break;
           case 'ITEM_VARIATION':
-            await statements.ITEM_VARIATION.executeAsync(
-              obj.id,
-              obj.updated_at,
-              versionStr,
-              isDeleted,
-              obj.item_variation_data?.item_id,
-              obj.item_variation_data?.name,
-              obj.item_variation_data?.sku,
-              obj.item_variation_data?.pricing_type,
-              obj.item_variation_data?.price_money?.amount,
-              obj.item_variation_data?.price_money?.currency,
-              dataJson
-            );
+            // Wrap the execution in a try/catch to isolate variation errors
+            try {
+              // DEBUG: Log variation data before inserting, especially for the problematic UPC
+              if (obj.item_variation_data?.upc === '827680191749') {
+                logger.debug('Database::Upsert', '[Debug] Inserting variation with target UPC', { 
+                  variationId: obj.id, 
+                  itemId: obj.item_variation_data?.item_id,
+                  sku: obj.item_variation_data?.sku,
+                  upc: obj.item_variation_data?.upc,
+                  data_json_to_insert: dataJson // Log the full JSON string being inserted
+                });
+              }
+              await statements.ITEM_VARIATION.executeAsync(
+                obj.id,
+                obj.updated_at,
+                versionStr,
+                isDeleted,
+                obj.item_variation_data?.item_id,
+                obj.item_variation_data?.name,
+                obj.item_variation_data?.sku,
+                obj.item_variation_data?.pricing_type,
+                obj.item_variation_data?.price_money?.amount,
+                obj.item_variation_data?.price_money?.currency,
+                dataJson
+              );
+            } catch (variationError) {
+              // Log the specific error and the variation that caused it
+              logger.error('Database', 'Failed to insert/update ITEM_VARIATION', { 
+                variationId: obj.id, 
+                itemId: obj.item_variation_data?.item_id,
+                error: variationError instanceof Error ? variationError.message : String(variationError),
+                variationObject: JSON.stringify(obj) // Log the problematic object
+              });
+              // NOTE: For debugging, we are NOT re-throwing here. In production,
+              // you might want to re-throw to ensure transaction integrity.
+              // throw variationError;
+            }
             break;
           case 'MODIFIER_LIST':
             await statements.MODIFIER_LIST.executeAsync(
@@ -947,6 +1053,265 @@ export async function checkDatabaseContent() {
   return { counts: counts || [], samples }; // Ensure counts is always an array
 }
 
+/**
+ * Searches local catalog items and variations for a given query term.
+ * Performs a case-insensitive search across name, SKU, and GTIN (UPC).
+ * @param query The search term.
+ * @returns A promise resolving to an array of matching ConvertedItem objects.
+ */
+export async function searchLocalItems(query: string): Promise<ConvertedItem[]> {
+  const db = await getDatabase();
+  const searchTerm = `%${query}%`; // Prepare for LIKE query
+  const exactQuery = query; // Keep original query for exact UPC match
+  logger.info('Database', 'Searching local catalog', { query });
+
+  try {
+    // Broad SQL Query: Fetch if name, SKU, OR the variation JSON string matches
+    // Using LIKE on data_json is a broad filter to ensure rows with potential UPC matches are included
+    const results = await db.getAllAsync<any>(`
+      SELECT 
+        ci.id as item_id, 
+        ci.data_json as item_data_json, 
+        iv.data_json as variation_data_json, 
+        iv.id as variation_id, /* Also fetch variation ID */
+        ci.updated_at as item_updated_at
+      FROM catalog_items ci
+      JOIN item_variations iv ON ci.id = iv.item_id
+      WHERE ci.is_deleted = 0 AND iv.is_deleted = 0
+      AND (
+        ci.name LIKE ? COLLATE NOCASE OR
+        iv.sku LIKE ? COLLATE NOCASE OR
+        iv.data_json LIKE ? /* Broad check for UPC within JSON */
+      )
+      ORDER BY ci.name COLLATE NOCASE ASC
+    `, [searchTerm, searchTerm, searchTerm]); // Need searchTerm three times
+
+    logger.debug('Database', `Local SQL search (name/sku/json) found ${results.length} potential matches`);
+
+    // Refined TypeScript Filtering: Check name, SKU, and exact UPC
+    const filteredResults = results.filter(row => {
+      try {
+        const itemData = JSON.parse(row.item_data_json || '{}');
+        const variationData = JSON.parse(row.variation_data_json || '{}');
+        
+        // Check Name (case-insensitive contains)
+        if (itemData.item_data?.name?.toLowerCase().includes(exactQuery.toLowerCase())) {
+          return true; 
+        }
+        
+        // Check SKU (case-insensitive contains)
+        if (variationData.item_variation_data?.sku?.toLowerCase().includes(exactQuery.toLowerCase())) {
+          return true; 
+        }
+        
+        // Check UPC (exact match)
+        const upc = variationData.item_variation_data?.upc;
+        if (upc && upc === exactQuery) {
+          logger.debug('Database', 'Found exact match via UPC check in code', { variationId: row.variation_id, upc });
+          return true; 
+        }
+        
+      } catch (parseError) {
+        logger.error('Database', 'Error parsing JSON during filtering', { variationId: row.variation_id, error: parseError });
+        return false; // Exclude if JSON parsing fails
+      }
+      return false; // Exclude if no fields matched
+    });
+    
+    logger.debug('Database', `Filtered to ${filteredResults.length} matches after filtering`);
+
+    // --- Transformation Logic (using filteredResults) --- 
+    const transformedItemsMap = new Map<string, ConvertedItem>();
+
+    // Loop through FILTERED results and transform
+    for (const row of filteredResults) {
+      try {
+        const itemData = JSON.parse(row.item_data_json || '{}');
+        const variationData = JSON.parse(row.variation_data_json || '{}');
+        
+        // --- Start: Determine CRV Type --- 
+        let crvType: 'CRV5' | 'CRV10' | undefined = undefined;
+        const modifierListInfo = itemData?.item_data?.modifier_list_info;
+        
+        // Check if modifier info exists and has IDs
+        if (modifierListInfo && Array.isArray(modifierListInfo) && modifierListInfo.length > 0) {
+          const modifierListIds = modifierListInfo
+            .map((info: any) => info?.modifier_list_id)
+            .filter((id: any): id is string => typeof id === 'string'); 
+
+          if (modifierListIds.length > 0) {
+            try {
+              const placeholders = modifierListIds.map(() => '?').join(',');
+              const modifierLists = await db.getAllAsync<{ name: string }>(
+                `SELECT name FROM modifier_lists WHERE id IN (${placeholders})`,
+                modifierListIds
+              );
+
+              // Check names for CRV types
+              for (const list of modifierLists) {
+                if (list.name === "Modifier Set - CRV10 >24oz") {
+                  crvType = 'CRV10';
+                  break; // Found CRV10, prioritize it
+                }
+                if (list.name === "Modifier Set - CRV5 <24oz") {
+                  crvType = 'CRV5';
+                }
+              }
+            } catch (dbError) {
+              logger.error('Database', 'Error querying modifier_lists during search', { itemId: row.item_id, modifierListIds, error: dbError });
+            }
+          }
+        }
+        // --- End: Determine CRV Type ---
+        
+        // Reconstruct a partial CatalogObject structure for the transformer
+        const reconstructedCatalogObject: Partial<CatalogObjectFromApi> & { id: string } = {
+          id: row.item_id,
+          type: 'ITEM',
+          updated_at: row.item_updated_at,
+          version: itemData.version || '0', 
+          is_deleted: false,
+          item_data: {
+            // Spread the original item_data properties from the parsed item JSON
+            ...(itemData.item_data || {}),
+            // Ensure tax_ids are carried over if they exist at the item_data level
+            tax_ids: itemData?.item_data?.tax_ids || [], 
+            variations: [{ // Create the variation object structure
+              id: variationData.id, 
+              type: 'ITEM_VARIATION',
+              updated_at: variationData.updated_at, // Need variation updated_at
+              version: variationData.version, // Need variation version
+              // Correctly nest the variation-specific data
+              item_variation_data: variationData.item_variation_data || {}
+            }]
+          }
+        };
+
+        // Log the object being passed to the transformer
+        logger.debug('Database::searchLocalItems', 'Reconstructed object for transformer:', { 
+            itemId: reconstructedCatalogObject.id, 
+            // Log specific parts to avoid overly large logs, or stringify if necessary
+            itemDataName: reconstructedCatalogObject.item_data?.name,
+            variationId: reconstructedCatalogObject.item_data?.variations?.[0]?.id,
+            variationSku: reconstructedCatalogObject.item_data?.variations?.[0]?.item_variation_data?.sku,
+            variationUpc: reconstructedCatalogObject.item_data?.variations?.[0]?.item_variation_data?.upc,
+            taxIds: reconstructedCatalogObject.item_data?.tax_ids,
+            crvType 
+        });
+
+        // Pass crvType to the transformer
+        const transformed = transformCatalogItemToItem(reconstructedCatalogObject as any, crvType);
+
+        // Log the result from the transformer
+        logger.debug('Database::searchLocalItems', 'Transformed item result:', transformed); 
+        
+        if (transformed && !transformedItemsMap.has(transformed.id)) {
+           transformedItemsMap.set(transformed.id, transformed);
+        }
+      } catch (parseError) {
+        logger.error('Database', 'Failed to parse or transform local search result row', { 
+          itemId: row.item_id, 
+          error: parseError 
+        });
+      }
+    }
+    
+    const uniqueItems = Array.from(transformedItemsMap.values());
+    logger.info('Database', `Local search returning ${uniqueItems.length} unique items after transformation`);
+    return uniqueItems;
+
+  } catch (error) {
+    logger.error('Database', 'Failed to execute local item search', { error, query });
+    return []; // Return empty array on error
+  }
+}
+
+/**
+ * Fetches the raw data for the first 10 rows from the catalog_items table.
+ * Useful for debugging purposes.
+ */
+export async function getFirstTenItemsRaw(): Promise<any[]> {
+  const db = await getDatabase();
+  logger.info('Database', 'Fetching first 10 raw catalog items for inspection');
+  try {
+    // Fetching all columns to see the raw structure
+    const results = await db.getAllAsync<any>(`
+      SELECT * 
+      FROM catalog_items 
+      WHERE is_deleted = 0
+      LIMIT 10
+    `);
+    logger.info('Database', `Fetched ${results.length} raw items`);
+    return results;
+  } catch (error) {
+    logger.error('Database', 'Failed to fetch raw items for inspection', { error });
+    throw error; // Re-throw the error to be caught by the caller
+  }
+}
+
+/**
+ * Fetches the raw row data for a specific item or variation by its ID.
+ * @param id The ID of the item or variation.
+ * @returns A promise resolving to the raw row data or null if not found.
+ */
+export async function getItemOrVariationRawById(id: string): Promise<any | null> {
+  const db = await getDatabase();
+  logger.info('Database', 'Fetching raw item/variation by ID', { id });
+  try {
+    // Try finding in catalog_items first
+    let result = await db.getFirstAsync<any>(
+      `SELECT *, 'item' as found_in FROM catalog_items WHERE id = ?`,
+      [id]
+    );
+
+    if (result) {
+      logger.info('Database', 'Found item by ID', { id });
+      return result;
+    }
+
+    // If not found in items, try variations
+    result = await db.getFirstAsync<any>(
+      `SELECT *, 'variation' as found_in FROM item_variations WHERE id = ?`,
+      [id]
+    );
+
+    if (result) {
+      logger.info('Database', 'Found variation by ID', { id });
+      return result;
+    } 
+
+    logger.warn('Database', 'Item/variation not found by ID', { id });
+    return null; // Not found in either table
+
+  } catch (error) {
+    logger.error('Database', 'Failed to fetch item/variation by ID', { id, error });
+    throw error; // Re-throw error
+  }
+}
+
+/**
+ * Fetches the raw data for the first 10 rows from the item_variations table.
+ * Useful for debugging purposes.
+ */
+export async function getFirstTenVariationsRaw(): Promise<any[]> {
+  const db = await getDatabase();
+  logger.info('Database', 'Fetching first 10 raw item variations for inspection');
+  try {
+    // Fetching all columns to see the raw structure
+    const results = await db.getAllAsync<any>(`
+      SELECT * 
+      FROM item_variations 
+      WHERE is_deleted = 0
+      LIMIT 10
+    `);
+    logger.info('Database', `Fetched ${results.length} raw variations`);
+    return results;
+  } catch (error) {
+    logger.error('Database', 'Failed to fetch raw variations for inspection', { error });
+    throw error; // Re-throw the error to be caught by the caller
+  }
+}
+
 // Export default object with all methods
 export default {
   initDatabase,
@@ -957,5 +1322,8 @@ export default {
   clearCatalogData,
   getSyncStatus,
   updateSyncStatus,
-  checkDatabaseContent
+  checkDatabaseContent,
+  getFirstTenItemsRaw,
+  getItemOrVariationRawById,
+  getFirstTenVariationsRaw
 }; 

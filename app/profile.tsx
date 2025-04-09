@@ -1,5 +1,5 @@
 import React, { useState, useEffect, Dispatch, SetStateAction } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, ActivityIndicator, Alert, TextInput } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -35,6 +35,8 @@ export default function ProfileScreen() {
   const [testingExactCallback, setTestingExactCallback] = useState(false);
   const [debugTaps, setDebugTaps] = useState(0);
   const [showDebugTools, setShowDebugTools] = useState(false);
+  const [inspectId, setInspectId] = useState('');
+  const [isInspectingById, setIsInspectingById] = useState(false);
   const {
     isConnected,
     merchantId,
@@ -294,6 +296,54 @@ export default function ProfileScreen() {
     }
   };
 
+  // Add function to inspect DB by ID
+  const handleInspectById = async () => {
+    if (!inspectId.trim()) {
+      Alert.alert('Input Needed', 'Please enter an Item or Variation ID to inspect.');
+      return;
+    }
+    const idToInspect = inspectId.trim();
+    setIsInspectingById(true);
+    logger.info('ProfileScreen', `Attempting to inspect DB for ID: ${idToInspect}`);
+    try {
+      const result = await modernDb.getItemOrVariationRawById(idToInspect);
+
+      logger.info('ProfileScreen', `Raw DB Inspection Result for ID: ${idToInspect}`, { result: result ? 'Found' : 'Not Found' });
+      console.log(`--- Inspect DB Result for ID: ${idToInspect} ---`);
+      console.log(JSON.stringify(result, null, 2)); // Log the actual result
+      console.log('--- End Inspect DB --- ');
+
+      if (result) {
+          Alert.alert('Inspect ID', `Found data for ID: ${idToInspect}. Check console/logs.`);
+      } else {
+          Alert.alert('Inspect ID', `No data found in local DB for ID: ${idToInspect}. Fetching table samples... Check console/logs.`);
+          // If not found, log samples from tables for context
+          try {
+            logger.info('ProfileScreen', `Fetching table samples because ID ${idToInspect} was not found.`);
+            const firstItems = await modernDb.getFirstTenItemsRaw();
+            const firstVariations = await modernDb.getFirstTenVariationsRaw();
+            
+            console.log(`--- Sample: First ${firstItems.length} Items ---`);
+            console.log(JSON.stringify(firstItems, null, 2));
+            console.log(`--- End Sample: Items --- `);
+            
+            console.log(`--- Sample: First ${firstVariations.length} Variations ---`);
+            console.log(JSON.stringify(firstVariations, null, 2));
+            console.log(`--- End Sample: Variations --- `);
+            
+          } catch (sampleError) {
+            logger.error('ProfileScreen', 'Failed to fetch table samples after ID lookup failed', { sampleError });
+            console.error('Failed to fetch table samples:', sampleError);
+          }
+      }
+    } catch (error) {
+      logger.error('ProfileScreen', `Failed to inspect database for ID: ${idToInspect}`, { error });
+      Alert.alert('Error', `Failed to inspect database for ID: ${idToInspect}. Check logs.`);
+    } finally {
+      setIsInspectingById(false);
+    }
+  };
+
   const renderSection = () => {
     switch (activeSection) {
       case 'profile':
@@ -530,6 +580,28 @@ export default function ProfileScreen() {
             </TouchableOpacity>
             <TouchableOpacity style={styles.debugButton} onPress={resetDatabase}>
               <Text style={styles.debugButtonText}>Reset Database</Text>
+            </TouchableOpacity>
+          </View>
+          {/* Inspect by ID Section */}
+          <View style={styles.inspectSection}>
+            <TextInput
+              style={styles.inspectInput}
+              placeholder="Enter Item/Variation ID"
+              value={inspectId}
+              onChangeText={setInspectId}
+              placeholderTextColor="#888"
+              autoCapitalize="none"
+            />
+            <TouchableOpacity
+              style={[styles.debugButton, styles.inspectButton, isInspectingById && styles.buttonDisabled]}
+              onPress={handleInspectById}
+              disabled={isInspectingById}
+            >
+              {isInspectingById ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.debugButtonText}>Inspect by ID</Text>
+              )}
             </TouchableOpacity>
           </View>
           {/* Reset taps */}
@@ -793,5 +865,34 @@ const styles = StyleSheet.create({
    },
    contentFlexContainer: { // New style for the sync tab wrapper
      flex: 1, // Make View take remaining space
+   },
+   debugToolsContainer: {
+     padding: 15,
+     backgroundColor: '#f0f0f0', // Light grey background for the debug section
+     marginVertical: 10,
+     borderRadius: 8,
+     borderWidth: 1,
+     borderColor: '#ddd',
+   },
+   inspectSection: {
+     marginTop: 10,
+     borderTopWidth: 1,
+     borderTopColor: '#ccc',
+     paddingTop: 10,
+   },
+   inspectInput: {
+     backgroundColor: '#fff',
+     borderWidth: 1,
+     borderColor: '#ccc',
+     borderRadius: 5,
+     padding: 10,
+     marginBottom: 10,
+     color: '#000', // Ensure text color is visible
+   },
+   inspectButton: {
+     backgroundColor: '#28a745', // Green color for inspect button
+   },
+   buttonDisabled: {
+     backgroundColor: '#a0a0a0', // Grey out disabled buttons
    },
  }); 

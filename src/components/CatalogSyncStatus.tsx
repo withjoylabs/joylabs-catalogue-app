@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import * as modernDb from '../database/modernDb';
@@ -23,6 +23,7 @@ export default function CatalogSyncStatus() {
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [showDebug, setShowDebug] = useState(false);
+  const [isInspectingDb, setIsInspectingDb] = useState(false);
   const { hasValidToken } = useSquareAuth();
 
   // Fetch sync status from the database
@@ -85,7 +86,7 @@ export default function CatalogSyncStatus() {
       }
       
       await catalogSyncService.initialize();
-      await catalogSyncService.startFullSync();
+      await catalogSyncService.runFullSync();
       fetchSyncStatus();
     } catch (error) {
       logger.error('CatalogSyncStatus', 'Failed to start full sync', { error });
@@ -93,7 +94,8 @@ export default function CatalogSyncStatus() {
     }
   };
 
-  // Sync only categories
+  // Sync only categories - Comment out as method doesn't exist
+  /*
   const syncCategoriesOnly = async () => {
     try {
       if (!hasValidToken) {
@@ -102,18 +104,20 @@ export default function CatalogSyncStatus() {
       }
       
       await catalogSyncService.initialize();
-      await catalogSyncService.syncCategories();
+      // This method needs to be implemented in catalogSyncService if needed
+      // await catalogSyncService.syncCategories(); 
       fetchSyncStatus();
     } catch (error) {
       logger.error('CatalogSyncStatus', 'Failed to sync categories', { error });
       Alert.alert('Error', 'Failed to sync categories');
     }
   };
+  */
 
   // Test API connectivity
   const testApi = async () => {
     try {
-      const result = await api.testConnection();
+      const result = await api.webhooks.healthCheck();
       Alert.alert(
         'API Test',
         result.success
@@ -139,6 +143,25 @@ export default function CatalogSyncStatus() {
     } catch (error) {
       logger.error('CatalogSyncStatus', 'Failed to reset sync status', { error });
       Alert.alert('Error', 'Failed to reset sync status');
+    }
+  };
+
+  // Inspect Database Handler
+  const handleInspectDatabase = async () => {
+    setIsInspectingDb(true);
+    try {
+      const items = await modernDb.getFirstTenItemsRaw();
+      logger.info('CatalogSyncStatus', 'Raw DB Inspection Results:', { items });
+      // Log to console for easier viewing in development environment
+      console.log('--- Inspect DB (First 10 Items) ---');
+      console.log(JSON.stringify(items, null, 2));
+      console.log('--- End Inspect DB --- ');
+      Alert.alert('Inspect DB', `Fetched ${items.length} raw items. Check console/logs for details.`);
+    } catch (error) {
+      logger.error('CatalogSyncStatus', 'Failed to inspect database', { error });
+      Alert.alert('Error', 'Failed to inspect database. Check logs.');
+    } finally {
+      setIsInspectingDb(false);
     }
   };
 
@@ -191,6 +214,8 @@ export default function CatalogSyncStatus() {
           <Text style={styles.buttonText}>Full Sync</Text>
         </TouchableOpacity>
 
+        {/* Comment out Categories Only button */}
+        {/*
         <TouchableOpacity
           style={[styles.button, status?.isSyncing && styles.buttonDisabled]}
           onPress={syncCategoriesOnly}
@@ -198,6 +223,7 @@ export default function CatalogSyncStatus() {
         >
           <Text style={styles.buttonText}>Categories Only</Text>
         </TouchableOpacity>
+        */}
 
         <TouchableOpacity
           style={[styles.debugButton]}
@@ -221,6 +247,18 @@ export default function CatalogSyncStatus() {
             onPress={resetSync}
           >
             <Text style={styles.buttonText}>Reset Sync</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.debugActionButton, isInspectingDb && styles.buttonDisabled]}
+            onPress={handleInspectDatabase}
+            disabled={isInspectingDb}
+          >
+            {isInspectingDb ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Inspect DB (First 10)</Text>
+            )}
           </TouchableOpacity>
         </View>
       )}
@@ -280,26 +318,37 @@ const styles = StyleSheet.create({
   },
   debugButton: {
     padding: 8,
-    borderRadius: 4,
-    marginLeft: 8,
-    backgroundColor: '#f5f5f5',
-    alignItems: 'center',
+    marginLeft: 10,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   debugSection: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: 16,
-    paddingTop: 8,
+    marginTop: 15,
+    paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
+    borderTopColor: '#eee',
+    alignItems: 'stretch',
   },
   debugActionButton: {
-    backgroundColor: '#607d8b',
-    paddingVertical: 8,
+    backgroundColor: '#546e7a',
+    paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 4,
-    minWidth: 120,
+    borderRadius: 5,
     alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+    minHeight: 44,
+  },
+  debugInput: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginTop: 15,
+    marginBottom: 10,
+    backgroundColor: '#fff',
+    fontSize: 14,
+    color: '#333',
   },
 }); 

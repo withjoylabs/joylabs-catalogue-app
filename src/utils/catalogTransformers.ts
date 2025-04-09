@@ -10,7 +10,8 @@ import {
  * Transforms a Square CatalogObject with type ITEM to our frontend Item model
  */
 export const transformCatalogItemToItem = (
-  catalogObject: CatalogObject
+  catalogObject: CatalogObject,
+  crvType?: 'CRV5' | 'CRV10'
 ): ConvertedItem | null => {
   if (!catalogObject || catalogObject.type !== 'ITEM' || !catalogObject.item_data) {
     return null;
@@ -22,9 +23,16 @@ export const transformCatalogItemToItem = (
   // Get the first variation price if available
   let price: number | undefined;
   if (variations.length > 0 && variations[0].item_variation_data?.price_money?.amount) {
-    price = variations[0].item_variation_data.price_money.amount / 100; // Convert cents to dollars
+    // Ensure amount is treated as a number before division
+    const amount = Number(variations[0].item_variation_data.price_money.amount);
+    if (!isNaN(amount)) {
+      price = amount / 100; // Convert cents to dollars
+    }
   }
   
+  // Extract tax IDs
+  const taxIds = itemData.tax_ids || [];
+
   // Get image URLs
   const imageUrls: string[] = [];
   
@@ -34,12 +42,15 @@ export const transformCatalogItemToItem = (
     description: itemData.description || '',
     price,
     sku: variations.length > 0 ? variations[0].item_variation_data?.sku : undefined,
+    barcode: variations.length > 0 ? variations[0].item_variation_data?.upc : undefined, // Assuming barcode maps to upc
     isActive: !catalogObject.is_deleted,
     categoryId: itemData.category_id,
     category: '', // This would be filled in by a separate lookup if needed
     images: imageUrls,
     createdAt: catalogObject.created_at,
-    updatedAt: catalogObject.updated_at
+    updatedAt: catalogObject.updated_at,
+    taxIds: taxIds, // Add extracted taxIds
+    crvType: crvType // Add passed crvType
   };
 };
 
