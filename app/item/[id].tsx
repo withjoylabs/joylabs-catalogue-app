@@ -26,7 +26,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useCatalogItems } from '../../src/hooks/useCatalogItems';
 import { ConvertedItem, ConvertedCategory } from '../../src/types/api';
 import { lightTheme } from '../../src/themes';
-import { getAllCategories } from '../../src/database/modernDb'; // Import the new function
+import { getAllCategories, getCatalogItemById, trackRecentlyUsedCategory, getRecentlyUsedCategories } from '../../src/database/modernDb';
 
 // Define type for category used in the picker
 type CategoryPickerItem = { id: string; name: string };
@@ -84,6 +84,9 @@ export default function ItemDetails() {
   
   // Confirmation modal state
   const [showCancelModal, setShowCancelModal] = useState(false);
+  
+  // State for recent categories
+  const [recentCategories, setRecentCategories] = useState<CategoryPickerItem[]>([]);
   
   // Fetch the item data and categories on component mount
   useEffect(() => {
@@ -146,6 +149,24 @@ export default function ItemDetails() {
       setFilteredCategories(filtered);
     }
   }, [availableCategories, categorySearch]);
+  
+  // Load Recently Used Categories
+  useEffect(() => {
+    const loadRecentCategories = async () => {
+      try {
+        const recent = await getRecentlyUsedCategories(10);
+        const recentCategoryItems = recent.map(category => ({
+          id: category.id,
+          name: category.name
+        }));
+        setRecentCategories(recentCategoryItems);
+      } catch (err) {
+        console.error('Error loading recent categories:', err);
+      }
+    };
+    
+    loadRecentCategories();
+  }, []);
   
   // Check if item has been edited
   useEffect(() => {
@@ -337,6 +358,31 @@ export default function ItemDetails() {
     );
   };
   
+  // Handle updating an item and track used category
+  const handleUpdateItem = async (key: keyof ConvertedItem, value: any) => {
+    updateItem(key, value);
+    
+    // If updating the reporting category, track it as recently used
+    if (key === 'reporting_category_id' && value) {
+      try {
+        const categoryObj = availableCategories.find(cat => cat.id === value);
+        if (categoryObj) {
+          await trackRecentlyUsedCategory(categoryObj.id, categoryObj.name);
+          
+          // Refresh recent categories list
+          const recent = await getRecentlyUsedCategories(10);
+          const recentCategoryItems = recent.map(category => ({
+            id: category.id,
+            name: category.name
+          }));
+          setRecentCategories(recentCategoryItems);
+        }
+      } catch (err) {
+        console.error('Error tracking recent category:', err);
+      }
+    }
+  };
+  
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -481,6 +527,42 @@ export default function ItemDetails() {
         {/* Reporting Category */}
         <View style={styles.fieldContainer}>
           <Text style={styles.label}>Reporting Category</Text>
+          
+          {/* Recently Used Categories */}
+          {recentCategories.length > 0 && (
+            <View style={styles.recentCategoriesContainer}>
+              <Text style={styles.recentCategoriesTitle}>Recently Used:</Text>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                style={styles.recentCategoriesScroll}
+                contentContainerStyle={styles.recentCategoriesContent}
+              >
+                {recentCategories.map(category => (
+                  <TouchableOpacity
+                    key={category.id}
+                    style={[
+                      styles.recentCategoryChip,
+                      item.reporting_category_id === category.id && styles.recentCategoryChipSelected
+                    ]}
+                    onPress={() => handleUpdateItem('reporting_category_id', category.id)}
+                  >
+                    <Text 
+                      style={[
+                        styles.recentCategoryText,
+                        item.reporting_category_id === category.id && styles.recentCategoryTextSelected
+                      ]}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                    >
+                      {category.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+          
           <TouchableOpacity 
             style={styles.categorySelector} 
             onPress={() => {
@@ -974,5 +1056,43 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: lightTheme.colors.primary,
+  },
+  recentCategoriesContainer: {
+    marginBottom: 16,
+  },
+  recentCategoriesTitle: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 8,
+    color: '#555',
+  },
+  recentCategoriesScroll: {
+    flexDirection: 'row',
+  },
+  recentCategoriesContent: {
+    paddingRight: 16,
+  },
+  recentCategoryChip: {
+    backgroundColor: '#f0f0f0',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    marginRight: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  recentCategoryChipSelected: {
+    backgroundColor: '#4b9ce3',
+    borderColor: '#3b8cd3',
+  },
+  recentCategoryText: {
+    fontSize: 14,
+    color: '#444',
+    maxWidth: 120,
+  },
+  recentCategoryTextSelected: {
+    color: 'white',
+    fontWeight: '600',
   },
 }); 
