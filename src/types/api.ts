@@ -99,6 +99,7 @@ export interface ConvertedItem {
   updatedAt: string;
   taxIds?: string[];
   crvType?: 'CRV5' | 'CRV10';
+  reporting_category_id?: string;
 }
 
 export interface ConvertedCategory {

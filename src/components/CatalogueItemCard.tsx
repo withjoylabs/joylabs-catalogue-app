@@ -61,7 +61,7 @@ const CatalogueItemCard: React.FC<CatalogueItemCardProps> = ({
         </View>
         
         {item.scanTime && (
-          <Text style={styles.timeText}>{item.scanTime}</Text>
+          <Text style={styles.timeText}>{new Date(item.scanTime).toLocaleString()}</Text>
         )}
       </View>
       

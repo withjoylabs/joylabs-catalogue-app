@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ScanHistoryItem } from '../types'; // Import ScanHistoryItem
+import { zustandStorage } from './storage';
 
 // Product type definition
 export interface Product {
@@ -58,6 +59,10 @@ interface AppState {
   // Connection state
   isSquareConnected: boolean;
   
+  // Auto-search settings
+  autoSearchOnEnter: boolean;
+  autoSearchOnTab: boolean;
+  
   // Actions
   setProducts: (products: Product[]) => void;
   setSelectedProduct: (product: Product | null) => void;
@@ -78,6 +83,10 @@ interface AppState {
   // Scan History actions
   addScanHistoryItem: (item: ScanHistoryItem) => void;
   clearScanHistory: () => void;
+  
+  // Auto-search toggles
+  toggleAutoSearchOnEnter: () => void;
+  toggleAutoSearchOnTab: () => void;
 }
 
 // Create store using zustand with persistence for scanHistory
@@ -106,6 +115,10 @@ export const useAppStore = create<AppState>()(
       
       // Initial connection state
       isSquareConnected: false,
+      
+      // Auto-search defaults and toggles
+      autoSearchOnEnter: true,
+      autoSearchOnTab: true,
       
       // Products actions
       setProducts: (products: Product[]) => set({ products }),
@@ -137,17 +150,25 @@ export const useAppStore = create<AppState>()(
             // Remove the old entry if it exists
             newHistory.splice(existingIndex, 1);
           }
-          // Add the new item to the beginning and limit history size (e.g., 50 items)
-          newHistory = [item, ...newHistory].slice(0, 50); 
+          // Add the new item to the beginning and limit history size (e.g., 100 items)
+          newHistory = [item, ...newHistory].slice(0, 100); 
           return { scanHistory: newHistory };
         });
       },
       clearScanHistory: () => set({ scanHistory: [] }),
+      
+      // Auto-search toggles
+      toggleAutoSearchOnEnter: () => set((state) => ({ autoSearchOnEnter: !state.autoSearchOnEnter })),
+      toggleAutoSearchOnTab: () => set((state) => ({ autoSearchOnTab: !state.autoSearchOnTab })),
     }),
     {
       name: 'app-storage', // unique name for storage
-      storage: createJSONStorage(() => AsyncStorage), // use AsyncStorage
-      partialize: (state) => ({ scanHistory: state.scanHistory }), // only persist scanHistory
+      storage: createJSONStorage(() => AsyncStorage), // Use AsyncStorage directly
+      partialize: (state) => ({ 
+        scanHistory: state.scanHistory,
+        autoSearchOnEnter: state.autoSearchOnEnter, // Persist settings
+        autoSearchOnTab: state.autoSearchOnTab,     // Persist settings
+      }),
     }
   )
 );

@@ -16,6 +16,7 @@ import SyncStatusComponent from '../src/components/SyncStatusComponent';
 import SyncLogsView from '../src/components/SyncLogsView';
 import * as modernDb from '../src/database/modernDb';
 import logger from '../src/utils/logger';
+import { useAppStore } from '../src/store';
 
 // Update SectionType to remove 'categories'
 type SectionType = 'profile' | 'settings' | 'sync';
@@ -55,6 +56,12 @@ export default function ProfileScreen() {
     forceResetConnectionState,
     testExactCallback
   } = useSquareAuth();
+
+  // Auto-search settings from the store
+  const autoSearchOnEnter = useAppStore((state) => state.autoSearchOnEnter);
+  const autoSearchOnTab = useAppStore((state) => state.autoSearchOnTab);
+  const toggleAutoSearchOnEnter = useAppStore((state) => state.toggleAutoSearchOnEnter);
+  const toggleAutoSearchOnTab = useAppStore((state) => state.toggleAutoSearchOnTab);
 
   // Handle any Square connection errors
   useEffect(() => {
@@ -485,6 +492,40 @@ export default function ProfileScreen() {
                 value={scanSoundEnabled}
               />
             </View>
+            
+            {/* Add a separator */}
+            <View style={styles.settingSeparator} />
+            
+            {/* Scanner settings section title */}
+            <Text style={styles.settingsSectionTitle}>Scanner Settings</Text>
+            
+            {/* Auto-search on Enter key toggle */}
+            <View style={styles.settingContainer}>
+              <View style={styles.settingTextContainer}>
+                <Text style={styles.settingLabel}>Auto-search on Enter Key</Text>
+                <Text style={styles.settingDescription}>Automatically search when Enter key is pressed</Text>
+              </View>
+              <Switch
+                trackColor={{ false: "#767577", true: lightTheme.colors.primary }}
+                thumbColor={autoSearchOnEnter ? "#fff" : "#f4f3f4"}
+                onValueChange={toggleAutoSearchOnEnter}
+                value={autoSearchOnEnter}
+              />
+            </View>
+            
+            {/* Auto-search on Tab key toggle */}
+            <View style={styles.settingContainer}>
+              <View style={styles.settingTextContainer}>
+                <Text style={styles.settingLabel}>Auto-search on Tab Key</Text>
+                <Text style={styles.settingDescription}>Automatically search when Tab key is pressed (for barcode scanners)</Text>
+              </View>
+              <Switch
+                trackColor={{ false: "#767577", true: lightTheme.colors.primary }}
+                thumbColor={autoSearchOnTab ? "#fff" : "#f4f3f4"}
+                onValueChange={toggleAutoSearchOnTab}
+                value={autoSearchOnTab}
+              />
+            </View>
           </View>
         );
       case 'sync':
@@ -894,5 +935,18 @@ const styles = StyleSheet.create({
    },
    buttonDisabled: {
      backgroundColor: '#a0a0a0', // Grey out disabled buttons
+   },
+   settingSeparator: {
+     height: 1,
+     backgroundColor: '#e1e1e1',
+     marginVertical: 15,
+     width: '100%',
+   },
+   settingsSectionTitle: {
+     fontSize: 18,
+     fontWeight: '600',
+     color: '#333',
+     marginBottom: 15,
+     marginTop: 5,
    },
  }); 

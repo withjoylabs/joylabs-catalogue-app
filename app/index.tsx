@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { View, FlatList, StyleSheet, SafeAreaView, StatusBar, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { useRouter } from 'expo-router';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { View, FlatList, StyleSheet, SafeAreaView, StatusBar, Text, TouchableOpacity, ActivityIndicator, TextInput } from 'react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
 import ConnectionStatusBar from '../src/components/ConnectionStatusBar';
 import SearchBar from '../src/components/SearchBar';
 import SortHeader from '../src/components/SortHeader';
@@ -34,11 +34,33 @@ function RootLayoutNav() {
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'name' | 'price'>('newest');
   const [isSearching, setIsSearching] = useState(false);
   
+  // Ref for the search input
+  const searchInputRef = useRef<TextInput>(null);
+  
   const { isConnected } = useApi();
   
   const scanHistory = useAppStore((state) => state.scanHistory);
   const addScanHistoryItem = useAppStore((state) => state.addScanHistoryItem);
+  const autoSearchOnEnter = useAppStore((state) => state.autoSearchOnEnter);
+  const autoSearchOnTab = useAppStore((state) => state.autoSearchOnTab);
   
+  // Use useFocusEffect to focus the input when the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      // Use a timeout to ensure the screen is fully rendered before focusing
+      const timer = setTimeout(() => {
+        searchInputRef.current?.focus();
+        logger.debug('Home', 'Search input focused via useFocusEffect');
+      }, 100); // 100ms delay, adjust if needed
+
+      return () => {
+        clearTimeout(timer);
+        // Optionally blur when the screen goes out of focus
+        // searchInputRef.current?.blur(); 
+      };
+    }, [])
+  );
+
   useEffect(() => {
     logger.info('Home', 'Home screen mounted');
   }, []);
@@ -60,6 +82,8 @@ function RootLayoutNav() {
   
   const handleSearch = async () => {
     if (!search.trim()) return;
+    // Blur input when search starts
+    searchInputRef.current?.blur();
     const query = search.trim();
     const queryType = getQueryType(query);
     
@@ -326,7 +350,7 @@ function RootLayoutNav() {
   
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="dark-content" backgroundColor={lightTheme.colors.background} />
       
       <View style={styles.mainContainer}>
         <ConnectionStatusBar 
@@ -335,10 +359,13 @@ function RootLayoutNav() {
         />
         
         <SearchBar 
+          ref={searchInputRef}
           value={search}
           onChangeText={setSearch}
           onSubmit={handleSearch}
           onClear={() => setSearch('')}
+          autoSearchOnEnter={autoSearchOnEnter}
+          autoSearchOnTab={autoSearchOnTab}
         />
         
         <SortHeader 

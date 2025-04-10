@@ -1312,6 +1312,28 @@ export async function getFirstTenVariationsRaw(): Promise<any[]> {
   }
 }
 
+/**
+ * Fetches all categories (ID and Name) from the database.
+ * @returns A promise resolving to an array of categories { id: string, name: string }.
+ */
+export async function getAllCategories(): Promise<{ id: string; name: string }[]> {
+  const db = await getDatabase();
+  logger.info('Database', 'Fetching all categories');
+  try {
+    const results = await db.getAllAsync<{ id: string; name: string }>(`
+      SELECT id, name 
+      FROM categories 
+      WHERE is_deleted = 0 
+      ORDER BY name ASC
+    `);
+    logger.info('Database', `Fetched ${results.length} categories`);
+    return results || []; // Ensure we return an empty array if null/undefined
+  } catch (error) {
+    logger.error('Database', 'Failed to fetch categories', { error });
+    throw error; // Re-throw the error
+  }
+}
+
 // Export default object with all methods
 export default {
   initDatabase,
@@ -1325,5 +1347,6 @@ export default {
   checkDatabaseContent,
   getFirstTenItemsRaw,
   getItemOrVariationRawById,
-  getFirstTenVariationsRaw
+  getFirstTenVariationsRaw,
+  getAllCategories
 }; 

@@ -26,6 +26,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useCatalogItems } from '../../src/hooks/useCatalogItems';
 import { ConvertedItem, ConvertedCategory } from '../../src/types/api';
 import { lightTheme } from '../../src/themes';
+import { getAllCategories } from '../../src/database/modernDb'; // Import the new function
+
+// Define type for category used in the picker
+type CategoryPickerItem = { id: string; name: string };
 
 // Empty item template for new items
 const EMPTY_ITEM: ConvertedItem = {
@@ -34,8 +38,9 @@ const EMPTY_ITEM: ConvertedItem = {
   sku: '',
   price: undefined,
   description: '',
-  categoryId: '',
-  category: '',
+  categoryId: '', // Keep for now, but focus on reporting_category_id
+  reporting_category_id: '', // Add this field
+  category: '', // Keep for display compatibility?
   isActive: true,
   images: [],
   updatedAt: new Date().toISOString(),
@@ -71,67 +76,76 @@ export default function ItemDetails() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // Category selection modal state - Commented out
-  // const [showCategoryModal, setShowCategoryModal] = useState(false);
-  // const [categorySearch, setCategorySearch] = useState('');
-  // const [filteredCategories, setFilteredCategories] = useState<ConvertedCategory[]>([]);
+  // State for category list and modal
+  const [availableCategories, setAvailableCategories] = useState<CategoryPickerItem[]>([]);
+  const [filteredCategories, setFilteredCategories] = useState<CategoryPickerItem[]>([]);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [categorySearch, setCategorySearch] = useState('');
   
   // Confirmation modal state
   const [showCancelModal, setShowCancelModal] = useState(false);
   
-  // Fetch the item data on component mount
+  // Fetch the item data and categories on component mount
   useEffect(() => {
-    const fetchItemData = async (itemId: string) => {
+    const fetchInitialData = async () => {
       setIsLoading(true);
       setError(null);
       
       try {
-        // Await the result from the now async getProductById
-        const fetchedItem = await getProductById(itemId);
-        if (fetchedItem) {
-          setItem(fetchedItem);
-          setOriginalItem(fetchedItem);
+        // Fetch categories first
+        const fetchedCategories = await getAllCategories();
+        setAvailableCategories(fetchedCategories);
+        setFilteredCategories(fetchedCategories); // Initialize filtered list
+        
+        // Fetch item data if not a new item
+        if (!isNewItem && typeof id === 'string') {
+          const fetchedItem = await getProductById(id);
+          if (fetchedItem) {
+            // Ensure reporting_category_id is set from fetched data
+            // Assuming fetchedItem might have reporting_category: { id: ... }
+            const initialReportingCategoryId = fetchedItem.reporting_category?.id || fetchedItem.reporting_category_id || '';
+            const itemWithReportingId = { 
+              ...fetchedItem, 
+              reporting_category_id: initialReportingCategoryId 
+            };
+            setItem(itemWithReportingId);
+            setOriginalItem(itemWithReportingId); 
+          } else {
+            setError('Item not found');
+            setItem(EMPTY_ITEM);
+          }
+        } else if (isNewItem) {
+          setItem(EMPTY_ITEM);
+          setOriginalItem(null);
         } else {
-          setError('Item not found');
+          setError('Invalid Item ID');
           setItem(EMPTY_ITEM);
         }
+        
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load item');
-        console.error('Error fetching item:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load data');
+        console.error('Error fetching initial data:', err);
+        setItem(EMPTY_ITEM); // Reset item on error
       } finally {
         setIsLoading(false);
       }
     };
     
-    // Handle initial state and fetching logic
-    if (isNewItem) {
-      setItem(EMPTY_ITEM);
-      setOriginalItem(null);
-      setIsLoading(false); // No loading needed for a new item form
-    } else if (typeof id === 'string') {
-      fetchItemData(id);
-    } else {
-      // Handle case where ID is somehow invalid
-      setError('Invalid Item ID');
-      setIsLoading(false);
-    }
-    
+    fetchInitialData();
   }, [id, getProductById, isNewItem]);
   
-  // Filter categories when search text changes - Commented out
-  // useEffect(() => {
-  //   if (categories) {
-  //     if (!categorySearch) {
-  //       setFilteredCategories(categories);
-  //     } else {
-  //       const searchLower = categorySearch.toLowerCase();
-  //       const filtered = categories.filter(
-  //         category => category.name.toLowerCase().includes(searchLower)
-  //       );
-  //       setFilteredCategories(filtered);
-  //     }
-  //   }
-  // }, [categories, categorySearch]);
+  // Filter categories when search text changes
+  useEffect(() => {
+    if (!categorySearch) {
+      setFilteredCategories(availableCategories);
+    } else {
+      const searchLower = categorySearch.toLowerCase();
+      const filtered = availableCategories.filter(
+        category => category.name.toLowerCase().includes(searchLower)
+      );
+      setFilteredCategories(filtered);
+    }
+  }, [availableCategories, categorySearch]);
   
   // Check if item has been edited
   useEffect(() => {
@@ -147,7 +161,7 @@ export default function ItemDetails() {
         !!(item.sku && item.sku.trim()) || 
         item.price !== undefined ||
         !!(item.description && item.description.trim()) ||
-        !!item.categoryId
+        !!item.reporting_category_id // Check reporting category ID
       );
       return;
     }
@@ -158,7 +172,7 @@ export default function ItemDetails() {
       originalItem?.sku !== item.sku ||
       originalItem?.price !== item.price ||
       originalItem?.description !== item.description ||
-      originalItem?.categoryId !== item.categoryId;
+      originalItem?.reporting_category_id !== item.reporting_category_id; // Check reporting category ID
       
     setIsEdited(hasChanged);
   }, [item, originalItem, isNewItem]);
@@ -175,23 +189,22 @@ export default function ItemDetails() {
       !(item.sku && item.sku.trim()) && 
       item.price === undefined &&
       !(item.description && item.description.trim()) &&
-      !item.categoryId
+      !item.reporting_category_id // Check reporting category ID
     );
   };
   
-  // Get the current category name - Commented out
-  // const selectedCategoryName = useMemo(() => {
-  //   if (!item.categoryId) return '';
-  //   const category = getCategoryById(item.categoryId);
-  //   return category ? category.name : '';
-  // }, [item.categoryId, getCategoryById]);
+  // Get the current category name for display
+  const selectedCategoryName = useMemo(() => {
+    if (!item.reporting_category_id) return 'Select Category';
+    const category = availableCategories.find(cat => cat.id === item.reporting_category_id);
+    return category ? category.name : 'Select Category'; // Fallback if ID doesn't match
+  }, [item.reporting_category_id, availableCategories]);
   
-  // Handle selecting a category - Commented out
-  // const handleSelectCategory = (category: ConvertedCategory) => {
-  //   updateItem('categoryId', category.id);
-  //   updateItem('category', category.name);
-  //   setShowCategoryModal(false);
-  // };
+  // Handle selecting a category
+  const handleSelectCategory = (category: CategoryPickerItem) => {
+    updateItem('reporting_category_id', category.id); // Store the ID
+    setShowCategoryModal(false);
+  };
   
   // Handle cancel button press
   const handleCancel = () => {
@@ -222,21 +235,40 @@ export default function ItemDetails() {
     try {
       let savedItem;
       
+      // Prepare the item payload for saving, ensuring reporting_category is formatted
+      const itemPayload: any = { ...item };
+      if (item.reporting_category_id) {
+        itemPayload.reporting_category = { id: item.reporting_category_id };
+      } else {
+        // Ensure reporting_category is explicitly null or removed if not selected
+        // Depending on API requirements, choose one:
+        itemPayload.reporting_category = null; 
+        // delete itemPayload.reporting_category;
+      }
+      // Remove the temporary reporting_category_id field before sending
+      delete itemPayload.reporting_category_id;
+      // Also remove the potentially stale category name field
+      delete itemPayload.category;
+      
       if (isNewItem) {
-        savedItem = await createProduct(item);
+        savedItem = await createProduct(itemPayload);
         Alert.alert('Success', 'Item created successfully');
       } else {
-        // Ensure id is a string before passing
         if (typeof id !== 'string') {
             throw new Error('Invalid item ID for update');
         }
-        savedItem = await updateProduct(id, item); 
+        savedItem = await updateProduct(id, itemPayload); 
         Alert.alert('Success', 'Item updated successfully');
       }
       
       if (savedItem) {
-        setItem(savedItem);
-        setOriginalItem(savedItem);
+        // Re-add reporting_category_id for local state consistency
+        const savedItemWithReportingId = { 
+           ...savedItem, 
+           reporting_category_id: savedItem.reporting_category?.id || '' 
+         };
+        setItem(savedItemWithReportingId);
+        setOriginalItem(savedItemWithReportingId);
         setIsEdited(false);
       }
       
@@ -305,20 +337,12 @@ export default function ItemDetails() {
     );
   };
   
-  // Track selected category in modal
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
-  
-  // Update selected category when item changes
-  useEffect(() => {
-    setSelectedCategoryId(item.categoryId || '');
-  }, [item.categoryId]);
-  
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
         <StatusBar style="dark" />
         <ActivityIndicator size="large" color={lightTheme.colors.primary} />
-        <Text style={styles.loadingText}>Loading item...</Text>
+        <Text style={styles.loadingText}>Loading item data...</Text>
       </View>
     );
   }
@@ -386,7 +410,7 @@ export default function ItemDetails() {
         }}
       />
       
-      <ScrollView style={styles.content}>
+      <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
         {/* QR Code Button (Removed) */}
         {/* {!isNewItem && item.id && (
           <TouchableOpacity 
@@ -454,15 +478,19 @@ export default function ItemDetails() {
           </View>
         </View>
         
-        {/* Item Category */}
+        {/* Reporting Category */}
         <View style={styles.fieldContainer}>
-          <Text style={styles.label}>Category</Text>
+          <Text style={styles.label}>Reporting Category</Text>
           <TouchableOpacity 
             style={styles.categorySelector} 
-            // onPress={() => setShowCategoryModal(true)} // Commented out
+            onPress={() => {
+              setCategorySearch(''); // Clear search on open
+              setFilteredCategories(availableCategories); // Reset filter on open
+              setShowCategoryModal(true);
+            }}
           >
             <Text style={styles.categoryText}>
-              {/* {selectedCategoryName || 'Select Category'}  Commented out */} Select Category (Disabled)
+              {selectedCategoryName}
             </Text>
             <Ionicons name="chevron-down" size={20} color={lightTheme.colors.text} />
           </TouchableOpacity>
@@ -515,8 +543,8 @@ export default function ItemDetails() {
         <View style={{ height: 40 }} />
       </ScrollView>
       
-      {/* Category Selection Modal - Commented out */}
-      {/* <Modal
+      {/* Category Selection Modal */}
+      <Modal
         visible={showCategoryModal}
         animationType="slide"
         transparent={true}
@@ -526,7 +554,7 @@ export default function ItemDetails() {
           <View style={styles.modalOverlay}>
             <TouchableWithoutFeedback>
               <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>Select Category</Text>
+                <Text style={styles.modalTitle}>Select Reporting Category</Text>
                 <TextInput
                   style={styles.modalSearchInput}
                   placeholder="Search categories..."
@@ -541,10 +569,11 @@ export default function ItemDetails() {
                       style={styles.modalItem} 
                       onPress={() => handleSelectCategory(cat)}
                     >
-                      <Text style={styles.modalItemText}>{cat.name}</Text>
+                      {highlightMatchingText(cat.name, categorySearch)}
                     </TouchableOpacity>
                   )}
                   ListEmptyComponent={<Text style={styles.modalEmptyText}>No categories found</Text>}
+                  keyboardShouldPersistTaps="handled" // Keep keyboard open while scrolling/tapping
                 />
                 <TouchableOpacity style={styles.modalCloseButton} onPress={() => setShowCategoryModal(false)}>
                   <Text style={styles.modalCloseButtonText}>Close</Text>
@@ -553,7 +582,7 @@ export default function ItemDetails() {
             </TouchableWithoutFeedback>
           </View>
         </TouchableWithoutFeedback>
-      </Modal> */}
+      </Modal>
       
       {/* Cancel Confirmation Modal */}
       <Modal
@@ -888,5 +917,62 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#333',
     marginLeft: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalContent: {
+    width: '90%',
+    maxWidth: 500,
+    maxHeight: '80%',
+    backgroundColor: 'white',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+    textAlign: 'center',
+    color: '#333',
+  },
+  modalSearchInput: {
+    margin: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    fontSize: 16,
+  },
+  modalItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  modalItemText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  modalEmptyText: {
+    padding: 20,
+    textAlign: 'center',
+    color: '#666',
+  },
+  modalCloseButton: {
+    padding: 16,
+    alignItems: 'center',
+    backgroundColor: '#f0f0f0',
+  },
+  modalCloseButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: lightTheme.colors.primary,
   },
 }); 
