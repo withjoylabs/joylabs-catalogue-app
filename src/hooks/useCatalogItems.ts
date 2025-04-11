@@ -110,7 +110,7 @@ export const useCatalogItems = () => {
           description: item.description || '',
           sku: item.sku || '',
           barcode: item.barcode || '',
-          stockQuantity: item.stockQuantity || 0
+          // stockQuantity: item.stockQuantity || 0 // Removed: Field doesn't exist on ConvertedItem
         }));
       
       if (cursor) {
@@ -221,38 +221,17 @@ export const useCatalogItems = () => {
       const itemData = JSON.parse(itemJson);
       const variationData = variationJson ? JSON.parse(variationJson) : {};
 
-      // --- Start: Determine CRV Type (Copied & adapted from searchLocalItems) ---
-      let crvType: 'CRV5' | 'CRV10' | undefined = undefined;
+      // --- Extract Modifier List IDs --- 
       const modifierListInfo = itemData?.item_data?.modifier_list_info;
+      let actualModifierListIds: string[] = [];
 
       if (modifierListInfo && Array.isArray(modifierListInfo) && modifierListInfo.length > 0) {
-        const modifierListIds = modifierListInfo
+        actualModifierListIds = modifierListInfo
           .map((info: any) => info?.modifier_list_id)
           .filter((modId: any): modId is string => typeof modId === 'string');
-
-        if (modifierListIds.length > 0) {
-          try {
-            const placeholders = modifierListIds.map(() => '?').join(',');
-            const modifierLists = await db.getAllAsync<{ name: string }>(
-              `SELECT name FROM modifier_lists WHERE id IN (${placeholders}) AND is_deleted = 0`,
-              modifierListIds
-            );
-
-            for (const list of modifierLists) {
-              if (list.name === "Modifier Set - CRV10 >24oz") {
-                crvType = 'CRV10';
-                break;
-              }
-              if (list.name === "Modifier Set - CRV5 <24oz") {
-                crvType = 'CRV5';
-              }
-            }
-          } catch (dbError) {
-            logger.error('CatalogItems::getProductById', 'Error querying modifier_lists for CRV type', { itemId, modifierListIds, error: dbError });
-          }
-        }
+        logger.debug('CatalogItems::getProductById', 'Extracted modifier IDs from item data', { itemId, count: actualModifierListIds.length, ids: actualModifierListIds });
       }
-      // --- End: Determine CRV Type ---
+      // --- End: Extract Modifier List IDs ---
 
       // Reconstruct CatalogObject (ensure structure matches transformer expectations)
        const reconstructedCatalogObject: Partial<CatalogObjectFromApi> & { id: string } = {
@@ -263,6 +242,8 @@ export const useCatalogItems = () => {
           is_deleted: false,
           item_data: {
             ...(itemData.item_data || {}), // Spread item_data fields
+            // Explicitly add reporting_category from the raw item data
+            reporting_category: itemData?.item_data?.reporting_category, 
              // Ensure variations array exists for transformer
             variations: variationData.id ? [{
               id: variationData.id, 
@@ -274,8 +255,8 @@ export const useCatalogItems = () => {
           }
         };
 
-      // 4. Transform the reconstructed data
-      const transformedItem = transformCatalogItemToItem(reconstructedCatalogObject as any, crvType);
+      // Call the transformer, passing the actual modifier list IDs
+      const transformedItem = transformCatalogItemToItem(reconstructedCatalogObject as any, actualModifierListIds);
 
       if (transformedItem) {
         logger.debug('CatalogItems::getProductById', 'Item successfully fetched and transformed from DB', { id });

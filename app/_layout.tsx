@@ -111,7 +111,7 @@ export default function RootLayout() {
   const shouldShowTabBar = () => {
     return pathname === '/' || 
            pathname === '/profile' ||
-           pathname.startsWith('/item/');
+           pathname.startsWith('/item/'); // Restore showing tab bar on item screen
   };
   
   // Handle debug mode activation
@@ -202,7 +202,7 @@ export default function RootLayout() {
               screenOptions={{
                 headerShown: false,
                 contentStyle: { backgroundColor: '#fff' },
-                animation: Platform.OS === 'android' ? 'fade_from_bottom' : 'default',
+                animation: 'none',
               }}
             >
               <Stack.Screen
@@ -240,8 +240,8 @@ export default function RootLayout() {
                 name="item/[id]"
                 options={{
                   title: 'Item Details',
-                  headerShown: false,
-                  animation: 'slide_from_right',
+                  headerShown: true,
+                  animation: 'none',
                   presentation: 'card',
                 }}
               />

@@ -1334,6 +1334,67 @@ export async function getAllCategories(): Promise<{ id: string; name: string }[]
   }
 }
 
+/**
+ * Fetches all non-deleted taxes (ID, Name, and Percentage) from the database.
+ * @returns A promise resolving to an array of taxes { id: string, name: string, percentage: string | null }.
+ */
+export async function getAllTaxes(): Promise<{ id: string; name: string; percentage: string | null }[]> {
+  const db = await getDatabase();
+  logger.info('Database', 'Fetching all taxes with percentages');
+  try {
+    // Fetch id, name, and the full data_json
+    const results = await db.getAllAsync<{ id: string; name: string; data_json: string }>(`
+      SELECT id, name, data_json 
+      FROM taxes 
+      WHERE is_deleted = 0 AND enabled = 1
+      ORDER BY name ASC
+    `);
+    logger.info('Database', `Fetched ${results.length} enabled taxes`);
+
+    // Parse the JSON and extract the percentage
+    const taxesWithPercentage = results.map(tax => {
+      let percentage: string | null = null;
+      try {
+        if (tax.data_json) {
+          const taxData = JSON.parse(tax.data_json);
+          // Access percentage within the nested tax_data object
+          percentage = taxData?.tax_data?.percentage || null; 
+        }
+      } catch (parseError) {
+        logger.error('Database::getAllTaxes', 'Failed to parse tax_data JSON', { taxId: tax.id, error: parseError });
+      }
+      return { id: tax.id, name: tax.name, percentage };
+    });
+
+    return taxesWithPercentage || [];
+  } catch (error) {
+    logger.error('Database', 'Failed to fetch taxes', { error });
+    throw error;
+  }
+}
+
+/**
+ * Fetches all non-deleted modifier lists (ID and Name) from the database.
+ * @returns A promise resolving to an array of modifier lists { id: string, name: string }.
+ */
+export async function getAllModifierLists(): Promise<{ id: string; name: string }[]> {
+  const db = await getDatabase();
+  logger.info('Database', 'Fetching all modifier lists');
+  try {
+    const results = await db.getAllAsync<{ id: string; name: string }>(`
+      SELECT id, name 
+      FROM modifier_lists 
+      WHERE is_deleted = 0
+      ORDER BY name ASC
+    `);
+    logger.info('Database', `Fetched ${results.length} modifier lists`);
+    return results || [];
+  } catch (error) {
+    logger.error('Database', 'Failed to fetch modifier lists', { error });
+    throw error;
+  }
+}
+
 // Export default object with all methods
 export default {
   initDatabase,
@@ -1348,5 +1409,7 @@ export default {
   getFirstTenItemsRaw,
   getItemOrVariationRawById,
   getFirstTenVariationsRaw,
-  getAllCategories
+  getAllCategories,
+  getAllTaxes,
+  getAllModifierLists
 }; 

@@ -85,21 +85,20 @@ export interface CatalogItemsResponse extends PaginationCursor {
 export interface ConvertedItem {
   id: string;
   name: string;
-  description?: string;
+  sku: string | null;
   price?: number;
-  sku?: string;
-  barcode?: string;
-  stockQuantity?: number;
-  isActive: boolean;
+  description?: string;
   category?: string;
   categoryId?: string;
-  images: string[];
-  lastScanned?: Date;
-  createdAt: string;
-  updatedAt: string;
-  taxIds?: string[];
-  crvType?: 'CRV5' | 'CRV10';
   reporting_category_id?: string;
+  isActive: boolean;
+  images: { id: string; url: string; name: string }[];
+  taxIds?: string[];
+  modifierListIds?: string[];
+  updatedAt?: string;
+  createdAt?: string;
+  barcode?: string;
+  stock?: number;
 }
 
 export interface ConvertedCategory {

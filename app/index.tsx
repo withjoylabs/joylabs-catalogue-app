@@ -44,23 +44,6 @@ function RootLayoutNav() {
   const autoSearchOnEnter = useAppStore((state) => state.autoSearchOnEnter);
   const autoSearchOnTab = useAppStore((state) => state.autoSearchOnTab);
   
-  // Use useFocusEffect to focus the input when the screen comes into focus
-  useFocusEffect(
-    useCallback(() => {
-      // Use a timeout to ensure the screen is fully rendered before focusing
-      const timer = setTimeout(() => {
-        searchInputRef.current?.focus();
-        logger.debug('Home', 'Search input focused via useFocusEffect');
-      }, 100); // 100ms delay, adjust if needed
-
-      return () => {
-        clearTimeout(timer);
-        // Optionally blur when the screen goes out of focus
-        // searchInputRef.current?.blur(); 
-      };
-    }, [])
-  );
-
   useEffect(() => {
     logger.info('Home', 'Home screen mounted');
   }, []);
@@ -130,7 +113,6 @@ function RootLayoutNav() {
               price: localItemToUse.price,
               sku: localItemToUse.sku, // Ensure SKU is included
               barcode: localItemToUse.barcode, // Ensure Barcode/UPC is included
-              stockQuantity: localItemToUse.stockQuantity,
               isActive: localItemToUse.isActive,
               category: localItemToUse.category,
               categoryId: localItemToUse.categoryId,
@@ -138,7 +120,6 @@ function RootLayoutNav() {
               createdAt: localItemToUse.createdAt,
               updatedAt: localItemToUse.updatedAt,
               taxIds: localItemToUse.taxIds, // Ensure Tax IDs are included
-              crvType: localItemToUse.crvType, // Ensure CRV Type is included
               // History specific fields
               scanId: scanId,
               scanTime: new Date().toISOString(),
@@ -238,26 +219,14 @@ function RootLayoutNav() {
                  const itemData = JSON.parse(itemJson);
                  const variationData = variationJson ? JSON.parse(variationJson) : {};
 
-                 // Determine CRV Type
-                 let crvType: 'CRV5' | 'CRV10' | undefined = undefined;
+                 // Extract Modifier IDs
                  const modifierListInfo = itemData?.item_data?.modifier_list_info;
+                 let actualModifierListIds: string[] = [];
+
                  if (modifierListInfo && Array.isArray(modifierListInfo) && modifierListInfo.length > 0) {
-                   const modifierListIds = modifierListInfo.map((info: any) => info?.modifier_list_id).filter((id: any): id is string => typeof id === 'string');
-                   if (modifierListIds.length > 0) {
-                     try {
-                       const placeholders = modifierListIds.map(() => '?').join(',');
-                       const modifierLists = await db.getAllAsync<{ name: string }>(
-                         `SELECT name FROM modifier_lists WHERE id IN (${placeholders}) AND is_deleted = 0`,
-                         modifierListIds
-                       );
-                       for (const list of modifierLists) {
-                         if (list.name === "Modifier Set - CRV10 >24oz") { crvType = 'CRV10'; break; }
-                         if (list.name === "Modifier Set - CRV5 <24oz") { crvType = 'CRV5'; }
-                       }
-                     } catch (dbError) {
-                        logger.error('Home', 'Error querying modifier_lists during API result enrichment', { itemId, error: dbError });
-                     }
-                   }
+                   actualModifierListIds = modifierListInfo
+                     .map((info: any) => info?.modifier_list_id)
+                     .filter((id: any): id is string => typeof id === 'string');
                  }
                  
                  // Reconstruct for transformer
@@ -277,7 +246,7 @@ function RootLayoutNav() {
                   };
 
                   // Transform the enriched, reconstructed data
-                  enrichedItem = transformCatalogItemToItem(reconstructedCatalogObject as any, crvType);
+                  enrichedItem = transformCatalogItemToItem(reconstructedCatalogObject as any, actualModifierListIds);
                } else {
                   logger.warn('Home', 'Could not find necessary parent item JSON during API result enrichment', { apiFoundId: foundRawItem.id });
                }
@@ -293,7 +262,7 @@ function RootLayoutNav() {
 
           // Use the enriched item (or fallback) if available
           if (enrichedItem) {
-            logger.info('Home', 'Item enriched (or fell back) after API search', { itemId: enrichedItem.id, name: enrichedItem.name, hasTax: !!enrichedItem.taxIds?.length, crv: enrichedItem.crvType });
+            logger.info('Home', 'Item enriched (or fell back) after API search', { itemId: enrichedItem.id, name: enrichedItem.name, hasTax: !!enrichedItem.taxIds?.length });
             
             const historyItem: ScanHistoryItem = {
               ...enrichedItem, // Use the enriched item data

@@ -5,52 +5,68 @@ import {
   ConvertedItem,
   ConvertedCategory
 } from '../types/api';
+import logger from './logger';
 
 /**
- * Transforms a Square CatalogObject with type ITEM to our frontend Item model
+ * Transforms a CatalogObject (typically of type ITEM) into a ConvertedItem 
+ * suitable for the UI state, extracting key fields and handling variations/price.
+ * @param catalogObject The raw CatalogObject from the API or database JSON.
+ * @param modifierListIds Array of modifier list IDs associated with the item.
+ * @returns A ConvertedItem object or null if transformation is not possible.
  */
 export const transformCatalogItemToItem = (
-  catalogObject: CatalogObject,
-  crvType?: 'CRV5' | 'CRV10'
+  catalogObject: Partial<CatalogObject> & { id: string }, // Ensure ID is always present
+  modifierListIds?: string[] // Accept the array of modifier list IDs
 ): ConvertedItem | null => {
   if (!catalogObject || catalogObject.type !== 'ITEM' || !catalogObject.item_data) {
+    logger.warn('Transform', 'Cannot transform object: not a valid ITEM type or missing item_data', { id: catalogObject?.id });
     return null;
   }
 
-  const itemData = catalogObject.item_data as CatalogItemData;
+  const itemData = catalogObject.item_data;
   const variations = itemData.variations || [];
-  
-  // Get the first variation price if available
-  let price: number | undefined;
-  if (variations.length > 0 && variations[0].item_variation_data?.price_money?.amount) {
-    // Ensure amount is treated as a number before division
-    const amount = Number(variations[0].item_variation_data.price_money.amount);
-    if (!isNaN(amount)) {
-      price = amount / 100; // Convert cents to dollars
-    }
-  }
-  
-  // Extract tax IDs
-  const taxIds = itemData.tax_ids || [];
 
-  // Get image URLs
-  const imageUrls: string[] = [];
+  // Price and SKU often come from the first variation
+  let price: number | undefined = undefined;
+  const firstVariationPrice = variations[0]?.item_variation_data?.price_money?.amount;
+  if (typeof firstVariationPrice === 'number' && !isNaN(firstVariationPrice)) {
+    price = firstVariationPrice / 100; // Convert from cents
+  }
+
+  // Extract image URLs
+  const imageUrls = (itemData.image_ids || []) 
+    .map((imageId: string) => {
+      // Find the corresponding image object if available (depends on what's fetched)
+      // This part might need adjustment based on how images are stored/retrieved
+      // For now, assume we might have image objects nested or need a separate lookup
+      // Placeholder: return { id: imageId, url: 'lookup_needed', name: 'lookup_needed' };
+      return imageId; // Simplified: just return ID for now
+    })
+    .filter((url: string | null): url is string => url !== null); 
+    
+    
+  // Extract Tax IDs directly if available
+  const taxIds = itemData.tax_ids || [];
   
+  // Determine reporting category ID if available
+  const reportingCategoryId = itemData.reporting_category?.id || undefined;
+
+  // Construct the ConvertedItem
   return {
     id: catalogObject.id,
-    name: itemData.name,
+    name: itemData.name || '', // Ensure name is always a string
     description: itemData.description || '',
     price,
-    sku: variations.length > 0 ? variations[0].item_variation_data?.sku : undefined,
-    barcode: variations.length > 0 ? variations[0].item_variation_data?.upc : undefined, // Assuming barcode maps to upc
+    sku: variations[0]?.item_variation_data?.sku || null, // Use null if SKU is missing
+    barcode: variations[0]?.item_variation_data?.upc || undefined, // Map barcode to upc, undefined if missing
     isActive: !catalogObject.is_deleted,
-    categoryId: itemData.category_id,
-    category: '', // This would be filled in by a separate lookup if needed
-    images: imageUrls,
+    reporting_category_id: reportingCategoryId,
+    category: '', // Keep as placeholder or perform lookup if needed
+    images: [], // Placeholder - image handling needs refinement based on actual data structure
     createdAt: catalogObject.created_at,
     updatedAt: catalogObject.updated_at,
-    taxIds: taxIds, // Add extracted taxIds
-    crvType: crvType // Add passed crvType
+    taxIds: taxIds,
+    modifierListIds: modifierListIds || [] // Use the passed array
   };
 };
 
@@ -94,22 +110,26 @@ export const transformItemToCatalogItem = (
     ? { amount: Math.round(item.price * 100), currency: 'USD' }
     : undefined;
 
-  const variations = [];
-  
-  // If we have a price, create a default variation
-  if (priceMoney) {
-    variations.push({
-      type: 'ITEM_VARIATION',
-      id: `#variation-${item.id}`,
-      present_at_all_locations: true,
-      item_variation_data: {
-        name: 'Regular',
-        price_money: priceMoney,
-        pricing_type: 'FIXED_PRICING',
-        sku: item.sku
-      }
-    });
+  // Always create a default variation object
+  const defaultVariation = {
+    type: 'ITEM_VARIATION',
+    id: `#variation-${item.id}`, // Note: This ID generation might need adjustment for updates vs creates
+    present_at_all_locations: true,
+    item_variation_data: {
+      name: 'Regular', // Default variation name
+      pricing_type: item.price !== undefined ? 'FIXED_PRICING' : 'VARIABLE_PRICING',
+      price_money: priceMoney, // Include price_money only if defined (it's undefined otherwise)
+      sku: item.sku, // Include SKU
+      upc: item.barcode // Include barcode/UPC
+    }
+  };
+
+  // If price is variable, explicitly remove the price_money field as required by Square API
+  if (defaultVariation.item_variation_data.pricing_type === 'VARIABLE_PRICING') {
+    delete defaultVariation.item_variation_data.price_money;
   }
+
+  const variations = [defaultVariation];
 
   return {
     type: 'ITEM',

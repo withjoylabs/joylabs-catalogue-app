@@ -38,17 +38,6 @@ const SearchBar = forwardRef<RNTextInput, SearchBarProps>((
   const scanCompleteTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const processScanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
-  // Set focus to input field as soon as possible
-  useEffect(() => {
-    const focusTimeout = setTimeout(() => {
-      if (inputFieldRef.current) {
-        inputFieldRef.current.focus();
-      }
-    }, 100);
-    
-    return () => clearTimeout(focusTimeout);
-  }, []);
-  
   // Initialize immediately with pre-scan capture capabilities
   useEffect(() => {
     // Enable pre-initialization capture
@@ -210,7 +199,6 @@ const SearchBar = forwardRef<RNTextInput, SearchBarProps>((
           clearButtonMode="never" // Fix duplicate X issue by disabling built-in clear button
           onKeyPress={handleKeyPress}
           blurOnSubmit={false}
-          autoFocus={true} // Always try to gain focus immediately
           keyboardType="default" // Default keyboard better for scanner input
         />
         {accumulatedValue.length > 0 && (

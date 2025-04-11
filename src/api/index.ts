@@ -966,64 +966,45 @@ const api = {
       }
     },
     
-    createItem: async (itemData: any) => {
+    createItem: async (itemData: Partial<any>): Promise<ApiResponse> => {
+      const url = '/v2/catalog/items'; // Plural endpoint for creation
       try {
-        logger.info('API', 'Creating new catalog item', { item: itemData });
-        const url = config.square.endpoints.catalogItem;
-        const response = await apiClient.post(url, itemData, {
-          retry: { count: 2, delay: 1000 } // Retry important write operations
-        });
-        
-        // Clear item cache after creating a new item
-        await clearCache(config.square.endpoints.catalogItems);
-        
-    return response.data;
+        logger.info('API:Catalog', 'Creating new catalog item', { itemName: itemData.name });
+        const response = await apiClient.post<any>(url, itemData);
+        logger.info('API:Catalog', 'Successfully created item', { itemId: response.data?.id });
+        return { success: true, data: response.data };
       } catch (error) {
-        logger.error('API', 'Failed to create catalog item', { error, item: itemData });
-        throw error;
+        const apiError = handleApiError(error, 'Failed to create catalog item');
+        logger.error('API:Catalog', 'Error creating catalog item', { error: apiError });
+        return { success: false, error: apiError };
       }
     },
     
-    updateItem: async (id: string, itemData: any) => {
+    updateItem: async (itemId: string, itemData: Partial<any>): Promise<ApiResponse> => {
+      const url = `/v2/catalog/items/${itemId}`; // Endpoint includes item ID for update
       try {
-        logger.info('API', `Updating catalog item: ${id}`, { item: itemData });
-        
-        // For updates, we use the same endpoint as create but include the id in the data
-        const url = config.square.endpoints.catalogItem;
-        const response = await apiClient.post(url, {
-          ...itemData,
-          id // Make sure the ID is included in the update payload
-        }, {
-          retry: { count: 2, delay: 1000 } // Retry important write operations
-        });
-        
-        // Clear specific item cache and list cache
-        await clearCache(`${config.square.endpoints.catalogItem}/${id}`);
-        await clearCache(config.square.endpoints.catalogItems);
-        
-    return response.data;
+        logger.info('API:Catalog', 'Updating catalog item', { itemId });
+        const response = await apiClient.put<any>(url, itemData);
+        logger.info('API:Catalog', 'Successfully updated item', { itemId });
+        return { success: true, data: response.data };
       } catch (error) {
-        logger.error('API', `Failed to update catalog item: ${id}`, { error, item: itemData });
-        throw error;
+        const apiError = handleApiError(error, 'Failed to update catalog item');
+        logger.error('API:Catalog', 'Error updating catalog item', { itemId, error: apiError });
+        return { success: false, error: apiError };
       }
     },
     
-    deleteItem: async (id: string) => {
+    deleteItem: async (itemId: string): Promise<ApiResponse> => {
+      const url = `/v2/catalog/items/${itemId}`; // Endpoint includes item ID for deletion
       try {
-        logger.info('API', `Deleting catalog item: ${id}`);
-        const url = `${config.square.endpoints.catalogItem}/${id}`;
-        const response = await apiClient.delete(url, {
-          retry: { count: 2, delay: 1000 } // Retry important write operations
-        });
-        
-        // Clear item and list caches after deletion
-        await clearCache(`${config.square.endpoints.catalogItem}/${id}`);
-        await clearCache(config.square.endpoints.catalogItems);
-        
-    return response.data;
+        logger.info('API:Catalog', 'Deleting catalog item', { itemId });
+        await apiClient.delete(url);
+        logger.info('API:Catalog', 'Successfully deleted item', { itemId });
+        return { success: true };
       } catch (error) {
-        logger.error('API', `Failed to delete catalog item: ${id}`, { error });
-        throw error;
+        const apiError = handleApiError(error, 'Failed to delete catalog item');
+        logger.error('API:Catalog', 'Error deleting catalog item', { itemId, error: apiError });
+        return { success: false, error: apiError };
       }
     },
     

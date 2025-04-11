@@ -2,9 +2,10 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ScanHistoryItem } from '../types'; // Import ScanHistoryItem
-import { zustandStorage } from './storage';
+import { ConvertedItem } from '../types/api'; // Import ConvertedItem
 
 // Product type definition
+/*
 export interface Product {
   id: string;
   name: string;
@@ -20,6 +21,7 @@ export interface Product {
   createdAt: string;
   updatedAt: string;
 }
+*/
 
 // Category type definition
 export interface Category {
@@ -37,8 +39,8 @@ export interface Category {
 // Main application state
 interface AppState {
   // Products state
-  products: Product[];
-  selectedProduct: Product | null;
+  products: ConvertedItem[];
+  selectedProduct: ConvertedItem | null;
   isProductsLoading: boolean;
   productError: string | null;
   
@@ -64,8 +66,8 @@ interface AppState {
   autoSearchOnTab: boolean;
   
   // Actions
-  setProducts: (products: Product[]) => void;
-  setSelectedProduct: (product: Product | null) => void;
+  setProducts: (products: ConvertedItem[]) => void;
+  setSelectedProduct: (product: ConvertedItem | null) => void;
   setProductsLoading: (isLoading: boolean) => void;
   setProductError: (error: string | null) => void;
   
@@ -121,8 +123,8 @@ export const useAppStore = create<AppState>()(
       autoSearchOnTab: true,
       
       // Products actions
-      setProducts: (products: Product[]) => set({ products }),
-      setSelectedProduct: (selectedProduct: Product | null) => set({ selectedProduct }),
+      setProducts: (products: ConvertedItem[]) => set({ products }),
+      setSelectedProduct: (selectedProduct: ConvertedItem | null) => set({ selectedProduct }),
       setProductsLoading: (isProductsLoading: boolean) => set({ isProductsLoading }),
       setProductError: (productError: string | null) => set({ productError }),
       

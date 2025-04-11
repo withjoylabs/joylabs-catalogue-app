@@ -17,19 +17,25 @@ import {
   Dimensions,
   StatusBar as RNStatusBar,
   Animated,
-  ActivityIndicator
+  ActivityIndicator,
+  SafeAreaView
 } from 'react-native';
-import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
+import { useRouter, useLocalSearchParams, Stack, useNavigation } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 // import { useCategories } from '../../src/hooks'; // Commented out
 import { useCatalogItems } from '../../src/hooks/useCatalogItems';
 import { ConvertedItem, ConvertedCategory } from '../../src/types/api';
 import { lightTheme } from '../../src/themes';
-import { getAllCategories, getCatalogItemById, trackRecentlyUsedCategory, getRecentlyUsedCategories } from '../../src/database/modernDb';
+import { getAllCategories, getAllTaxes, getAllModifierLists } from '../../src/database/modernDb'; // Import the new function
+import { getRecentCategoryIds, addRecentCategoryId } from '../../src/utils/recentCategories'; // Import recent category utils
 
 // Define type for category used in the picker
 type CategoryPickerItem = { id: string; name: string };
+
+// Define type for Tax and Modifier List Pickers
+type TaxPickerItem = { id: string; name: string; percentage: string | null };
+type ModifierListPickerItem = { id: string; name: string }; // Used for both CRV and others
 
 // Empty item template for new items
 const EMPTY_ITEM: ConvertedItem = {
@@ -43,6 +49,8 @@ const EMPTY_ITEM: ConvertedItem = {
   category: '', // Keep for display compatibility?
   isActive: true,
   images: [],
+  taxIds: [], // Initialize taxIds
+  modifierListIds: [], // Use an array for multiple modifier lists
   updatedAt: new Date().toISOString(),
   createdAt: new Date().toISOString()
 };
@@ -50,6 +58,7 @@ const EMPTY_ITEM: ConvertedItem = {
 export default function ItemDetails() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
+  const navigation = useNavigation();
   const isNewItem = id === 'new';
   
   // Hooks for categories and items
@@ -88,28 +97,209 @@ export default function ItemDetails() {
   // State for recent categories
   const [recentCategories, setRecentCategories] = useState<CategoryPickerItem[]>([]);
   
-  // Fetch the item data and categories on component mount
+  // State for Taxes
+  const [availableTaxes, setAvailableTaxes] = useState<TaxPickerItem[]>([]);
+  const [showTaxModal, setShowTaxModal] = useState(false);
+  const [allTaxesSelected, setAllTaxesSelected] = useState(false);
+
+  // State for Modifiers
+  const [availableModifierLists, setAvailableModifierLists] = useState<ModifierListPickerItem[]>([]);
+  
+  // Define handlers before they are used
+  const handleInputChange = (key: keyof ConvertedItem, value: string | number | undefined) => {
+    // Handle potential numeric conversion for price
+    if (key === 'price') {
+      const textValue = value as string; // Input value is text
+
+      if (textValue === '' || textValue === null || textValue === undefined) {
+        updateItem('price', undefined); // Set to undefined for variable price
+        return;
+      }
+
+      // Remove non-digit characters
+      const digits = textValue.replace(/[^0-9]/g, '');
+
+      if (digits === '') {
+        updateItem('price', undefined);
+        return;
+      }
+
+      // Parse digits as cents
+      const cents = parseInt(digits, 10);
+
+      if (isNaN(cents)) {
+        // Should not happen if digits are correctly filtered, but handle defensively
+        console.warn('Invalid number parsed from digits:', digits);
+        return;
+      } else {
+        // Calculate price in dollars
+        const dollars = cents / 100;
+        updateItem('price', dollars);
+      }
+    } else {
+      updateItem(key, value as string); // Treat other inputs as strings
+    }
+  };
+
+  const handleTaxSelection = (taxId: string) => {
+    const currentIds = item.taxIds || [];
+    const newIds = currentIds.includes(taxId)
+      ? currentIds.filter(id => id !== taxId)
+      : [...currentIds, taxId];
+    updateItem('taxIds', newIds);
+  };
+
+  const handleModifierSelection = (modifierId: string) => {
+    // Log before update
+    console.log(`[Modifier Selection] Tapped ID: ${modifierId}`);
+    console.log(`[Modifier Selection] Item state BEFORE updateItem call:`, JSON.stringify(item)); // Log state before calling updateItem
+
+    // Directly pass the toggled modifierId to updateItem.
+    // The logic to add/remove is handled within updateItem itself.
+    updateItem('modifierListIds', modifierId);
+  };
+  
+  // == Stable Handlers ==
+  const isEmpty = useCallback((): boolean => {
+    return (
+      !item.name.trim() && 
+      !(item.sku && item.sku.trim()) && 
+      item.price === undefined &&
+      !(item.description && item.description.trim()) &&
+      !item.reporting_category_id
+    );
+  }, [item]); // Depends on item state
+
+  const handleCancel = useCallback(() => {
+    if (isEdited && !isEmpty()) {
+      setShowCancelModal(true);
+    } else {
+      router.back();
+    }
+  }, [isEdited, isEmpty, router, setShowCancelModal]);
+
+  const handleConfirmCancel = useCallback(() => {
+    setShowCancelModal(false);
+    router.back();
+  }, [router, setShowCancelModal]);
+
+  const handleSave = useCallback(async () => {
+    if (!item.name.trim()) {
+      Alert.alert('Error', 'Item name is required');
+      return;
+    }
+    
+    setIsSaving(true);
+    setError(null);
+    
+    try {
+      let savedItem;
+      const itemPayload: any = { ...item };
+      if (item.reporting_category_id) {
+        itemPayload.reporting_category = { id: item.reporting_category_id };
+      } else {
+        itemPayload.reporting_category = null; 
+      }
+      delete itemPayload.reporting_category_id;
+      delete itemPayload.category;
+      itemPayload.tax_ids = item.taxIds || []; 
+      itemPayload.modifier_list_info = (item.modifierListIds || []).map(id => ({
+        modifier_list_id: id,
+        enabled: true
+      }));
+      delete itemPayload.modifierListIds;
+      
+      if (isNewItem) {
+        savedItem = await createProduct(itemPayload);
+        Alert.alert('Success', 'Item created successfully');
+      } else {
+        if (typeof id !== 'string') {
+          throw new Error('Invalid item ID for update');
+        }
+        savedItem = await updateProduct(id, itemPayload); 
+        Alert.alert('Success', 'Item updated successfully');
+      }
+      
+      if (savedItem) {
+        const reportingCategoryId = savedItem.reporting_category?.id ?? '';
+        const savedItemWithReportingId = { 
+           ...savedItem, 
+           reporting_category_id: reportingCategoryId 
+         };
+        setItem(savedItemWithReportingId);
+        setOriginalItem(savedItemWithReportingId);
+        setIsEdited(false);
+      }
+      
+      router.back();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save item');
+      Alert.alert('Error', 'Failed to save item. Please try again.');
+      console.error('Error saving item:', err);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [item, isNewItem, id, createProduct, updateProduct, setIsSaving, setError, setItem, setOriginalItem, setIsEdited, router]); // Extensive dependencies
+  
+  // Fetch the item data, categories, taxes, and modifiers on component mount
   useEffect(() => {
     const fetchInitialData = async () => {
       setIsLoading(true);
       setError(null);
       
       try {
-        // Fetch categories first
-        const fetchedCategories = await getAllCategories();
+        // Fetch categories, taxes, and modifiers concurrently
+        const [fetchedCategories, fetchedTaxes, fetchedModifierLists] = await Promise.all([
+          getAllCategories(),
+          getAllTaxes(),
+          getAllModifierLists()
+        ]);
+
         setAvailableCategories(fetchedCategories);
-        setFilteredCategories(fetchedCategories); // Initialize filtered list
+        setFilteredCategories(fetchedCategories); // Initialize filtered category list
+        setAvailableTaxes(fetchedTaxes);
+        setAvailableModifierLists(fetchedModifierLists);
+
+        // No need to filter for CRV here anymore, availableModifierLists holds all of them
+        
+        // Log available categories for debugging
+        console.log('[ItemDetails] Available Categories:', JSON.stringify(fetchedCategories.map(c => ({id: c.id, name: c.name})), null, 2));
+        
+        // Check if all available taxes are initially selected in the item
+        const initialTaxIdsSet = new Set(item?.taxIds || []);
+        const allFetchedTaxIds = new Set(fetchedTaxes.map(tax => tax.id));
+        const areAllSelected = fetchedTaxes.length > 0 && fetchedTaxes.every(tax => initialTaxIdsSet.has(tax.id));
+        setAllTaxesSelected(Boolean(areAllSelected));
+        
+        // Fetch recent category IDs and map them to full category objects
+        const recentIds = await getRecentCategoryIds();
+        const recentCategoryObjects = recentIds
+          .map(id => fetchedCategories.find(cat => cat.id === id))
+          .filter((cat): cat is CategoryPickerItem => cat !== undefined); // Remove undefined if ID not found
+        setRecentCategories(recentCategoryObjects);
         
         // Fetch item data if not a new item
         if (!isNewItem && typeof id === 'string') {
           const fetchedItem = await getProductById(id);
           if (fetchedItem) {
             // Ensure reporting_category_id is set from fetched data
-            // Assuming fetchedItem might have reporting_category: { id: ... }
-            const initialReportingCategoryId = fetchedItem.reporting_category?.id || fetchedItem.reporting_category_id || '';
+            // Try to get it from reporting_category.id OR directly from reporting_category_id
+            console.log('[ItemDetails] Fetched Item Data:', JSON.stringify(fetchedItem, null, 2)); // Log fetched item
+            const initialReportingCategoryId = (fetchedItem as any).reporting_category?.id || fetchedItem.reporting_category_id || '';
+            console.log('[ItemDetails] Initial Reporting Category ID:', initialReportingCategoryId); // Log extracted ID
+            
+            // Extract initial Tax IDs (assuming fetchedItem has taxIds)
+            const initialTaxIds = fetchedItem.taxIds || [];
+            
+            // Extract initial Modifier List IDs
+            // Assumes transformCatalogItemToItem sets modifierListIds based on modifier_list_info
+            const initialModifierListIds = fetchedItem.modifierListIds || [];
+            
             const itemWithReportingId = { 
               ...fetchedItem, 
-              reporting_category_id: initialReportingCategoryId 
+              reporting_category_id: initialReportingCategoryId,
+              taxIds: initialTaxIds, // Ensure taxIds are set in the state
+              modifierListIds: initialModifierListIds // Ensure Modifier IDs are set
             };
             setItem(itemWithReportingId);
             setOriginalItem(itemWithReportingId); 
@@ -137,6 +327,45 @@ export default function ItemDetails() {
     fetchInitialData();
   }, [id, getProductById, isNewItem]);
   
+  // Effect to update header options dynamically
+  useEffect(() => {
+    navigation.setOptions({
+      title: isNewItem ? 'Add New Item' : 'Edit Item',
+      headerLeft: () => (
+        <TouchableOpacity
+          style={styles.headerButton}
+          onPress={handleCancel} // Use the stable handler
+          disabled={isSaving}
+        >
+          <Text style={[styles.headerButtonText, isSaving && styles.disabledText]}>
+            Cancel
+          </Text>
+        </TouchableOpacity>
+      ),
+      headerRight: () => (
+        <TouchableOpacity
+          style={styles.headerButton}
+          onPress={handleSave} // Use the stable handler
+          disabled={!isEdited || isSaving}
+        >
+          {isSaving ? (
+            <ActivityIndicator size="small" color={lightTheme.colors.primary} />
+          ) : (
+            <Text
+              style={[
+                styles.headerButtonText, 
+                styles.saveButton,
+                (!isEdited || isSaving) && styles.disabledText
+              ]}
+            >
+              Save
+            </Text>
+          )}
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, isNewItem, isEdited, isSaving, handleCancel, handleSave]);
+  
   // Filter categories when search text changes
   useEffect(() => {
     if (!categorySearch) {
@@ -150,194 +379,167 @@ export default function ItemDetails() {
     }
   }, [availableCategories, categorySearch]);
   
-  // Load Recently Used Categories
+  // Check if item has been edited and update 'all taxes selected' status
   useEffect(() => {
-    const loadRecentCategories = async () => {
-      try {
-        const recent = await getRecentlyUsedCategories(10);
-        const recentCategoryItems = recent.map(category => ({
-          id: category.id,
-          name: category.name
-        }));
-        setRecentCategories(recentCategoryItems);
-      } catch (err) {
-        console.error('Error loading recent categories:', err);
-      }
-    };
-    
-    loadRecentCategories();
-  }, []);
-  
-  // Check if item has been edited
-  useEffect(() => {
-    if (!originalItem && !isNewItem) {
-      setIsEdited(false);
-      return;
+    // 1. Calculate 'all taxes selected' state
+    let areAllSelected = false;
+    // Ensure calculation only happens when necessary arrays are populated
+    if (item && availableTaxes && availableTaxes.length > 0) {
+        const currentTaxIdsSet = new Set(item.taxIds || []);
+        // Check if every available tax ID is present in the item's tax IDs
+        areAllSelected = availableTaxes.every(tax => currentTaxIdsSet.has(tax.id));
+    }
+    // Set the state - areAllSelected is guaranteed to be boolean here
+    setAllTaxesSelected(areAllSelected);
+
+    // 2. Calculate 'isEdited' state
+    let calculatedIsEdited: boolean | undefined = undefined; // Start as undefined
+
+    if (isNewItem && item) {
+       // Check if any field has changed from the empty state for a new item
+       calculatedIsEdited =
+          !!item.name.trim() ||
+          !!(item.sku && item.sku.trim()) ||
+          item.price !== undefined ||
+          !!(item.description && item.description.trim()) ||
+          !!item.reporting_category_id ||
+          (item.taxIds && item.taxIds.length > 0) ||
+          (item.modifierListIds && item.modifierListIds.length > 0);
+    } else if (item && originalItem) { // Only compare if both item and originalItem exist
+        // Compare sorted arrays to ignore order differences
+        const taxIdsChanged = JSON.stringify(originalItem.taxIds?.sort() || []) !== JSON.stringify(item.taxIds?.sort() || []);
+        const modifierIdsChanged = JSON.stringify(originalItem.modifierListIds?.sort() || []) !== JSON.stringify(item.modifierListIds?.sort() || []);
+
+        calculatedIsEdited =
+          originalItem.name !== item.name ||
+          originalItem.sku !== item.sku ||
+          originalItem.price !== item.price ||
+          originalItem.description !== item.description ||
+          originalItem.reporting_category_id !== item.reporting_category_id ||
+          taxIdsChanged ||
+          modifierIdsChanged;
     }
     
-    if (isNewItem) {
-      // For new items, check if any required field has been filled
-      setIsEdited(
-        !!item.name.trim() || 
-        !!(item.sku && item.sku.trim()) || 
-        item.price !== undefined ||
-        !!(item.description && item.description.trim()) ||
-        !!item.reporting_category_id // Check reporting category ID
-      );
-      return;
-    }
-    
-    // For existing items, compare with original values
-    const hasChanged = 
-      originalItem?.name !== item.name ||
-      originalItem?.sku !== item.sku ||
-      originalItem?.price !== item.price ||
-      originalItem?.description !== item.description ||
-      originalItem?.reporting_category_id !== item.reporting_category_id; // Check reporting category ID
-      
-    setIsEdited(hasChanged);
-  }, [item, originalItem, isNewItem]);
+     // Set the state - Use the calculated value, defaulting to false if undefined
+    setIsEdited(calculatedIsEdited === undefined ? false : calculatedIsEdited);
+
+  // Dependencies: Recalculate whenever the item, original item, or available taxes change
+  }, [item, originalItem, isNewItem, availableTaxes]);
   
   // Update a field in the item state
   const updateItem = (key: keyof ConvertedItem, value: any) => {
-    setItem(prev => ({ ...prev, [key]: value }));
+    // Use functional update to ensure we work with the latest state
+    setItem(prev => {
+      let newState = { ...prev }; // Copy previous state
+
+      // Special handling for modifierListIds array
+      if (key === 'modifierListIds') {
+        const modifierId = value; // 'value' is the single ID being toggled
+        const currentIds = prev.modifierListIds || [];
+        let newIds;
+        if (currentIds.includes(modifierId)) {
+          newIds = currentIds.filter(id => id !== modifierId); // Remove ID
+        } else {
+          newIds = [...currentIds, modifierId]; // Add ID
+        }
+        newState = { ...prev, modifierListIds: newIds };
+      } else {
+        // Handle other fields normally
+        newState = { ...prev, [key]: value };
+      }
+
+      // Recalculate 'all taxes selected' state *after* the main state update logic
+      // Only do this if taxIds was the key being updated
+      if (key === 'taxIds') {
+        let areAllSelected = false;
+        const newTaxIds = newState.taxIds || []; // Use the updated tax IDs from newState
+        // Ensure availableTaxes is populated before checking
+        if (availableTaxes && availableTaxes.length > 0) {
+           areAllSelected = availableTaxes.every(tax => newTaxIds.includes(tax.id));
+        }
+        // Set the dependent state - guaranteed boolean
+        setAllTaxesSelected(areAllSelected);
+      }
+
+      return newState; // Return the fully updated state
+    });
   };
   
-  // Check if the item form is empty (for cancel confirmation)
-  const isEmpty = (): boolean => {
-    return (
-      !item.name.trim() && 
-      !(item.sku && item.sku.trim()) && 
-      item.price === undefined &&
-      !(item.description && item.description.trim()) &&
-      !item.reporting_category_id // Check reporting category ID
-    );
+  // Toggle all taxes selection
+  const handleSelectAllTaxes = () => {
+    const currentTaxIds = item.taxIds || [];
+    let newTaxIds: string[];
+
+    if (allTaxesSelected) {
+      // If all are selected, deselect all
+      newTaxIds = [];
+    } else {
+      // If not all are selected (or none), select all
+      newTaxIds = availableTaxes.map(tax => tax.id);
+    }
+    updateItem('taxIds', newTaxIds);
+    setAllTaxesSelected(!allTaxesSelected);
   };
   
-  // Get the current category name for display
+  // Get the current category name for display, handle loading state
   const selectedCategoryName = useMemo(() => {
-    if (!item.reporting_category_id) return 'Select Category';
-    const category = availableCategories.find(cat => cat.id === item.reporting_category_id);
-    return category ? category.name : 'Select Category'; // Fallback if ID doesn't match
-  }, [item.reporting_category_id, availableCategories]);
+    if (isLoading) return 'Loading...'; // Show loading state
+    const categoryId = item.reporting_category_id;
+    console.log('[ItemDetails SelectedCategory] Category ID in state:', categoryId);
+    if (categoryId) {
+      const found = availableCategories.find(c => c.id === categoryId);
+      if (found) {
+        return found.name;
+      } else {
+        console.warn(`[ItemDetails SelectedCategory] Category ID "${categoryId}" found in item but NOT in availableCategories list!`);
+        return 'Select Category'; // ID exists but category not found
+      }
+    }
+    return 'Select Category'; // No ID set
+  }, [item.reporting_category_id, availableCategories, isLoading]);
   
   // Handle selecting a category
-  const handleSelectCategory = (category: CategoryPickerItem) => {
-    updateItem('reporting_category_id', category.id); // Store the ID
+  const handleSelectCategory = (categoryId: string) => {
+    updateItem('reporting_category_id', categoryId); 
     setShowCategoryModal(false);
-  };
-  
-  // Handle cancel button press
-  const handleCancel = () => {
-    if (isEdited && !isEmpty()) {
-      setShowCancelModal(true);
-    } else {
-      router.back();
-    }
-  };
-  
-  // Handle confirm cancel
-  const handleConfirmCancel = () => {
-    setShowCancelModal(false);
-    router.back();
-  };
-  
-  // Handle save button press
-  const handleSave = async () => {
-    // Validate required fields
-    if (!item.name.trim()) {
-      Alert.alert('Error', 'Item name is required');
-      return;
-    }
-    
-    setIsSaving(true);
-    setError(null);
-    
-    try {
-      let savedItem;
-      
-      // Prepare the item payload for saving, ensuring reporting_category is formatted
-      const itemPayload: any = { ...item };
-      if (item.reporting_category_id) {
-        itemPayload.reporting_category = { id: item.reporting_category_id };
-      } else {
-        // Ensure reporting_category is explicitly null or removed if not selected
-        // Depending on API requirements, choose one:
-        itemPayload.reporting_category = null; 
-        // delete itemPayload.reporting_category;
-      }
-      // Remove the temporary reporting_category_id field before sending
-      delete itemPayload.reporting_category_id;
-      // Also remove the potentially stale category name field
-      delete itemPayload.category;
-      
-      if (isNewItem) {
-        savedItem = await createProduct(itemPayload);
-        Alert.alert('Success', 'Item created successfully');
-      } else {
-        if (typeof id !== 'string') {
-            throw new Error('Invalid item ID for update');
-        }
-        savedItem = await updateProduct(id, itemPayload); 
-        Alert.alert('Success', 'Item updated successfully');
-      }
-      
-      if (savedItem) {
-        // Re-add reporting_category_id for local state consistency
-        const savedItemWithReportingId = { 
-           ...savedItem, 
-           reporting_category_id: savedItem.reporting_category?.id || '' 
-         };
-        setItem(savedItemWithReportingId);
-        setOriginalItem(savedItemWithReportingId);
-        setIsEdited(false);
-      }
-      
-      router.back();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save item');
-      Alert.alert('Error', 'Failed to save item. Please try again.');
-      console.error('Error saving item:', err);
-    } finally {
-      setIsSaving(false);
-    }
+    setCategorySearch(''); // Reset search on selection
   };
   
   // Handle delete button press
-  const handleDelete = () => {
+  const handleDelete = useCallback(async () => {
+    if (!item?.id) return;
+
     Alert.alert(
       'Delete Item',
-      'Are you sure you want to delete this item? This action cannot be undone.',
+      `Are you sure you want to delete "${item.name || 'this item'}"? This action cannot be undone.`,
       [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete', 
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
           style: 'destructive',
-          onPress: confirmDelete
-        }
-      ]
+          onPress: async () => {
+            try {
+              await deleteProduct(item.id);
+              Alert.alert('Success', 'Item deleted successfully');
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                // Fallback if cannot go back (e.g., deep link)
+                navigation.navigate('index'); // Or navigate to a default screen
+              }
+            } catch (error: any) {
+              console.error('Error deleting item:', error);
+              Alert.alert('Error', `Error deleting item: ${error.message}`);
+            }
+          },
+        },
+      ],
+      { cancelable: true } // Allow dismissing by tapping outside on Android
     );
-  };
-  
-  // Handle delete confirmation
-  const confirmDelete = async () => {
-    if (!item.id || isNewItem) return;
-    
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      await deleteProduct(item.id);
-      Alert.alert('Success', 'Item deleted successfully');
-      router.back();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete item');
-      Alert.alert('Error', 'Failed to delete item. Please try again.');
-      console.error('Error deleting item:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  }, [item, deleteProduct, navigation]);
   
   // Render component for matching text in search results
   const highlightMatchingText = (text: string, query: string) => {
@@ -358,349 +560,241 @@ export default function ItemDetails() {
     );
   };
   
-  // Handle updating an item and track used category
-  const handleUpdateItem = async (key: keyof ConvertedItem, value: any) => {
-    updateItem(key, value);
-    
-    // If updating the reporting category, track it as recently used
-    if (key === 'reporting_category_id' && value) {
-      try {
-        const categoryObj = availableCategories.find(cat => cat.id === value);
-        if (categoryObj) {
-          await trackRecentlyUsedCategory(categoryObj.id, categoryObj.name);
-          
-          // Refresh recent categories list
-          const recent = await getRecentlyUsedCategories(10);
-          const recentCategoryItems = recent.map(category => ({
-            id: category.id,
-            name: category.name
-          }));
-          setRecentCategories(recentCategoryItems);
-        }
-      } catch (err) {
-        console.error('Error tracking recent category:', err);
-      }
-    }
+  // Get the display name for a selected modifier list ID
+  const getModifierListName = (modifierId: string): string => {
+    return availableModifierLists.find(m => m.id === modifierId)?.name || 'Unknown Modifier';
   };
   
+  // If loading, show spinner
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
+      <SafeAreaView style={styles.container}> 
         <StatusBar style="dark" />
-        <ActivityIndicator size="large" color={lightTheme.colors.primary} />
-        <Text style={styles.loadingText}>Loading item data...</Text>
-      </View>
+        <View style={styles.loadingContainer}> 
+          <ActivityIndicator size="large" color={lightTheme.colors.primary} />
+          <Text style={styles.loadingText}>Loading item data...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
   
-  if (error && !isNewItem) {
-    return (
-      <View style={styles.errorContainer}>
-        <StatusBar style="dark" />
-        <Ionicons name="alert-circle-outline" size={48} color="red" />
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.errorButton} onPress={() => router.back()}>
-          <Text style={styles.errorButtonText}>Go Back</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-  
+  // If loading is done AND we can render content (Removed canRenderContent check)
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
-      
-      <Stack.Screen
-        options={{
-          title: isNewItem ? 'Add New Item' : 'Edit Item',
-          headerShown: true,
-          headerStyle: {
-            backgroundColor: '#fff',
-          },
-          headerTitleStyle: {
-            color: '#333',
-            fontWeight: 'bold',
-          },
-          headerLeft: () => (
-            <TouchableOpacity
-              style={styles.headerButton}
-              onPress={handleCancel}
-              disabled={isSaving}
-            >
-              <Text style={[styles.headerButtonText, isSaving && styles.disabledText]}>
-                Cancel
-              </Text>
-            </TouchableOpacity>
-          ),
-          headerRight: () => (
-            <TouchableOpacity
-              style={styles.headerButton}
-              onPress={handleSave}
-              disabled={!isEdited || isSaving}
-            >
-              {isSaving ? (
-                <ActivityIndicator size="small" color={lightTheme.colors.primary} />
-              ) : (
-                <Text
-                  style={[
-                    styles.headerButtonText, 
-                    styles.saveButton,
-                    (!isEdited || isSaving) && styles.disabledText
-                  ]}
-                >
-                  Save
-                </Text>
-              )}
-            </TouchableOpacity>
-          ),
-        }}
-      />
-      
-      <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
-        {/* QR Code Button (Removed) */}
-        {/* {!isNewItem && item.id && (
-          <TouchableOpacity 
-            style={styles.qrCodeButton}
-            onPress={() => Alert.alert('QR Code', 'QR code generation will be implemented in a future update.')}
-          >
-            <Ionicons name="qr-code-outline" size={24} color={lightTheme.colors.primary} />
-            <Text style={styles.qrCodeButtonText}>Generate QR Code</Text>
+
+      {/* Error handling: Render error view if error exists */} 
+      {error && !isNewItem && (
+        <View style={styles.errorContainer}> 
+          <Ionicons name="alert-circle-outline" size={48} color="red" />
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity style={styles.errorButton} onPress={() => router.back()}>
+            <Text style={styles.errorButtonText}>Go Back</Text>
           </TouchableOpacity>
-        )} */}
-        
-        {/* Item Name */}
-        <View style={styles.fieldContainer}>
-          <Text style={styles.label}>Item Name*</Text>
-          <TextInput
-            style={styles.input}
-            value={item.name}
-            onChangeText={(text) => updateItem('name', text)}
-            placeholder="Enter item name"
-            placeholderTextColor="#999"
-          />
         </View>
-        
-        {/* Item SKU */}
-        <View style={styles.fieldContainer}>
-          <Text style={styles.label}>SKU</Text>
-          <TextInput
-            style={styles.input}
-            value={item.sku || ''}
-            onChangeText={(text) => updateItem('sku', text)}
-            placeholder="Enter SKU (optional)"
-            placeholderTextColor="#999"
-          />
-        </View>
-        
-        {/* Item GTIN/UPC */}
-        <View style={styles.fieldContainer}>
-          <Text style={styles.label}>GTIN / UPC</Text>
-          <TextInput
-            style={styles.input}
-            value={item.barcode || ''}
-            onChangeText={(text) => updateItem('barcode', text)}
-            placeholder="Enter GTIN or UPC (optional)"
-            placeholderTextColor="#999"
-            keyboardType="numeric"
-          />
-        </View>
-        
-        {/* Item Price */}
-        <View style={styles.fieldContainer}>
-          <Text style={styles.label}>Price</Text>
-          <View style={styles.priceInputContainer}>
-            <Text style={styles.currencySymbol}>$</Text>
-            <TextInput
-              style={styles.priceInput}
-              value={item.price !== undefined ? item.price.toString() : ''}
-              onChangeText={(text) => {
-                const price = text === '' ? undefined : parseFloat(text);
-                updateItem('price', price);
-              }}
-              placeholder="0.00"
-              placeholderTextColor="#999"
-              keyboardType="decimal-pad"
-            />
-          </View>
-        </View>
-        
-        {/* Reporting Category */}
-        <View style={styles.fieldContainer}>
-          <Text style={styles.label}>Reporting Category</Text>
-          
-          {/* Recently Used Categories */}
-          {recentCategories.length > 0 && (
-            <View style={styles.recentCategoriesContainer}>
-              <Text style={styles.recentCategoriesTitle}>Recently Used:</Text>
-              <ScrollView 
-                horizontal 
-                showsHorizontalScrollIndicator={false}
-                style={styles.recentCategoriesScroll}
-                contentContainerStyle={styles.recentCategoriesContent}
-              >
-                {recentCategories.map(category => (
-                  <TouchableOpacity
-                    key={category.id}
-                    style={[
-                      styles.recentCategoryChip,
-                      item.reporting_category_id === category.id && styles.recentCategoryChipSelected
-                    ]}
-                    onPress={() => handleUpdateItem('reporting_category_id', category.id)}
-                  >
-                    <Text 
-                      style={[
-                        styles.recentCategoryText,
-                        item.reporting_category_id === category.id && styles.recentCategoryTextSelected
-                      ]}
-                      numberOfLines={1}
-                      ellipsizeMode="tail"
-                    >
-                      {category.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
+      )}
+
+      {/* Main Content: Render ScrollView and Modal if NO error */} 
+      {!error && (
+        <>
+          <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
+            {/* Item Name */}
+            <View style={styles.fieldContainer}>
+              <Text style={styles.label}>Item Name</Text>
+              <TextInput
+                style={styles.input}
+                value={item.name}
+                onChangeText={value => handleInputChange('name', value)}
+                placeholder="Enter item name"
+                placeholderTextColor="#999"
+              />
             </View>
-          )}
-          
-          <TouchableOpacity 
-            style={styles.categorySelector} 
-            onPress={() => {
-              setCategorySearch(''); // Clear search on open
-              setFilteredCategories(availableCategories); // Reset filter on open
-              setShowCategoryModal(true);
-            }}
-          >
-            <Text style={styles.categoryText}>
-              {selectedCategoryName}
-            </Text>
-            <Ionicons name="chevron-down" size={20} color={lightTheme.colors.text} />
-          </TouchableOpacity>
-        </View>
-        
-        {/* Item Description */}
-        <View style={styles.fieldContainer}>
-          <Text style={styles.label}>Description</Text>
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            value={item.description || ''}
-            onChangeText={(text) => updateItem('description', text)}
-            placeholder="Enter item description (optional)"
-            placeholderTextColor="#999"
-            multiline
-            textAlignVertical="top"
-            numberOfLines={4}
-          />
-        </View>
-        
-        {/* Item Status */}
-        <View style={styles.fieldContainer}>
-          <View style={styles.switchRow}>
-            <Text style={styles.label}>Active</Text>
-            <TouchableOpacity 
-              style={[styles.switchButton, item.isActive ? styles.switchButtonActive : styles.switchButtonInactive]} 
-              onPress={() => updateItem('isActive', !item.isActive)}
-            >
-              <View style={[styles.switchThumb, item.isActive ? styles.switchThumbActive : styles.switchThumbInactive]} />
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.helperText}>
-            {item.isActive ? 'Item is active and will appear in your catalogue' : 'Item is inactive and will be hidden'}
-          </Text>
-        </View>
-        
-        {/* Delete Button (only for existing items) */}
-        {!isNewItem && (
-          <TouchableOpacity 
-            style={styles.deleteButton}
-            onPress={handleDelete}
-            disabled={isSaving}
-          >
-            <Ionicons name="trash-outline" size={20} color="white" />
-            <Text style={styles.deleteButtonText}>Delete Item</Text>
-          </TouchableOpacity>
-        )}
-        
-        {/* Add spacing at the bottom */}
-        <View style={{ height: 40 }} />
-      </ScrollView>
-      
-      {/* Category Selection Modal */}
-      <Modal
-        visible={showCategoryModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowCategoryModal(false)}
-      >
-        <TouchableWithoutFeedback onPress={() => setShowCategoryModal(false)}>
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback>
-              <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>Select Reporting Category</Text>
+
+            {/* Item Description */}
+            <View style={styles.fieldContainer}>
+              <Text style={styles.label}>Description</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                value={item.description ?? ''} // Ensure string or undefined
+                onChangeText={value => handleInputChange('description', value)}
+                placeholder="Enter item description"
+                placeholderTextColor="#999"
+                multiline
+              />
+            </View>
+
+            {/* Price, SKU, Barcode in a row */}
+            <View style={styles.rowContainer}>
+              {/* Price */}
+              <View style={[styles.fieldContainer, styles.rowItem]}>
+                <Text style={styles.label}>Price ($)</Text>
                 <TextInput
-                  style={styles.modalSearchInput}
-                  placeholder="Search categories..."
-                  value={categorySearch}
-                  onChangeText={setCategorySearch}
+                  style={styles.input}
+                  value={item.price !== undefined ? item.price.toFixed(2) : ''} // Format to 2 decimal places or show empty
+                  onChangeText={value => handleInputChange('price', value)}
+                  placeholder="Variable"
+                  placeholderTextColor="#999"
+                  keyboardType="numeric"
                 />
-                <FlatList
-                  data={filteredCategories}
-                  keyExtractor={(cat) => cat.id}
-                  renderItem={({ item: cat }) => (
-                    <TouchableOpacity 
-                      style={styles.modalItem} 
-                      onPress={() => handleSelectCategory(cat)}
+              </View>
+
+              {/* SKU */}
+              <View style={[styles.fieldContainer, styles.rowItem]}>
+                <Text style={styles.label}>SKU</Text>
+                <TextInput
+                  style={styles.input}
+                  value={item.sku ?? ''} // Handle potential null
+                  onChangeText={value => handleInputChange('sku', value)}
+                  placeholder="Optional SKU"
+                  placeholderTextColor="#999"
+                />
+              </View>
+
+              {/* Barcode */}
+              <View style={[styles.fieldContainer, styles.rowItem]}>
+                <Text style={styles.label}>Barcode (UPC)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={item.barcode ?? ''} // Handle potential null
+                  onChangeText={value => handleInputChange('barcode', value)}
+                  placeholder="Optional Barcode"
+                  placeholderTextColor="#999"
+                  keyboardType="numeric"
+                />
+              </View>
+            </View>
+            
+            {/* Reporting Category */}
+            <View style={styles.fieldContainer}>
+              <Text style={styles.label}>Reporting Category</Text>
+              <TouchableOpacity style={styles.selectorButton} onPress={() => setShowCategoryModal(true)}>
+                <Text style={styles.selectorText}>{selectedCategoryName}</Text>
+                <Ionicons name="chevron-down" size={20} color="#666" />
+              </TouchableOpacity>
+
+              {/* Recent Categories Horizontal List */} 
+              <View style={styles.recentCategoriesContainer}>
+                {recentCategories.length > 0 && (
+                  <>
+                    <Text style={styles.recentLabel}>Recent:</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                      {recentCategories.map(cat => (
+                        <TouchableOpacity
+                          key={cat.id}
+                          style={styles.recentCategoryChip}
+                          onPress={() => handleSelectCategory(cat.id)}
+                        >
+                          <Text style={styles.recentCategoryChipText}>{cat.name}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </>
+                )}
+              </View>
+            </View>
+            
+            {/* Tax Selection */}
+            <View style={styles.fieldContainer}> 
+              <Text style={styles.label}>Taxes</Text>
+              {availableTaxes.length === 0 ? (
+                <Text style={styles.helperText}>No taxes available.</Text>
+              ) : (
+                <View>
+                  {availableTaxes.map(tax => (
+                    <TouchableOpacity
+                      key={tax.id}
+                      style={styles.checkboxContainer}
+                      onPress={() => handleTaxSelection(tax.id)} // Use defined handler
                     >
-                      {highlightMatchingText(cat.name, categorySearch)}
+                      <Ionicons
+                        name={item.taxIds?.includes(tax.id) ? 'checkbox' : 'square-outline'}
+                        size={24}
+                        color={item.taxIds?.includes(tax.id) ? lightTheme.colors.primary : '#ccc'}
+                      />
+                      <Text style={styles.checkboxLabel}>{tax.name} ({tax.percentage}%)</Text>
                     </TouchableOpacity>
-                  )}
-                  ListEmptyComponent={<Text style={styles.modalEmptyText}>No categories found</Text>}
-                  keyboardShouldPersistTaps="handled" // Keep keyboard open while scrolling/tapping
-                />
-                <TouchableOpacity style={styles.modalCloseButton} onPress={() => setShowCategoryModal(false)}>
-                  <Text style={styles.modalCloseButtonText}>Close</Text>
-                </TouchableOpacity>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
-      
-      {/* Cancel Confirmation Modal */}
-      <Modal
-        visible={showCancelModal}
-        animationType="fade"
-        transparent={true}
-        onRequestClose={() => setShowCancelModal(false)}
-      >
-        <TouchableWithoutFeedback onPress={() => setShowCancelModal(false)}>
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback>
-              <View style={styles.confirmModalContent}>
-                <Text style={styles.confirmModalTitle}>Discard Changes?</Text>
-                <Text style={styles.confirmModalText}>
-                  You have unsaved changes. Are you sure you want to discard them?
-                </Text>
-                <View style={styles.confirmModalButtons}>
-                  <TouchableOpacity
-                    style={[styles.confirmModalButton, styles.cancelButton]}
-                    onPress={() => setShowCancelModal(false)}
-                  >
-                    <Text style={styles.cancelButtonText}>Keep Editing</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.confirmModalButton, styles.discardButton]}
-                    onPress={handleConfirmCancel}
-                  >
-                    <Text style={styles.discardButtonText}>Discard</Text>
-                  </TouchableOpacity>
+                  ))}
                 </View>
+              )}
+            </View>
+
+            {/* Modifier Selection (Handles CRV and potentially others) */}
+            <View style={styles.fieldContainer}> 
+              <Text style={styles.label}>Modifiers</Text>
+              {availableModifierLists.length === 0 ? (
+                <Text style={styles.helperText}>No modifier options available.</Text>
+              ) : (
+                <View style={styles.checkboxGroup}> 
+                  {availableModifierLists.map(modifierList => (
+                    <TouchableOpacity
+                      key={modifierList.id}
+                      style={styles.checkboxContainer}
+                      onPress={() => handleModifierSelection(modifierList.id)} // Use defined handler
+                    >
+                      <Ionicons
+                        name={item.modifierListIds?.includes(modifierList.id) ? 'checkbox' : 'square-outline'}
+                        size={24}
+                        color={item.modifierListIds?.includes(modifierList.id) ? lightTheme.colors.primary : '#ccc'}
+                      />
+                      <Text style={styles.checkboxLabel}>{modifierList.name}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+            
+            {/* Add spacing at the bottom */}
+            <View style={{ height: 40 }} />
+          </ScrollView>
+
+          {/* Category Selection Modal */} 
+          <Modal
+            animationType="slide"
+            transparent={true}
+            visible={showCategoryModal}
+            onRequestClose={() => setShowCategoryModal(false)}
+          >
+            <TouchableWithoutFeedback onPress={() => setShowCategoryModal(false)}>
+              <View style={styles.modalOverlay}>
+                <TouchableWithoutFeedback>
+                  <View style={styles.modalContent}>
+                    <Text style={styles.modalTitle}>Select Category</Text>
+                    <TextInput
+                      style={styles.searchInput}
+                      placeholder="Search categories..."
+                      value={categorySearch}
+                      onChangeText={setCategorySearch}
+                    />
+                    <FlatList
+                      data={filteredCategories}
+                      keyExtractor={cat => cat.id}
+                      renderItem={({ item: cat }) => (
+                        <TouchableOpacity
+                          style={styles.modalItem}
+                          onPress={() => {
+                            handleSelectCategory(cat.id);
+                            setShowCategoryModal(false);
+                          }}
+                        >
+                          <Text>{cat.name}</Text>
+                        </TouchableOpacity>
+                      )}
+                      ListEmptyComponent={<Text style={styles.emptyListText}>No matching categories</Text>}
+                    />
+                    <TouchableOpacity
+                      style={styles.closeButton}
+                      onPress={() => setShowCategoryModal(false)}
+                    >
+                      <Text style={styles.closeButtonText}>Close</Text>
+                    </TouchableOpacity>
+                  </View>
+                </TouchableWithoutFeedback>
               </View>
             </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
-    </View>
+          </Modal>
+        </>
+      )}
+    </SafeAreaView>
   );
 }
 
@@ -805,7 +899,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
   },
-  categorySelector: {
+  selectorButton: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -816,7 +910,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     backgroundColor: '#fff',
   },
-  categoryText: {
+  selectorText: {
     fontSize: 16,
     color: '#333',
   },
@@ -875,10 +969,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
   },
   modalContent: {
+    width: '90%',
+    maxWidth: 500,
+    maxHeight: '80%',
     backgroundColor: 'white',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    maxHeight: Dimensions.get('window').height * 0.8,
+    borderRadius: 12,
+    overflow: 'hidden',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -892,6 +988,10 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+    textAlign: 'center',
   },
   closeButton: {
     padding: 4,
@@ -941,7 +1041,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(0,0,0,0.5)',
-    padding: 20,
   },
   confirmModalContent: {
     backgroundColor: 'white',
@@ -1000,29 +1099,6 @@ const styles = StyleSheet.create({
     color: '#333',
     marginLeft: 8,
   },
-  modalOverlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  modalContent: {
-    width: '90%',
-    maxWidth: 500,
-    maxHeight: '80%',
-    backgroundColor: 'white',
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-    textAlign: 'center',
-    color: '#333',
-  },
   modalSearchInput: {
     margin: 12,
     paddingHorizontal: 12,
@@ -1058,41 +1134,53 @@ const styles = StyleSheet.create({
     color: lightTheme.colors.primary,
   },
   recentCategoriesContainer: {
-    marginBottom: 16,
+    marginTop: 10,
   },
-  recentCategoriesTitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 8,
-    color: '#555',
-  },
-  recentCategoriesScroll: {
-    flexDirection: 'row',
-  },
-  recentCategoriesContent: {
-    paddingRight: 16,
+  recentLabel: {
+    fontSize: 12,
+    color: '#777',
+    marginBottom: 5,
   },
   recentCategoryChip: {
-    backgroundColor: '#f0f0f0',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
+    backgroundColor: '#e8f0fe', // Light blue background
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 15,
     marginRight: 8,
-    marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: '#c6d9f8', // Slightly darker blue border
   },
-  recentCategoryChipSelected: {
-    backgroundColor: '#4b9ce3',
-    borderColor: '#3b8cd3',
+  recentCategoryChipText: {
+    fontSize: 13,
+    color: '#335b95', // Darker blue text
   },
-  recentCategoryText: {
-    fontSize: 14,
-    color: '#444',
-    maxWidth: 120,
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
   },
-  recentCategoryTextSelected: {
-    color: 'white',
-    fontWeight: '600',
+  checkboxLabel: {
+    fontSize: 16,
+    color: '#333',
+    marginLeft: 8,
   },
+  selectAllLabel: {
+    fontWeight: 'bold',
+  },
+  checkboxGroup: {},
+  // No minHeight or loadingInSection styles needed anymore
+  rowContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginHorizontal: -4, // Adjust spacing between items if needed
+  },
+  rowItem: {
+    flex: 1,
+    marginHorizontal: 4, // Adjust spacing between items if needed
+  },
+  closeButtonText: { // Added for the modal close button
+    fontSize: 16,
+    fontWeight: '500',
+    color: lightTheme.colors.primary,
+  }
 }); 
