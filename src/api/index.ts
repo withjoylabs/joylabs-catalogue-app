@@ -928,10 +928,10 @@ const api = {
   catalog: {
     getItems: async (page = 1, limit = 20, types = 'ITEM') => {
       try {
-        const endpoint = config.square.endpoints.catalogItems;
-        const url = `${endpoint}?page=${page}&limit=${limit}&types=${encodeURIComponent(types)}`;
+        // Use /api prefix for consistency with CRUD
+        const url = `/api/catalog/items?page=${page}&limit=${limit}&types=${encodeURIComponent(types)}`;
         
-        logger.info('API', 'Fetching catalog items', { page, limit, types });
+        logger.info('API', 'Fetching catalog items via /api endpoint', { page, limit, types });
         
         // Use caching for catalog items with a reasonable TTL
         const ttl = 5 * 60 * 1000; // 5 minutes
@@ -954,8 +954,9 @@ const api = {
     
     getItemById: async (id: string) => {
       try {
-        logger.info('API', `Fetching catalog item by ID: ${id}`);
-        const url = `${config.square.endpoints.catalogItem}/${id}`;
+        logger.info('API', `Fetching catalog item by ID via /api: ${id}`);
+        // Use /api prefix for consistency with CRUD
+        const url = `/api/catalog/items/${id}`; 
         const response = await apiClient.get(url, {
           cache: { ttl: 10 * 60 * 1000 } // Cache individual items longer - 10 minutes
         });
@@ -967,7 +968,7 @@ const api = {
     },
     
     createItem: async (itemData: Partial<any>): Promise<ApiResponse> => {
-      const url = '/v2/catalog/items'; // Plural endpoint for creation
+      const url = '/api/catalog/items'; // Use /api prefix
       try {
         logger.info('API:Catalog', 'Creating new catalog item', { itemName: itemData.name });
         const response = await apiClient.post<any>(url, itemData);
@@ -981,7 +982,7 @@ const api = {
     },
     
     updateItem: async (itemId: string, itemData: Partial<any>): Promise<ApiResponse> => {
-      const url = `/v2/catalog/items/${itemId}`; // Endpoint includes item ID for update
+      const url = `/api/catalog/items/${itemId}`; // Use /api prefix
       try {
         logger.info('API:Catalog', 'Updating catalog item', { itemId });
         const response = await apiClient.put<any>(url, itemData);
@@ -995,7 +996,7 @@ const api = {
     },
     
     deleteItem: async (itemId: string): Promise<ApiResponse> => {
-      const url = `/v2/catalog/items/${itemId}`; // Endpoint includes item ID for deletion
+      const url = `/api/catalog/items/${itemId}`; // Use /api prefix
       try {
         logger.info('API:Catalog', 'Deleting catalog item', { itemId });
         await apiClient.delete(url);
