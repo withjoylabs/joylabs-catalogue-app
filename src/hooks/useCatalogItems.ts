@@ -238,7 +238,7 @@ export const useCatalogItems = () => {
           id: itemId, // Use the actual ITEM id
           type: 'ITEM',
           updated_at: itemUpdatedAt,
-          version: itemData.version || '0', 
+          version: itemData.version, // Include the version from parsed item JSON
           is_deleted: false,
           item_data: {
             ...(itemData.item_data || {}), // Spread item_data fields

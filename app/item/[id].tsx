@@ -111,14 +111,16 @@ export default function ItemDetails() {
     if (key === 'price') {
       const textValue = value as string; // Input value is text
 
+      // If input is empty or explicitly cleared, treat as variable price
       if (textValue === '' || textValue === null || textValue === undefined) {
-        updateItem('price', undefined); // Set to undefined for variable price
+        updateItem('price', undefined);
         return;
       }
 
-      // Remove non-digit characters
+      // Keep only digits
       const digits = textValue.replace(/[^0-9]/g, '');
 
+      // If no digits remain (e.g., input was just '.'), treat as variable
       if (digits === '') {
         updateItem('price', undefined);
         return;
@@ -127,17 +129,21 @@ export default function ItemDetails() {
       // Parse digits as cents
       const cents = parseInt(digits, 10);
 
+      // Handle potential parsing errors (though unlikely with digit filter)
       if (isNaN(cents)) {
-        // Should not happen if digits are correctly filtered, but handle defensively
-        console.warn('Invalid number parsed from digits:', digits);
+        console.warn('Invalid number parsed for price:', digits);
+        // Optionally reset to variable or keep previous state? Resetting for safety.
+        updateItem('price', undefined); 
         return;
-      } else {
-        // Calculate price in dollars
-        const dollars = cents / 100;
-        updateItem('price', dollars);
       }
+
+      // Calculate price in dollars and update state
+      const dollars = cents / 100;
+      updateItem('price', dollars);
+      
     } else {
-      updateItem(key, value as string); // Treat other inputs as strings
+      // Handle other fields normally (treat as strings)
+      updateItem(key, value as string);
     }
   };
 
@@ -194,25 +200,57 @@ export default function ItemDetails() {
     
     try {
       let savedItem;
-      const itemPayload: any = { ...item };
-      if (item.reporting_category_id) {
-        itemPayload.reporting_category = { id: item.reporting_category_id };
-      } else {
-        itemPayload.reporting_category = null; 
-      }
-      delete itemPayload.reporting_category_id;
-      delete itemPayload.category;
-      itemPayload.tax_ids = item.taxIds || []; 
-      itemPayload.modifier_list_info = (item.modifierListIds || []).map(id => ({
-        modifier_list_id: id,
-        enabled: true
-      }));
-      delete itemPayload.modifierListIds;
-      
+      let itemPayload: any; // Declare payload variable
+
       if (isNewItem) {
-        savedItem = await createProduct(itemPayload);
+        // Construct payload specifically for CREATE
+        itemPayload = {
+          name: item.name,
+          sku: item.sku || null, // Ensure null if empty
+          price: item.price, // Pass price (number or undefined)
+          description: item.description || null, // Ensure null if empty
+          isActive: item.isActive, // Typically true for new items
+          images: item.images || [],
+          tax_ids: item.taxIds || [],
+          modifier_list_info: (item.modifierListIds || []).map(id => ({
+            modifier_list_id: id,
+            enabled: true
+          })),
+          reporting_category: item.reporting_category_id ? { id: item.reporting_category_id } : null,
+          // Do NOT include id, version, category, categoryId, updatedAt, createdAt for CREATE
+        };
+        // Remove price if it's undefined (for variable pricing)
+        if (itemPayload.price === undefined) {
+          delete itemPayload.price;
+        }
+        
+        savedItem = await createProduct(itemPayload); 
         Alert.alert('Success', 'Item created successfully');
       } else {
+        // Construct payload for UPDATE (include version)
+        itemPayload = { ...item }; // Start with current state (includes version)
+        if (item.reporting_category_id) {
+          itemPayload.reporting_category = { id: item.reporting_category_id };
+        } else {
+          itemPayload.reporting_category = null; 
+        }
+        // Delete frontend-specific/derived fields before sending
+        delete itemPayload.reporting_category_id;
+        delete itemPayload.category; 
+        delete itemPayload.categoryId; 
+        // Transform taxIds and modifierListIds
+        itemPayload.tax_ids = item.taxIds || []; 
+        itemPayload.modifier_list_info = (item.modifierListIds || []).map(id => ({
+          modifier_list_id: id,
+          enabled: true
+        }));
+        delete itemPayload.modifierListIds;
+        
+        // Remove price if it's undefined (for variable pricing)
+        if (itemPayload.price === undefined) {
+          delete itemPayload.price;
+        }
+
         if (typeof id !== 'string') {
           throw new Error('Invalid item ID for update');
         }
@@ -295,8 +333,12 @@ export default function ItemDetails() {
             // Assumes transformCatalogItemToItem sets modifierListIds based on modifier_list_info
             const initialModifierListIds = fetchedItem.modifierListIds || [];
             
+            // Extract the version from the fetched item
+            const initialVersion = fetchedItem.version; 
+            
             const itemWithReportingId = { 
               ...fetchedItem, 
+              version: initialVersion, // Ensure version is stored in state
               reporting_category_id: initialReportingCategoryId,
               taxIds: initialTaxIds, // Ensure taxIds are set in the state
               modifierListIds: initialModifierListIds // Ensure Modifier IDs are set
@@ -528,7 +570,7 @@ export default function ItemDetails() {
                 navigation.goBack();
               } else {
                 // Fallback if cannot go back (e.g., deep link)
-                navigation.navigate('index'); // Or navigate to a default screen
+                router.push('/'); // Navigate to the root route
               }
             } catch (error: any) {
               console.error('Error deleting item:', error);
@@ -539,7 +581,7 @@ export default function ItemDetails() {
       ],
       { cancelable: true } // Allow dismissing by tapping outside on Android
     );
-  }, [item, deleteProduct, navigation]);
+  }, [item, deleteProduct, navigation, router]);
   
   // Render component for matching text in search results
   const highlightMatchingText = (text: string, query: string) => {
@@ -630,9 +672,10 @@ export default function ItemDetails() {
                 <Text style={styles.label}>Price ($)</Text>
                 <TextInput
                   style={styles.input}
-                  value={item.price !== undefined ? item.price.toFixed(2) : ''} // Format to 2 decimal places or show empty
+                  // Ensure value displays formatted price or empty string for variable
+                  value={item.price !== undefined ? item.price.toFixed(2) : ''} 
                   onChangeText={value => handleInputChange('price', value)}
-                  placeholder="Variable"
+                  placeholder="Variable" // Placeholder indicates variable price when empty
                   placeholderTextColor="#999"
                   keyboardType="numeric"
                 />

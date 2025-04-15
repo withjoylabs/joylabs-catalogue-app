@@ -84,6 +84,7 @@ export interface CatalogItemsResponse extends PaginationCursor {
 // Converted types that match our frontend store
 export interface ConvertedItem {
   id: string;
+  version?: number;
   name: string;
   sku: string | null;
   price?: number;
