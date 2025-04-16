@@ -29,6 +29,8 @@ import { ConvertedItem, ConvertedCategory } from '../../src/types/api';
 import { lightTheme } from '../../src/themes';
 import { getAllCategories, getAllTaxes, getAllModifierLists } from '../../src/database/modernDb'; // Import the new function
 import { getRecentCategoryIds, addRecentCategoryId } from '../../src/utils/recentCategories'; // Import recent category utils
+import { useAppStore } from '../../src/store'; // Import Zustand store
+import logger from '../../src/utils/logger'; // Import logger
 
 // Define type for category used in the picker
 type CategoryPickerItem = { id: string; name: string };
@@ -105,6 +107,9 @@ export default function ItemDetails() {
 
   // State for Modifiers
   const [availableModifierLists, setAvailableModifierLists] = useState<ModifierListPickerItem[]>([]);
+  
+  const itemSaveTriggeredAt = useAppStore((state) => state.itemSaveTriggeredAt);
+  const lastProcessedSaveTrigger = useRef<number | null>(null);
   
   // Define handlers before they are used
   const handleInputChange = (key: keyof ConvertedItem, value: string | number | undefined) => {
@@ -616,6 +621,15 @@ export default function ItemDetails() {
   const getModifierListName = (modifierId: string): string => {
     return availableModifierLists.find(m => m.id === modifierId)?.name || 'Unknown Modifier';
   };
+  
+  // Effect to trigger save based on Zustand state
+  useEffect(() => {
+    if (itemSaveTriggeredAt && itemSaveTriggeredAt !== lastProcessedSaveTrigger.current) {
+      logger.info('ItemScreen', 'Save triggered via Zustand state', { timestamp: itemSaveTriggeredAt });
+      handleSave();
+      lastProcessedSaveTrigger.current = itemSaveTriggeredAt; // Mark this trigger as processed
+    }
+  }, [itemSaveTriggeredAt, handleSave]);
   
   // If loading, show spinner
   if (isLoading) {

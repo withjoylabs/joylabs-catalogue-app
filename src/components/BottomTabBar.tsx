@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, usePathname } from 'expo-router';
+import { useAppStore } from '../store';
 
 type BottomTabBarProps = {
   activeTab: string;
@@ -11,15 +12,13 @@ export default function BottomTabBar({ activeTab }: BottomTabBarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const isItemDetails = pathname.startsWith('/item/');
+  const triggerItemSave = useAppStore((state) => state.triggerItemSave);
   
   // Handle save action when on item details page
   const handleSaveAction = () => {
     if (isItemDetails) {
-      // This sends a message to the item details screen via global event
-      // This is a workaround since we can't directly call the handleSave function
-      // from another component
-      const event = new CustomEvent('item:save');
-      document.dispatchEvent(event);
+      // Trigger save via Zustand store action
+      triggerItemSave();
     } else {
       router.push('/item/new');
     }

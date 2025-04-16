@@ -58,12 +58,13 @@ interface AppState {
   // Scan History state
   scanHistory: ScanHistoryItem[];
   
-  // Connection state
-  isSquareConnected: boolean;
-  
   // Auto-search settings
   autoSearchOnEnter: boolean;
   autoSearchOnTab: boolean;
+  itemSaveTriggeredAt: number | null;
+  
+  // Square Connection State
+  isSquareConnected: boolean;
   
   // Actions
   setProducts: (products: ConvertedItem[]) => void;
@@ -80,8 +81,6 @@ interface AppState {
   setSortBy: (sortBy: 'name' | 'price' | 'date' | 'category') => void;
   setSortOrder: (sortOrder: 'asc' | 'desc') => void;
   
-  setSquareConnected: (isSquareConnected: boolean) => void;
-  
   // Scan History actions
   addScanHistoryItem: (item: ScanHistoryItem) => void;
   clearScanHistory: () => void;
@@ -89,6 +88,13 @@ interface AppState {
   // Auto-search toggles
   toggleAutoSearchOnEnter: () => void;
   toggleAutoSearchOnTab: () => void;
+  triggerItemSave: () => void;
+  
+  // Square Connection Action
+  setSquareConnected: (isConnected: boolean) => void;
+  
+  refreshProducts: () => Promise<void>;
+  loadMoreProducts: () => Promise<void>;
 }
 
 // Create store using zustand with persistence for scanHistory
@@ -115,12 +121,13 @@ export const useAppStore = create<AppState>()(
       // Initial scan history state
       scanHistory: [],
       
-      // Initial connection state
-      isSquareConnected: false,
-      
       // Auto-search defaults and toggles
       autoSearchOnEnter: true,
-      autoSearchOnTab: true,
+      autoSearchOnTab: false,
+      itemSaveTriggeredAt: null,
+
+      // Initial Square Connection state
+      isSquareConnected: false,
       
       // Products actions
       setProducts: (products: ConvertedItem[]) => set({ products }),
@@ -138,9 +145,6 @@ export const useAppStore = create<AppState>()(
       setSearchQuery: (searchQuery: string) => set({ searchQuery }),
       setSortBy: (sortBy: 'name' | 'price' | 'date' | 'category') => set({ sortBy }),
       setSortOrder: (sortOrder: 'asc' | 'desc') => set({ sortOrder }),
-      
-      // Connection actions
-      setSquareConnected: (isSquareConnected: boolean) => set({ isSquareConnected }),
       
       // Scan History actions
       addScanHistoryItem: (item: ScanHistoryItem) => {
@@ -162,15 +166,27 @@ export const useAppStore = create<AppState>()(
       // Auto-search toggles
       toggleAutoSearchOnEnter: () => set((state) => ({ autoSearchOnEnter: !state.autoSearchOnEnter })),
       toggleAutoSearchOnTab: () => set((state) => ({ autoSearchOnTab: !state.autoSearchOnTab })),
+      triggerItemSave: () => set({ itemSaveTriggeredAt: Date.now() }),
+      
+      // Square Connection action implementation
+      setSquareConnected: (isSquareConnected: boolean) => set({ isSquareConnected }),
+
+      // Add placeholders for missing actions
+      refreshProducts: async () => { console.warn('refreshProducts not implemented in store'); },
+      loadMoreProducts: async () => { console.warn('loadMoreProducts not implemented in store'); },
+      
+      // ... rest of the store implementation ...
     }),
     {
-      name: 'app-storage', // unique name for storage
-      storage: createJSONStorage(() => AsyncStorage), // Use AsyncStorage directly
-      partialize: (state) => ({ 
-        scanHistory: state.scanHistory,
-        autoSearchOnEnter: state.autoSearchOnEnter, // Persist settings
-        autoSearchOnTab: state.autoSearchOnTab,     // Persist settings
-      }),
+      name: 'app-storage', // AsyncStorage key
+      storage: createJSONStorage(() => AsyncStorage),
+      // Only persist a subset of the state
+      partialize: (state) =>
+        Object.fromEntries(
+          Object.entries(state).filter(([key]) =>
+            ['scanHistory', 'autoSearchOnEnter', 'autoSearchOnTab'].includes(key)
+          )
+        ),
     }
   )
 );

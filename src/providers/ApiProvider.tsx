@@ -1,9 +1,15 @@
 import React, { useEffect, createContext, useContext, useState } from 'react';
 import { useSquareAuth } from '../hooks/useSquareAuth';
 import logger from '../utils/logger';
-import api from '../api';
-import { useAppStore } from '../store';
+import apiClient, { ApiResponse } from '../api';
 import tokenService from '../services/tokenService';
+import { useAppStore } from '../store';
+import {
+  transformCatalogItemToItem, 
+  transformCatalogCategoryToCategory 
+} from '../utils/catalogTransformers';
+import { CatalogObject, ConvertedItem, ConvertedCategory } from '../types/api';
+import { Category } from '../store';
 
 // Create context with initial values
 interface ApiContextType {
@@ -44,8 +50,8 @@ export const ApiProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Minimum time between refreshes (5 minutes)
   const MIN_REFRESH_INTERVAL = 5 * 60 * 1000;
   
-  // Access the app store to sync Square connection state
-  const { setSquareConnected } = useAppStore();
+  // Get store actions
+  const { setProducts, setCategories } = useAppStore();
   
   // Initialize Square auth hook
   const { 
@@ -57,11 +63,6 @@ export const ApiProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     disconnect,
   } = useSquareAuth();
   
-  // Update app store when connection status changes
-  useEffect(() => {
-    setSquareConnected(isConnected);
-  }, [isConnected, setSquareConnected]);
-
   // Verify connection status on mount
   useEffect(() => {
     if (!initialConnectionChecked) {
@@ -114,13 +115,23 @@ export const ApiProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Refresh categories if specified
       if (refreshType === 'categories' || refreshType === 'all') {
         logger.info('ApiProvider', 'Refreshing catalog categories');
-        await api.catalog.getCategories()
-          .then(response => {
-            logger.info('ApiProvider', 'Categories refresh response', { 
-              success: response.success,
-              hasObjects: !!response.objects,
-              objectCount: response.objects?.length || 0
-            });
+        await apiClient.get('/v2/catalog/list', { params: { types: 'CATEGORY' } })
+          .then((response) => {
+             if (response?.data?.objects && Array.isArray(response.data.objects)) {
+               const rawCategories = response.data.objects as CatalogObject[];
+               const transformedCategories = rawCategories
+                 .map(transformCatalogCategoryToCategory)
+                 .filter((cat): cat is ConvertedCategory => cat !== null);
+               
+               setCategories(transformedCategories as Category[]); 
+               
+               logger.info('ApiProvider', 'Categories refresh processed', { 
+                 success: true, 
+                 objectCount: transformedCategories.length
+               });
+             } else {
+                logger.warn('ApiProvider', 'Categories refresh response missing expected data', {responseData: response?.data});
+             }
           })
           .catch((error: Error) => {
             logger.error('ApiProvider', 'Failed to refresh categories', { error: error.message });
@@ -130,7 +141,24 @@ export const ApiProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Refresh catalog items if specified
       if (refreshType === 'items' || refreshType === 'all') {
         logger.info('ApiProvider', 'Refreshing catalog items');
-        await api.catalog.getItems(undefined, 100, 'ITEM')  // Only fetch ITEM type
+        await apiClient.get('/v2/catalog/list', { params: { types: 'ITEM', limit: 100 } })
+          .then((response) => {
+             if (response?.data?.objects && Array.isArray(response.data.objects)) {
+               const rawItems = response.data.objects as CatalogObject[];
+               const transformedItems = rawItems
+                 .map(item => transformCatalogItemToItem(item))
+                 .filter((item): item is ConvertedItem => item !== null);
+                 
+               setProducts(transformedItems);
+               
+               logger.info('ApiProvider', 'Items refresh processed', { 
+                 success: true, 
+                 objectCount: transformedItems.length
+               });
+             } else {
+               logger.warn('ApiProvider', 'Items refresh response missing expected data', {responseData: response?.data});
+             }
+          })
           .catch((error: Error) => {
             logger.error('ApiProvider', 'Failed to refresh catalog items', { error: error.message });
           });

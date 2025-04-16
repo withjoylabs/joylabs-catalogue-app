@@ -28,6 +28,7 @@ This guide provides instructions and rules for developing the JoyLabs frontend a
 - **Square Redirect URL MUST be HTTPS:** `https://gki8kva7e3.execute-api.us-west-1.amazonaws.com/production/api/auth/square/callback` (Used during OAuth flow).
 - **Use deeplinking** for Expo development callbacks (e.g., `joylabs://square-callback`). NO custom web URLs like `joylabs.com` for callbacks.
 - **Be thorough!** Check all dependencies and potential impacts of your changes before declaring a fix or feature complete.
+- **Development Server Port:** Always launch the Expo development server on Port **8081**. If the port is occupied, shut down the existing server (`Ctrl+C` in the terminal) and restart it. Do not attempt to use the next available port (e.g., 8082) as backend configurations might rely on port 8081.
 
 ## API Architecture & Catalog Operations
 
@@ -87,18 +88,28 @@ The application uses a bottom tab bar for primary navigation upon launch.
 
 ### Path to Sync Functionality
 1. App Launch → Bottom Tab Bar
-2. Tap **"Profile"** Tab (Rightmost Icon)
-3. Profile Screen → Top Tab Navigation
-4. Tap **"Sync"** Tab
+2. Tap **"Profile"** Tab (Rightmost Icon) -> Navigates to `app/(profile)/index.tsx`
+3. Profile Screen (`app/(profile)/index.tsx`) → Top Tab Navigation (managed by `app/(profile)/_layout.tsx`)
+4. Tap **"Sync Catalog"** Tab -> Displays `app/(profile)/sync.tsx`
 
 ### Key Pages & Files Reference
 
-#### Profile Screen & Tabs
-- **File:** `app/profile.tsx`
-- **Contains Top Tabs:** "profile", "settings", "categories", "sync"
+#### Profile Screen & Tabs Layout
+- **Layout File:** `app/(profile)/_layout.tsx`
+- **Navigator:** Uses `@react-navigation/material-top-tabs`'s `createMaterialTopTabNavigator`.
+- **Manages Tabs:** "Profile" (`index.tsx`), "Settings" (`settings.tsx`), "Sync Catalog" (`sync.tsx`). Includes header, back button, and debug tools logic previously in `app/profile.tsx`.
+
+#### Profile Tab Content
+- **File:** `app/(profile)/index.tsx`
+- **Purpose:** Displays user info and Square connection status/actions.
+
+#### Settings Tab Content
+- **File:** `app/(profile)/settings.tsx`
+- **Purpose:** Displays app settings toggles (e.g., Notifications, Dark Mode).
 
 #### Sync Tab Content
-- **Location:** Within the "Sync" tab on the Profile screen.
+- **File:** `app/(profile)/sync.tsx`
+- **Purpose:** Displays sync status and logs components.
 - **Components:**
   - `CatalogSyncStatus` (`src/components/CatalogSyncStatus.tsx`)
   - `SyncLogsView` (`src/components/SyncLogsView.tsx`)
@@ -121,15 +132,15 @@ The application uses a bottom tab bar for primary navigation upon launch.
 
 ### Catalog Categories Browsing
 1. App Launch → Bottom Tab Bar
-2. Tap **"Profile"** Tab
-3. Profile Screen → Top Tab Navigation
-4. Tap **"Categories"** Tab
+2. Tap **"Profile"** Tab -> Navigates to `app/(profile)/index.tsx`
+3. Profile Screen (`app/(profile)/index.tsx`) → Top Tab Navigation (managed by `app/(profile)/_layout.tsx`)
+4. Tap **"Categories"** Tab (*Note: This tab doesn't exist in the current `app/(profile)/_layout.tsx` setup - verify requirement*)
 
 ### Settings Access
 1. App Launch → Bottom Tab Bar
-2. Tap **"Profile"** Tab
-3. Profile Screen → Top Tab Navigation
-4. Tap **"Settings"** Tab
+2. Tap **"Profile"** Tab -> Navigates to `app/(profile)/index.tsx`
+3. Profile Screen (`app/(profile)/index.tsx`) → Top Tab Navigation (managed by `app/(profile)/_layout.tsx`)
+4. Tap **"Settings"** Tab -> Displays `app/(profile)/settings.tsx`
 
 ### Core Code References
 - **Sync Logic:** `src/database/catalogSync.ts` (May need refactoring if sync logic changes due to backend proxy)
@@ -204,16 +215,20 @@ This section provides a summary of key files and their roles within the JoyLabs 
         - **Authentication:** Uses `tokenService.getAuthHeaders()` to add the Bearer token.
         - **Square Version Header:** Adds the required `Square-Version` header.
         - **Error Handling:** Includes specific error handling (`handleDirectSquareError`) for Square API responses (parsing `errors[0].detail`, etc.).
+\
+        - Error Handling:** Includes specific error handling (`handleDirectSquareError`) for Square API responses (parsing `errors[0].detail`, etc.).
 - **Structure:**
     - Defines common types (`ApiResponse`, `ApiError`, `RequestConfig`).
     - Implements caching utilities (`getCacheKey`, `getFromCache`, `saveToCache`, `clearCache`).
     - Creates the `apiClient` instance with interceptors.
-    - Exports an `api` object containing grouped endpoint functions (e.g., `api.auth`, `api.catalog`, `api.products`). These mostly use `apiClient`.
-    - Exports `directSquareApi` object with functions for direct Square calls (`upsertCatalogObject`, `deleteCatalogObject`, `retrieveCatalogObject`, `fetchCatalogPage`). These are used primarily by `useCatalogItems` and `catalogSync`.
+    - **Exports `apiClient` as the default export.**
+    - **Exports `directSquareApi` as a named export** containing functions for direct Square calls (`upsertCatalogObject`, `deleteCatalogObject`, `retrieveCatalogObject`, `fetchCatalogPage`). These are used primarily by `useCatalogItems` and `catalogSync`.
+    - **Does NOT export a structured `api` object with grouped endpoints (e.g., `api.catalog`).** Calls to the proxied backend should be made using standard `apiClient.get()`, `apiClient.post()`, etc.
 - **Token Management:** Relies heavily on `src/services/tokenService.ts` for storing, retrieving, validating, and refreshing tokens.
 - **Logging:** Uses `src/utils/logger.ts` extensively for debugging requests, responses, cache operations, and errors. 
 
 ### `src/utils/catalogTransformers.ts`
+
 
 - **Purpose:** Provides utility functions to convert data structures between the Square Catalog API format (`CatalogObject`, `snake_case`) and the internal frontend format (`ConvertedItem`, `ConvertedCategory`, `camelCase`). This is essential for displaying API data in the UI and for sending UI data back to the API for saving.
 - **Key Functions:**
@@ -256,14 +271,11 @@ This section provides a summary of key files and their roles within the JoyLabs 
 *   **Context Value:** Exposes `isConnected`, `merchantId`, `isLoading`, `error` (from `useSquareAuth`), `connectToSquare`/`disconnectFromSquare` (from `useSquareAuth`), `refreshData` (fetches items/categories via `apiClient` with rate-limiting), and `verifyConnection` (uses `tokenService`).
 *   **State/Logic:**
     *   Instantiates `useSquareAuth` for core state/actions.
-    *   Synchronizes `isConnected` state with Zustand store (`setSquareConnected`) - **Redundant state.**
     *   Performs an initial connection check on mount using `tokenService` (mainly for logging).
-    *   Implements `refreshData` with time-based throttling.
+    *   Implements `refreshData` which fetches data via `apiClient`, transforms it, and updates the Zustand store (`useAppStore`) using `setProducts`/`setCategories`.
     *   Implements `verifyConnection` using `tokenService`.
-*   **Dependencies:** `react`, `useSquareAuth`, `logger`, `api`, `useAppStore`, `tokenService`.
+*   **Dependencies:** `react`, `useSquareAuth`, `logger`, `apiClient`, `useAppStore`, `tokenService`, `catalogTransformers`, types.
 *   **Potential Areas:**
-    *   **Redundant State:** Connection status exists in `useSquareAuth`, this provider, *and* Zustand store. Simplify to a single source of truth.
-    *   **`refreshData` Flow:** How results update global state is unclear from the provider itself. Consider having it directly trigger state updates.
     *   **Initial Check:** Initial connection check `useEffect` adds minor complexity, primarily for logging.
 
 *   **Configuration:** Relies on `../config`.
@@ -278,6 +290,33 @@ This section provides a summary of key files and their roles within the JoyLabs 
 *   **Potential Areas:**
     *   **Simplicity:** Could potentially be integrated into `modernDb` or root layout loading logic if separate DB loading UI isn't strictly needed.
     *   **`useSuspense={false}`:** Standard choice but prevents use of React Suspense for DB loading state in consuming components.
+
+### `src/components/CatalogSyncStatus.tsx`
+
+*   **Purpose:** Displays the current catalog synchronization status (last sync time, progress if syncing, errors) and provides controls to initiate a full sync. Includes debug tools for testing and resetting sync status.
+*   **State Management:**
+    *   Uses `useState` to manage the sync status (`status`), loading state (`loading`), debug tools visibility (`showDebug`), and DB inspection state (`isInspectingDb`).
+    *   Uses `useFocusEffect` combined with `useCallback` to fetch the sync status when the screen is focused and to set up polling (every 2 seconds) via `setInterval` to refresh the status if a sync is currently in progress (`status.isSyncing`).
+*   **Data Fetching & Actions:**
+    *   `fetchSyncStatus`: Reads the sync status directly from the `sync_status` table in the SQLite database using `modernDb.getFirstAsync`.
+    *   `startFullSync`: Initiates a full sync by calling `catalogSyncService.initialize()` and `catalogSyncService.runFullSync()`. Checks for a valid token (`useSquareAuth`) before starting. Refreshes status afterwards.
+    *   `syncCategoriesOnly`: (Commented out) Placeholder for a potential future feature to sync only categories.
+    *   `testApi`: Calls a health check endpoint (`api.webhooks.healthCheck()`) - **Note:** This seems incorrect, as the `/api` endpoints are for OAuth/backend logic, not catalog/webhooks. It should likely use a proxied catalog endpoint or a dedicated health check endpoint.
+    *   `resetSync`: Resets the sync status flags in the `sync_status` table via direct SQL (`modernDb.runAsync`).
+    *   `handleInspectDatabase` (Debug): Fetches the first 10 raw items from the DB (`modernDb.getFirstTenItemsRaw`) and logs them to the console.
+*   **User Interface:**
+    *   Displays "Last Sync" time, formatted using `toLocaleString`.
+    *   Shows sync progress (`X / Y (Z%)`) if `isSyncing` is true.
+    *   Displays errors from `syncError`.
+    *   Provides a "Full Sync" button (disabled during sync).
+    *   Includes a "Bug" icon button to toggle visibility of debug actions ("Test API", "Reset Sync", "Inspect DB").
+*   **Dependencies:** `react`, `react-native`, `@expo/vector-icons`, `@react-navigation/native`, `../database/modernDb`, `../database/catalogSync`, `../hooks/useSquareAuth`, `../api`, `../utils/logger`.
+*   **Potential Areas:**
+    *   **Polling:** Using `setInterval` for polling can be inefficient and might not be necessary if sync progress updates could be pushed or observed differently (e.g., via Zustand state updated by the sync service).
+    *   **Direct DB Access:** The component directly queries and updates the `sync_status` table. It might be cleaner if `catalogSyncService` exposed functions or state for reading status and resetting, centralizing DB interactions.
+    *   **`testApi` Endpoint:** The API endpoint used for testing (`api.webhooks.healthCheck()`) seems incorrect for verifying general API connectivity to the proxied backend or Square. A call to `/api/health` or `/v2/catalog/list` (with minimal params) might be more appropriate.
+    *   **Commented Code:** The `syncCategoriesOnly` function is commented out. Decide if it's needed or should be removed.
+    *   **Debug Logic:** Consider conditional compilation or other methods to remove debug tools (`testApi`, `resetSync`, `handleInspectDatabase`) from production builds.
 
 ### `src/components/SyncStatusComponent.tsx` (Generated by AI Audit - Please Verify)
 
@@ -295,21 +334,28 @@ This section provides a summary of key files and their roles within the JoyLabs 
     *   **Debug Code:** Consider conditional compilation.
     *   **Type Casting:** Ensure `CurrentSyncStatus` type matches service.
 
-### `src/components/SyncLogsView.tsx` (Generated by AI Audit - Please Verify)
+### `src/components/SyncLogsView.tsx`
 
-*   **Purpose:** Displays a list of sync logs fetched from the local DB, with options to refresh, export, and clear.
-*   **Data Fetching:** Uses `modernDb.getDatabase` to query the `sync_logs` table (creates table if not exists - **out of place?**). Fetches latest 100 logs. Uses `useFocusEffect` to refresh logs when screen is focused.
-*   **State Management:** `useState` for `logs`, `loading`, `exporting`.
-*   **UI:** `FlatList` to render logs. `renderLogItem` formats timestamp, message, data, and color-codes level. Shows empty state.
-*   **Actions:**
-    *   `Refresh`: Calls `loadLogs`.
-    *   `Export`: Formats logs to JSON, saves to temp file (`FileSystem`), shares via `Sharing.shareAsync`.
-    *   `Clear`: Shows confirmation `Alert`, runs `DELETE FROM sync_logs` via `modernDb`.
-*   **Dependencies:** `react`, `react-native`, icons, `modernDb`, `logger`, `expo-file-system`, `expo-sharing`, `@react-navigation/native`.
+*   **Purpose:** Displays a list of synchronization log entries fetched from the local database (`sync_logs` table). Provides actions to refresh the logs, export them to a JSON file, and clear all logs from the database.
+*   **State Management:**
+    *   Uses `useState` to store the fetched log entries (`logs`), loading state (`loading`), and exporting state (`exporting`).
+    *   Uses `useFocusEffect` with `useCallback` to automatically call `loadLogs` whenever the screen containing this component gains focus.
+*   **Data Fetching & Actions:**
+    *   `loadLogs`: Fetches the latest 100 log entries from the `sync_logs` table using `modernDb.getDatabase().getAllAsync`, ordering by timestamp descending. Assumes the table exists.
+    *   `exportLogs`: Formats the currently displayed `logs` state into a JSON string. Uses `expo-file-system` to write the JSON to a temporary file in the cache directory. Uses `expo-sharing` to open the native share sheet for the created JSON file. Handles cases where sharing might not be available.
+    *   `clearLogs`: Shows a confirmation `Alert`. If confirmed, executes a `DELETE FROM sync_logs` SQL command using `modernDb.getDatabase().runAsync`. Clears the local `logs` state.
+*   **User Interface:**
+    *   Displays a header with the title "Sync Logs" and action buttons (Refresh, Export, Clear). Buttons are disabled appropriately based on loading/exporting state or if there are no logs.
+    *   Uses a `FlatList` to render the log entries.
+    *   `renderLogItem`: Renders each log entry, formatting the timestamp (`toLocaleString`), displaying the log level (color-coded using `getLevelColor`), the message, and optionally the first few lines of associated data (`item.data`).
+    *   `renderEmptyState`: Shows an icon and text ("No sync logs available") when the log list is empty.
+    *   Shows an `ActivityIndicator` while loading or exporting.
+*   **Dependencies:** `react`, `react-native`, `@expo/vector-icons`, `../database/modernDb`, `../utils/logger`, `expo-file-system`, `expo-sharing`, `@react-navigation/native`.
 *   **Potential Areas:**
-    *   **Log Table Creation:** Should be in DB initialization.
-    *   **Log Storage:** SQLite is used; consider alternatives if logs become extremely large. Limit is 100 entries displayed.
-    *   **Performance:** Rendering many/large logs might be slow; consider optimizations.
+    *   **Error Handling:** Assumes the `sync_logs` table exists. While `modernDb` likely creates it on init, adding a check or more specific error handling within `loadLogs` could make it more robust.
+    *   **Log Limit:** Hardcoded limit of 100 logs fetched. Consider if pagination or a larger limit is needed, or if 100 is sufficient for debugging purposes.
+    *   **Performance:** Rendering very long log messages or large `data` payloads could impact `FlatList` performance. The `numberOfLines={3}` on the data helps, but very large datasets might still be an issue.
+    *   **Export Scope:** Exports only the currently loaded 100 logs. If users need to export *all* historical logs, the `exportLogs` function would need modification to fetch all logs from the DB instead of using the `logs` state.
 
 ### `src/components/BottomTabBar.tsx` (Generated by AI Audit - Please Verify)
 
@@ -318,10 +364,10 @@ This section provides a summary of key files and their roles within the JoyLabs 
 *   **UI:** Standard tabs ('Scan', 'Search', 'Labels', 'Profile') + FAB.
 *   **FAB Behavior:** Acts as 'Add Item' normally, changes to 'Save Item' on `/item/...` screens.
 *   **Save Action:** Dispatches global `CustomEvent('item:save')` to trigger save on item screen (workaround).
-*   **Dependencies:** `react`, `react-native`, icons, `expo-router`.
+*   **Save Action:** Triggers save on item screen via Zustand store action (`triggerItemSave`).
+*   **Dependencies:** `react`, `react-native`, icons, `expo-router`, `../store`.
 *   **Potential Areas:**
     *   Reliability of `activeTab` prop vs. router state.
-    *   Global event for save action (consider state management/context).
     *   Hardcoded routes.
 
 ### `src/components/ProfileTopTabs.tsx` (Generated by AI Audit - Please Verify)
@@ -339,66 +385,4 @@ This section provides a summary of key files and their roles within the JoyLabs 
 
 *   **Purpose:** Custom logging utility with levels, console output, in-memory buffering, AsyncStorage persistence, and file export.
 *   **Features:**
-    *   Levels: `DEBUG`, `INFO`, `WARN`, `ERROR`, `NONE`.
-    *   Level Source: Log level is set from `config.logging.level` during initialization.
-    *   Console Output: Conditional based on `__DEV__` / level (always logs `ERROR` and `SquareAuth` tags).
-    *   In-Memory: Stores latest `MAX_LOG_SIZE` (100) logs.
-    *   Persistence: Saves logs to `AsyncStorage` **only on ERROR**.
-    *   Export: Writes in-memory logs to `app_logs.txt` via `FileSystem`.
-*   **Dependencies:** `expo-file-system`, `@react-native-async-storage/async-storage`, `../config`.
-*   **Potential Areas:**
-    *   No log file rotation for exports.
-    *   Discrepancy with `SyncLogsView` (uses SQLite `sync_logs` table - separate mechanism?).
-    *   Data serialization method (`JSON.parse(JSON.stringify())`).
-    *   Performance impact of `persistLogs` on every error.
-
-### `src/config.ts` (Generated by AI Audit - Please Verify)
-
-*   **Purpose:** Centralizes application configuration (API URLs, Square ID, etc.).
-*   **Structure:** Exports a single `config` object.
-*   **Key Values:** Hardcoded production values for `api.baseUrl`, `square.appId`. Defines various backend/Square endpoint URLs. Sets `app.isDevMode=false`, `logging.level='warn'`.
-*   **Platform Difference:** Uses `Platform.OS` for Square callback URL (`joylabs://...` for iOS, backend URL otherwise).
-*   **Dependencies:** `react-native` (`Platform`), `expo-constants`.
-*   **Potential Areas:**
-    *   Hardcoded values limit flexibility (vs. environment variables).
-    *   Callback URL platform logic needs verification against OAuth flow.
-
-### `src/utils/recentCategories.ts` (Generated by AI Audit - Please Verify)
-
-*   **Purpose:** Manages a list of recently used category IDs using AsyncStorage.
-*   **Functions:**
-    *   `getRecentCategoryIds()`: Retrieves the list (array of strings) from AsyncStorage.
-    *   `addRecentCategoryId(id)`: Adds an ID to the front of the list, ensures uniqueness, limits size to `MAX_RECENT_CATEGORIES` (10), and saves back to AsyncStorage.
-*   **Storage:** Uses `AsyncStorage` (key: `RECENT_CATEGORY_IDS_KEY`).
-*   **Dependencies:** `AsyncStorage`, `logger`.
-*   **Potential Areas:**
-    *   Error handling in `add` logs but doesn't throw.
-
-### `src/types/api.ts` (Generated by AI Audit - Please Verify)
-
-*   **Purpose:** Defines TypeScript interfaces for API interactions (Square, backend) and internal data models.
-*   **Interface Groups:**
-    *   Generic Wrappers: `ApiResponse`, `ApiError`, `ErrorResponse`.
-    *   Pagination: `PaginationCursor`.
-    *   Auth: `AuthTokenResponse`.
-    *   Raw Square Catalog: `CatalogObject`, `CatalogItemData`, `CatalogCategoryData`, `CatalogImage` (reflect Square API structure).
-    *   Frontend Models: `ConvertedItem`, `ConvertedCategory` (internal `camelCase` representations used in UI/store).
-    *   Webhooks: `WebhookData`.
-*   **Role:** Provides type safety for API calls, data transformation (`catalogTransformers`), DB storage, and UI/state.
-*   **Dependencies:** None.
-*   **Potential Areas:**
-    *   `[key: string]: any` in `CatalogObject` reduces type safety.
-    *   Ensure interface fields match actual API responses/usage.
-
-### `src/types/index.ts` (Generated by AI Audit - Please Verify)
-
-*   **Purpose:** Defines additional common application types.
-*   **Key Interfaces:**
-    *   `Module`: Defines app sections/modules (usage unclear).
-    *   `User`: Basic user info.
-    *   `AppTheme`: Structure for UI theme (colors, spacing, fonts).
-    *   `CatalogueItem`: **Potentially redundant/outdated item structure.** Differs from `ConvertedItem`. Needs clarification.
-    *   `ScanHistoryItem`: Extends `ConvertedItem` with scan-specific info (`scanId`, `scanTime`).
-*   **Dependencies:** `./api.ts`.
-*   **Potential Areas:**
-    *   Clarify or remove `CatalogueItem` due to potential overlap/confusion with `ConvertedItem`.
+    *   Levels: `DEBUG`, `INFO`, `WARN`, `
