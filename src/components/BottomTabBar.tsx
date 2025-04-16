@@ -46,11 +46,13 @@ export default function BottomTabBar({ activeTab }: BottomTabBarProps) {
         onPress={() => router.push('/search')}
       >
         <Ionicons 
-          name="search" 
+          name={activeTab === 'search' ? 'search' : 'search-outline'} 
           size={24} 
-          color="#8E8E93" 
+          color={activeTab === 'search' ? '#007AFF' : '#8E8E93'} 
         />
-        <Text style={styles.tabLabel}>Search</Text>
+        <Text style={[styles.tabLabel, activeTab === 'search' && styles.activeTabLabel]}>
+          Search
+        </Text>
       </TouchableOpacity>
       
       {/* Floating action button - changes to a save button on item details screen */}

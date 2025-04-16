@@ -26,27 +26,8 @@ export default function SyncLogsView() {
       setLoading(true);
       const db = await modernDb.getDatabase();
       
-      // Check if logs table exists
-      const tablesResult = await db.getAllAsync<{ name: string }>(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='sync_logs'"
-      );
-      
-      // Create table if it doesn't exist
-      if (!tablesResult.some(t => t.name === 'sync_logs')) {
-        await db.runAsync(`
-          CREATE TABLE IF NOT EXISTS sync_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp TEXT NOT NULL,
-            level TEXT NOT NULL,
-            message TEXT NOT NULL,
-            data TEXT
-          )
-        `);
-        setLogs([]);
-        return;
-      }
-      
       // Fetch logs ordered by newest first
+      // Assume sync_logs table exists as it should be created during DB initialization
       const result = await db.getAllAsync<LogEntry>(
         `SELECT id, timestamp, level, message, data 
          FROM sync_logs 

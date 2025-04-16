@@ -1,5 +1,6 @@
 import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import config from '../config'; // Import the configuration
 
 // Log levels with numeric values for easy comparison
 export enum LogLevel {
@@ -13,7 +14,6 @@ export enum LogLevel {
 // Configuration
 const LOG_STORAGE_KEY = 'app_logs';
 const MAX_LOG_SIZE = 100; // Maximum number of logs to keep in storage
-const DEFAULT_LOG_LEVEL = LogLevel.DEBUG; // Changed to DEBUG to show all logs
 const EXPORT_PATH = FileSystem.documentDirectory + 'app_logs.txt';
 
 // Log entry interface
@@ -27,23 +27,29 @@ interface LogEntry {
 
 // In-memory log storage
 let memoryLogs: LogEntry[] = [];
-let currentLogLevel = DEFAULT_LOG_LEVEL;
+let currentLogLevel: LogLevel; // Will be set by initLogger
+
+// Helper to convert config string level to LogLevel enum
+const getLogLevelFromString = (levelString: string): LogLevel => {
+  switch (levelString?.toLowerCase()) {
+    case 'debug': return LogLevel.DEBUG;
+    case 'info': return LogLevel.INFO;
+    case 'warn': return LogLevel.WARN;
+    case 'error': return LogLevel.ERROR;
+    case 'none': return LogLevel.NONE;
+    default:
+      console.warn(`Invalid log level in config: "${levelString}". Defaulting to WARN.`);
+      return LogLevel.WARN; // Default to WARN if config value is invalid
+  }
+};
 
 // Initialize logger
-export const initLogger = async (logLevel?: LogLevel): Promise<void> => {
+export const initLogger = async (): Promise<void> => {
   try {
-    // Set log level from parameter or AsyncStorage
-    if (logLevel !== undefined) {
-      currentLogLevel = logLevel;
-      await AsyncStorage.setItem('app_log_level', logLevel.toString());
-    } else {
-      const storedLevel = await AsyncStorage.getItem('app_log_level');
-      if (storedLevel !== null) {
-        currentLogLevel = parseInt(storedLevel, 10);
-      }
-    }
+    // Set log level directly from config
+    currentLogLevel = getLogLevelFromString(config.logging.level);
     
-    // Load any cached logs
+    // Load any cached logs (persisted entries, not level setting)
     await loadLogs();
     
     // Log initialization

@@ -4,11 +4,10 @@ import { MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import catalogSyncService, { SyncStatus } from '../database/catalogSync';
 import logger from '../utils/logger';
 import { formatDistanceToNow } from 'date-fns';
-import * as Network from 'expo-network';
 import api from '../api';
 import ProgressBar from 'react-native-progress/Bar';
 import * as modernDb from '../database/modernDb';
-import * as SecureStore from 'expo-secure-store';
+import { directSquareApi } from '../api';
 
 // Define interface for merchant info and location data
 interface MerchantInfo {
@@ -30,13 +29,8 @@ interface Location {
   type?: string;
 }
 
-// Update SyncStatus type if needed locally, or rely on imported one if modified
-type CurrentSyncStatus = SyncStatus & { 
-  last_page_cursor?: string | null; 
-};
-
 const SyncStatusComponent: React.FC = () => {
-  const [status, setStatus] = useState<CurrentSyncStatus | null>(null);
+  const [status, setStatus] = useState<SyncStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showDebugOptions, setShowDebugOptions] = useState(false);
@@ -52,7 +46,7 @@ const SyncStatusComponent: React.FC = () => {
   const refreshStatus = useCallback(async () => {
     try {
       const currentStatus = await catalogSyncService.getSyncStatus();
-      setStatus(currentStatus as CurrentSyncStatus); // Cast might be needed if type not updated in service
+      setStatus(currentStatus as SyncStatus); // Cast might be needed if type not updated in service
       setError(null); // Clear general error on successful status fetch
     } catch (err) {
       const msg = `Error fetching sync status: ${err instanceof Error ? err.message : String(err)}`;
@@ -205,13 +199,12 @@ const SyncStatusComponent: React.FC = () => {
   const handleTestApi = async () => {
     setApiTestResult('Testing...');
     try {
-      // Simple test: Fetch first page with limit 1
-      const response = await api.fetchCatalogPage(1, null, 'ITEM');
-      setApiTestResult(`API Test OK: Success=${response.success}, Objects=${response.objects?.length}, Cursor=${response.cursor ? 'Yes' : 'No'}`);
-    } catch (err) {
-      const msg = `API Test Failed: ${err instanceof Error ? err.message : String(err)}`;
-      logger.error('SyncStatusComponent', msg, { error: err });
-      setApiTestResult(msg);
+      // Simple check to see if we can hit the catalog list endpoint
+      await directSquareApi.fetchCatalogPage(1, undefined, 'CATEGORY');
+      setApiTestResult('Success');
+    } catch (err: any) {
+      logger.error('SyncStatusComponent', 'API Test Failed', { err });
+      setApiTestResult(`Failed: ${err.message || 'Unknown error'}`);
     }
   };
 
@@ -381,7 +374,7 @@ const SyncStatusComponent: React.FC = () => {
           {status?.isSyncing ? (
              <ActivityIndicator size="small" color="#fff" />
           ) : (
-             <FontAwesome5 name="sync-alt" size={16} color="#fff" />
+             <MaterialIcons name="sync" size={20} color="#fff" />
           )}
           <Text style={styles.buttonText}>{status?.isSyncing ? 'Sync in Progress' : 'Start Full Sync'}</Text>
         </TouchableOpacity>
@@ -391,7 +384,7 @@ const SyncStatusComponent: React.FC = () => {
           style={styles.debugToggleButton}
           onPress={() => setShowDebugOptions(!showDebugOptions)}
         >
-          <FontAwesome5 name="bug" size={18} color={showDebugOptions ? "#3b82f6" : "#6b7280"} />
+          <MaterialIcons name="bug-report" size={20} color={showDebugOptions ? "#3b82f6" : "#6b7280"} />
         </TouchableOpacity>
       </View>
 
