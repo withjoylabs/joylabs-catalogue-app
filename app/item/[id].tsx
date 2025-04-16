@@ -41,6 +41,7 @@ type ModifierListPickerItem = { id: string; name: string }; // Used for both CRV
 const EMPTY_ITEM: ConvertedItem = {
   id: '',
   name: '',
+  variationName: 'Regular',
   sku: '',
   price: undefined,
   description: '',
@@ -206,17 +207,17 @@ export default function ItemDetails() {
         // Construct payload specifically for CREATE
         itemPayload = {
           name: item.name,
+          abbreviation: item.abbreviation || null,
+          variationName: item.variationName || 'Regular',
           sku: item.sku || null, // Ensure null if empty
           price: item.price, // Pass price (number or undefined)
           description: item.description || null, // Ensure null if empty
           isActive: item.isActive, // Typically true for new items
           images: item.images || [],
-          tax_ids: item.taxIds || [],
-          modifier_list_info: (item.modifierListIds || []).map(id => ({
-            modifier_list_id: id,
-            enabled: true
-          })),
-          reporting_category: item.reporting_category_id ? { id: item.reporting_category_id } : null,
+          barcode: item.barcode || null,         // Pass barcode
+          taxIds: item.taxIds || [],             // Pass taxIds (camelCase)
+          modifierListIds: item.modifierListIds || [], // Pass modifierListIds (camelCase)
+          reporting_category_id: item.reporting_category_id || null,
           // Do NOT include id, version, category, categoryId, updatedAt, createdAt for CREATE
         };
         // Remove price if it's undefined (for variable pricing)
@@ -228,16 +229,21 @@ export default function ItemDetails() {
         Alert.alert('Success', 'Item created successfully');
       } else {
         // Construct payload for UPDATE (include version)
-        itemPayload = { ...item }; // Start with current state (includes version)
-        if (item.reporting_category_id) {
-          itemPayload.reporting_category = { id: item.reporting_category_id };
-        } else {
-          itemPayload.reporting_category = null; 
-        }
+        itemPayload = { 
+          ...item, // Start with current state (includes version)
+          abbreviation: item.abbreviation || null,
+          variationName: item.variationName || 'Regular',
+          reporting_category_id: item.reporting_category_id || null // Ensure correct ID is present
+        };
+        
+        // **FIXED: Explicitly remove potentially incorrect category object if spread from item**
+        delete (itemPayload as any).reporting_category; 
+
         // Delete frontend-specific/derived fields before sending
-        delete itemPayload.reporting_category_id;
+        // delete itemPayload.reporting_category_id; // Don't delete the ID!
         delete itemPayload.category; 
         delete itemPayload.categoryId; 
+
         // Transform taxIds and modifierListIds
         itemPayload.tax_ids = item.taxIds || []; 
         itemPayload.modifier_list_info = (item.modifierListIds || []).map(id => ({
@@ -259,7 +265,7 @@ export default function ItemDetails() {
       }
       
       if (savedItem) {
-        const reportingCategoryId = savedItem.reporting_category?.id ?? '';
+        const reportingCategoryId = savedItem.reporting_category_id ?? '';
         const savedItemWithReportingId = { 
            ...savedItem, 
            reporting_category_id: reportingCategoryId 
@@ -471,6 +477,10 @@ export default function ItemDetails() {
   // Update a field in the item state
   const updateItem = (key: keyof ConvertedItem, value: any) => {
     // Use functional update to ensure we work with the latest state
+    // **Ensure variationName defaults to 'Regular' if cleared**
+    if (key === 'variationName' && (value === '' || value === null || value === undefined)) {
+      value = 'Regular';
+    }
     setItem(prev => {
       let newState = { ...prev }; // Copy previous state
 
@@ -652,61 +662,48 @@ export default function ItemDetails() {
               />
             </View>
 
-            {/* Item Description */}
+            {/* Variation Name */}
             <View style={styles.fieldContainer}>
-              <Text style={styles.label}>Description</Text>
+              <Text style={styles.label}>Variation Name</Text>
               <TextInput
-                style={[styles.input, styles.textArea]}
-                value={item.description ?? ''} // Ensure string or undefined
-                onChangeText={value => handleInputChange('description', value)}
-                placeholder="Enter item description"
+                style={styles.input}
+                value={item.variationName || ''}
+                onChangeText={value => handleInputChange('variationName', value || 'Regular')}
+                placeholder="e.g., Regular, Large, Blue"
                 placeholderTextColor="#999"
-                multiline
               />
             </View>
 
-            {/* Price, SKU, Barcode in a row */}
-            <View style={styles.rowContainer}>
-              {/* Price */}
-              <View style={[styles.fieldContainer, styles.rowItem]}>
-                <Text style={styles.label}>Price ($)</Text>
-                <TextInput
-                  style={styles.input}
-                  // Ensure value displays formatted price or empty string for variable
-                  value={item.price !== undefined ? item.price.toFixed(2) : ''} 
-                  onChangeText={value => handleInputChange('price', value)}
-                  placeholder="Variable" // Placeholder indicates variable price when empty
-                  placeholderTextColor="#999"
-                  keyboardType="numeric"
-                />
-              </View>
-
-              {/* SKU */}
-              <View style={[styles.fieldContainer, styles.rowItem]}>
-                <Text style={styles.label}>SKU</Text>
-                <TextInput
-                  style={styles.input}
-                  value={item.sku ?? ''} // Handle potential null
-                  onChangeText={value => handleInputChange('sku', value)}
-                  placeholder="Optional SKU"
-                  placeholderTextColor="#999"
-                />
-              </View>
-
-              {/* Barcode */}
-              <View style={[styles.fieldContainer, styles.rowItem]}>
-                <Text style={styles.label}>Barcode (UPC)</Text>
-                <TextInput
-                  style={styles.input}
-                  value={item.barcode ?? ''} // Handle potential null
-                  onChangeText={value => handleInputChange('barcode', value)}
-                  placeholder="Optional Barcode"
-                  placeholderTextColor="#999"
-                  keyboardType="numeric"
-                />
-              </View>
+            {/* ADD SKU FIELD BACK */}
+            <View style={styles.fieldContainer}>
+              <Text style={styles.label}>SKU</Text>
+              <TextInput
+                style={styles.input}
+                value={item.sku || ''} // Bind to item.sku
+                onChangeText={value => handleInputChange('sku', value)} // Use handleInputChange
+                placeholder="Enter SKU (optional)"
+                placeholderTextColor="#999"
+                autoCapitalize="characters" // Suggest uppercase for SKU
+              />
             </View>
-            
+
+            {/* ADD PRICE FIELD BACK */}
+            <View style={styles.fieldContainer}>
+              <Text style={styles.label}>Price</Text>
+              <View style={styles.priceInputContainer}>
+                <Text style={styles.currencySymbol}>$</Text>
+                <TextInput
+                  style={styles.priceInput}
+                  value={item.price !== undefined ? item.price.toFixed(2) : ''} // Display formatted price or empty
+                  onChangeText={value => handleInputChange('price', value)} // Use handleInputChange for custom logic
+                  placeholder="Variable" // Updated placeholder
+                  placeholderTextColor="#999"
+                  keyboardType="numeric"
+                />
+              </View>
+               <Text style={styles.helperText}>Leave blank for variable pricing</Text> 
+            </View>
+
             {/* Reporting Category */}
             <View style={styles.fieldContainer}>
               <Text style={styles.label}>Reporting Category</Text>
@@ -736,57 +733,108 @@ export default function ItemDetails() {
               </View>
             </View>
             
-            {/* Tax Selection */}
-            <View style={styles.fieldContainer}> 
-              <Text style={styles.label}>Taxes</Text>
-              {availableTaxes.length === 0 ? (
-                <Text style={styles.helperText}>No taxes available.</Text>
+            {/* UPC/Barcode */}
+            <View style={styles.fieldContainer}>
+              <Text style={styles.label}>UPC / Barcode</Text>
+              <TextInput
+                style={styles.input}
+                value={item.barcode || ''}
+                onChangeText={value => updateItem('barcode', value)}
+                placeholder="Enter UPC or scan barcode"
+                placeholderTextColor="#999"
+                keyboardType="numeric" // Suggest numeric keyboard
+              />
+            </View>
+
+            {/* Taxes */}
+            <View style={styles.fieldContainer}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.label}>Taxes</Text>
+                <TouchableOpacity 
+                  style={[styles.selectAllButton, allTaxesSelected && styles.selectAllButtonSelected]}
+                  onPress={handleSelectAllTaxes}
+                >
+                  <Text style={[styles.selectAllButtonText, allTaxesSelected && styles.selectAllButtonTextSelected]}>
+                    {allTaxesSelected ? 'Deselect All' : 'Select All'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {availableTaxes.length > 0 ? (
+                availableTaxes.map(tax => (
+                  <TouchableOpacity
+                    key={tax.id}
+                    style={styles.checkboxContainer}
+                    onPress={() => handleTaxSelection(tax.id)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name={item.taxIds?.includes(tax.id) ? 'checkbox' : 'square-outline'}
+                      size={24}
+                      color={item.taxIds?.includes(tax.id) ? lightTheme.colors.primary : '#ccc'}
+                      style={styles.checkboxIcon}
+                    />
+                    <Text style={styles.checkboxLabel}>{tax.name} ({tax.percentage}%)</Text>
+                  </TouchableOpacity>
+                ))
               ) : (
-                <View>
-                  {availableTaxes.map(tax => (
-                    <TouchableOpacity
-                      key={tax.id}
-                      style={styles.checkboxContainer}
-                      onPress={() => handleTaxSelection(tax.id)} // Use defined handler
-                    >
-                      <Ionicons
-                        name={item.taxIds?.includes(tax.id) ? 'checkbox' : 'square-outline'}
-                        size={24}
-                        color={item.taxIds?.includes(tax.id) ? lightTheme.colors.primary : '#ccc'}
-                      />
-                      <Text style={styles.checkboxLabel}>{tax.name} ({tax.percentage}%)</Text>
-                    </TouchableOpacity>
+                <Text style={styles.noItemsText}>No applicable taxes found.</Text>
+              )}
+            </View>
+
+            {/* Modifiers */}
+            <View style={styles.fieldContainer}>
+              <Text style={styles.label}>Modifiers</Text>
+              {availableModifierLists.length > 0 ? (
+                availableModifierLists.map(modifier => (
+                  <TouchableOpacity
+                    key={modifier.id}
+                    style={styles.checkboxContainer}
+                    onPress={() => handleModifierSelection(modifier.id)} // Use direct ID toggle
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name={item.modifierListIds?.includes(modifier.id) ? 'checkbox' : 'square-outline'}
+                      size={24}
+                      color={item.modifierListIds?.includes(modifier.id) ? lightTheme.colors.primary : '#ccc'}
+                      style={styles.checkboxIcon}
+                    />
+                    <Text style={styles.checkboxLabel}>{modifier.name}</Text>
+                    {/* Optional: Add more info about the modifier list */}
+                  </TouchableOpacity>
+                ))
+              ) : (
+                <Text style={styles.noItemsText}>No modifier lists available.</Text>
+              )}
+              
+              {/* Display Selected Modifiers (Optional but helpful for debugging) */}
+              {item.modifierListIds && item.modifierListIds.length > 0 && (
+                <View style={styles.selectedModifiersContainer}>
+                  <Text style={styles.selectedModifiersLabel}>Selected:</Text>
+                  {item.modifierListIds.map(id => (
+                    <Text key={id} style={styles.selectedModifierItem}>
+                      - {getModifierListName(id)} ({id})
+                    </Text>
                   ))}
                 </View>
               )}
             </View>
 
-            {/* Modifier Selection (Handles CRV and potentially others) */}
-            <View style={styles.fieldContainer}> 
-              <Text style={styles.label}>Modifiers</Text>
-              {availableModifierLists.length === 0 ? (
-                <Text style={styles.helperText}>No modifier options available.</Text>
-              ) : (
-                <View style={styles.checkboxGroup}> 
-                  {availableModifierLists.map(modifierList => (
-                    <TouchableOpacity
-                      key={modifierList.id}
-                      style={styles.checkboxContainer}
-                      onPress={() => handleModifierSelection(modifierList.id)} // Use defined handler
-                    >
-                      <Ionicons
-                        name={item.modifierListIds?.includes(modifierList.id) ? 'checkbox' : 'square-outline'}
-                        size={24}
-                        color={item.modifierListIds?.includes(modifierList.id) ? lightTheme.colors.primary : '#ccc'}
-                      />
-                      <Text style={styles.checkboxLabel}>{modifierList.name}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
+            {/* Description */}
+            <View style={styles.fieldContainer}>
+              <Text style={styles.label}>Description</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                value={item.description || ''}
+                onChangeText={text => updateItem('description', text)} // Corrected onChangeText
+                placeholder="Enter item description (optional)"
+                placeholderTextColor="#999"
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top" // For Android alignment
+              />
             </View>
-            
-            {/* Add spacing at the bottom */}
+
+            {/* Spacer to push delete button to the bottom */}
             <View style={{ height: 40 }} />
           </ScrollView>
 
@@ -1225,5 +1273,45 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: lightTheme.colors.primary,
-  }
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  selectAllButton: {
+    padding: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+  },
+  selectAllButtonSelected: {
+    backgroundColor: lightTheme.colors.primary,
+  },
+  selectAllButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: lightTheme.colors.primary,
+  },
+  selectAllButtonTextSelected: {
+    color: 'white',
+  },
+  checkboxIcon: {
+    marginRight: 8,
+  },
+  noItemsText: {
+    color: '#777',
+    marginTop: 4,
+  },
+  selectedModifiersContainer: {
+    marginTop: 10,
+  },
+  selectedModifiersLabel: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#777',
+  },
+  selectedModifierItem: {
+    color: '#333',
+  },
 }); 

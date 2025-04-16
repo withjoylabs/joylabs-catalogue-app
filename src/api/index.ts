@@ -649,7 +649,7 @@ const api = {
             'Accept': 'application/json',
             'User-Agent': 'JoyLabsApp/1.0.0',
             // Add Square version header for consistency
-            'Square-Version': '2025-01-23'
+            'Square-Version': '2025-03-19'
           },
           timeout: 10000 // 10 second timeout
         });
@@ -774,7 +774,7 @@ const api = {
                   'Content-Type': 'application/json',
             'Accept': 'application/json',
             'User-Agent': 'JoyLabsApp/1.0.0',
-            'Square-Version': '2025-01-23' // Latest version
+            'Square-Version': '2025-03-19' // Latest version
           },
           timeout: 15000 // 15 second timeout for token exchange
         });
@@ -975,9 +975,10 @@ const api = {
         logger.info('API:Catalog', 'Successfully created item', { itemId: response.data?.id });
         return { success: true, data: response.data };
       } catch (error) {
-        const apiError = handleApiError(error, 'Failed to create catalog item');
-        logger.error('API:Catalog', 'Error creating catalog item', { error: apiError });
-        return { success: false, error: apiError };
+        // Explicitly type the result of handleApiError
+        const apiResponseError: ApiResponse<never> = handleApiError(error, 'Failed to create catalog item'); 
+        logger.error('API:Catalog', 'Error creating catalog item', { error: apiResponseError.error }); // Log the inner error
+        return apiResponseError; // Return the structured response
       }
     },
     
@@ -989,9 +990,10 @@ const api = {
         logger.info('API:Catalog', 'Successfully updated item', { itemId });
         return { success: true, data: response.data };
       } catch (error) {
-        const apiError = handleApiError(error, 'Failed to update catalog item');
-        logger.error('API:Catalog', 'Error updating catalog item', { itemId, error: apiError });
-        return { success: false, error: apiError };
+        // Explicitly type the result of handleApiError
+        const apiResponseError: ApiResponse<never> = handleApiError(error, 'Failed to update catalog item');
+        logger.error('API:Catalog', 'Error updating catalog item', { itemId, error: apiResponseError.error });
+        return apiResponseError;
       }
     },
     
@@ -1003,9 +1005,10 @@ const api = {
         logger.info('API:Catalog', 'Successfully deleted item', { itemId });
         return { success: true };
       } catch (error) {
-        const apiError = handleApiError(error, 'Failed to delete catalog item');
-        logger.error('API:Catalog', 'Error deleting catalog item', { itemId, error: apiError });
-        return { success: false, error: apiError };
+        // Explicitly type the result of handleApiError
+        const apiResponseError: ApiResponse<never> = handleApiError(error, 'Failed to delete catalog item');
+        logger.error('API:Catalog', 'Error deleting catalog item', { itemId, error: apiResponseError.error });
+        return apiResponseError;
       }
     },
     
@@ -1350,13 +1353,14 @@ const api = {
         return { ...responseData, success: true };
 
       } catch (error) {
-        const apiError = handleApiError(error, 'Failed to search catalog via backend');
+        // Explicitly type the result of handleApiError
+        const apiResponseError: ApiResponse<never> = handleApiError(error, 'Failed to search catalog via backend');
         logger.error('API:Catalog', 'Custom backend search failed', { 
           queryType, 
           queryValue, 
-          error: apiError.message 
+          error: apiResponseError.error // Log the inner error
         });
-        return { success: false, error: apiError };
+        return apiResponseError; // Return the structured response
       }
     }
   },
@@ -1542,25 +1546,238 @@ export interface CatalogListResponse {
   error?: any; // For error responses
 }
 
-// Basic Error Handler (Implement more robust handling as needed)
-const handleApiError = (error: any, defaultMessage: string): ApiError => {
+// Final catch-all error handler
+const handleApiError = (error: any, defaultMessage: string): ApiResponse<never> => {
   if (axios.isAxiosError(error)) {
     const serverError = error.response?.data;
-    const message = serverError?.message || serverError?.error || error.message || defaultMessage;
-    const code = serverError?.code || 'AXIOS_ERROR';
-    const status = error.response?.status || 500;
+    // Use optional chaining and nullish coalescing for safer access
+    const message = serverError?.message ?? serverError?.error ?? error.message ?? defaultMessage;
+    const code = serverError?.code ?? 'AXIOS_ERROR';
+    const status = error.response?.status ?? 500;
     logger.warn('API', `Axios Error: ${message}`, { code, status, url: error.config?.url });
-    return new ApiError(message, code, status, serverError);
+    // Ensure the return type matches ApiResponse
+    return { success: false, error: new ApiError(message, code, status, serverError) };
   } else if (error instanceof ApiError) {
-    return error; // Re-throw known API errors
+    // Ensure the return type matches ApiResponse
+    return { success: false, error: error }; 
   } else if (error instanceof Error) {
     logger.error('API', `Generic Error: ${error.message}`, { error });
-    return new ApiError(error.message, 'GENERIC_ERROR', 500, error);
+    // Ensure the return type matches ApiResponse
+    return { success: false, error: new ApiError(error.message, 'GENERIC_ERROR', 500, error) };
   } else {
     logger.error('API', 'Unknown Error', { error });
-    return new ApiError(defaultMessage, 'UNKNOWN_ERROR', 500, error);
+    // Ensure the return type matches ApiResponse
+    return { success: false, error: new ApiError(defaultMessage, 'UNKNOWN_ERROR', 500, error) };
   }
 };
 
-export { api, apiClient, getAuthToken, getAuthHeaders, setAuthToken, clearAuthToken, appendSecretName, getSecretName };
-export default api;
+// Define a dedicated error handler for direct Square calls
+const handleDirectSquareError = (error: any, defaultMessage: string): ApiResponse<never> => {
+  if (axios.isAxiosError(error)) {
+    const serverError = error.response?.data;
+    const message = serverError?.errors?.[0]?.detail ?? serverError?.message ?? error.message ?? defaultMessage;
+    const code = serverError?.errors?.[0]?.code ?? 'SQUARE_API_ERROR';
+    const status = error.response?.status ?? 500;
+    logger.warn('API:DirectSquare', `Square API Error: ${message}`, { code, status, url: error.config?.url, detail: serverError?.errors?.[0]?.detail });
+    return { success: false, error: new ApiError(message, code, status, serverError) };
+  } else {
+    // Handle non-Axios errors
+    const message = error instanceof Error ? error.message : defaultMessage;
+    logger.error('API:DirectSquare', `Non-Axios Error: ${message}`, { error });
+    return { success: false, error: new ApiError(message, 'CLIENT_ERROR', 500, error) };
+  }
+};
+
+// ================================
+// Direct Square Catalog API Calls
+// ================================
+
+const SQUARE_BASE_URL = 'https://connect.squareup.com'; // Revert to hardcoded Square base URL
+const SQUARE_API_VERSION = '2025-04-16'; // Ensure API version is updated
+
+const directSquareApi = {
+  /**
+   * Directly calls Square's UpsertCatalogObject endpoint.
+   * @param object The full CatalogObject to create or update.
+   * @param idempotencyKey A unique key for the request.
+   */
+  async upsertCatalogObject(object: any, idempotencyKey: string): Promise<ApiResponse> {
+    const url = `${SQUARE_BASE_URL}/v2/catalog/object`;
+    const method = 'POST';
+    logger.debug('API:DirectSquare', `Request: ${method} ${url}`,
+     { object: { id: object.id, type: object.type, version: object.version }, idempotencyKey });
+    try {
+      const response = await axios.post(url, {
+        idempotency_key: idempotencyKey,
+        object: object,
+      }, {
+        headers: {
+          ...(await tokenService.getAuthHeaders()),
+          'Square-Version': SQUARE_API_VERSION,
+          'Content-Type': 'application/json',
+        },
+        timeout: config.api.timeout, // Use standard timeout from config
+      });
+      logger.debug('API:DirectSquare', `Response: ${response.status} ${url}`, { data: response.data });
+      // Ensure the response includes the catalog_object and id_mappings if available
+      return { 
+        success: true, 
+        data: { 
+          catalog_object: response.data.catalog_object, 
+          id_mappings: response.data.id_mappings 
+        }
+      };
+    } catch (error) {
+      logger.error('API:DirectSquare', `Error in ${method} ${url}`, error);
+      // Directly construct the error response matching ApiResponse
+      if (axios.isAxiosError(error)) {
+        const serverError = error.response?.data;
+        const message = serverError?.errors?.[0]?.detail ?? serverError?.message ?? error.message ?? 'Failed to upsert catalog object';
+        const code = serverError?.errors?.[0]?.code ?? 'SQUARE_API_ERROR';
+        const status = error.response?.status ?? 500;
+        return { success: false, error: new ApiError(message, code, status, serverError) };
+      } else {
+        const message = error instanceof Error ? error.message : 'Failed to upsert catalog object';
+        return { success: false, error: new ApiError(message, 'CLIENT_ERROR', 500, error) };
+      }
+    }
+  },
+
+  /**
+   * Directly calls Square's DeleteCatalogObject endpoint.
+   * @param objectId The ID of the CatalogObject to delete.
+   */
+  async deleteCatalogObject(objectId: string): Promise<ApiResponse> {
+    const url = `${SQUARE_BASE_URL}/v2/catalog/object/${objectId}`;
+    const method = 'DELETE';
+    logger.debug('API:DirectSquare', `Request: ${method} ${url}`);
+    try {
+      const response = await axios.delete(url, {
+        headers: {
+          ...(await tokenService.getAuthHeaders()),
+          'Square-Version': SQUARE_API_VERSION,
+          'Content-Type': 'application/json',
+        },
+        timeout: config.api.timeout,
+      });
+      logger.debug('API:DirectSquare', `Response: ${response.status} ${url}`, { data: response.data });
+      // Ensure response includes deleted_object_ids and deleted_at if available
+      return { 
+        success: true, 
+        data: { 
+          deleted_object_ids: response.data.deleted_object_ids,
+          deleted_at: response.data.deleted_at
+        }
+      };
+    } catch (error) {
+      logger.error('API:DirectSquare', `Error in ${method} ${url}`, error);
+      // Directly construct the error response matching ApiResponse
+      if (axios.isAxiosError(error)) {
+        const serverError = error.response?.data;
+        const message = serverError?.errors?.[0]?.detail ?? serverError?.message ?? error.message ?? 'Failed to delete catalog object';
+        const code = serverError?.errors?.[0]?.code ?? 'SQUARE_API_ERROR';
+        const status = error.response?.status ?? 500;
+        return { success: false, error: new ApiError(message, code, status, serverError) };
+      } else {
+        const message = error instanceof Error ? error.message : 'Failed to delete catalog object';
+        return { success: false, error: new ApiError(message, 'CLIENT_ERROR', 500, error) };
+      }
+    }
+  },
+  
+  /**
+   * Directly calls Square's RetrieveCatalogObject endpoint.
+   * @param objectId The ID of the CatalogObject to retrieve.
+   * @param includeRelatedObjects Include related objects like variations, taxes, etc.
+   * @param catalogVersion Optionally retrieve a specific version.
+   */
+  async retrieveCatalogObject(objectId: string, includeRelatedObjects: boolean = true, catalogVersion?: number): Promise<ApiResponse> {
+    const url = `${SQUARE_BASE_URL}/v2/catalog/object/${objectId}`;
+    const method = 'GET';
+    const params: Record<string, any> = {
+      include_related_objects: includeRelatedObjects,
+    };
+    if (catalogVersion !== undefined) {
+      params.catalog_version = catalogVersion;
+    }
+    logger.debug('API:DirectSquare', `Request: ${method} ${url}`, { params });
+    try {
+      const response = await axios.get(url, {
+        params,
+        headers: {
+          ...(await tokenService.getAuthHeaders()),
+          'Square-Version': SQUARE_API_VERSION,
+          'Content-Type': 'application/json',
+        },
+        timeout: config.api.timeout,
+      });
+      logger.debug('API:DirectSquare', `Response: ${response.status} ${url}`, { data: response.data });
+      // Ensure response includes object and related_objects if available
+      return { 
+        success: true, 
+        data: { 
+          object: response.data.object,
+          related_objects: response.data.related_objects
+        }
+      };
+    } catch (error) {
+      logger.error('API:DirectSquare', `Error in ${method} ${url}`, error);
+      // Directly construct the error response matching ApiResponse
+      if (axios.isAxiosError(error)) {
+        const serverError = error.response?.data;
+        const message = serverError?.errors?.[0]?.detail ?? serverError?.message ?? error.message ?? 'Failed to retrieve catalog object';
+        const code = serverError?.errors?.[0]?.code ?? 'SQUARE_API_ERROR';
+        const status = error.response?.status ?? 500;
+        return { success: false, error: new ApiError(message, code, status, serverError) };
+      } else {
+        const message = error instanceof Error ? error.message : 'Failed to retrieve catalog object';
+        return { success: false, error: new ApiError(message, 'CLIENT_ERROR', 500, error) };
+      }
+    }
+  },
+
+  /**
+   * Fetches a single page of catalog objects directly from Square's ListCatalog endpoint.
+   * Specifically for use by the catalog sync process.
+   * @param limit Max number of results per page.
+   * @param cursor Pagination cursor from the previous response.
+   * @param types Comma-separated string of CatalogObject types.
+   */
+  async fetchCatalogPage(limit: number, cursor?: string, types?: string): Promise<ApiResponse> {
+    const url = `${SQUARE_BASE_URL}/v2/catalog/list`;
+    const method = 'GET';
+    const params: Record<string, any> = { limit };
+    if (types) {
+      params.types = types;
+    }
+    if (cursor) {
+      params.cursor = cursor;
+    }
+    logger.debug('API:DirectSquare:fetchCatalogPage', `Request: ${method} ${url}`, { params });
+    try {
+      const response = await axios.get(url, {
+        params,
+        headers: {
+          ...(await tokenService.getAuthHeaders()),
+          'Square-Version': SQUARE_API_VERSION, // Ensure this uses the correct version variable
+          'Content-Type': 'application/json',
+        },
+        timeout: config.api.timeout, 
+      });
+      logger.debug('API:DirectSquare:fetchCatalogPage', `Response: ${response.status} ${url}`, { objectCount: response.data.objects?.length, hasCursor: !!response.data.cursor });
+      // Return objects and cursor at the top level to match ApiResponse expectation in sync service
+      return { 
+        success: true, 
+        objects: response.data.objects, 
+        cursor: response.data.cursor 
+      };
+    } catch (error) {
+      logger.error('API:DirectSquare:fetchCatalogPage', `Error in ${method} ${url}`, error);
+      return handleDirectSquareError(error, 'Failed to fetch catalog page');
+    }
+  },
+};
+
+// Export the main apiClient and the new directSquareApi
+export default apiClient; 
+export { apiClient, directSquareApi };

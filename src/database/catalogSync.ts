@@ -4,7 +4,7 @@ import * as FileSystem from 'expo-file-system';
 import logger from '../utils/logger';
 import * as modernDb from './modernDb';
 import * as SecureStore from 'expo-secure-store';
-import { api } from '../api';
+import { directSquareApi } from '../api';
 
 // Constants for token storage to check validity
 const SQUARE_ACCESS_TOKEN_KEY = 'square_access_token';
@@ -470,7 +470,7 @@ export class CatalogSyncService {
 
         // Fetch page from API
         // Note: The API function gets the token internally via apiClient
-        const response = await api.fetchCatalogPage(limit, cursor, typesToFetch);
+        const response = await directSquareApi.fetchCatalogPage(limit, cursor ?? undefined, typesToFetch);
         
         const objects = response.objects || [];
         const nextCursor = response.cursor;

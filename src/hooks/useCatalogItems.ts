@@ -1,14 +1,17 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import api from '../api';
+import api, { apiClient, directSquareApi } from '../api';
 import { useAppStore } from '../store';
 import { CatalogObject, ConvertedItem } from '../types/api';
+import { ScanHistoryItem } from '../types';
 import { transformCatalogItemToItem } from '../utils/catalogTransformers';
 import { useApi } from '../providers/ApiProvider';
 import logger from '../utils/logger';
 import {
   getDatabase,
-  getItemOrVariationRawById
+  getItemOrVariationRawById,
+  upsertCatalogObjects
 } from '../database/modernDb';
+import { v4 as uuidv4 } from 'uuid';
 
 // Define a more specific type for raw DB results if possible
 type RawDbRow = any; // Replace 'any' if a better type exists
@@ -19,6 +22,7 @@ export const useCatalogItems = () => {
   const { 
     products: storeProducts, 
     setProducts, 
+    addScanHistoryItem,
     isProductsLoading, 
     setProductsLoading, 
     productError,
@@ -29,7 +33,7 @@ export const useCatalogItems = () => {
   // Get the Square connection status from the API context
   const { isConnected: isSquareConnected } = useApi();
   
-  const [cursor, setCursor] = useState<string | null>(null);
+  const [currentCursor, setCurrentCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [connected, setConnected] = useState(false);
@@ -49,119 +53,98 @@ export const useCatalogItems = () => {
   // DO NOT fetch products on mount - wait for explicit refresh call
   // This prevents the app from making API calls before Square connection
 
-  // Function to fetch products from the API
+  // Function to fetch products using DIRECT Square API call
   const fetchProducts = useCallback(async (showLoading = true, limit = 20) => {
-    // Only proceed if we have a valid Square connection
     if (!isSquareConnected) {
       logger.info('CatalogItems', 'Skipping product fetch - no Square connection');
-      setConnected(false);
-      return;
+      return; // Early exit
     }
-    
     if (showLoading && isProductsLoading) return;
     
     if (showLoading) setProductsLoading(true);
     else setIsRefreshing(true);
-    
     setProductError(null);
     
     try {
-      logger.info('CatalogItems', 'Fetching catalog items', { cursor: cursor || undefined, limit });
-      // Call the catalog API to get items with explicit ITEM type parameter
-      const response = await api.catalog.getItems(
-        cursor ? parseInt(cursor as string, 10) : undefined, 
+      logger.info('CatalogItems', 'Fetching catalog items directly from Square', { cursor: currentCursor || 'start', limit });
+      
+      // Call direct listCatalog API - **FIXED: Use fetchCatalogPage instead of listCatalog**
+      const response = await directSquareApi.fetchCatalogPage(
         limit,
-        'ITEM' // Always include ITEM type parameter
-      );
+         currentCursor || undefined, // Pass cursor as second arg
+         'ITEM' // Pass types as third arg
+       );
       
-      if (!response.success) {
-        throw new Error(response.error?.message || 'Failed to fetch products');
+      // **FIXED: Check for top-level objects now**
+      if (!response.success || !response.objects) {
+        logger.error('CatalogItems', 'Direct listCatalog fetch failed', { responseError: response.error });
+        throw response.error || new Error('Failed to fetch products directly');
       }
       
-      // Filter for just the items and transform them - handle different response formats
-      let itemObjects: CatalogObject[] = [];
-      
-      if (Array.isArray(response.objects)) {
-        // If response has objects array (from search endpoint)
-        itemObjects = response.objects.filter((item: CatalogObject) => 
-          item.type === 'ITEM' && !item.is_deleted
-        );
-      } else if (Array.isArray(response.items)) {
-        // If response has items array (from list endpoint)
-        itemObjects = response.items.filter((item: CatalogObject) => 
-          item.type === 'ITEM' && !item.is_deleted
-        );
-      } else if (response.data?.items) {
-        // If response has data.items (nested structure)
-        itemObjects = response.data.items.filter((item: CatalogObject) => 
-          item.type === 'ITEM' && !item.is_deleted
-        );
-      }
-      
+      // We get raw CatalogObjects back, transform them
+      // **FIXED: Get objects from top level**
+      const itemObjects: CatalogObject[] = response.objects;
       const transformedItems = itemObjects
         .map((item: CatalogObject) => transformCatalogItemToItem(item))
         .filter((item: ConvertedItem | null): item is ConvertedItem => item !== null)
+        // Map additional fields if needed (category name was here before, might need adjustment)
         .map((item: ConvertedItem) => ({
           ...item,
-          // Fill in category name from ID
-          category: item.categoryId ? categoryMapRef.current[item.categoryId] || '' : '',
-          // Ensure required properties have default values
-          price: item.price || 0,
+          // Category name lookup might need rework if categories aren't pre-fetched
+          // category: item.categoryId ? categoryMapRef.current[item.categoryId] || '' : '',
+          price: item.price === undefined ? undefined : item.price, // Handle undefined explicitly
           description: item.description || '',
           sku: item.sku || '',
           barcode: item.barcode || '',
-          // stockQuantity: item.stockQuantity || 0 // Removed: Field doesn't exist on ConvertedItem
+          abbreviation: item.abbreviation || '', // Ensure abbreviation is mapped
         }));
       
-      if (cursor) {
-        // Append to existing products
+      if (currentCursor) {
         setProducts([...storeProducts, ...transformedItems]);
       } else {
-        // Replace products
         setProducts(transformedItems);
       }
       
-      // Update cursor - handle different response formats
-      const responseCursor = response.cursor || response.data?.cursor || null;
-      setCursor(responseCursor);
+      // **FIXED: Get cursor from top level**
+      const responseCursor = response.cursor || null;
+      setCurrentCursor(responseCursor); // Update cursor state
       setHasMore(!!responseCursor);
-      setConnected(true);
-      logger.info('CatalogItems', `Successfully fetched ${transformedItems.length} products`);
+      logger.info('CatalogItems', `Successfully fetched ${transformedItems.length} products directly`);
+
     } catch (error: unknown) {
-      logger.error('CatalogItems', 'Error fetching products', { error });
-      let errorMessage = 'Failed to fetch products';
-      
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      
-      setProductError(errorMessage);
-      setConnected(false);
+      logger.error('CatalogItems', 'Error fetching products directly', { error });
+      const message = error instanceof Error ? error.message : 'Failed to fetch products';
+      setProductError(message);
+      // Consider setting hasMore to false on error?
     } finally {
       if (showLoading) setProductsLoading(false);
       else setIsRefreshing(false);
     }
-  }, [isProductsLoading, setProductsLoading, setProductError, setProducts, storeProducts, cursor, isSquareConnected]);
+  // Dependencies need to include currentCursor now
+  }, [isProductsLoading, setProductsLoading, setProductError, setProducts, storeProducts, currentCursor, isSquareConnected]);
 
-  // Function to refresh products without showing the loading state
+  // Function to refresh products - reset cursor
   const refreshProducts = useCallback(() => {
-    // Only refresh if we have a Square connection
     if (!isSquareConnected) {
       logger.info('CatalogItems', 'Skipping product refresh - no Square connection');
-      return Promise.resolve({ items: [], hasMore: false });
+      return Promise.resolve(); // Return empty promise
     }
-    
-    logger.info('CatalogItems', 'Refreshing catalog items');
-    setCursor(null); // Reset cursor to fetch from the beginning
+    logger.info('CatalogItems', 'Refreshing catalog items directly');
+    setCurrentCursor(null); // Reset cursor
+    // Initial fetch after reset doesn't depend on the old cursor value
+    // Fetch products immediately after resetting cursor
     return fetchProducts(false);
-  }, [fetchProducts, isSquareConnected]);
+  }, [fetchProducts, isSquareConnected, setCurrentCursor]); // Add setCurrentCursor dependency
 
   // Function to load more products
   const loadMoreProducts = useCallback(() => {
-    if (hasMore && !isProductsLoading && !isRefreshing && isSquareConnected) {
+    if (hasMore && !isProductsLoading && !isRefreshing && isSquareConnected && currentCursor) {
+        fetchProducts(true);
+    } else if (!currentCursor && hasMore && !isProductsLoading && !isRefreshing && isSquareConnected) {
+        // Handle case where we want to load first page but cursor is null
       fetchProducts(true);
     }
-  }, [hasMore, isProductsLoading, isRefreshing, fetchProducts, isSquareConnected]);
+  }, [hasMore, isProductsLoading, isRefreshing, fetchProducts, isSquareConnected, currentCursor]);
 
   // Get a product by ID - now async and checks DB
   const getProductById = useCallback(async (id: string): Promise<ConvertedItem | null> => {
@@ -273,113 +256,322 @@ export const useCatalogItems = () => {
 
   }, [storeProducts]); // Dependency: only storeProducts
 
-  // Create a new product
-  const createProduct = useCallback(async (product: Partial<ConvertedItem>) => {
-    // Only proceed if we have a Square connection
+  // --- CREATE --- 
+  // Create a new product using direct Square API call
+  const createProduct = useCallback(async (productData: any) => {
+    // Log the incoming productData object
+    logger.debug('CatalogItems::createProductDirect', 'Received productData', { productData: JSON.stringify(productData) });
+
     if (!isSquareConnected) {
       console.error('Cannot create product - no Square connection');
       throw new Error('Not connected to Square');
     }
-    
     setProductsLoading(true);
-    
     try {
-      const response = await api.catalog.createItem(product);
+      // 1. Construct the Square CatalogObject payload for creation
+      const idempotencyKey = uuidv4();
+      const squarePayload = {
+        id: `#${productData.name.replace(/\s+/g, '-')}-${Date.now()}`, // Temporary client ID
+        type: 'ITEM',
+        item_data: {
+          name: productData.name,
+          description: productData.description || undefined,
+          abbreviation: productData.abbreviation || undefined,
+          // **FIXED: Use reporting_category object structure**
+          reporting_category: productData.reporting_category_id ? { id: productData.reporting_category_id } : undefined,
+          // **FIXED: Correct Variations Structure**
+          variations: [{
+            id: '#default-variation', // Temporary client ID for variation
+            type: 'ITEM_VARIATION',
+            item_variation_data: {
+              name: productData.variationName || 'Regular', // Use variationName from input
+              sku: productData.sku || undefined, // SKU belongs here
+              upc: productData.barcode || undefined, // MAP BARCODE TO UPC
+              pricing_type: productData.price !== undefined ? 'FIXED_PRICING' : 'VARIABLE_PRICING',
+              price_money: productData.price !== undefined ? {
+                amount: Math.round(productData.price * 100),
+                currency: 'USD'
+              } : undefined,
+            }
+          }],
+          // **FIXED: Tax IDs and Modifiers belong INSIDE item_data**
+          tax_ids: productData.taxIds && productData.taxIds.length > 0 ? productData.taxIds : undefined, // MAP TAX IDS
+          modifier_list_info: productData.modifierListIds && productData.modifierListIds.length > 0 ? productData.modifierListIds.map((modId: string) => ({ modifier_list_id: modId, enabled: true })) : undefined, // MAP MODIFIER LIST IDS
+          product_type: 'REGULAR', // CORRECTED ENUM: Use REGULAR
+        }
+      };
       
-      if (!response.success) {
-        throw new Error(response.error?.message || 'Failed to create product');
+      // Remove undefined fields from item_data
+      Object.keys(squarePayload.item_data).forEach(key => {
+        if (squarePayload.item_data[key as keyof typeof squarePayload.item_data] === undefined) {
+          delete squarePayload.item_data[key as keyof typeof squarePayload.item_data];
+        }
+      });
+      
+      // Explicitly handle variation data cleanup
+      if (squarePayload.item_data.variations && squarePayload.item_data.variations[0]) {
+        const variationData = squarePayload.item_data.variations[0].item_variation_data;
+        // Remove undefined price_money
+        if (variationData.price_money === undefined) {
+          delete variationData.price_money;
+        }
+        // Remove undefined UPC
+        if (variationData.upc === undefined) {
+          delete variationData.upc;
+        }
+        // Remove undefined SKU
+        if (variationData.sku === undefined) {
+            delete variationData.sku;
+        }
+      }
+
+      // Log the final payload BEFORE sending
+      logger.debug('CatalogItems::createProductDirect', 'Final Payload for CREATE', { payload: JSON.stringify(squarePayload) });
+      logger.debug('CatalogItems::createProductDirect', 'Calling directSquareApi.upsertCatalogObject for CREATE', { idempotencyKey });
+      
+      // 2. Call the direct Square API
+      const response = await directSquareApi.upsertCatalogObject(squarePayload, idempotencyKey);
+      
+      if (!response.success || !response.data?.catalog_object) {
+         logger.error('CatalogItems::createProductDirect', 'Direct Square upsert failed', { responseError: response.error });
+        throw response.error || new Error('Failed to create product via direct Square API');
       }
       
-      // Refresh the product list
-      await refreshProducts();
+      logger.info('CatalogItems::createProductDirect', 'Direct Square upsert successful', { newId: response.data.catalog_object.id });
+
+      // 3. Fetch the newly created object to get full details
+      const newId = response.data.catalog_object.id;
+      let createdItem: ConvertedItem | null = null;
+      try {
+        const retrievedResponse = await directSquareApi.retrieveCatalogObject(newId, true); // Include related objects
+        if (retrievedResponse.success && retrievedResponse.data?.object) {
+          const rawCatalogObject = retrievedResponse.data.object;
+          // 4. Update local DB
+          const db = await getDatabase(); // Ensure DB is ready
+          await upsertCatalogObjects([rawCatalogObject]); // Use modernDb helper
+
+          // 5. Transform for UI state
+          createdItem = transformCatalogItemToItem(rawCatalogObject as any);
+
+          // 6. Update Zustand state (add to beginning of list)
+          if (createdItem) {
+            setProducts([createdItem, ...storeProducts]);
+            // **FIXED: Also add to scan history**
+            const historyItem: ScanHistoryItem = {
+              ...createdItem,
+              scanId: uuidv4(), // Generate unique ID for this scan event
+              scanTime: new Date().toISOString(),
+            };
+            addScanHistoryItem(historyItem);
+            logger.info('CatalogItems::createProductDirect', 'Added newly created item to local state and DB', { newId });
+          } else {
+            logger.warn('CatalogItems::createProductDirect', 'Failed to transform newly created item', { newId });
+            // Fallback to full refresh if transformation fails?
+            await refreshProducts(); 
+          }
+        } else {
+          logger.error('CatalogItems::createProductDirect', 'Failed to retrieve newly created item', { newId, error: retrievedResponse.error });
+          await refreshProducts(); // Fallback to full refresh if retrieval fails
+        }
+      } catch (fetchError) {
+        logger.error('CatalogItems::createProductDirect', 'Error retrieving or processing newly created item', { newId, error: fetchError });
+        await refreshProducts(); // Fallback to full refresh on any error during fetch/process
+      }
       
-      return response.data;
+      // 7. Return the transformed item (or null if retrieval/transform failed)
+      return createdItem;
+
     } catch (error: unknown) {
-      console.error('Error creating product:', error);
-      let errorMessage = 'Failed to create product';
-      
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      
-      setProductError(errorMessage);
+      logger.error('CatalogItems::createProductDirect', 'Error creating product directly', { error });
+      setProductError(error instanceof Error ? error.message : 'Failed to create product');
       throw error;
     } finally {
       setProductsLoading(false);
     }
-  }, [setProductsLoading, setProductError, refreshProducts, isSquareConnected]);
+  }, [setProductsLoading, setProductError, refreshProducts, isSquareConnected, setProducts, storeProducts, addScanHistoryItem]);
 
-  // Update an existing product
-  const updateProduct = useCallback(async (id: string, product: Partial<ConvertedItem>) => {
-    // Only proceed if we have a Square connection
+  // --- UPDATE --- 
+  // Update an existing product using direct Square API call
+  const updateProduct = useCallback(async (id: string, productData: ConvertedItem) => {
+    // Log the incoming productData object
+    logger.debug('CatalogItems::updateProductDirect', 'Received productData', { id, productData: JSON.stringify(productData) });
+
     if (!isSquareConnected) {
       console.error('Cannot update product - no Square connection');
       throw new Error('Not connected to Square');
     }
-    
+    // **FIX: Add check for variationId and variationVersion**
+    // No need for explicit check now, as ConvertedItem guarantees these fields (if not null/undefined initially)
+    // if (!productData.version || !productData.variationId || !productData.variationVersion) {
+    //   logger.error('CatalogItems::updateProduct', 'Cannot update product - item version, variation ID, or variation version is missing', { id, productData });
+    //   throw new Error('Item version, variation ID, and variation version are required for updates.');
+    // }
     setProductsLoading(true);
-    
     try {
-      const response = await api.catalog.updateItem(id, product);
+      // 1. Construct the Square CatalogObject payload for update
+      const idempotencyKey = uuidv4();
+      const squarePayload = {
+        id: id, 
+        type: 'ITEM',
+        version: productData.version, 
+        item_data: {
+          name: productData.name,
+          description: productData.description || undefined,
+          abbreviation: productData.abbreviation || undefined,
+          // **FIX: SKU is part of variation, not item directly for updates? Check Square API.**
+          // Let's keep SKU on variation only for simplicity based on current structure
+          // sku: productData.sku || undefined, 
+          reporting_category: productData.reporting_category_id ? { id: productData.reporting_category_id } : undefined,
+          // **FIXED: Use real variation ID and version**
+          variations: [{
+            id: productData.variationId, // Use real ID from input
+            type: 'ITEM_VARIATION',
+            version: productData.variationVersion, // Use real version from input
+            item_variation_data: {
+              name: productData.variationName || 'Regular', 
+              pricing_type: productData.price !== undefined ? 'FIXED_PRICING' : 'VARIABLE_PRICING',
+              sku: productData.sku || undefined, // SKU belongs here
+              upc: productData.barcode || undefined, // MAP BARCODE TO UPC
+              price_money: productData.price !== undefined ? {
+                amount: Math.round(productData.price * 100),
+                currency: 'USD'
+              } : undefined,
+            }
+          }],
+          tax_ids: productData.taxIds && productData.taxIds.length > 0 ? productData.taxIds : undefined, // MAP TAX IDS
+          modifier_list_info: productData.modifierListIds && productData.modifierListIds.length > 0 ? productData.modifierListIds.map((modId: string) => ({ modifier_list_id: modId, enabled: true })) : undefined, // MAP MODIFIER LIST IDS
+          product_type: 'REGULAR', // CORRECTED ENUM: Use REGULAR
+        }
+      };
+
+      // Clean undefined fields from item_data
+      Object.keys(squarePayload.item_data).forEach(key => {
+        if (squarePayload.item_data[key as keyof typeof squarePayload.item_data] === undefined) {
+           delete squarePayload.item_data[key as keyof typeof squarePayload.item_data];
+        }
+      });
       
-      if (!response.success) {
-        throw new Error(response.error?.message || 'Failed to update product');
+      // Explicitly handle variation data cleanup
+      if (squarePayload.item_data.variations && squarePayload.item_data.variations[0]) {
+        const variationData = squarePayload.item_data.variations[0].item_variation_data;
+         // Remove undefined price_money
+        if (variationData.price_money === undefined) {
+          delete variationData.price_money;
+        }
+        // Remove undefined UPC
+        if (variationData.upc === undefined) {
+            delete variationData.upc;
+        }
+        // Remove undefined SKU
+        if (variationData.sku === undefined) {
+            delete variationData.sku;
+        }
       }
       
-      // Refresh the product list
-      await refreshProducts();
+      // Log the final payload BEFORE sending
+      logger.debug('CatalogItems::updateProductDirect', 'Final Payload for UPDATE', { payload: JSON.stringify(squarePayload) });
+      logger.debug('CatalogItems::updateProductDirect', 'Calling directSquareApi.upsertCatalogObject for UPDATE', { id, version: productData.version, idempotencyKey });
+
+      // 2. Call the direct Square API
+      const response = await directSquareApi.upsertCatalogObject(squarePayload, idempotencyKey);
+
+      if (!response.success || !response.data?.catalog_object) {
+        logger.error('CatalogItems::updateProductDirect', 'Direct Square upsert failed for update', { responseError: response.error });
+        throw response.error || new Error('Failed to update product via direct Square API');
+      }
       
-      return response.data;
+      logger.info('CatalogItems::updateProductDirect', 'Direct Square update successful', { updatedId: response.data.catalog_object.id, newVersion: response.data.catalog_object.version });
+
+      // 3. Fetch the updated object to get full details
+      const updatedId = response.data.catalog_object.id;
+      let updatedItem: ConvertedItem | null = null;
+      try {
+        const retrievedResponse = await directSquareApi.retrieveCatalogObject(updatedId, true);
+        if (retrievedResponse.success && retrievedResponse.data?.object) {
+          const rawCatalogObject = retrievedResponse.data.object;
+          // 4. Update local DB
+          const db = await getDatabase();
+          await upsertCatalogObjects([rawCatalogObject]);
+
+          // 5. Transform for UI state
+          updatedItem = transformCatalogItemToItem(rawCatalogObject as any);
+
+          // 6. Update Zustand state (replace item in list)
+          if (updatedItem) {
+            setProducts(
+              storeProducts.map(p => p.id === updatedId ? updatedItem! : p)
+            );
+            // **FIXED: Also update/add to scan history**
+            const historyItem: ScanHistoryItem = {
+              ...updatedItem,
+              scanId: uuidv4(), // Generate unique ID for this scan event
+              scanTime: new Date().toISOString(),
+            };
+            addScanHistoryItem(historyItem); // Add/Update in history
+            logger.info('CatalogItems::updateProductDirect', 'Updated item in local state and DB', { updatedId });
+          } else {
+            logger.warn('CatalogItems::updateProductDirect', 'Failed to transform updated item', { updatedId });
+            await refreshProducts(); // Fallback
+          }
+        } else {
+          logger.error('CatalogItems::updateProductDirect', 'Failed to retrieve updated item', { updatedId, error: retrievedResponse.error });
+          await refreshProducts(); // Fallback
+        }
+      } catch (fetchError) {
+        logger.error('CatalogItems::updateProductDirect', 'Error retrieving or processing updated item', { updatedId, error: fetchError });
+        await refreshProducts(); // Fallback
+      }
+      
+      // 7. Return the transformed item (or null if retrieval/transform failed)
+      return updatedItem;
+
     } catch (error: unknown) {
-      console.error('Error updating product:', error);
-      let errorMessage = 'Failed to update product';
-      
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      
-      setProductError(errorMessage);
+      logger.error('CatalogItems::updateProductDirect', 'Error updating product directly', { id, error });
+      setProductError(error instanceof Error ? error.message : 'Failed to update product');
       throw error;
     } finally {
       setProductsLoading(false);
     }
-  }, [setProductsLoading, setProductError, refreshProducts, isSquareConnected]);
+  }, [setProductsLoading, setProductError, refreshProducts, isSquareConnected, setProducts, storeProducts, addScanHistoryItem]);
 
-  // Delete a product
+  // --- DELETE --- 
+  // Delete a product using direct Square API call
   const deleteProduct = useCallback(async (id: string) => {
-    // Only proceed if we have a Square connection
     if (!isSquareConnected) {
       console.error('Cannot delete product - no Square connection');
       throw new Error('Not connected to Square');
     }
-    
     setProductsLoading(true);
-    
     try {
-      const response = await api.catalog.deleteItem(id);
+      logger.debug('CatalogItems::deleteProductDirect', 'Calling directSquareApi.deleteCatalogObject', { id });
+
+      // Call the direct Square API
+      const response = await directSquareApi.deleteCatalogObject(id);
       
       if (!response.success) {
-        throw new Error(response.error?.message || 'Failed to delete product');
+         logger.error('CatalogItems::deleteProductDirect', 'Direct Square delete failed', { responseError: response.error });
+        throw response.error || new Error('Failed to delete product via direct Square API');
       }
+
+      logger.info('CatalogItems::deleteProductDirect', 'Direct Square delete successful', { deletedIds: response.data?.deleted_object_ids });
+
+      // Update local state immediately by filtering the current storeProducts
+      // This avoids the function argument type issue with setProducts
+      const updatedProducts = storeProducts.filter((product: ConvertedItem) => product.id !== id);
+      setProducts(updatedProducts);
       
-      // Update local state
-      setProducts(storeProducts.filter(product => product.id !== id));
-      
-      return response.data;
+      // TODO: Optionally trigger a smaller refresh or update local DB directly
+
+      return response.data; // Return Square's response data (deleted_object_ids, etc.)
+
     } catch (error: unknown) {
-      console.error('Error deleting product:', error);
-      let errorMessage = 'Failed to delete product';
-      
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      
-      setProductError(errorMessage);
+      logger.error('CatalogItems::deleteProductDirect', 'Error deleting product directly', { id, error });
+      setProductError(error instanceof Error ? error.message : 'Failed to delete product');
       throw error;
     } finally {
       setProductsLoading(false);
     }
-  }, [setProductsLoading, setProductError, setProducts, storeProducts, isSquareConnected]);
+  }, [setProductsLoading, setProductError, setProducts, isSquareConnected, storeProducts]);
 
   return {
     products: storeProducts,

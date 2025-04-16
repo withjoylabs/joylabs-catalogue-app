@@ -1,3 +1,4 @@
+import 'react-native-get-random-values';
 import { useEffect, useState } from 'react';
 import { Stack, usePathname, useRouter } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';

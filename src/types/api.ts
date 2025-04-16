@@ -85,8 +85,11 @@ export interface CatalogItemsResponse extends PaginationCursor {
 export interface ConvertedItem {
   id: string;
   version?: number;
+  variationId?: string;
+  variationVersion?: number;
   name: string;
   sku: string | null;
+  abbreviation?: string;
   price?: number;
   description?: string;
   category?: string;
@@ -100,6 +103,7 @@ export interface ConvertedItem {
   createdAt?: string;
   barcode?: string;
   stock?: number;
+  variationName?: string;
 }
 
 export interface ConvertedCategory {
