@@ -55,8 +55,19 @@ const EMPTY_ITEM: ConvertedItem = {
   taxIds: [], // Initialize taxIds
   modifierListIds: [], // Use an array for multiple modifier lists
   updatedAt: new Date().toISOString(),
-  createdAt: new Date().toISOString()
+  createdAt: new Date().toISOString(),
+  variations: [] // Initialize empty variations array
 };
+
+// Define a type for variations
+interface ItemVariation {
+  id?: string;
+  version?: number;
+  name: string;
+  sku: string | null;
+  price?: number;
+  barcode?: string;
+}
 
 export default function ItemDetails() {
   const router = useRouter();
@@ -87,6 +98,14 @@ export default function ItemDetails() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // State for variations
+  const [variations, setVariations] = useState<ItemVariation[]>([{
+    name: 'Regular',
+    sku: '',
+    price: undefined,
+    barcode: ''
+  }]);
   
   // State for category list and modal
   const [availableCategories, setAvailableCategories] = useState<CategoryPickerItem[]>([]);
@@ -153,6 +172,71 @@ export default function ItemDetails() {
     }
   };
 
+  // Handler for variation input changes
+  const handleVariationChange = (index: number, field: keyof ItemVariation, value: string | number | undefined) => {
+    setVariations(prevVariations => {
+      const newVariations = [...prevVariations];
+      
+      if (field === 'price') {
+        // Handle price conversion similar to handleInputChange
+        const textValue = value as string;
+        
+        if (textValue === '' || textValue === null || textValue === undefined) {
+          newVariations[index] = { ...newVariations[index], price: undefined };
+          return newVariations;
+        }
+        
+        const digits = textValue.replace(/[^0-9]/g, '');
+        
+        if (digits === '') {
+          newVariations[index] = { ...newVariations[index], price: undefined };
+          return newVariations;
+        }
+        
+        const cents = parseInt(digits, 10);
+        
+        if (isNaN(cents)) {
+          console.warn('Invalid number parsed for variation price:', digits);
+          newVariations[index] = { ...newVariations[index], price: undefined };
+          return newVariations;
+        }
+        
+        const dollars = cents / 100;
+        newVariations[index] = { ...newVariations[index], price: dollars };
+      } else {
+        // Handle other fields
+        newVariations[index] = { ...newVariations[index], [field]: value };
+      }
+      
+      return newVariations;
+    });
+    
+    // Mark as edited
+    setIsEdited(true);
+  };
+
+  // Handler to add a new variation
+  const addVariation = () => {
+    setVariations(prev => [...prev, {
+      name: '',
+      sku: '',
+      price: undefined,
+      barcode: ''
+    }]);
+    setIsEdited(true);
+  };
+
+  // Handler to remove a variation
+  const removeVariation = (index: number) => {
+    // Don't allow removing the last variation
+    if (variations.length <= 1) {
+      return;
+    }
+
+    setVariations(prev => prev.filter((_, i) => i !== index));
+    setIsEdited(true);
+  };
+
   const handleTaxSelection = (taxId: string) => {
     const currentIds = item.taxIds || [];
     const newIds = currentIds.includes(taxId)
@@ -213,22 +297,20 @@ export default function ItemDetails() {
         itemPayload = {
           name: item.name,
           abbreviation: item.abbreviation || null,
-          variationName: item.variationName || 'Regular',
-          sku: item.sku || null, // Ensure null if empty
-          price: item.price, // Pass price (number or undefined)
           description: item.description || null, // Ensure null if empty
           isActive: item.isActive, // Typically true for new items
           images: item.images || [],
-          barcode: item.barcode || null,         // Pass barcode
           taxIds: item.taxIds || [],             // Pass taxIds (camelCase)
           modifierListIds: item.modifierListIds || [], // Pass modifierListIds (camelCase)
           reporting_category_id: item.reporting_category_id || null,
-          // Do NOT include id, version, category, categoryId, updatedAt, createdAt for CREATE
+          // Include all variations
+          variations: variations.map(v => ({
+            name: v.name || 'Regular',
+            price: v.price,
+            sku: v.sku || null,
+            barcode: v.barcode || null
+          }))
         };
-        // Remove price if it's undefined (for variable pricing)
-        if (itemPayload.price === undefined) {
-          delete itemPayload.price;
-        }
         
         savedItem = await createProduct(itemPayload); 
         Alert.alert('Success', 'Item created successfully');
@@ -237,7 +319,6 @@ export default function ItemDetails() {
         itemPayload = { 
           ...item, // Start with current state (includes version)
           abbreviation: item.abbreviation || null,
-          variationName: item.variationName || 'Regular',
           reporting_category_id: item.reporting_category_id || null // Ensure correct ID is present
         };
         
@@ -245,7 +326,6 @@ export default function ItemDetails() {
         delete (itemPayload as any).reporting_category; 
 
         // Delete frontend-specific/derived fields before sending
-        // delete itemPayload.reporting_category_id; // Don't delete the ID!
         delete itemPayload.category; 
         delete itemPayload.categoryId; 
 
@@ -256,12 +336,18 @@ export default function ItemDetails() {
           enabled: true
         }));
         delete itemPayload.modifierListIds;
+        delete itemPayload.taxIds;
         
-        // Remove price if it's undefined (for variable pricing)
-        if (itemPayload.price === undefined) {
-          delete itemPayload.price;
-        }
-
+        // Include variations with proper structure for update
+        itemPayload.variations = variations.map(v => ({
+          id: v.id, // Include ID if it exists (for existing variations)
+          version: v.version, // Include version if it exists (for existing variations)
+          name: v.name || 'Regular',
+          price: v.price,
+          sku: v.sku || null,
+          barcode: v.barcode || null
+        }));
+        
         if (typeof id !== 'string') {
           throw new Error('Invalid item ID for update');
         }
@@ -278,6 +364,18 @@ export default function ItemDetails() {
         setItem(savedItemWithReportingId);
         setOriginalItem(savedItemWithReportingId);
         setIsEdited(false);
+        
+        // Update variations from saved item if available
+        if (savedItem.variations && Array.isArray(savedItem.variations)) {
+          setVariations(savedItem.variations.map(v => ({
+            id: v.id,
+            version: v.version,
+            name: v.name || 'Regular',
+            sku: v.sku || null,
+            price: v.price,
+            barcode: v.barcode
+          })));
+        }
       }
       
       router.back();
@@ -288,7 +386,7 @@ export default function ItemDetails() {
     } finally {
       setIsSaving(false);
     }
-  }, [item, isNewItem, id, createProduct, updateProduct, setIsSaving, setError, setItem, setOriginalItem, setIsEdited, router]); // Extensive dependencies
+  }, [item, variations, isNewItem, id, createProduct, updateProduct, setIsSaving, setError, setItem, setOriginalItem, setIsEdited, router]); // Added variations to dependencies
   
   // Fetch the item data, categories, taxes, and modifiers on component mount
   useEffect(() => {
@@ -308,8 +406,6 @@ export default function ItemDetails() {
         setFilteredCategories(fetchedCategories); // Initialize filtered category list
         setAvailableTaxes(fetchedTaxes);
         setAvailableModifierLists(fetchedModifierLists);
-
-        // No need to filter for CRV here anymore, availableModifierLists holds all of them
         
         // Log available categories for debugging
         console.log('[ItemDetails] Available Categories:', JSON.stringify(fetchedCategories.map(c => ({id: c.id, name: c.name})), null, 2));
@@ -355,7 +451,29 @@ export default function ItemDetails() {
               modifierListIds: initialModifierListIds // Ensure Modifier IDs are set
             };
             setItem(itemWithReportingId);
-            setOriginalItem(itemWithReportingId); 
+            setOriginalItem(itemWithReportingId);
+            
+            // Initialize variations from the fetched item
+            // If no variations exist, create a default one
+            const itemVariations = fetchedItem.variations && Array.isArray(fetchedItem.variations) && fetchedItem.variations.length > 0
+              ? fetchedItem.variations.map(v => ({
+                  id: v.id,
+                  version: v.version,
+                  name: v.name || 'Regular',
+                  sku: v.sku || null,
+                  price: v.price,
+                  barcode: v.barcode
+                }))
+              : [{
+                  id: fetchedItem.variationId,
+                  version: fetchedItem.variationVersion,
+                  name: fetchedItem.variationName || 'Regular',
+                  sku: fetchedItem.sku || null,
+                  price: fetchedItem.price,
+                  barcode: fetchedItem.barcode
+                }];
+            
+            setVariations(itemVariations);
           } else {
             setError('Item not found');
             setItem(EMPTY_ITEM);
@@ -676,46 +794,88 @@ export default function ItemDetails() {
               />
             </View>
 
-            {/* Variation Name */}
+            {/* Variations Section */}
             <View style={styles.fieldContainer}>
-              <Text style={styles.label}>Variation Name</Text>
-              <TextInput
-                style={styles.input}
-                value={item.variationName || ''}
-                onChangeText={value => handleInputChange('variationName', value || 'Regular')}
-                placeholder="e.g., Regular, Large, Blue"
-                placeholderTextColor="#999"
-              />
-            </View>
-
-            {/* ADD SKU FIELD BACK */}
-            <View style={styles.fieldContainer}>
-              <Text style={styles.label}>SKU</Text>
-              <TextInput
-                style={styles.input}
-                value={item.sku || ''} // Bind to item.sku
-                onChangeText={value => handleInputChange('sku', value)} // Use handleInputChange
-                placeholder="Enter SKU (optional)"
-                placeholderTextColor="#999"
-                autoCapitalize="characters" // Suggest uppercase for SKU
-              />
-            </View>
-
-            {/* ADD PRICE FIELD BACK */}
-            <View style={styles.fieldContainer}>
-              <Text style={styles.label}>Price</Text>
-              <View style={styles.priceInputContainer}>
-                <Text style={styles.currencySymbol}>$</Text>
-                <TextInput
-                  style={styles.priceInput}
-                  value={item.price !== undefined ? item.price.toFixed(2) : ''} // Display formatted price or empty
-                  onChangeText={value => handleInputChange('price', value)} // Use handleInputChange for custom logic
-                  placeholder="Variable" // Updated placeholder
-                  placeholderTextColor="#999"
-                  keyboardType="numeric"
-                />
-              </View>
-               <Text style={styles.helperText}>Leave blank for variable pricing</Text> 
+              <Text style={styles.sectionHeaderText}>Variations</Text>
+              
+              {variations.map((variation, index) => (
+                <View key={`variation-${index}`} style={styles.variationContainer}>
+                  <View style={styles.variationHeader}>
+                    <Text style={styles.variationTitle}>Variation {index + 1}</Text>
+                    {variations.length > 1 && (
+                      <TouchableOpacity 
+                        onPress={() => removeVariation(index)}
+                        style={styles.removeVariationButton}
+                      >
+                        <Ionicons name="close-circle" size={22} color="#ff3b30" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  
+                  {/* Variation Name */}
+                  <View style={styles.fieldContainer}>
+                    <Text style={styles.subLabel}>Variation Name</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={variation.name || ''}
+                      onChangeText={(value) => handleVariationChange(index, 'name', value || 'Regular')}
+                      placeholder="e.g., Regular, Large, Blue"
+                      placeholderTextColor="#999"
+                    />
+                  </View>
+                  
+                  {/* SKU */}
+                  <View style={styles.fieldContainer}>
+                    <Text style={styles.subLabel}>SKU</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={variation.sku || ''}
+                      onChangeText={(value) => handleVariationChange(index, 'sku', value)}
+                      placeholder="Enter SKU (optional)"
+                      placeholderTextColor="#999"
+                      autoCapitalize="characters"
+                    />
+                  </View>
+                  
+                  {/* Price */}
+                  <View style={styles.fieldContainer}>
+                    <Text style={styles.subLabel}>Price</Text>
+                    <View style={styles.priceInputContainer}>
+                      <Text style={styles.currencySymbol}>$</Text>
+                      <TextInput
+                        style={styles.priceInput}
+                        value={variation.price !== undefined ? variation.price.toFixed(2) : ''}
+                        onChangeText={(value) => handleVariationChange(index, 'price', value)}
+                        placeholder="Variable"
+                        placeholderTextColor="#999"
+                        keyboardType="numeric"
+                      />
+                    </View>
+                    <Text style={styles.helperText}>Leave blank for variable pricing</Text>
+                  </View>
+                  
+                  {/* UPC/Barcode */}
+                  <View style={styles.fieldContainer}>
+                    <Text style={styles.subLabel}>UPC / Barcode</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={variation.barcode || ''}
+                      onChangeText={(value) => handleVariationChange(index, 'barcode', value)}
+                      placeholder="Enter UPC or scan barcode"
+                      placeholderTextColor="#999"
+                      keyboardType="numeric"
+                    />
+                  </View>
+                </View>
+              ))}
+              
+              <TouchableOpacity 
+                style={styles.addVariationButton}
+                onPress={addVariation}
+              >
+                <Ionicons name="add-circle-outline" size={20} color={lightTheme.colors.primary} />
+                <Text style={styles.addVariationText}>Add Variation</Text>
+              </TouchableOpacity>
             </View>
 
             {/* Reporting Category */}
@@ -745,19 +905,6 @@ export default function ItemDetails() {
                   </>
                 )}
               </View>
-            </View>
-            
-            {/* UPC/Barcode */}
-            <View style={styles.fieldContainer}>
-              <Text style={styles.label}>UPC / Barcode</Text>
-              <TextInput
-                style={styles.input}
-                value={item.barcode || ''}
-                onChangeText={value => updateItem('barcode', value)}
-                placeholder="Enter UPC or scan barcode"
-                placeholderTextColor="#999"
-                keyboardType="numeric" // Suggest numeric keyboard
-              />
             </View>
 
             {/* Taxes */}
@@ -818,18 +965,6 @@ export default function ItemDetails() {
                 ))
               ) : (
                 <Text style={styles.noItemsText}>No modifier lists available.</Text>
-              )}
-              
-              {/* Display Selected Modifiers (Optional but helpful for debugging) */}
-              {item.modifierListIds && item.modifierListIds.length > 0 && (
-                <View style={styles.selectedModifiersContainer}>
-                  <Text style={styles.selectedModifiersLabel}>Selected:</Text>
-                  {item.modifierListIds.map(id => (
-                    <Text key={id} style={styles.selectedModifierItem}>
-                      - {getModifierListName(id)} ({id})
-                    </Text>
-                  ))}
-                </View>
               )}
             </View>
 
@@ -999,8 +1134,8 @@ const styles = StyleSheet.create({
   },
   priceInput: {
     flex: 1,
-    paddingHorizontal: 8,
     paddingVertical: 10,
+    paddingRight: 12,
     fontSize: 16,
     color: '#333',
   },
@@ -1327,5 +1462,53 @@ const styles = StyleSheet.create({
   },
   selectedModifierItem: {
     color: '#333',
+  },
+  sectionHeaderText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#444',
+    marginBottom: 12,
+  },
+  variationContainer: {
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    backgroundColor: '#f9f9f9',
+  },
+  variationHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  variationTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  removeVariationButton: {
+    padding: 4,
+  },
+  addVariationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  addVariationText: {
+    color: lightTheme.colors.primary,
+    fontWeight: '500',
+    marginLeft: 8,
+  },
+  subLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#666',
+    marginBottom: 6,
   },
 }); 

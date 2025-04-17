@@ -26,12 +26,51 @@ export const transformCatalogItemToItem = (
   const itemData = catalogObject.item_data;
   const variations = itemData.variations || [];
 
-  // Price and SKU often come from the first variation
+  // Extract the first variation for default price/sku
   let price: number | undefined = undefined;
-  const firstVariationPrice = variations[0]?.item_variation_data?.price_money?.amount;
-  if (typeof firstVariationPrice === 'number' && !isNaN(firstVariationPrice)) {
-    price = firstVariationPrice / 100; // Convert from cents
+  let sku: string | null = null;
+  let barcode: string | undefined = undefined;
+  let variationId: string | undefined = undefined;
+  let variationVersion: number | undefined = undefined;
+  let variationName: string | undefined = undefined;
+
+  // Get first variation data for backward compatibility
+  if (variations.length > 0) {
+    const firstVariation = variations[0];
+    const firstVariationData = firstVariation.item_variation_data;
+    
+    variationId = firstVariation.id;
+    variationVersion = firstVariation.version;
+    variationName = firstVariationData?.name || 'Regular';
+    
+    const firstVariationPrice = firstVariationData?.price_money?.amount;
+    if (typeof firstVariationPrice === 'number' && !isNaN(firstVariationPrice)) {
+      price = firstVariationPrice / 100; // Convert from cents
+    }
+    
+    sku = firstVariationData?.sku || null;
+    barcode = firstVariationData?.upc;
   }
+
+  // Extract all variations into properly formatted objects
+  const transformedVariations = variations.map((variation: CatalogObject) => {
+    const variationData = variation.item_variation_data || {};
+    let variationPrice: number | undefined = undefined;
+    
+    const rawPrice = variationData.price_money?.amount;
+    if (typeof rawPrice === 'number' && !isNaN(rawPrice)) {
+      variationPrice = rawPrice / 100; // Convert from cents
+    }
+    
+    return {
+      id: variation.id,
+      version: variation.version,
+      name: variationData.name || 'Regular',
+      sku: variationData.sku || null,
+      price: variationPrice,
+      barcode: variationData.upc
+    };
+  });
 
   // Extract image URLs
   const imageUrls = (itemData.image_ids || []) 
@@ -43,7 +82,6 @@ export const transformCatalogItemToItem = (
       return imageId; // Simplified: just return ID for now
     })
     .filter((url: string | null): url is string => url !== null); 
-    
     
   // Extract Tax IDs directly if available
   const taxIds = itemData.tax_ids || [];
@@ -57,8 +95,11 @@ export const transformCatalogItemToItem = (
     name: itemData.name || '', // Ensure name is always a string
     description: itemData.description || '',
     price,
-    sku: variations[0]?.item_variation_data?.sku || null, // Use null if SKU is missing
-    barcode: variations[0]?.item_variation_data?.upc || undefined, // Map barcode to upc, undefined if missing
+    sku,
+    variationId,
+    variationVersion,
+    variationName,
+    barcode,
     isActive: !catalogObject.is_deleted,
     reporting_category_id: reportingCategoryId,
     category: '', // Keep as placeholder or perform lookup if needed
@@ -66,7 +107,8 @@ export const transformCatalogItemToItem = (
     createdAt: catalogObject.created_at,
     updatedAt: catalogObject.updated_at,
     taxIds: taxIds,
-    modifierListIds: modifierListIds || [] // Use the passed array
+    modifierListIds: modifierListIds || [], // Use the passed array
+    variations: transformedVariations // Add all variations
   };
 };
 

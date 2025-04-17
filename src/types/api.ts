@@ -104,6 +104,14 @@ export interface ConvertedItem {
   barcode?: string;
   stock?: number;
   variationName?: string;
+  variations?: Array<{
+    id?: string;
+    version?: number;
+    name: string;
+    sku: string | null;
+    price?: number;
+    barcode?: string;
+  }>;
 }
 
 export interface ConvertedCategory {

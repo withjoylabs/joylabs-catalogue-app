@@ -279,21 +279,36 @@ export const useCatalogItems = () => {
           abbreviation: productData.abbreviation || undefined,
           // **FIXED: Use reporting_category object structure**
           reporting_category: productData.reporting_category_id ? { id: productData.reporting_category_id } : undefined,
-          // **FIXED: Correct Variations Structure**
-          variations: [{
-            id: '#default-variation', // Temporary client ID for variation
-            type: 'ITEM_VARIATION',
-            item_variation_data: {
-              name: productData.variationName || 'Regular', // Use variationName from input
-              sku: productData.sku || undefined, // SKU belongs here
-              upc: productData.barcode || undefined, // MAP BARCODE TO UPC
-              pricing_type: productData.price !== undefined ? 'FIXED_PRICING' : 'VARIABLE_PRICING',
-              price_money: productData.price !== undefined ? {
-                amount: Math.round(productData.price * 100),
-                currency: 'USD'
-              } : undefined,
-            }
-          }],
+          // Create variations array from productData.variations if available
+          variations: productData.variations && Array.isArray(productData.variations) && productData.variations.length > 0
+            ? productData.variations.map((variation: any, index: number) => ({
+                id: `#variation-${index}-${Date.now()}`, // Generate temporary client ID for each variation
+                type: 'ITEM_VARIATION',
+                item_variation_data: {
+                  name: variation.name || 'Regular',
+                  sku: variation.sku || undefined,
+                  upc: variation.barcode || undefined,
+                  pricing_type: variation.price !== undefined ? 'FIXED_PRICING' : 'VARIABLE_PRICING',
+                  price_money: variation.price !== undefined ? {
+                    amount: Math.round(variation.price * 100),
+                    currency: 'USD'
+                  } : undefined,
+                }
+              }))
+            : [{
+                id: '#default-variation', // Temporary client ID for default variation
+                type: 'ITEM_VARIATION',
+                item_variation_data: {
+                  name: productData.variationName || 'Regular', // Fallback to variationName from input
+                  sku: productData.sku || undefined, // SKU belongs here
+                  upc: productData.barcode || undefined, // MAP BARCODE TO UPC
+                  pricing_type: productData.price !== undefined ? 'FIXED_PRICING' : 'VARIABLE_PRICING',
+                  price_money: productData.price !== undefined ? {
+                    amount: Math.round(productData.price * 100),
+                    currency: 'USD'
+                  } : undefined,
+                }
+              }],
           // **FIXED: Tax IDs and Modifiers belong INSIDE item_data**
           tax_ids: productData.taxIds && productData.taxIds.length > 0 ? productData.taxIds : undefined, // MAP TAX IDS
           modifier_list_info: productData.modifierListIds && productData.modifierListIds.length > 0 ? productData.modifierListIds.map((modId: string) => ({ modifier_list_id: modId, enabled: true })) : undefined, // MAP MODIFIER LIST IDS
@@ -308,21 +323,25 @@ export const useCatalogItems = () => {
         }
       });
       
-      // Explicitly handle variation data cleanup
-      if (squarePayload.item_data.variations && squarePayload.item_data.variations[0]) {
-        const variationData = squarePayload.item_data.variations[0].item_variation_data;
-        // Remove undefined price_money
-        if (variationData.price_money === undefined) {
-          delete variationData.price_money;
-        }
-        // Remove undefined UPC
-        if (variationData.upc === undefined) {
-          delete variationData.upc;
-        }
-        // Remove undefined SKU
-        if (variationData.sku === undefined) {
-            delete variationData.sku;
-        }
+      // Explicitly handle variation data cleanup for each variation
+      if (squarePayload.item_data.variations && squarePayload.item_data.variations.length > 0) {
+        squarePayload.item_data.variations.forEach((variation: any) => {
+          if (variation.item_variation_data) {
+            const variationData = variation.item_variation_data;
+            // Remove undefined price_money
+            if (variationData.price_money === undefined) {
+              delete variationData.price_money;
+            }
+            // Remove undefined UPC
+            if (variationData.upc === undefined) {
+              delete variationData.upc;
+            }
+            // Remove undefined SKU
+            if (variationData.sku === undefined) {
+              delete variationData.sku;
+            }
+          }
+        });
       }
 
       // Log the final payload BEFORE sending
@@ -400,12 +419,7 @@ export const useCatalogItems = () => {
       console.error('Cannot update product - no Square connection');
       throw new Error('Not connected to Square');
     }
-    // **FIX: Add check for variationId and variationVersion**
-    // No need for explicit check now, as ConvertedItem guarantees these fields (if not null/undefined initially)
-    // if (!productData.version || !productData.variationId || !productData.variationVersion) {
-    //   logger.error('CatalogItems::updateProduct', 'Cannot update product - item version, variation ID, or variation version is missing', { id, productData });
-    //   throw new Error('Item version, variation ID, and variation version are required for updates.');
-    // }
+    
     setProductsLoading(true);
     try {
       // 1. Construct the Square CatalogObject payload for update
@@ -418,26 +432,41 @@ export const useCatalogItems = () => {
           name: productData.name,
           description: productData.description || undefined,
           abbreviation: productData.abbreviation || undefined,
-          // **FIX: SKU is part of variation, not item directly for updates? Check Square API.**
-          // Let's keep SKU on variation only for simplicity based on current structure
-          // sku: productData.sku || undefined, 
           reporting_category: productData.reporting_category_id ? { id: productData.reporting_category_id } : undefined,
-          // **FIXED: Use real variation ID and version**
-          variations: [{
-            id: productData.variationId, // Use real ID from input
-            type: 'ITEM_VARIATION',
-            version: productData.variationVersion, // Use real version from input
-            item_variation_data: {
-              name: productData.variationName || 'Regular', 
-              pricing_type: productData.price !== undefined ? 'FIXED_PRICING' : 'VARIABLE_PRICING',
-              sku: productData.sku || undefined, // SKU belongs here
-              upc: productData.barcode || undefined, // MAP BARCODE TO UPC
-              price_money: productData.price !== undefined ? {
-                amount: Math.round(productData.price * 100),
-                currency: 'USD'
-              } : undefined,
-            }
-          }],
+          
+          // Handle multiple variations if available, otherwise fall back to single variation
+          variations: productData.variations && Array.isArray(productData.variations) && productData.variations.length > 0
+            ? productData.variations.map((variation: any) => ({
+                id: variation.id || `#variation-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+                type: 'ITEM_VARIATION',
+                version: variation.version, // Include version if it exists
+                item_variation_data: {
+                  name: variation.name || 'Regular',
+                  sku: variation.sku || undefined,
+                  upc: variation.barcode || undefined,
+                  pricing_type: variation.price !== undefined ? 'FIXED_PRICING' : 'VARIABLE_PRICING',
+                  price_money: variation.price !== undefined ? {
+                    amount: Math.round(variation.price * 100),
+                    currency: 'USD'
+                  } : undefined,
+                }
+              }))
+            : [{
+                id: productData.variationId, // Use real ID from input
+                type: 'ITEM_VARIATION',
+                version: productData.variationVersion, // Use real version from input
+                item_variation_data: {
+                  name: productData.variationName || 'Regular', 
+                  pricing_type: productData.price !== undefined ? 'FIXED_PRICING' : 'VARIABLE_PRICING',
+                  sku: productData.sku || undefined, // SKU belongs here
+                  upc: productData.barcode || undefined, // MAP BARCODE TO UPC
+                  price_money: productData.price !== undefined ? {
+                    amount: Math.round(productData.price * 100),
+                    currency: 'USD'
+                  } : undefined,
+                }
+              }],
+          
           tax_ids: productData.taxIds && productData.taxIds.length > 0 ? productData.taxIds : undefined, // MAP TAX IDS
           modifier_list_info: productData.modifierListIds && productData.modifierListIds.length > 0 ? productData.modifierListIds.map((modId: string) => ({ modifier_list_id: modId, enabled: true })) : undefined, // MAP MODIFIER LIST IDS
           product_type: 'REGULAR', // CORRECTED ENUM: Use REGULAR
@@ -451,21 +480,25 @@ export const useCatalogItems = () => {
         }
       });
       
-      // Explicitly handle variation data cleanup
-      if (squarePayload.item_data.variations && squarePayload.item_data.variations[0]) {
-        const variationData = squarePayload.item_data.variations[0].item_variation_data;
-         // Remove undefined price_money
-        if (variationData.price_money === undefined) {
-          delete variationData.price_money;
-        }
-        // Remove undefined UPC
-        if (variationData.upc === undefined) {
-            delete variationData.upc;
-        }
-        // Remove undefined SKU
-        if (variationData.sku === undefined) {
-            delete variationData.sku;
-        }
+      // Explicitly handle variation data cleanup for each variation
+      if (squarePayload.item_data.variations && squarePayload.item_data.variations.length > 0) {
+        squarePayload.item_data.variations.forEach((variation: any) => {
+          if (variation.item_variation_data) {
+            const variationData = variation.item_variation_data;
+            // Remove undefined price_money
+            if (variationData.price_money === undefined) {
+              delete variationData.price_money;
+            }
+            // Remove undefined UPC
+            if (variationData.upc === undefined) {
+              delete variationData.upc;
+            }
+            // Remove undefined SKU
+            if (variationData.sku === undefined) {
+              delete variationData.sku;
+            }
+          }
+        });
       }
       
       // Log the final payload BEFORE sending
