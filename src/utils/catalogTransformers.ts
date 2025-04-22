@@ -3,114 +3,110 @@ import {
   CatalogItemData, 
   CatalogCategoryData,
   ConvertedItem,
-  ConvertedCategory
+  ConvertedCategory,
+  CatalogImage
 } from '../types/api';
 import logger from './logger';
 
 /**
- * Transforms a CatalogObject (typically of type ITEM) into a ConvertedItem 
- * suitable for the UI state, extracting key fields and handling variations/price.
- * @param catalogObject The raw CatalogObject from the API or database JSON.
- * @param modifierListIds Array of modifier list IDs associated with the item.
- * @returns A ConvertedItem object or null if transformation is not possible.
+ * Transforms a raw Square CatalogObject (ITEM type) into a frontend ConvertedItem.
+ * Handles variations, pricing, and basic field mapping.
  */
-export const transformCatalogItemToItem = (
-  catalogObject: Partial<CatalogObject> & { id: string }, // Ensure ID is always present
-  modifierListIds?: string[] // Accept the array of modifier list IDs
-): ConvertedItem | null => {
+export function transformCatalogItemToItem(
+  catalogObject: CatalogObject | null | undefined
+): ConvertedItem | null {
   if (!catalogObject || catalogObject.type !== 'ITEM' || !catalogObject.item_data) {
-    logger.warn('Transform', 'Cannot transform object: not a valid ITEM type or missing item_data', { id: catalogObject?.id });
+    // logger.warn('CatalogTransformer', 'Attempted to transform invalid CatalogObject item', { id: catalogObject?.id });
     return null;
   }
 
   const itemData = catalogObject.item_data;
   const variations = itemData.variations || [];
 
-  // Extract the first variation for default price/sku
-  let price: number | undefined = undefined;
-  let sku: string | null = null;
-  let barcode: string | undefined = undefined;
-  let variationId: string | undefined = undefined;
-  let variationVersion: number | undefined = undefined;
-  let variationName: string | undefined = undefined;
+  // Extract modifier list IDs
+  const modifierListInfo = itemData.modifier_list_info || [];
+  const modifierListIds = modifierListInfo
+    .filter((info: any) => info.enabled) // Only include enabled modifier lists
+    .map((info: any) => info.modifier_list_id)
+    .filter((id: any): id is string => typeof id === 'string'); // Ensure IDs are strings
 
-  // Get first variation data for backward compatibility
-  if (variations.length > 0) {
-    const firstVariation = variations[0];
-    const firstVariationData = firstVariation.item_variation_data;
-    
-    variationId = firstVariation.id;
-    variationVersion = firstVariation.version;
-    variationName = firstVariationData?.name || 'Regular';
-    
-    const firstVariationPrice = firstVariationData?.price_money?.amount;
-    if (typeof firstVariationPrice === 'number' && !isNaN(firstVariationPrice)) {
-      price = firstVariationPrice / 100; // Convert from cents
-    }
-    
-    sku = firstVariationData?.sku || null;
-    barcode = firstVariationData?.upc;
-  }
+  // Map variations to the structure expected by ConvertedItem
+  const mappedVariations: Array<{
+    id?: string;
+    version?: number;
+    name: string;
+    sku: string | null;
+    price?: number;
+    barcode?: string;
+  }> = variations
+    .map((variation: any) => {
+      if (!variation.item_variation_data) return null;
+      const varData = variation.item_variation_data;
+      const price = varData.price_money ? varData.price_money.amount / 100 : undefined;
 
-  // Extract all variations into properly formatted objects
-  const transformedVariations = variations.map((variation: CatalogObject) => {
-    const variationData = variation.item_variation_data || {};
-    let variationPrice: number | undefined = undefined;
-    
-    const rawPrice = variationData.price_money?.amount;
-    if (typeof rawPrice === 'number' && !isNaN(rawPrice)) {
-      variationPrice = rawPrice / 100; // Convert from cents
-    }
-    
-    return {
-      id: variation.id,
-      version: variation.version,
-      name: variationData.name || 'Regular',
-      sku: variationData.sku || null,
-      price: variationPrice,
-      barcode: variationData.upc
-    };
-  });
-
-  // Extract image URLs
-  const imageUrls = (itemData.image_ids || []) 
-    .map((imageId: string) => {
-      // Find the corresponding image object if available (depends on what's fetched)
-      // This part might need adjustment based on how images are stored/retrieved
-      // For now, assume we might have image objects nested or need a separate lookup
-      // Placeholder: return { id: imageId, url: 'lookup_needed', name: 'lookup_needed' };
-      return imageId; // Simplified: just return ID for now
+      return {
+        id: variation.id,
+        version: variation.version,
+        name: varData.name || '', // Default to empty string if name is missing
+        sku: varData.sku || null, // Match ConvertedItem type (string | null)
+        barcode: varData.upc || undefined, // Map upc to barcode
+        price: price,
+      };
     })
-    .filter((url: string | null): url is string => url !== null); 
-    
-  // Extract Tax IDs directly if available
-  const taxIds = itemData.tax_ids || [];
-  
-  // Determine reporting category ID if available
-  const reportingCategoryId = itemData.reporting_category?.id || undefined;
+    .filter((v: any): v is {
+      id?: string;
+      version?: number;
+      name: string;
+      sku: string | null;
+      price?: number;
+      barcode?: string;
+    } => v !== null);
 
-  // Construct the ConvertedItem
-  return {
+  // Find the first variation to pull top-level price/sku/barcode (for backward compatibility/simplicity)
+  // Prefer the one named 'Regular' or the first one if 'Regular' doesn't exist.
+  const primaryVariation = 
+    mappedVariations.find(v => v.name?.toLowerCase() === 'regular') || 
+    mappedVariations[0] || 
+    null;
+
+  // Extract Image Data matching the ConvertedItem structure
+  const images: { id: string; url: string; name: string }[] = (itemData.image_ids || []).map((imageId: string) => ({
+    id: imageId,
+    url: '', // Placeholder: URL lookup needed based on ID
+    name: '', // Placeholder: Name lookup needed based on ID
+  }));
+
+  const transformed: ConvertedItem = {
     id: catalogObject.id,
-    name: itemData.name || '', // Ensure name is always a string
+    version: catalogObject.version, // Include top-level version
+    name: itemData.name || '',
     description: itemData.description || '',
-    price,
-    sku,
-    variationId,
-    variationVersion,
-    variationName,
-    barcode,
-    isActive: !catalogObject.is_deleted,
-    reporting_category_id: reportingCategoryId,
-    category: '', // Keep as placeholder or perform lookup if needed
-    images: [], // Placeholder - image handling needs refinement based on actual data structure
+    isActive: !catalogObject.is_deleted, // Determine active status
+    // Pull price/sku/barcode from primary variation for top-level convenience
+    price: primaryVariation?.price,
+    sku: primaryVariation?.sku || null, // Ensure sku matches ConvertedItem type (string | null)
+    barcode: primaryVariation?.barcode,
+    // --- Fields specifically from item_data ---
+    taxIds: itemData.tax_ids || [], // Ensure it's an array
+    modifierListIds: modifierListIds, // Assign extracted modifier IDs
+    abbreviation: itemData.abbreviation || '',
+    reporting_category_id: itemData.reporting_category?.id, // Directly use the ID
+    categoryId: itemData.category_id, // Map category_id
+    // --- Variations --- 
+    variations: mappedVariations, // Assign the full list of mapped variations
+    // --- Images --- 
+    images: images, // Assign extracted/placeholder images
+    // --- Timestamps & other optional ConvertedItem fields ---
     createdAt: catalogObject.created_at,
     updatedAt: catalogObject.updated_at,
-    taxIds: taxIds,
-    modifierListIds: modifierListIds || [], // Use the passed array
-    variations: transformedVariations // Add all variations
+    // variationId, variationVersion, variationName might need specific logic if required
+    // category name lookup might be needed elsewhere
+    // stock information not directly available here
   };
-};
+
+  // logger.debug('CatalogTransformer', 'Transformed item', { inputId: catalogObject.id, outputId: transformed.id, variationCount: transformed.variations.length });
+  return transformed;
+}
 
 /**
  * Transforms a Square CatalogObject with type CATEGORY to our frontend Category model

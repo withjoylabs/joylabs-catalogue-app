@@ -329,15 +329,6 @@ export default function ItemDetails() {
         delete itemPayload.category; 
         delete itemPayload.categoryId; 
 
-        // Transform taxIds and modifierListIds
-        itemPayload.tax_ids = item.taxIds || []; 
-        itemPayload.modifier_list_info = (item.modifierListIds || []).map(id => ({
-          modifier_list_id: id,
-          enabled: true
-        }));
-        delete itemPayload.modifierListIds;
-        delete itemPayload.taxIds;
-        
         // Include variations with proper structure for update
         itemPayload.variations = variations.map(v => ({
           id: v.id, // Include ID if it exists (for existing variations)

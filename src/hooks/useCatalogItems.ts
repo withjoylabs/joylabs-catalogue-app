@@ -422,25 +422,28 @@ export const useCatalogItems = () => {
     
     setProductsLoading(true);
     try {
-      // 1. Construct the Square CatalogObject payload for update
+      // --- Reverted to Single Stage Update --- 
       const idempotencyKey = uuidv4();
       const squarePayload = {
         id: id, 
         type: 'ITEM',
-        version: productData.version, 
+        version: productData.version, // Crucial: Use the item's version
         item_data: {
           name: productData.name,
           description: productData.description || undefined,
           abbreviation: productData.abbreviation || undefined,
           reporting_category: productData.reporting_category_id ? { id: productData.reporting_category_id } : undefined,
           
-          // Handle multiple variations if available, otherwise fall back to single variation
-          variations: productData.variations && Array.isArray(productData.variations) && productData.variations.length > 0
-            ? productData.variations.map((variation: any) => ({
-                id: variation.id || `#variation-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+          // Construct the variations array for the single update call
+          variations: (productData.variations || []).map((variation: any, index: number) => {
+            // Check if it's an existing variation (has id and version)
+            if (variation.id && variation.version) {
+              return { // Payload for EXISTING variation update
+                id: variation.id,
                 type: 'ITEM_VARIATION',
-                version: variation.version, // Include version if it exists
+                version: variation.version,
                 item_variation_data: {
+                  // OMIT item_id for updates
                   name: variation.name || 'Regular',
                   sku: variation.sku || undefined,
                   upc: variation.barcode || undefined,
@@ -450,26 +453,33 @@ export const useCatalogItems = () => {
                     currency: 'USD'
                   } : undefined,
                 }
-              }))
-            : [{
-                id: productData.variationId, // Use real ID from input
+              };
+            } else {
+              // Payload for NEW variation creation within the item update
+              return { 
+                id: `#new-variation-${index}-${Date.now()}`, // Must start with # for new objects
                 type: 'ITEM_VARIATION',
-                version: productData.variationVersion, // Use real version from input
+                // NO version for new variations
                 item_variation_data: {
-                  name: productData.variationName || 'Regular', 
-                  pricing_type: productData.price !== undefined ? 'FIXED_PRICING' : 'VARIABLE_PRICING',
-                  sku: productData.sku || undefined, // SKU belongs here
-                  upc: productData.barcode || undefined, // MAP BARCODE TO UPC
-                  price_money: productData.price !== undefined ? {
-                    amount: Math.round(productData.price * 100),
+                  // OMIT item_id for updates
+                  name: variation.name || 'Regular',
+                  sku: variation.sku || undefined,
+                  upc: variation.barcode || undefined,
+                  pricing_type: variation.price !== undefined ? 'FIXED_PRICING' : 'VARIABLE_PRICING',
+                  price_money: variation.price !== undefined ? {
+                    amount: Math.round(variation.price * 100),
                     currency: 'USD'
                   } : undefined,
                 }
-              }],
+              };
+            }
+          }),
           
-          tax_ids: productData.taxIds && productData.taxIds.length > 0 ? productData.taxIds : undefined, // MAP TAX IDS
-          modifier_list_info: productData.modifierListIds && productData.modifierListIds.length > 0 ? productData.modifierListIds.map((modId: string) => ({ modifier_list_id: modId, enabled: true })) : undefined, // MAP MODIFIER LIST IDS
-          product_type: 'REGULAR', // CORRECTED ENUM: Use REGULAR
+          tax_ids: productData.taxIds && productData.taxIds.length > 0 ? productData.taxIds : undefined,
+          modifier_list_info: productData.modifierListIds && productData.modifierListIds.length > 0 
+            ? productData.modifierListIds.map((modId: string) => ({ modifier_list_id: modId, enabled: true })) 
+            : undefined,
+          product_type: 'REGULAR',
         }
       };
 
@@ -480,83 +490,72 @@ export const useCatalogItems = () => {
         }
       });
       
-      // Explicitly handle variation data cleanup for each variation
-      if (squarePayload.item_data.variations && squarePayload.item_data.variations.length > 0) {
-        squarePayload.item_data.variations.forEach((variation: any) => {
-          if (variation.item_variation_data) {
-            const variationData = variation.item_variation_data;
-            // Remove undefined price_money
-            if (variationData.price_money === undefined) {
-              delete variationData.price_money;
-            }
-            // Remove undefined UPC
-            if (variationData.upc === undefined) {
-              delete variationData.upc;
-            }
-            // Remove undefined SKU
-            if (variationData.sku === undefined) {
-              delete variationData.sku;
-            }
-          }
-        });
+      // Clean undefined fields within each variation's item_variation_data
+      if (squarePayload.item_data.variations) {
+          squarePayload.item_data.variations.forEach(variation => {
+              if (variation.item_variation_data) {
+                  const variationData = variation.item_variation_data;
+                   Object.keys(variationData).forEach(key => {
+                      if (variationData[key as keyof typeof variationData] === undefined) {
+                         delete variationData[key as keyof typeof variationData];
+                      }
+                   });
+              }
+          });
       }
       
-      // Log the final payload BEFORE sending
-      logger.debug('CatalogItems::updateProductDirect', 'Final Payload for UPDATE', { payload: JSON.stringify(squarePayload) });
-      logger.debug('CatalogItems::updateProductDirect', 'Calling directSquareApi.upsertCatalogObject for UPDATE', { id, version: productData.version, idempotencyKey });
-
-      // 2. Call the direct Square API
+      logger.debug('CatalogItems::updateProductDirect', 'Final Payload for Combined Update', { payload: JSON.stringify(squarePayload) });
+      
+      // Call the single upsert API
       const response = await directSquareApi.upsertCatalogObject(squarePayload, idempotencyKey);
 
       if (!response.success || !response.data?.catalog_object) {
-        logger.error('CatalogItems::updateProductDirect', 'Direct Square upsert failed for update', { responseError: response.error });
+        logger.error('CatalogItems::updateProductDirect', 'Combined Square upsert failed', { responseError: response.error });
         throw response.error || new Error('Failed to update product via direct Square API');
       }
       
-      logger.info('CatalogItems::updateProductDirect', 'Direct Square update successful', { updatedId: response.data.catalog_object.id, newVersion: response.data.catalog_object.version });
+      logger.info('CatalogItems::updateProductDirect', 'Combined Square update successful', { updatedId: response.data.catalog_object.id, newVersion: response.data.catalog_object.version });
 
-      // 3. Fetch the updated object to get full details
-      const updatedId = response.data.catalog_object.id;
-      let updatedItem: ConvertedItem | null = null;
+      // --- Fetch final updated object & update state (same as before) --- 
+      let finalUpdatedItem: ConvertedItem | null = null;
       try {
+        const updatedId = response.data.catalog_object.id;
         const retrievedResponse = await directSquareApi.retrieveCatalogObject(updatedId, true);
         if (retrievedResponse.success && retrievedResponse.data?.object) {
           const rawCatalogObject = retrievedResponse.data.object;
-          // 4. Update local DB
+          // Update local DB
           const db = await getDatabase();
           await upsertCatalogObjects([rawCatalogObject]);
 
-          // 5. Transform for UI state
-          updatedItem = transformCatalogItemToItem(rawCatalogObject as any);
+          // Transform for UI state
+          finalUpdatedItem = transformCatalogItemToItem(rawCatalogObject as any);
 
-          // 6. Update Zustand state (replace item in list)
-          if (updatedItem) {
+          // Update Zustand state
+          if (finalUpdatedItem) {
             setProducts(
-              storeProducts.map(p => p.id === updatedId ? updatedItem! : p)
+              storeProducts.map(p => p.id === id ? finalUpdatedItem! : p)
             );
-            // **FIXED: Also update/add to scan history**
             const historyItem: ScanHistoryItem = {
-              ...updatedItem,
-              scanId: uuidv4(), // Generate unique ID for this scan event
+              ...finalUpdatedItem,
+              scanId: uuidv4(),
               scanTime: new Date().toISOString(),
             };
-            addScanHistoryItem(historyItem); // Add/Update in history
-            logger.info('CatalogItems::updateProductDirect', 'Updated item in local state and DB', { updatedId });
+            addScanHistoryItem(historyItem);
+            logger.info('CatalogItems::updateProductDirect', 'Updated item in local state and DB after combined update', { id });
           } else {
-            logger.warn('CatalogItems::updateProductDirect', 'Failed to transform updated item', { updatedId });
+            logger.warn('CatalogItems::updateProductDirect', 'Failed to transform item after combined update', { id });
             await refreshProducts(); // Fallback
           }
         } else {
-          logger.error('CatalogItems::updateProductDirect', 'Failed to retrieve updated item', { updatedId, error: retrievedResponse.error });
+          logger.error('CatalogItems::updateProductDirect', 'Failed to retrieve item after combined update', { id, error: retrievedResponse.error });
           await refreshProducts(); // Fallback
         }
       } catch (fetchError) {
-        logger.error('CatalogItems::updateProductDirect', 'Error retrieving or processing updated item', { updatedId, error: fetchError });
+        logger.error('CatalogItems::updateProductDirect', 'Error retrieving/processing item after combined update', { id, error: fetchError });
         await refreshProducts(); // Fallback
       }
       
-      // 7. Return the transformed item (or null if retrieval/transform failed)
-      return updatedItem;
+      return finalUpdatedItem;
 
     } catch (error: unknown) {
       logger.error('CatalogItems::updateProductDirect', 'Error updating product directly', { id, error });
