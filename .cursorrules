@@ -176,26 +176,30 @@ This section provides a summary of key files and their roles within the JoyLabs 
 *   **Purpose:** Primary screen component for adding (`id='new'`) or editing an existing catalog item. Uses Expo Router for navigation and dynamic routing based on the `id` parameter.
 *   **State Management:**
     *   Uses `useState` extensively to manage the item being edited (`item`), the original item state (`originalItem`), loading states (`isLoading`, `isSaving`), error states (`error`), edit status (`isEdited`), and UI states (modals, search terms, available options).
-    *   Uses `useEffect` to fetch initial data (item details, categories, taxes, modifiers), update header buttons, filter categories, and determine edit status.
+    *   **NEW: Manages item variations using a separate `variations` state array (`useState<ItemVariation[]>`).**
+    *   Uses `useEffect` to fetch initial data (item details including all variations, categories, taxes, modifiers), update header buttons, filter categories, and determine edit status.
     *   Uses `useCallback` for stable event handlers (`handleSave`, `handleCancel`, `handleDelete`).
     *   Uses `useMemo` for derived state (`selectedCategoryName`).
 *   **Data Fetching & Updates:**
-    *   **Initial Load:** Calls `getAllCategories`, `getAllTaxes`, `getAllModifierLists` (`src/database/modernDb.ts`) for options. Calls `getProductById` (`src/hooks/useCatalogItems.ts`) for existing items.
+    *   **Initial Load:** Calls `getAllCategories`, `getAllTaxes`, `getAllModifierLists` (`src/database/modernDb.ts`) for options. Calls `getProductById` (`src/hooks/useCatalogItems.ts`) for existing items, which now returns the full `ConvertedItem` including all variations.
     *   **Saving (`handleSave`):**
-        *   Constructs `itemPayload` from local state.
-        *   **Payload Transformation (Important):**
-            *   For **new items:** Passes camelCase `taxIds`, `modifierListIds` directly to `createProduct`.
-            *   For **updated items:** Transforms `taxIds` to `tax_ids` (snake_case) and `modifierListIds` to `modifier_list_info` (snake_case array) before passing to `updateProduct`. Removes frontend-specific fields.
-        *   Calls `createProduct` or `updateProduct` (`src/hooks/useCatalogItems.ts`).
+        *   Constructs `itemPayload` from local `item` and `variations` state.
+        *   Passes the constructed payload (including the variations array) to `createProduct` or `updateProduct` (`src/hooks/useCatalogItems.ts`). **Does NOT perform Square API-specific transformations (e.g., `tax_ids`, `modifier_list_info`) as this is handled by the hooks.**
         *   Handles UI feedback and navigation.
-*   **User Interface:** Renders form inputs (`TextInput`, `TouchableOpacity`, `Modal`, etc.) for item properties. Includes category/tax/modifier selection logic.
-*   **Key Dependencies:** `expo-router`, `src/hooks/useCatalogItems.ts`, `src/database/modernDb.ts`, `src/types/api.ts`, `src/utils/recentCategories.ts`. 
+*   **User Interface:** Renders form inputs (`TextInput`, `TouchableOpacity`, `Modal`, etc.) for item properties. **Includes a dedicated section to display, add, and remove variations.** Includes category/tax/modifier selection logic.
+*   **Key Dependencies:** `expo-router`, `src/hooks/useCatalogItems.ts`, `src/database/modernDb.ts`, `src/types/api.ts`, `src/utils/recentCategories.ts`.
 
 ### `src/hooks/useCatalogItems.ts`
 
 - **Purpose:** Centralizes logic for fetching, creating, updating, and deleting catalog items (products). Manages loading/error states, pagination, and acts as the bridge between UI components and data sources (API, DB) for items.
 - **State Management:** Uses `useAppStore` (Zustand) for global product list, loading states, errors, and scan history. Uses local `useState` for pagination and `useRef` for category mapping cache.
 - **API Interaction:** Uses `directSquareApi` (from `src/api/index.ts`) for direct Square API CRUD operations (`fetchCatalogPage`, `upsertCatalogObject`, `retrieveCatalogObject`, `deleteCatalogObject`). Checks `isSquareConnected` from `useApi` provider before calls.
+    - **`createProduct`:** Constructs a Square payload for a new item, including all variations provided. New variations are assigned temporary `#`-prefixed IDs.
+    - **`updateProduct`:** Constructs a **single** Square payload to update an existing item. **Crucially includes the item's `version`**. It maps the `variations` array from the input `productData`:
+        - Existing variations include their `id` and `version`.
+        - New variations are assigned a temporary `#`-prefixed `id` and have no `version`.
+        - **Omits `item_id` from within `item_variation_data` during updates.**
+        - Transforms frontend fields (`taxIds`, `modifierListIds`) into the Square API format (`tax_ids`, `modifier_list_info`).
 - **Data Transformation:** Uses `transformCatalogItemToItem` (from `src/utils/catalogTransformers.ts`) to convert between Square API `snake_case` (`CatalogObject`) and frontend `camelCase` (`ConvertedItem`) formats. Constructs `snake_case` payloads for create/update.
 - **Database Interaction:** Uses helpers from `src/database/modernDb.ts` (`getDatabase`, `getItemOrVariationRawById`, `upsertCatalogObjects`). `getProductById` checks store then DB. `createProduct`/`updateProduct` update the DB after successful Square operations.
 - **Key Functions:** `fetchProducts`, `refreshProducts`, `loadMoreProducts`, `getProductById`, `createProduct`, `updateProduct`, `deleteProduct` encapsulate the core logic for item management.
@@ -215,8 +219,8 @@ This section provides a summary of key files and their roles within the JoyLabs 
         - **Authentication:** Uses `tokenService.getAuthHeaders()` to add the Bearer token.
         - **Square Version Header:** Adds the required `Square-Version` header.
         - **Error Handling:** Includes specific error handling (`handleDirectSquareError`) for Square API responses (parsing `errors[0].detail`, etc.).
-\
-        - Error Handling:** Includes specific error handling (`handleDirectSquareError`) for Square API responses (parsing `errors[0].detail`, etc.).
+
+        - **Error Handling:** Includes specific error handling (`handleDirectSquareError`) for Square API responses (parsing `errors[0].detail`, etc.).
 - **Structure:**
     - Defines common types (`ApiResponse`, `ApiError`, `RequestConfig`).
     - Implements caching utilities (`getCacheKey`, `getFromCache`, `saveToCache`, `clearCache`).
@@ -225,19 +229,24 @@ This section provides a summary of key files and their roles within the JoyLabs 
     - **Exports `directSquareApi` as a named export** containing functions for direct Square calls (`upsertCatalogObject`, `deleteCatalogObject`, `retrieveCatalogObject`, `fetchCatalogPage`). These are used primarily by `useCatalogItems` and `catalogSync`.
     - **Does NOT export a structured `api` object with grouped endpoints (e.g., `api.catalog`).** Calls to the proxied backend should be made using standard `apiClient.get()`, `apiClient.post()`, etc.
 - **Token Management:** Relies heavily on `src/services/tokenService.ts` for storing, retrieving, validating, and refreshing tokens.
-- **Logging:** Uses `src/utils/logger.ts` extensively for debugging requests, responses, cache operations, and errors. 
+- **Logging:** Uses `src/utils/logger.ts` extensively for debugging requests, responses, cache operations, and errors.
 
 ### `src/utils/catalogTransformers.ts`
 
 
 - **Purpose:** Provides utility functions to convert data structures between the Square Catalog API format (`CatalogObject`, `snake_case`) and the internal frontend format (`ConvertedItem`, `ConvertedCategory`, `camelCase`). This is essential for displaying API data in the UI and for sending UI data back to the API for saving.
 - **Key Functions:**
-    - `transformCatalogItemToItem`: Converts raw `CatalogObject` (ITEM) from API/DB to frontend `ConvertedItem`. Handles price conversion (cents to dollars), variation data extraction (price, SKU, barcode), and mapping fields like `tax_ids`, `reporting_category_id`.
+    - `transformCatalogItemToItem`: Converts raw `CatalogObject` (ITEM) from API/DB to frontend `ConvertedItem`. Handles:
+        - **Mapping all variations** from `item_data.variations` into the `variations` array of `ConvertedItem`.
+        - **Extracting `modifierListIds`** from `item_data.modifier_list_info`.
+        - **Extracting `taxIds`** from `item_data.tax_ids`.
+        - **Including the top-level item `version`**. Crucial for updates.
+        - Extracting `reporting_category_id`.
+        - Pulling price/SKU/barcode from the primary variation (e.g., 'Regular' or first) for top-level convenience fields in `ConvertedItem`.
     - `transformCatalogCategoryToCategory`: Converts raw `CatalogObject` (CATEGORY) to frontend `ConvertedCategory`. Assigns placeholder colors.
-    - `transformItemToCatalogItem`: Converts frontend `ConvertedItem` (from UI state) back to a `CatalogObject` suitable for Square API create/update operations. Handles price conversion (dollars to cents), variation structure creation, sets `pricing_type` ('FIXED_PRICING' vs 'VARIABLE_PRICING'), correctly omits `price_money` for variable pricing, and prefixes new object IDs with '#'.
-    - `transformCategoryToCatalogCategory`: Converts frontend `ConvertedCategory` back to a Square `CatalogObject`.
+    - **DEPRECATED/REPLACED:** `transformItemToCatalogItem` and `transformCategoryToCatalogCategory` logic is now primarily handled within the `createProduct`/`updateProduct` hooks in `useCatalogItems.ts` to construct the specific Square API payloads.
 - **Dependencies:** `src/types/api.ts`, `src/utils/logger.ts`.
-- **Importance:** Acts as a critical data mapping layer. Correctness is vital for accurate data display and successful item/category saving. 
+- **Importance:** Acts as a critical data mapping layer, especially for accurately loading item data (including version, variations, modifiers, taxes) into the UI state for editing. Correctness prevents version mismatch errors and data loss during updates.
 
 ### `src/database/modernDb.ts`
 

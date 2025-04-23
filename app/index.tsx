@@ -5,6 +5,7 @@ import ConnectionStatusBar from '../src/components/ConnectionStatusBar';
 import SearchBar from '../src/components/SearchBar';
 import SortHeader from '../src/components/SortHeader';
 import CatalogueItemCard from '../src/components/CatalogueItemCard';
+import SwipeableRow from '../src/components/SwipeableRow';
 import { ScanHistoryItem } from '../src/types';
 import { ConvertedItem } from '../src/types/api';
 import { Ionicons } from '@expo/vector-icons';
@@ -41,6 +42,7 @@ function RootLayoutNav() {
   
   const scanHistory = useAppStore((state) => state.scanHistory);
   const addScanHistoryItem = useAppStore((state) => state.addScanHistoryItem);
+  const removeScanHistoryItem = useAppStore((state) => state.removeScanHistoryItem);
   const autoSearchOnEnter = useAppStore((state) => state.autoSearchOnEnter);
   const autoSearchOnTab = useAppStore((state) => state.autoSearchOnTab);
   
@@ -162,7 +164,7 @@ function RootLayoutNav() {
       } else {
         // --- 2. Search Backend API (if not found locally) --- 
         logger.info('Home', 'Item not found locally, searching backend API...', { query, queryType });
-        const response = await api.catalog.searchCatalog(query, queryType);
+        const response = await api.searchCatalog(query, queryType);
       
         if (response.success && response.objects && response.objects.length > 0) {
           
@@ -300,6 +302,11 @@ function RootLayoutNav() {
     router.push(`/item/${itemId}`);
   };
   
+  const handleDeleteHistoryItem = (scanId: string) => {
+    logger.info('Home', 'Removing item from scan history', { scanId });
+    removeScanHistoryItem(scanId);
+  };
+  
   const sortedItems = [...scanHistory].sort((a, b) => {
     switch (sortOrder) {
       case 'newest':
@@ -347,11 +354,16 @@ function RootLayoutNav() {
           data={sortedItems}
           keyExtractor={(item) => item.scanId}
           renderItem={({ item, index }) => (
-            <CatalogueItemCard 
-              item={item}
-              index={sortedItems.length - index}
-              onPress={() => handleItemPress(item)}
-            />
+            <SwipeableRow
+              onDelete={() => handleDeleteHistoryItem(item.scanId)}
+              itemName={item.name}
+            >
+              <CatalogueItemCard 
+                item={item}
+                index={sortedItems.length - index}
+                onPress={() => handleItemPress(item)}
+              />
+            </SwipeableRow>
           )}
           contentContainerStyle={styles.listContent}
           style={styles.listContainer}

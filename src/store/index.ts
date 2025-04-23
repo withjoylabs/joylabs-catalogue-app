@@ -57,6 +57,7 @@ interface AppState {
   
   // Scan History state
   scanHistory: ScanHistoryItem[];
+  adminScanHistory: ScanHistoryItem[]; // Full history for admin
   
   // Auto-search settings
   autoSearchOnEnter: boolean;
@@ -83,6 +84,7 @@ interface AppState {
   
   // Scan History actions
   addScanHistoryItem: (item: ScanHistoryItem) => void;
+  removeScanHistoryItem: (scanId: string) => void; // New action to remove items
   clearScanHistory: () => void;
   
   // Auto-search toggles
@@ -120,6 +122,7 @@ export const useAppStore = create<AppState>()(
       
       // Initial scan history state
       scanHistory: [],
+      adminScanHistory: [], // Initialize admin scan history
       
       // Auto-search defaults and toggles
       autoSearchOnEnter: true,
@@ -157,10 +160,31 @@ export const useAppStore = create<AppState>()(
             newHistory.splice(existingIndex, 1);
           }
           // Add the new item to the beginning and limit history size (e.g., 100 items)
-          newHistory = [item, ...newHistory].slice(0, 100); 
+          newHistory = [item, ...newHistory].slice(0, 100);
+          
+          // Also update admin scan history
+          const existingAdminIndex = state.adminScanHistory.findIndex(histItem => histItem.id === item.id);
+          let newAdminHistory = [...state.adminScanHistory];
+          if (existingAdminIndex > -1) {
+            newAdminHistory.splice(existingAdminIndex, 1);
+          }
+          newAdminHistory = [item, ...newAdminHistory].slice(0, 500); // Allow more items in admin history
+          
+          return { 
+            scanHistory: newHistory,
+            adminScanHistory: newAdminHistory
+          };
+        });
+      },
+      
+      // Remove item from visible history but keep in admin history
+      removeScanHistoryItem: (scanId: string) => {
+        set((state) => {
+          const newHistory = state.scanHistory.filter(item => item.scanId !== scanId);
           return { scanHistory: newHistory };
         });
       },
+      
       clearScanHistory: () => set({ scanHistory: [] }),
       
       // Auto-search toggles
@@ -184,7 +208,7 @@ export const useAppStore = create<AppState>()(
       partialize: (state) =>
         Object.fromEntries(
           Object.entries(state).filter(([key]) =>
-            ['scanHistory', 'autoSearchOnEnter', 'autoSearchOnTab'].includes(key)
+            ['scanHistory', 'adminScanHistory', 'autoSearchOnEnter', 'autoSearchOnTab'].includes(key)
           )
         ),
     }

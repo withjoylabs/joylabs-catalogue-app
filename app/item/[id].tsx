@@ -338,7 +338,7 @@ export default function ItemDetails() {
           sku: v.sku || null,
           barcode: v.barcode || null
         }));
-        
+
         if (typeof id !== 'string') {
           throw new Error('Invalid item ID for update');
         }
@@ -442,7 +442,7 @@ export default function ItemDetails() {
               modifierListIds: initialModifierListIds // Ensure Modifier IDs are set
             };
             setItem(itemWithReportingId);
-            setOriginalItem(itemWithReportingId);
+            setOriginalItem(itemWithReportingId); 
             
             // Initialize variations from the fetched item
             // If no variations exist, create a default one
@@ -801,48 +801,48 @@ export default function ItemDetails() {
                         <Ionicons name="close-circle" size={22} color="#ff3b30" />
                       </TouchableOpacity>
                     )}
-                  </View>
-                  
-                  {/* Variation Name */}
-                  <View style={styles.fieldContainer}>
+            </View>
+
+            {/* Variation Name */}
+            <View style={styles.fieldContainer}>
                     <Text style={styles.subLabel}>Variation Name</Text>
-                    <TextInput
-                      style={styles.input}
+              <TextInput
+                style={styles.input}
                       value={variation.name || ''}
                       onChangeText={(value) => handleVariationChange(index, 'name', value || 'Regular')}
-                      placeholder="e.g., Regular, Large, Blue"
-                      placeholderTextColor="#999"
-                    />
-                  </View>
-                  
+                placeholder="e.g., Regular, Large, Blue"
+                placeholderTextColor="#999"
+              />
+            </View>
+
                   {/* SKU */}
-                  <View style={styles.fieldContainer}>
+            <View style={styles.fieldContainer}>
                     <Text style={styles.subLabel}>SKU</Text>
-                    <TextInput
-                      style={styles.input}
+              <TextInput
+                style={styles.input}
                       value={variation.sku || ''}
                       onChangeText={(value) => handleVariationChange(index, 'sku', value)}
-                      placeholder="Enter SKU (optional)"
-                      placeholderTextColor="#999"
+                placeholder="Enter SKU (optional)"
+                placeholderTextColor="#999"
                       autoCapitalize="characters"
-                    />
-                  </View>
-                  
+              />
+            </View>
+
                   {/* Price */}
-                  <View style={styles.fieldContainer}>
+            <View style={styles.fieldContainer}>
                     <Text style={styles.subLabel}>Price</Text>
-                    <View style={styles.priceInputContainer}>
-                      <Text style={styles.currencySymbol}>$</Text>
-                      <TextInput
-                        style={styles.priceInput}
+              <View style={styles.priceInputContainer}>
+                <Text style={styles.currencySymbol}>$</Text>
+                <TextInput
+                  style={styles.priceInput}
                         value={variation.price !== undefined ? variation.price.toFixed(2) : ''}
                         onChangeText={(value) => handleVariationChange(index, 'price', value)}
                         placeholder="Variable"
-                        placeholderTextColor="#999"
-                        keyboardType="numeric"
-                      />
-                    </View>
-                    <Text style={styles.helperText}>Leave blank for variable pricing</Text>
+                  placeholderTextColor="#999"
+                  keyboardType="numeric"
+                />
+              </View>
+               <Text style={styles.helperText}>Leave blank for variable pricing</Text> 
                   </View>
                   
                   {/* UPC/Barcode */}

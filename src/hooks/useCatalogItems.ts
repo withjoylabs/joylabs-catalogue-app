@@ -297,18 +297,18 @@ export const useCatalogItems = () => {
               }))
             : [{
                 id: '#default-variation', // Temporary client ID for default variation
-                type: 'ITEM_VARIATION',
-                item_variation_data: {
+            type: 'ITEM_VARIATION',
+            item_variation_data: {
                   name: productData.variationName || 'Regular', // Fallback to variationName from input
-                  sku: productData.sku || undefined, // SKU belongs here
-                  upc: productData.barcode || undefined, // MAP BARCODE TO UPC
-                  pricing_type: productData.price !== undefined ? 'FIXED_PRICING' : 'VARIABLE_PRICING',
-                  price_money: productData.price !== undefined ? {
-                    amount: Math.round(productData.price * 100),
-                    currency: 'USD'
-                  } : undefined,
-                }
-              }],
+              sku: productData.sku || undefined, // SKU belongs here
+              upc: productData.barcode || undefined, // MAP BARCODE TO UPC
+              pricing_type: productData.price !== undefined ? 'FIXED_PRICING' : 'VARIABLE_PRICING',
+              price_money: productData.price !== undefined ? {
+                amount: Math.round(productData.price * 100),
+                currency: 'USD'
+              } : undefined,
+            }
+          }],
           // **FIXED: Tax IDs and Modifiers belong INSIDE item_data**
           tax_ids: productData.taxIds && productData.taxIds.length > 0 ? productData.taxIds : undefined, // MAP TAX IDS
           modifier_list_info: productData.modifierListIds && productData.modifierListIds.length > 0 ? productData.modifierListIds.map((modId: string) => ({ modifier_list_id: modId, enabled: true })) : undefined, // MAP MODIFIER LIST IDS
@@ -328,18 +328,18 @@ export const useCatalogItems = () => {
         squarePayload.item_data.variations.forEach((variation: any) => {
           if (variation.item_variation_data) {
             const variationData = variation.item_variation_data;
-            // Remove undefined price_money
-            if (variationData.price_money === undefined) {
-              delete variationData.price_money;
-            }
-            // Remove undefined UPC
-            if (variationData.upc === undefined) {
-              delete variationData.upc;
-            }
-            // Remove undefined SKU
-            if (variationData.sku === undefined) {
-              delete variationData.sku;
-            }
+        // Remove undefined price_money
+        if (variationData.price_money === undefined) {
+          delete variationData.price_money;
+        }
+        // Remove undefined UPC
+        if (variationData.upc === undefined) {
+          delete variationData.upc;
+        }
+        // Remove undefined SKU
+        if (variationData.sku === undefined) {
+            delete variationData.sku;
+        }
           }
         });
       }
@@ -458,9 +458,9 @@ export const useCatalogItems = () => {
               // Payload for NEW variation creation within the item update
               return { 
                 id: `#new-variation-${index}-${Date.now()}`, // Must start with # for new objects
-                type: 'ITEM_VARIATION',
+            type: 'ITEM_VARIATION',
                 // NO version for new variations
-                item_variation_data: {
+            item_variation_data: {
                   // OMIT item_id for updates
                   name: variation.name || 'Regular',
                   sku: variation.sku || undefined,
@@ -468,9 +468,9 @@ export const useCatalogItems = () => {
                   pricing_type: variation.price !== undefined ? 'FIXED_PRICING' : 'VARIABLE_PRICING',
                   price_money: variation.price !== undefined ? {
                     amount: Math.round(variation.price * 100),
-                    currency: 'USD'
-                  } : undefined,
-                }
+                currency: 'USD'
+              } : undefined,
+            }
               };
             }
           }),
@@ -498,7 +498,7 @@ export const useCatalogItems = () => {
                    Object.keys(variationData).forEach(key => {
                       if (variationData[key as keyof typeof variationData] === undefined) {
                          delete variationData[key as keyof typeof variationData];
-                      }
+        }
                    });
               }
           });

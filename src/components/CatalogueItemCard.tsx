@@ -37,50 +37,45 @@ const CatalogueItemCard: React.FC<CatalogueItemCardProps> = ({
       style={styles.container}
       onPress={() => onPress(item)}
     >
-      <View style={styles.leftSection}>
-        <Text style={styles.indexNumber}>{index}</Text>
-      </View>
-      
-      <View style={styles.middleSection}>
-        <Text 
-          style={styles.itemName}
-          numberOfLines={2}
-          ellipsizeMode="tail"
-        >
-          {item.name}
-        </Text>
-        
-        <View style={styles.itemDetails}>
-          {/* Remove properties not on ScanHistoryItem */} 
-          {/* <Text style={styles.detailText}>{item.reporting_category || 'None'}</Text> */}
-          {/* <Text style={styles.detailText}>GTIN: {item.gtin || 'None'}</Text> */}
-          {/* Display SKU if available */} 
-          {item.sku && <Text style={styles.detailText}>SKU: {item.sku}</Text>}
-          {/* Display Barcode/UPC if available */} 
-          {item.barcode && <Text style={styles.detailText}>UPC: {item.barcode}</Text>}
+      <View style={styles.content}>
+        <View style={styles.leftSection}>
+          <Text style={styles.indexNumber}>{index}</Text>
         </View>
         
-        {item.scanTime && (
-          <Text style={styles.timeText}>{new Date(item.scanTime).toLocaleString()}</Text>
-        )}
-      </View>
-      
-      <View style={styles.rightSection}>
-        <Text style={styles.priceText}>{formattedPrice}</Text>
-        
-        {/* Display Tax info if available */}
-        {item.taxIds && item.taxIds.length > 0 && (
-          <Text style={styles.additionalInfoText}>
-            +Tax ({item.taxIds.length})
+        <View style={styles.middleSection}>
+          <Text 
+            style={styles.itemName}
+            numberOfLines={2}
+            ellipsizeMode="tail"
+          >
+            {item.name}
           </Text>
-        )}
+          
+          <View style={styles.itemDetails}>
+            {/* Remove properties not on ScanHistoryItem */} 
+            {/* <Text style={styles.detailText}>{item.reporting_category || 'None'}</Text> */}
+            {/* <Text style={styles.detailText}>GTIN: {item.gtin || 'None'}</Text> */}
+            {/* Display SKU if available */} 
+            {item.sku && <Text style={styles.detailText}>SKU: {item.sku}</Text>}
+            {/* Display Barcode/UPC if available */} 
+            {item.barcode && <Text style={styles.detailText}>UPC: {item.barcode}</Text>}
+          </View>
+          
+          {item.scanTime && (
+            <Text style={styles.timeText}>{new Date(item.scanTime).toLocaleString()}</Text>
+          )}
+        </View>
         
-        {/* Display CRV info if available */}
-        {item.crvType && (
-          <Text style={styles.additionalInfoText}>
-            +{item.crvType} 
-          </Text>
-        )}
+        <View style={styles.rightSection}>
+          <Text style={styles.priceText}>{formattedPrice}</Text>
+          
+          {/* Display Tax info if available */}
+          {item.taxIds && item.taxIds.length > 0 && (
+            <Text style={styles.additionalInfoText}>
+              +Tax ({item.taxIds.length})
+            </Text>
+          )}
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -88,12 +83,15 @@ const CatalogueItemCard: React.FC<CatalogueItemCardProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
+    width: '100%',
+    backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: lightTheme.colors.border,
+  },
+  content: {
+    flexDirection: 'row',
     paddingVertical: 14,
     paddingHorizontal: 10,
-    backgroundColor: '#fff',
   },
   leftSection: {
     width: 30,

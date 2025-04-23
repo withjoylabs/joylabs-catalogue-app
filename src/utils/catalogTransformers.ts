@@ -68,7 +68,7 @@ export function transformCatalogItemToItem(
     mappedVariations.find(v => v.name?.toLowerCase() === 'regular') || 
     mappedVariations[0] || 
     null;
-
+  
   // Extract Image Data matching the ConvertedItem structure
   const images: { id: string; url: string; name: string }[] = (itemData.image_ids || []).map((imageId: string) => ({
     id: imageId,

@@ -21,6 +21,7 @@ import * as Device from 'expo-device';
 import { ApiProvider } from '../src/providers/ApiProvider';
 import logger from '../src/utils/logger';
 import { DatabaseProvider } from '../src/components/DatabaseProvider';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 // Import the font file if needed, assuming Ionicons is the primary one
 // If you have other custom fonts, add them here and to useFonts below
 // import IoniconsFont from '@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf'; // Example path, might vary
@@ -194,106 +195,111 @@ export default function RootLayout() {
   }
 
   return (
-    <DatabaseProvider>
-      <ApiProvider>
-        <SafeAreaProvider>
-          <View style={{ flex: 1 }}>
-            <Stack
-              initialRouteName="index"
-              screenOptions={{
-                headerShown: false,
-                contentStyle: { backgroundColor: '#fff' },
-                animation: 'none',
-              }}
-            >
-              <Stack.Screen
-                name="index"
-                options={{
-                  title: 'Home',
-                }}
-              />
-              <Stack.Screen
-                name="modules"
-                options={{
-                  title: 'Modules',
-                }}
-              />
-              <Stack.Screen
-                name="profile"
-                options={{
-                  title: 'Profile',
-                }}
-              />
-              <Stack.Screen
-                name="catalogue"
-                options={{
-                  title: 'Catalogue',
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <DatabaseProvider>
+        <ApiProvider>
+          <SafeAreaProvider>
+            <View style={{ flex: 1 }}>
+              <Stack
+                initialRouteName="index"
+                screenOptions={{
                   headerShown: false,
-                  animation: 'slide_from_right',
-                  presentation: 'card',
-                  // Full screen gesture on iOS for this screen
-                  ...(Platform.OS === 'ios' && {
-                    fullScreenGestureEnabled: true,
-                  }),
-                }}
-              />
-              <Stack.Screen
-                name="item/[id]"
-                options={{
-                  title: 'Item Details',
-                  headerShown: true,
+                  contentStyle: { backgroundColor: '#fff' },
                   animation: 'none',
-                  presentation: 'card',
                 }}
-              />
-              <Stack.Screen
-                name="auth/success"
-                options={{
-                  title: 'Authentication',
-                  headerShown: false,
-                  // This screen should only be accessed via deep linking, never as an initial route
+              >
+                <Stack.Screen
+                  name="index"
+                  options={{
+                    title: 'Home',
+                  }}
+                />
+                <Stack.Screen
+                  name="modules"
+                  options={{
+                    title: 'Modules',
+                  }}
+                />
+                <Stack.Screen
+                  name="profile"
+                  options={{
+                    title: 'Profile',
+                  }}
+                />
+                <Stack.Screen
+                  name="catalogue"
+                  options={{
+                    title: 'Catalogue',
+                    headerShown: false,
+                    animation: 'slide_from_right',
+                    presentation: 'card',
+                    // Full screen gesture on iOS for this screen
+                    ...(Platform.OS === 'ios' && {
+                      fullScreenGestureEnabled: true,
+                    }),
+                  }}
+                />
+                <Stack.Screen
+                  name="item/[id]"
+                  options={{
+                    title: 'Item Details',
+                    headerShown: true,
+                    animation: 'none',
+                    presentation: 'card',
+                  }}
+                />
+                <Stack.Screen
+                  name="auth/success"
+                  options={{
+                    title: 'Authentication',
+                    headerShown: false,
+                    // This screen should only be accessed via deep linking, never as an initial route
+                  }}
+                />
+                <Stack.Screen
+                  name="debug"
+                  options={{
+                    title: 'Debug Logs',
+                    headerShown: true,
+                    animation: 'slide_from_bottom',
+                    presentation: 'modal',
+                  }}
+                />
+              </Stack>
+              
+              {/* Debug mode indicator and trigger */}
+              <TouchableOpacity 
+                style={{ 
+                  position: 'absolute', 
+                  top: Platform.OS === 'ios' ? 40 : 10, 
+                  right: 10, 
+                  width: 40, 
+                  height: 40,
+                  opacity: debugModeActive ? 0.8 : 0,
+                  zIndex: 9999,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  backgroundColor: debugModeActive ? 'rgba(0,0,0,0.1)' : 'transparent',
+                  borderRadius: 20
                 }}
-              />
-              <Stack.Screen
-                name="debug"
-                options={{
-                  title: 'Debug Logs',
-                  headerShown: true,
-                  animation: 'slide_from_bottom',
-                  presentation: 'modal',
-                }}
-              />
-            </Stack>
-            
-            {/* Debug mode indicator and trigger */}
-            <TouchableOpacity 
-              style={{ 
-                position: 'absolute', 
-                top: Platform.OS === 'ios' ? 40 : 10, 
-                right: 10, 
-                width: 40, 
-                height: 40,
-                opacity: debugModeActive ? 0.8 : 0,
-                zIndex: 9999,
-                justifyContent: 'center',
-                alignItems: 'center',
-                backgroundColor: debugModeActive ? 'rgba(0,0,0,0.1)' : 'transparent',
-                borderRadius: 20
-              }}
-              onPress={handleDebugTap}
-            >
-              {debugModeActive && (
-                <Ionicons name="bug-outline" size={24} color="#E53935" />
+                onPress={handleDebugTap}
+              >
+                {debugModeActive && (
+                  <Ionicons name="bug-outline" size={24} color="#E53935" />
+                )}
+              </TouchableOpacity>
+              
+              {/* Show the tab bar on appropriate screens */}
+              {shouldShowTabBar() && (
+                <BottomTabBar activeTab={activeTab} />
               )}
-            </TouchableOpacity>
-            
-            {/* Show the tab bar on appropriate screens */}
-            {shouldShowTabBar() && (
-              <BottomTabBar activeTab={activeTab} />
-            )}
-          </View>
-        </SafeAreaProvider>
-      </ApiProvider>
-    </DatabaseProvider>
+              
+              {/* Status bar */}
+              <StatusBar style="dark" />
+            </View>
+          </SafeAreaProvider>
+        </ApiProvider>
+      </DatabaseProvider>
+    </GestureHandlerRootView>
   );
 } 
