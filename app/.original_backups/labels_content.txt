@@ -1,0 +1,300 @@
++ import React, { useCallback, useEffect, useMemo, useState } from 'react';
++ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform, ActivityIndicator } from 'react-native';
+  import { Ionicons } from '@expo/vector-icons';
+  import { useRouter } from 'expo-router';
+- import { StatusBar } from 'expo-status-bar';
++ import { useAppStore } from '../src/store';
+  import * as ImagePicker from 'expo-image-picker';
+- import { format } from 'date-fns';
+- import { BarcodeCreatorView, BarcodeFormat } from 'react-native-barcode-creator';
++ import * as Font from 'expo-font';
++ import BarcodeCreator from 'react-native-barcode-creator';
+  
+- // Sample data for the label preview
++ // Sample data for label preview
+  const SAMPLE_ITEM = {
+-   id: '12345',
+-   name: 'RMT Cream Blusher',
++   id: "12345",
++   name: "RMT Cream Blusher",
+    price: 4.49,
+-   sku: 'SKU-7890',
+-   barcode: '123456789012',
+-   tagline: 'long-lasting color',
+-   quantifier: 'each'
++   sku: "SKU-9876",
++   barcode: "987654321098",
++   tagline: "Premium Quality",
++   quantifier: "each"
+  };
+  
+- // Sample date for consistent display
+- const SAMPLE_DATE = '04/25/2025';
++ // Enum for template types
++ enum LabelTemplate {
++   STANDARD = 'standard',
++   COMPACT = 'compact',
++   BARCODE = 'barcode',
++   JOY = 'joy'
++ }
+  
+  export default function LabelsScreen() {
+    const router = useRouter();
+  
+-   // Memoized state selectors to prevent re-renders
++   // Get state values from store using useMemo to prevent re-renders
+    const labelLiveHost = useMemo(() => useAppStore.getState().labelLiveHost, []);
+    const labelLivePrinter = useMemo(() => useAppStore.getState().labelLivePrinter, []);
+  
+-   // Label template selection
+-   const [selectedTemplate, setSelectedTemplate] = useState('standard');
+-   
+-   // Logo state for Joy Label
++   // State for selected template
++   const [selectedTemplate, setSelectedTemplate] = useState<LabelTemplate>(LabelTemplate.JOY);
+    const [logoUri, setLogoUri] = useState<string | null>(null);
+-   
+-   // Computed values
+-   const isPrinterConfigured = useMemo(() => {
+-     return !!(labelLiveHost && labelLivePrinter);
+-   }, [labelLiveHost, labelLivePrinter]);
++   const [isFontLoaded, setIsFontLoaded] = useState(false);
+  
+-   // Navigation functions
++   // Navigation function
+    const navigateToSettings = useCallback(() => {
+      router.push('/labelSettings');
+    }, [router]);
+  
+-   // Navigate to label designer
+-   const navigateToDesigner = useCallback(() => {
+-     router.push('/labelDesigner');
+-   }, [router]);
++   // Check if printer is configured
++   const isPrinterConfigured = useMemo(() => {
++     return !!labelLiveHost && !!labelLivePrinter;
++   }, [labelLiveHost, labelLivePrinter]);
+  
+-   // Logo picker function
++   // Determine status color
++   const statusColor = isPrinterConfigured ? '#4CAF50' : '#F44336';
++ 
++   // Function to pick an image for logo
+    const pickImage = async () => {
+      const result = await ImagePicker.launchImageLibraryAsync({
+      }
+    };
++ 
++   // Load Fredoka font
++   const loadFontsAsync = async () => {
++     try {
++       await Font.loadAsync({
++         'Fredoka-Regular': require('../assets/fonts/Fredoka-Regular.ttf'),
++       });
++       setIsFontLoaded(true);
++     } catch (error) {
++       console.error('Error loading fonts:', error);
++     }
++   };
++ 
++   // Load font when component mounts
++   useEffect(() => {
++     loadFontsAsync();
++   }, []);
++ 
++   // Format price with superscript cents
++   const formatPrice = (price: number) => {
++     const [dollars, cents] = price.toFixed(2).split('.');
++     return (
++       <View style={styles.priceContainer}>
++         <Text style={styles.dollarSign}>$</Text>
++         <Text style={styles.dollars}>{dollars}</Text>
++         <Text style={styles.cents}>{cents}</Text>
++       </View>
++     );
++   };
+  
+    return (
+      <View style={styles.container}>
+-       <StatusBar style="dark" />
+-       
+-       {/* Custom Header */}
++       {/* Header with settings button */}
+        <View style={styles.header}>
+-         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+-           <Ionicons name="arrow-back" size={24} color="black" />
+-         </TouchableOpacity>
+          <Text style={styles.headerTitle}>Label Designer</Text>
+          <TouchableOpacity onPress={navigateToSettings} style={styles.settingsButton}>
+-           <Ionicons name="settings-outline" size={24} color={lightTheme.colors.primary} />
++           <Ionicons name="settings-outline" size={24} color="#333" />
+          </TouchableOpacity>
+        </View>
+  
+-       {/* Connection Status */}
+-       <View style={[styles.statusBar, isPrinterConfigured ? styles.statusConnected : styles.statusDisconnected]}>
+-         <Ionicons 
+-           name={isPrinterConfigured ? "checkmark-circle" : "alert-circle"} 
+-           size={18} 
+-           color="#fff" 
+-           style={styles.statusIcon}
+-         />
++       {/* Printer connection status */}
++       <View style={styles.statusBar}>
++         <View style={[styles.statusIndicator, { backgroundColor: statusColor }]} />
+          <Text style={styles.statusText}>
+            {isPrinterConfigured 
+-             ? `Connected to printer: ${labelLivePrinter}` 
+-             : "Printer not configured. Tap the settings icon to set up."}
++             ? `Connected to ${labelLivePrinter} at ${labelLiveHost}` 
++             : 'Printer not configured'}
+          </Text>
+        </View>
+  
+-       {/* Content */}
+-       <ScrollView style={styles.contentScrollView} contentContainerStyle={styles.scrollContentContainer}>
+-         
+-         {/* Template Selection */}
+-         <View style={styles.section}>
+-           <Text style={styles.sectionTitle}>Label Templates</Text>
+-           <Text style={styles.description}>
+-             Select a template for your product labels.
+-           </Text>
+-           
+-           <View style={styles.templateGrid}>
++       {/* Template selection */}
++       <View style={styles.templateContainer}>
++         <Text style={styles.sectionTitle}>Select Template</Text>
++         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <TouchableOpacity 
+-               style={[styles.templateCard, selectedTemplate === 'joy' && styles.selectedTemplate]}
+-               onPress={() => setSelectedTemplate('joy')}
+-             >
+-               <View style={styles.templatePreview}>
+-                 <Text style={styles.templatePreviewText}>Joy Label</Text>
+-               </View>
++             style={[styles.templateCard, selectedTemplate === LabelTemplate.JOY && styles.selectedTemplate]}
++             onPress={() => setSelectedTemplate(LabelTemplate.JOY)}>
+              <Text style={styles.templateName}>Joy Label</Text>
+            </TouchableOpacity>
+-             
+            <TouchableOpacity 
+-               style={[styles.templateCard, selectedTemplate === 'standard' && styles.selectedTemplate]}
+-               onPress={() => setSelectedTemplate('standard')}
+-             >
+-               <View style={styles.templatePreview}>
+-                 <Text style={styles.templatePreviewText}>Standard</Text>
+-               </View>
++             style={[styles.templateCard, selectedTemplate === LabelTemplate.STANDARD && styles.selectedTemplate]}
++             onPress={() => setSelectedTemplate(LabelTemplate.STANDARD)}>
+              <Text style={styles.templateName}>Standard</Text>
+            </TouchableOpacity>
+-             
+            <TouchableOpacity 
+-               style={[styles.templateCard, selectedTemplate === 'compact' && styles.selectedTemplate]}
+-               onPress={() => setSelectedTemplate('compact')}
+-             >
+-               <View style={styles.templatePreview}>
+-                 <Text style={styles.templatePreviewText}>Compact</Text>
+-               </View>
++             style={[styles.templateCard, selectedTemplate === LabelTemplate.COMPACT && styles.selectedTemplate]}
++             onPress={() => setSelectedTemplate(LabelTemplate.COMPACT)}>
+              <Text style={styles.templateName}>Compact</Text>
+            </TouchableOpacity>
+-             
+            <TouchableOpacity 
+-               style={[styles.templateCard, selectedTemplate === 'barcode' && styles.selectedTemplate]}
+-               onPress={() => setSelectedTemplate('barcode')}
+-             >
+-               <View style={styles.templatePreview}>
+-                 <Text style={styles.templatePreviewText}>Barcode</Text>
+-               </View>
++             style={[styles.templateCard, selectedTemplate === LabelTemplate.BARCODE && styles.selectedTemplate]}
++             onPress={() => setSelectedTemplate(LabelTemplate.BARCODE)}>
+              <Text style={styles.templateName}>Barcode</Text>
+            </TouchableOpacity>
+-           </View>
++         </ScrollView>
+        </View>
+  
+-         {/* Label Preview */}
+-         <View style={styles.section}>
++       {/* Label preview */}
++       <View style={styles.previewContainer}>
+          <Text style={styles.sectionTitle}>Preview</Text>
+          
+-           {selectedTemplate === 'joy' && (
+-             <View style={styles.labelPreview}>
+-               <View style={styles.joyLabel}>
+-                 {/* Main container for Joy Label */}
+-                 <View style={styles.joyLabelContent}>
+-                   
+-                   {/* Top Row: Logo on left, Item ID on right */}
++         {/* Joy Label Template */}
++         {selectedTemplate === LabelTemplate.JOY && (
++           <View style={styles.joyLabelContainer}>
++             {!isFontLoaded ? (
++               <ActivityIndicator size="small" color="#0000ff" />
++             ) : (
++               <>
++                 {/* Top row with logo and product info */}
+                  <View style={styles.joyLabelTopRow}>
+-                     {/* Logo area */}
+-                     <TouchableOpacity style={styles.logoContainer} onPress={pickImage}>
++                   {/* Logo section */}
++                   <TouchableOpacity onPress={pickImage} style={styles.logoContainer}>
+                      {logoUri ? (
+                        <Image source={{ uri: logoUri }} style={styles.logo} />
+                      ) : (
+                        <View style={styles.logoPlaceholder}>
+-                           <Ionicons name="image-outline" size={24} color={lightTheme.colors.primary} />
+                          <Text style={styles.logoPlaceholderText}>JOY</Text>
++                         <Text style={styles.logoUploadText}>Tap to upload</Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                    
+-                     {/* Item ID */}
+-                     <Text style={styles.joyLabelItemId}>{SAMPLE_ITEM.id}</Text>
++                   {/* Product info */}
++                   <View style={styles.productInfoContainer}>
++                     <Text style={styles.productId}>{SAMPLE_ITEM.id}</Text>
++                     <Text style={[styles.productName, { fontFamily: 'Fredoka-Regular' }]} numberOfLines={2}>
++                       {SAMPLE_ITEM.name}
++                     </Text>
++                     <Text style={styles.tagline}>{SAMPLE_ITEM.tagline}</Text>
++                   </View>
+                  </View>
+                  
+-                   {/* Product Name */}
+-                   <Text style={styles.joyLabelName}>{SAMPLE_ITEM.name}</Text>
+-                   
+-                   {/* Tagline */}
+-                   <Text style={styles.joyLabelTagline}>{SAMPLE_ITEM.tagline}</Text>
+-                   
+-                   {/* Bottom section with barcode and price */}
+-                   <View style={styles.joyLabelBottom}>
+-                     {/* Barcode section */}
+-                     <View style={styles.joyLabelBarcodeSection}>
+-                       <View style={styles.joyLabelBarcode}>
+-                         <BarcodeCreatorView
+-                           format={BarcodeFormat.CODE128}
++                 {/* Bottom row with barcode and price */}
++                 <View style={styles.joyLabelBottomRow}>
++                   {/* Barcode */}
++                   <View style={styles.barcodeContainer}>
++                     <BarcodeCreator
+                        value={SAMPLE_ITEM.barcode}
+-                           style={{ width: 120, height: 50 }}
+                        background="#FFFFFF"
+                        foregroundColor="#000000"
++                       format="CODE128"
++                       height={40}
++                       width={1.5}
++                       style={styles.barcode}
+                      />
+                      <Text style={styles.joyLabelBarcodeText}>{SAMPLE_ITEM.barcode}</Text>
+-                       </View>
+                    </View>
+                    
+-                     {/* Price section */}

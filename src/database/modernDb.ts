@@ -6,7 +6,7 @@ import { transformCatalogItemToItem } from '../utils/catalogTransformers';
 
 // Constants
 const DATABASE_NAME = 'joylabs.db';
-const DATABASE_VERSION = 1; // Increment this when changing schema
+const DATABASE_VERSION = 2; // Increment version due to schema change
 let db: SQLiteDatabase | null = null;
 
 // Define a helper type for Catalog Objects from API
@@ -189,7 +189,8 @@ export async function initializeSchema(): Promise<void> {
           sync_type TEXT, -- e.g., 'full', 'delta'
           last_page_cursor TEXT, -- Store cursor for resuming
           last_sync_attempt TEXT,
-          sync_attempt_count INTEGER NOT NULL DEFAULT 0
+          sync_attempt_count INTEGER NOT NULL DEFAULT 0,
+          last_incremental_sync_cursor TEXT
         )`);
         await db.runAsync(`INSERT INTO sync_status (id) VALUES (1)`);
         logger.debug('Schema Init', 'Created sync_status table.');
@@ -386,9 +387,10 @@ export async function initializeSchema(): Promise<void> {
         throw indexError;
       }
       
-      // Update version number after successful creation/migration
-      await db.runAsync('UPDATE db_version SET version = ?, updated_at = ? WHERE id = 1', DATABASE_VERSION, new Date().toISOString());
-      logger.info('Database', `Schema updated/created to version ${DATABASE_VERSION}`);
+      // Update the database version number
+      // Embedding value as runAsync parameter passing seems problematic
+      await db.runAsync(`UPDATE db_version SET version = ${DATABASE_VERSION} WHERE id = 1`);
+      logger.info('Schema Init', `Database version updated to ${DATABASE_VERSION}. Schema update transaction committed.`);
     });
   } else {
     logger.info('Database', 'Schema is up-to-date.');
@@ -451,7 +453,8 @@ export async function resetDatabase(): Promise<void> {
           sync_type TEXT, -- e.g., 'full', 'delta'
           last_page_cursor TEXT, -- Store cursor for resuming
           last_sync_attempt TEXT,
-          sync_attempt_count INTEGER NOT NULL DEFAULT 0
+          sync_attempt_count INTEGER NOT NULL DEFAULT 0,
+          last_incremental_sync_cursor TEXT
         )`);
       await db.runAsync(`INSERT INTO sync_status (id) VALUES (1)`);
       logger.debug('Database Reset', 'Created sync_status table.');
@@ -1413,3 +1416,110 @@ export default {
   getAllTaxes,
   getAllModifierLists
 }; 
+
+// --- New Functions for Incremental Sync Cursor --- 
+
+/**
+ * Gets the cursor stored from the last successful incremental sync.
+ */
+export async function getLastIncrementalSyncCursor(): Promise<string | null> {
+  try {
+    const db = await getDatabase();
+    // Use getFirstAsync which returns the first row or null
+    const row = await db.getFirstAsync<{ last_incremental_sync_cursor: string | null }>(
+      'SELECT last_incremental_sync_cursor FROM sync_status WHERE id = 1'
+    );
+    // Return the cursor value, which can be null if not set or row doesn't exist
+    return row?.last_incremental_sync_cursor ?? null;
+  } catch (error) {
+    logger.error('Database', 'Error getting last incremental sync cursor', { error });
+    // Decide on error handling: return null or throw? Returning null might be safer.
+    return null;
+  }
+}
+
+/**
+ * Updates the cursor stored after a successful incremental sync.
+ */
+export async function updateLastIncrementalSyncCursor(cursor: string | null): Promise<void> {
+  try {
+    const db = await getDatabase();
+    await db.runAsync(
+      'UPDATE sync_status SET last_incremental_sync_cursor = ? WHERE id = 1',
+      [cursor] // Pass cursor directly, it handles null correctly
+    );
+    logger.debug('Database', 'Updated last incremental sync cursor', { cursor });
+  } catch (error) {
+    logger.error('Database', 'Error updating last incremental sync cursor', { error, cursor });
+    // Consider re-throwing or specific error handling if update fails
+    throw error;
+  }
+}
+
+// --- New Function for Deleting Objects ---
+
+/**
+ * Deletes a catalog object and its associated data (like variations) by ID.
+ * Note: This currently targets items and variations. Extend if other types need specific deletion logic.
+ */
+export async function deleteCatalogObjectById(objectId: string): Promise<void> {
+  if (!objectId) {
+    logger.warn('Database', 'Attempted to delete object with null/empty ID');
+    return;
+  }
+  
+  logger.info('Database', 'Deleting catalog object by ID', { objectId });
+  const db = await getDatabase();
+  
+  try {
+    await db.withTransactionAsync(async () => {
+      // Check if it's an item (and delete its variations first)
+      const item = await db.getFirstAsync<{ id: string }>('SELECT id FROM catalog_items WHERE id = ?', [objectId]);
+      if (item) {
+        logger.debug('Database', 'Deleting variations for item', { objectId });
+        await db.runAsync('DELETE FROM item_variations WHERE item_id = ?', [objectId]);
+        logger.debug('Database', 'Deleting item itself', { objectId });
+        await db.runAsync('DELETE FROM catalog_items WHERE id = ?', [objectId]);
+        logger.info('Database', 'Successfully deleted item and its variations', { objectId });
+        return; // Exit transaction early if item found and deleted
+      }
+      
+      // Check if it's a variation (delete directly)
+      const variation = await db.getFirstAsync<{ id: string }>('SELECT id FROM item_variations WHERE id = ?', [objectId]);
+      if (variation) {
+        logger.debug('Database', 'Deleting variation', { objectId });
+        await db.runAsync('DELETE FROM item_variations WHERE id = ?', [objectId]);
+        logger.info('Database', 'Successfully deleted variation', { objectId });
+        return;
+      }
+      
+      // Check if it's a category (delete directly)
+      const category = await db.getFirstAsync<{ id: string }>('SELECT id FROM categories WHERE id = ?', [objectId]);
+      if (category) {
+        logger.debug('Database', 'Deleting category', { objectId });
+        // Note: We might need to handle items associated with this category (set category_id to null?)
+        // For now, just delete the category record.
+        // await db.runAsync('UPDATE catalog_items SET category_id = NULL WHERE category_id = ?', [objectId]);
+        await db.runAsync('DELETE FROM categories WHERE id = ?', [objectId]);
+        logger.info('Database', 'Successfully deleted category', { objectId });
+        return;
+      }
+
+      // TODO: Add checks and deletions for other types (Taxes, Modifiers, Discounts, Images) if they are stored in separate tables and need explicit deletion.
+      // Example for Tax:
+      // const tax = await db.getFirstAsync<{ id: string }>('SELECT id FROM taxes WHERE id = ?', [objectId]);
+      // if (tax) {
+      //   await db.runAsync('DELETE FROM taxes WHERE id = ?', [objectId]);
+      //   logger.info('Database', 'Successfully deleted tax', { objectId });
+      //   return;
+      // }
+
+      logger.warn('Database', 'Object ID not found in known deletable tables (item, variation, category)', { objectId });
+      
+    }); // End transaction
+  } catch (error) {
+    logger.error('Database', 'Error deleting catalog object by ID', { objectId, error });
+    // Re-throw the error to be handled by the caller (e.g., the sync process)
+    throw error;
+  }
+} 

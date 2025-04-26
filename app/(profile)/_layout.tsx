@@ -22,7 +22,7 @@ const Tab = createMaterialTopTabNavigator();
 
 const SQUARE_ACCESS_TOKEN_KEY = 'square_access_token';
 
-export default function ProfileTabLayout() {
+export default function Layout() {
   const router = useRouter();
   const [debugTaps, setDebugTaps] = useState(0);
   const [showDebugTools, setShowDebugTools] = useState(false);

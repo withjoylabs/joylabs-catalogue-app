@@ -4,7 +4,8 @@ import * as FileSystem from 'expo-file-system';
 import logger from '../utils/logger';
 import * as modernDb from './modernDb';
 import * as SecureStore from 'expo-secure-store';
-import { directSquareApi } from '../api';
+import { directSquareApi, searchCatalogChanges } from '../api';
+import tokenService from '../services/tokenService';
 
 // Constants for token storage to check validity
 const SQUARE_ACCESS_TOKEN_KEY = 'square_access_token';
@@ -29,6 +30,26 @@ export interface SyncStatus {
   syncAttemptCount: number;
   last_page_cursor?: string | null;
 }
+
+// --- Define CatalogObjectFromApi locally ---
+type CatalogObjectFromApi = {
+    type: string;
+    id: string;
+    updated_at: string;
+    version: number | string;
+    is_deleted?: boolean;
+    present_at_all_locations?: boolean;
+    item_data?: any;
+    category_data?: any;
+    tax_data?: any;
+    discount_data?: any;
+    modifier_list_data?: any;
+    modifier_data?: any;
+    item_variation_data?: any;
+    image_data?: any;
+};
+// --- Remove incorrect import ---
+// import { CatalogObjectFromApi } from './modernDb';
 
 /**
  * Service for catalog synchronization operations
@@ -316,16 +337,26 @@ export class CatalogSyncService {
   }
   
   /**
-   * Check that we have proper authentication before starting sync
+   * Check that we have proper authentication before starting sync.
+   * Uses tokenService to ensure a valid token exists and handles refresh.
    */
   private async checkAuthentication(): Promise<void> {
-    logger.debug('CatalogSync', 'Checking authentication status...');
-    const token = await SecureStore.getItemAsync(SQUARE_ACCESS_TOKEN_KEY);
-    if (!token) {
-      throw new Error('Authentication required: No Square access token found.');
+    const tag = 'CatalogSync:checkAuth';
+    logger.debug(tag, 'Checking authentication via tokenService...');
+    try {
+      const token = await tokenService.ensureValidToken(); // Use the service
+      if (!token) {
+        // This case might not be strictly necessary if ensureValidToken throws, but good practice
+        logger.warn(tag, 'tokenService.ensureValidToken returned null/empty token.');
+        throw new Error('Authentication failed: No valid token available.');
+      }
+      logger.debug(tag, 'Authentication check passed via tokenService.');
+    } catch (error: any) {
+      // Catch errors thrown by ensureValidToken (e.g., refresh failed, no tokens)
+      logger.error(tag, 'Authentication check failed via tokenService', { error: error.message });
+      // Re-throw a consistent error message for the sync process
+      throw new Error('Authentication failed: Could not ensure a valid token.');
     }
-    // Optionally add a check for token expiry if needed, though API interceptor might handle it
-    logger.debug('CatalogSync', 'Authentication check passed.');
   }
   
   /**
@@ -525,6 +556,154 @@ export class CatalogSyncService {
        }
     }
   }
+
+  // --- New Method: runIncrementalSync ---
+  public async runIncrementalSync(): Promise<void> {
+    const syncTag = 'CatalogSync:Incremental';
+    logger.info(syncTag, 'Starting incremental sync...');
+
+    // 1. Check authentication and network
+    try {
+      await this.checkAuthentication();
+      const networkState = await Network.getNetworkStateAsync();
+      if (!networkState.isConnected || !networkState.isInternetReachable) {
+        logger.warn(syncTag, 'No internet connection. Aborting incremental sync.');
+        throw new Error('No internet connection');
+      }
+    } catch (authError: any) {
+       logger.error(syncTag, 'Authentication or network check failed', { error: authError.message });
+      // No need to update sync status here as it's a prerequisite check
+      return; // Stop execution
+    }
+
+    // 2. Check if another sync is already running
+    const currentStatus = await this.getSyncStatus();
+    if (currentStatus.isSyncing) {
+      logger.warn(syncTag, 'Another sync operation is already in progress. Skipping.');
+      return;
+    }
+
+    // 3. Mark sync as started
+    const syncStartTime = new Date().toISOString();
+    await this.updateSyncStatus({
+      isSyncing: true,
+      syncType: 'incremental',
+      syncError: null,
+      syncProgress: 0, // Reset progress for incremental
+      syncTotal: 0, // Total is unknown for incremental
+      lastSyncAttempt: syncStartTime,
+      syncAttemptCount: (currentStatus.syncAttemptCount || 0) + 1,
+      last_page_cursor: null, // Clear full sync cursor if running incremental
+    });
+    logger.info(syncTag, 'Sync status updated to indicate start.');
+
+    let currentCursor: string | null | undefined = null;
+    let processedObjectCount = 0;
+    let hasMorePages = true;
+    let lastFetchedCursor: string | null = null; // Store the cursor received from the last *successful* API call
+
+    try {
+      // 4. Get the starting cursor from the last incremental sync
+      currentCursor = await modernDb.getLastIncrementalSyncCursor();
+      lastFetchedCursor = currentCursor; // Initialize with stored cursor
+      logger.info(syncTag, 'Retrieved last incremental sync cursor', { cursor: currentCursor ? '******' : null });
+
+      // 5. Loop through pages of changes
+      do {
+        logger.debug(syncTag, `Fetching changes page with cursor: ${currentCursor ? '******' : 'None'}`);
+        const response = await searchCatalogChanges(currentCursor); // Use the new API function
+
+        const objects = response.objects ?? [];
+        const receivedCursor = response.cursor; // Cursor for the *next* page
+        hasMorePages = !!receivedCursor;
+
+        logger.debug(syncTag, `Received page response`, { objectCount: objects.length, hasNextPage: hasMorePages });
+
+        if (objects.length > 0) {
+           // Separate deletes and upserts
+           const toDelete: CatalogObjectFromApi[] = [];
+           const toUpsert: CatalogObjectFromApi[] = [];
+
+           // Explicitly type obj here if needed, though TS might infer it
+           objects.forEach((obj: CatalogObjectFromApi) => {
+             if (!obj || !obj.id) { 
+                logger.warn(syncTag, 'Skipping invalid object received from API', { obj });
+                return;
+             }
+             if (obj.is_deleted) {
+               toDelete.push(obj);
+             } else {
+               toUpsert.push(obj);
+             }
+           });
+
+           // Process deletions
+           if (toDelete.length > 0) {
+             logger.info(syncTag, `Processing ${toDelete.length} deletions...`);
+             for (const obj of toDelete) {
+               try {
+                  await modernDb.deleteCatalogObjectById(obj.id);
+               } catch (deleteError) {
+                  logger.error(syncTag, `Failed to delete object ${obj.id}`, { deleteError });
+                  // Log and continue
+               }
+             }
+           }
+
+           // Process upserts
+           if (toUpsert.length > 0) {
+             logger.info(syncTag, `Processing ${toUpsert.length} upserts...`);
+             try {
+                await modernDb.upsertCatalogObjects(toUpsert);
+             } catch (upsertError) {
+                logger.error(syncTag, `Failed to upsert batch of ${toUpsert.length} objects`, { upsertError });
+                // Abort on batch failure to avoid inconsistent state
+                throw new Error('Failed during object upsert batch.');
+             }
+           }
+
+           processedObjectCount += objects.length;
+           logger.debug(syncTag, `Processed ${processedObjectCount} objects so far in this sync run.`);
+           await this.updateSyncStatus({ syncProgress: processedObjectCount });
+        }
+
+        // Update the cursor for the next iteration *after* successful processing of the current page
+        lastFetchedCursor = receivedCursor ?? null; // Store the cursor received from this successful fetch
+        currentCursor = receivedCursor; // Use this for the next request
+
+      } while (hasMorePages);
+
+      // 6. Sync completed successfully
+      logger.info(syncTag, `Incremental sync completed successfully. Processed ${processedObjectCount} objects.`);
+      // Store the cursor that would fetch the *next* page (which is null if finished)
+      await modernDb.updateLastIncrementalSyncCursor(lastFetchedCursor); 
+      await this.updateSyncStatus({
+        isSyncing: false,
+        syncError: null,
+        lastSyncTime: new Date().toISOString(), // Mark successful sync time
+        syncAttemptCount: 0, // Reset attempt count on success
+        syncProgress: processedObjectCount, // Final count
+      });
+
+    } catch (error: any) {
+      // 7. Handle errors during the sync loop
+      logger.error(syncTag, 'Incremental sync failed', { error: error.message, errorDetails: error });
+      await this.updateSyncStatus({
+        isSyncing: false,
+        syncError: `Sync failed: ${error.message || 'Unknown error'}`,
+        // Do not update lastSyncTime or reset attempt count on failure
+      });
+    } finally {
+      logger.info(syncTag, 'Incremental sync process finished.');
+      // Ensure syncing is false even if unexpected error occurred
+      const finalStatus = await this.getSyncStatus();
+      if (finalStatus.isSyncing) {
+         logger.warn(syncTag, 'Syncing flag was still true in finally block, setting to false.');
+         await this.updateSyncStatus({ isSyncing: false });
+      }
+    }
+  }
+  // --- End: runIncrementalSync ---
 }
 
 // Export the singleton instance

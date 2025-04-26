@@ -31,6 +31,8 @@ import { getAllCategories, getAllTaxes, getAllModifierLists } from '../../src/da
 import { getRecentCategoryIds, addRecentCategoryId } from '../../src/utils/recentCategories'; // Import recent category utils
 import { useAppStore } from '../../src/store'; // Import Zustand store
 import logger from '../../src/utils/logger'; // Import logger
+import { printItemLabel, LabelData, getLabelPrinterStatus } from '../../src/utils/printLabel'; // Import the print functions
+import { styles } from './itemStyles';
 
 // Define type for category used in the picker
 type CategoryPickerItem = { id: string; name: string };
@@ -98,6 +100,7 @@ export default function ItemDetails() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showVariationModal, setShowVariationModal] = useState(false); // State for variation selection modal
   
   // State for variations
   const [variations, setVariations] = useState<ItemVariation[]>([{
@@ -130,6 +133,80 @@ export default function ItemDetails() {
   const itemSaveTriggeredAt = useAppStore((state) => state.itemSaveTriggeredAt);
   const lastProcessedSaveTrigger = useRef<number | null>(null);
   
+  // --- Printing Logic --- 
+
+  // Helper function to construct LabelData and call the print utility
+  const initiatePrint = useCallback(async (variationIndex: number) => {
+    if (!item || !variations || variationIndex < 0 || variationIndex >= variations.length) {
+      logger.warn('ItemDetails:initiatePrint', 'Invalid data for printing', { itemId: item?.id, variationIndex });
+      Alert.alert('Error', 'Could not get variation data for printing.');
+      return;
+    }
+
+    const variationToPrint = variations[variationIndex];
+
+    // Construct the data payload for the print utility
+    const labelData: LabelData = {
+      itemId: item.id,
+      itemName: item.name || 'Item Name',
+      variationId: variationToPrint.id,
+      variationName: variationToPrint.name || 'Regular',
+      price: variationToPrint.price,
+      sku: variationToPrint.sku,
+      barcode: variationToPrint.barcode,
+    };
+
+    logger.info('ItemDetails:initiatePrint', 'Initiating print for variation', { 
+      itemId: item.id, 
+      variationIndex, 
+      variationId: variationToPrint.id
+    });
+    
+    try {
+      // Show loading indicator
+      setIsSaving(true); // Reuse the saving state for printing operation
+      
+      // Call the print utility with the constructed data
+      const success = await printItemLabel(labelData);
+      
+      if (success) {
+        Alert.alert(
+          'Print Successful', 
+          `Label for "${variationToPrint.name || item.name}" has been sent to the printer.`
+        );
+      } else {
+        Alert.alert(
+          'Print Failed', 
+          'Could not print the label. Please check if the printer is connected and try again.'
+        );
+      }
+    } catch (error) {
+      logger.error('ItemDetails:initiatePrint', 'Error during print', { error });
+      Alert.alert('Print Error', 'An unexpected error occurred while trying to print.');
+    } finally {
+      setIsSaving(false); // Reset loading state
+    }
+
+  }, [item, variations, setIsSaving]); // Dependencies: item and variations array
+
+  // Updated header print button handler
+  const handlePrintLabel = useCallback(async () => {
+    if (!variations || variations.length === 0) {
+      Alert.alert('Error', 'No variations available to print.');
+      return;
+    }
+
+    if (variations.length === 1) {
+      // If only one variation, print it directly
+      logger.info('ItemDetails:handlePrintLabel', 'Single variation found, printing directly.');
+      initiatePrint(0);
+    } else {
+      // If multiple variations, show the selection modal
+      logger.info('ItemDetails:handlePrintLabel', 'Multiple variations found, showing modal.');
+      setShowVariationModal(true);
+    }
+  }, [variations, initiatePrint]); // Dependencies: variations array and the helper
+
   // Define handlers before they are used
   const handleInputChange = (key: keyof ConvertedItem, value: string | number | undefined) => {
     // Handle potential numeric conversion for price
@@ -507,26 +584,27 @@ export default function ItemDetails() {
       headerRight: () => (
         <TouchableOpacity
           style={styles.headerButton}
-          onPress={handleSave} // Use the stable handler
-          disabled={!isEdited || isSaving}
+          onPress={handlePrintLabel} // Use the new print handler
+          disabled={isSaving} // Disable only when saving for now
         >
           {isSaving ? (
             <ActivityIndicator size="small" color={lightTheme.colors.primary} />
           ) : (
             <Text
               style={[
-                styles.headerButtonText, 
-                styles.saveButton,
-                (!isEdited || isSaving) && styles.disabledText
+                styles.headerButtonText,
+                // Optionally add a different style for print? Keep saveButton for now.
+                styles.saveButton, 
+                isSaving && styles.disabledText // Apply disabled style when saving
               ]}
             >
-              Save
+              Print
             </Text>
           )}
         </TouchableOpacity>
       ),
     });
-  }, [navigation, isNewItem, isEdited, isSaving, handleCancel, handleSave]);
+  }, [navigation, isNewItem, isSaving, handleCancel, handlePrintLabel]); // Added handlePrintLabel, removed isEdited, handleSave
   
   // Filter categories when search text changes
   useEffect(() => {
@@ -793,6 +871,14 @@ export default function ItemDetails() {
                 <View key={`variation-${index}`} style={styles.variationContainer}>
                   <View style={styles.variationHeader}>
                     <Text style={styles.variationTitle}>Variation {index + 1}</Text>
+                    <View style={styles.variationHeaderButtons}>
+                      <TouchableOpacity
+                        style={styles.inlinePrintButton}
+                        onPress={() => initiatePrint(index)}
+                      >
+                        <Ionicons name="print-outline" size={18} color={lightTheme.colors.primary} style={styles.inlinePrintIcon} />
+                        <Text style={styles.inlinePrintButtonText}>Print</Text>
+                      </TouchableOpacity>
                     {variations.length > 1 && (
                       <TouchableOpacity 
                         onPress={() => removeVariation(index)}
@@ -801,48 +887,49 @@ export default function ItemDetails() {
                         <Ionicons name="close-circle" size={22} color="#ff3b30" />
                       </TouchableOpacity>
                     )}
-            </View>
+                    </View>
+                  </View>
 
-            {/* Variation Name */}
-            <View style={styles.fieldContainer}>
+                  {/* Variation Name */}
+                  <View style={styles.fieldContainer}>
                     <Text style={styles.subLabel}>Variation Name</Text>
-              <TextInput
-                style={styles.input}
+                    <TextInput
+                      style={styles.input}
                       value={variation.name || ''}
                       onChangeText={(value) => handleVariationChange(index, 'name', value || 'Regular')}
-                placeholder="e.g., Regular, Large, Blue"
-                placeholderTextColor="#999"
-              />
-            </View>
+                      placeholder="e.g., Regular, Large, Blue"
+                      placeholderTextColor="#999"
+                    />
+                  </View>
 
                   {/* SKU */}
-            <View style={styles.fieldContainer}>
+                  <View style={styles.fieldContainer}>
                     <Text style={styles.subLabel}>SKU</Text>
-              <TextInput
-                style={styles.input}
+                    <TextInput
+                      style={styles.input}
                       value={variation.sku || ''}
                       onChangeText={(value) => handleVariationChange(index, 'sku', value)}
-                placeholder="Enter SKU (optional)"
-                placeholderTextColor="#999"
+                      placeholder="Enter SKU (optional)"
+                      placeholderTextColor="#999"
                       autoCapitalize="characters"
-              />
-            </View>
+                    />
+                  </View>
 
                   {/* Price */}
-            <View style={styles.fieldContainer}>
+                  <View style={styles.fieldContainer}>
                     <Text style={styles.subLabel}>Price</Text>
-              <View style={styles.priceInputContainer}>
-                <Text style={styles.currencySymbol}>$</Text>
-                <TextInput
-                  style={styles.priceInput}
+                    <View style={styles.priceInputContainer}>
+                      <Text style={styles.currencySymbol}>$</Text>
+                      <TextInput
+                        style={styles.priceInput}
                         value={variation.price !== undefined ? variation.price.toFixed(2) : ''}
                         onChangeText={(value) => handleVariationChange(index, 'price', value)}
                         placeholder="Variable"
-                  placeholderTextColor="#999"
-                  keyboardType="numeric"
-                />
-              </View>
-               <Text style={styles.helperText}>Leave blank for variable pricing</Text> 
+                        placeholderTextColor="#999"
+                        keyboardType="numeric"
+                      />
+                    </View>
+                    <Text style={styles.helperText}>Leave blank for variable pricing</Text> 
                   </View>
                   
                   {/* UPC/Barcode */}
@@ -1023,483 +1110,53 @@ export default function ItemDetails() {
               </View>
             </TouchableWithoutFeedback>
           </Modal>
+
+          {/* --- Variation Selection Modal --- */}
+          <Modal
+            animationType="slide"
+            transparent={true}
+            visible={showVariationModal}
+            onRequestClose={() => setShowVariationModal(false)}
+          >
+            <TouchableWithoutFeedback onPress={() => setShowVariationModal(false)}>
+              <View style={styles.modalOverlay}>
+                <TouchableWithoutFeedback>
+                  {/* Prevent taps inside the modal content from closing it */}
+                  <View style={styles.variationModalContent}>
+                    <Text style={styles.modalTitle}>Select Variation to Print</Text>
+                    <FlatList
+                      data={variations}
+                      keyExtractor={(v, index) => v.id || `variation-${index}`}
+                      renderItem={({ item: variationItem, index }) => (
+                        <TouchableOpacity
+                          style={styles.modalItem}
+                          onPress={() => {
+                            initiatePrint(index); // Initiate print for selected variation
+                            setShowVariationModal(false); // Close modal
+                          }}
+                        >
+                          <Text style={styles.modalItemText}>{variationItem.name || `Variation ${index + 1}`}</Text>
+                          {/* Optionally add SKU or Price here for identification */}
+                          {variationItem.sku && <Text style={styles.modalItemSubText}>SKU: {variationItem.sku}</Text>}
+                          {variationItem.price !== undefined && <Text style={styles.modalItemSubText}>Price: ${variationItem.price.toFixed(2)}</Text>}
+                        </TouchableOpacity>
+                      )}
+                      ItemSeparatorComponent={() => <View style={styles.modalSeparator} />} // Add separators
+                      ListEmptyComponent={<Text style={styles.emptyListText}>No variations found</Text>}
+                    />
+                    <TouchableOpacity
+                      style={styles.closeButton}
+                      onPress={() => setShowVariationModal(false)}
+                    >
+                      <Text style={styles.closeButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                  </View>
+                </TouchableWithoutFeedback>
+              </View>
+            </TouchableWithoutFeedback>
+          </Modal>
         </>
       )}
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#666',
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    padding: 20,
-  },
-  errorText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: 'red',
-    textAlign: 'center',
-  },
-  errorButton: {
-    marginTop: 20,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    backgroundColor: lightTheme.colors.primary,
-    borderRadius: 8,
-  },
-  errorButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  headerButton: {
-    padding: 10,
-  },
-  headerButtonText: {
-    fontSize: 16,
-    color: lightTheme.colors.primary,
-  },
-  saveButton: {
-    fontWeight: '600',
-  },
-  disabledText: {
-    opacity: 0.5,
-  },
-  content: {
-    flex: 1,
-    padding: 16,
-  },
-  fieldContainer: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#555',
-    marginBottom: 8,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-    color: '#333',
-    backgroundColor: '#fff',
-  },
-  textArea: {
-    minHeight: 100,
-    paddingTop: 12,
-  },
-  priceInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    backgroundColor: '#fff',
-  },
-  currencySymbol: {
-    paddingLeft: 12,
-    fontSize: 16,
-    color: '#333',
-  },
-  priceInput: {
-    flex: 1,
-    paddingVertical: 10,
-    paddingRight: 12,
-    fontSize: 16,
-    color: '#333',
-  },
-  selectorButton: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: '#fff',
-  },
-  selectorText: {
-    fontSize: 16,
-    color: '#333',
-  },
-  switchRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  switchButton: {
-    width: 51,
-    height: 31,
-    borderRadius: 25,
-    padding: 5,
-  },
-  switchButtonActive: {
-    backgroundColor: lightTheme.colors.primary,
-  },
-  switchButtonInactive: {
-    backgroundColor: '#e0e0e0',
-  },
-  switchThumb: {
-    width: 21,
-    height: 21,
-    borderRadius: 21,
-    backgroundColor: 'white',
-  },
-  switchThumbActive: {
-    transform: [{ translateX: 20 }],
-  },
-  switchThumbInactive: {
-    transform: [{ translateX: 0 }],
-  },
-  helperText: {
-    fontSize: 12,
-    color: '#777',
-    marginTop: 4,
-  },
-  deleteButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#d9534f',
-    borderRadius: 8,
-    paddingVertical: 12,
-    marginTop: 20,
-  },
-  deleteButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '500',
-    marginLeft: 8,
-  },
-  modalContainer: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  modalContent: {
-    width: '90%',
-    maxWidth: 500,
-    maxHeight: '80%',
-    backgroundColor: 'white',
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-    textAlign: 'center',
-  },
-  closeButton: {
-    padding: 4,
-  },
-  searchInput: {
-    margin: 16,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-    color: '#333',
-    backgroundColor: '#f9f9f9',
-  },
-  categoryItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  selectedCategoryItem: {
-    backgroundColor: '#f0f8ff',
-  },
-  categoryColor: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    marginRight: 12,
-  },
-  highlightedText: {
-    backgroundColor: '#ffff99',
-    fontWeight: '500',
-  },
-  emptyList: {
-    padding: 20,
-    alignItems: 'center',
-  },
-  emptyListText: {
-    color: '#666',
-    textAlign: 'center',
-  },
-  modalOverlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  confirmModalContent: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 20,
-    width: '85%',
-    maxWidth: 400,
-  },
-  confirmModalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 12,
-  },
-  confirmModalText: {
-    fontSize: 16,
-    color: '#555',
-    marginBottom: 20,
-  },
-  confirmModalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-  },
-  confirmModalButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    marginLeft: 12,
-  },
-  cancelButton: {
-    backgroundColor: '#f0f0f0',
-  },
-  cancelButtonText: {
-    color: '#333',
-    fontWeight: '500',
-  },
-  discardButton: {
-    backgroundColor: '#d9534f',
-  },
-  discardButtonText: {
-    color: 'white',
-    fontWeight: '500',
-  },
-  qrCodeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f0f0f0',
-    borderRadius: 8,
-    paddingVertical: 12,
-    marginBottom: 20,
-  },
-  qrCodeButtonText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#333',
-    marginLeft: 8,
-  },
-  modalSearchInput: {
-    margin: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    fontSize: 16,
-  },
-  modalItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  modalItemText: {
-    fontSize: 16,
-    color: '#333',
-  },
-  modalEmptyText: {
-    padding: 20,
-    textAlign: 'center',
-    color: '#666',
-  },
-  modalCloseButton: {
-    padding: 16,
-    alignItems: 'center',
-    backgroundColor: '#f0f0f0',
-  },
-  modalCloseButtonText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: lightTheme.colors.primary,
-  },
-  recentCategoriesContainer: {
-    marginTop: 10,
-  },
-  recentLabel: {
-    fontSize: 12,
-    color: '#777',
-    marginBottom: 5,
-  },
-  recentCategoryChip: {
-    backgroundColor: '#e8f0fe', // Light blue background
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: 15,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: '#c6d9f8', // Slightly darker blue border
-  },
-  recentCategoryChipText: {
-    fontSize: 13,
-    color: '#335b95', // Darker blue text
-  },
-  checkboxContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  checkboxLabel: {
-    fontSize: 16,
-    color: '#333',
-    marginLeft: 8,
-  },
-  selectAllLabel: {
-    fontWeight: 'bold',
-  },
-  checkboxGroup: {},
-  // No minHeight or loadingInSection styles needed anymore
-  rowContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginHorizontal: -4, // Adjust spacing between items if needed
-  },
-  rowItem: {
-    flex: 1,
-    marginHorizontal: 4, // Adjust spacing between items if needed
-  },
-  closeButtonText: { // Added for the modal close button
-    fontSize: 16,
-    fontWeight: '500',
-    color: lightTheme.colors.primary,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  selectAllButton: {
-    padding: 8,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-  },
-  selectAllButtonSelected: {
-    backgroundColor: lightTheme.colors.primary,
-  },
-  selectAllButtonText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: lightTheme.colors.primary,
-  },
-  selectAllButtonTextSelected: {
-    color: 'white',
-  },
-  checkboxIcon: {
-    marginRight: 8,
-  },
-  noItemsText: {
-    color: '#777',
-    marginTop: 4,
-  },
-  selectedModifiersContainer: {
-    marginTop: 10,
-  },
-  selectedModifiersLabel: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#777',
-  },
-  selectedModifierItem: {
-    color: '#333',
-  },
-  sectionHeaderText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#444',
-    marginBottom: 12,
-  },
-  variationContainer: {
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
-    backgroundColor: '#f9f9f9',
-  },
-  variationHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  variationTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
-  removeVariationButton: {
-    padding: 4,
-  },
-  addVariationButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 12,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 8,
-    marginTop: 8,
-  },
-  addVariationText: {
-    color: lightTheme.colors.primary,
-    fontWeight: '500',
-    marginLeft: 8,
-  },
-  subLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#666',
-    marginBottom: 6,
-  },
-}); 

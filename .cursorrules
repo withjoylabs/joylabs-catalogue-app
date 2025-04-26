@@ -29,6 +29,9 @@ This guide provides instructions and rules for developing the JoyLabs frontend a
 - **Use deeplinking** for Expo development callbacks (e.g., `joylabs://square-callback`). NO custom web URLs like `joylabs.com` for callbacks.
 - **Be thorough!** Check all dependencies and potential impacts of your changes before declaring a fix or feature complete.
 - **Development Server Port:** Always launch the Expo development server on Port **8081**. If the port is occupied, shut down the existing server (`Ctrl+C` in the terminal) and restart it. Do not attempt to use the next available port (e.g., 8082) as backend configurations might rely on port 8081.
+- **Dependency Checks:** Before installing new dependencies, search the web (NPM, GitHub issues, etc.) to verify:
+    - It's actively maintained and suitable for the current task.
+    - It's compatible with **Expo Go** (if applicable and avoiding development builds is desired). Libraries requiring custom native code not included in Expo Go may cause `TypeError: Cannot read property 'getConstants' of null` errors. Look for libraries specifically mentioning Expo compatibility or using pure JS/Expo SDK APIs/`react-native-svg`.
 
 ## API Architecture & Catalog Operations
 
@@ -80,6 +83,14 @@ This guide provides instructions and rules for developing the JoyLabs frontend a
 
 ## Development Notes
 - **Development Server Port:** Always launch the Expo development server on Port **8081**. If the port is occupied, shut down the existing server (`Ctrl+C` in the terminal) and restart it. Do not attempt to use the next available port (e.g., 8082) as backend configurations might rely on port 8081.
+- **Expo Go Compatibility:**
+    - **Preference:** Develop using **Expo Go** whenever possible to maintain a fast iteration cycle.
+    - **Native Module Issues:** Be aware that Expo Go has limitations regarding native modules. Errors like `TypeError: Cannot read property 'getConstants' of null` often indicate a dependency using native code not bundled with Expo Go.
+    - **Troubleshooting:**
+        1.  **Identify the Culprit:** Temporarily remove or comment out suspected libraries (e.g., hardware interaction, custom UI needing native views) and see if the error resolves.
+        2.  **Check Alternatives:** Search for Expo Go-compatible alternatives (e.g., use `expo-barcode-generator` instead of `react-native-barcode-creator`). Check library documentation for explicit Expo support.
+        3.  **Clean Build:** As a general step, try clearing `node_modules`, lock files, and Metro cache (`npx expo start --clear`).
+    - **Last Resort (If Expo Go is Required):** If a specific library with native code is essential *and* development builds are not desired, you may need to find a fundamentally different approach or library that achieves the goal using only Expo Go-compatible APIs.
 
 ## JoyLabs App Navigation Guide
 

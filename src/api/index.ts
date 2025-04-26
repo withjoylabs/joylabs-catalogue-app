@@ -8,6 +8,25 @@ import logger from '../utils/logger';
 import tokenService, { TOKEN_KEYS } from '../services/tokenService';
 import NetInfo from '@react-native-community/netinfo';
 
+// Define CatalogObjectFromApi type locally as it's not exported from modernDb
+type CatalogObjectFromApi = {
+    type: string;
+    id: string;
+    updated_at: string;
+    version: number | string; // Consider making this more specific if possible
+    is_deleted?: boolean;
+    present_at_all_locations?: boolean;
+    item_data?: any;
+    category_data?: any;
+    tax_data?: any;
+    discount_data?: any;
+    modifier_list_data?: any;
+    modifier_data?: any;
+    item_variation_data?: any;
+    image_data?: any;
+    // Add other potential *_data fields based on Square API
+};
+
 // API Response Type
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -412,7 +431,8 @@ const createApiClient = (): AxiosInstance => {
           // Create a new promise that will resolve after the retry delay
           return new Promise(resolve => {
             setTimeout(() => {
-              resolve(apiClient(originalRequest));
+              // Use the client instance itself, not the exported api object
+              resolve(client(originalRequest)); 
             }, retryConfig.delay);
           });
         }
@@ -463,7 +483,17 @@ const createApiClient = (): AxiosInstance => {
             originalRequest.headers.Authorization = `Bearer ${newToken}`;
             
             // Retry the original request with the new token
-            return axios(originalRequest);
+            // Define retryConfig for this specific retry attempt after successful refresh
+            const retryConfig = typeof originalRequest.retry === 'object' 
+              ? originalRequest.retry 
+              : { count: 1, delay: 500 }; // Sensible default delay after refresh
+              
+            return new Promise(resolve => {
+              setTimeout(() => {
+                // Use the client instance itself, not the exported api object
+                resolve(client(originalRequest)); 
+              }, retryConfig.delay); // Use the defined delay
+            });
           } else {
             logger.warn('API', 'Token refresh failed - no new token returned');
           }
@@ -476,7 +506,8 @@ const createApiClient = (): AxiosInstance => {
         
         // Perform API reachability check (unchanged from before)
         try {
-          const healthCheckResponse = await apiClient.get('/api/webhooks/health', {
+          // Use the client instance itself for the health check within the interceptor
+          const healthCheckResponse = await client.get('/api/webhooks/health', { 
             bypassConnectionCheck: true
           });
           
@@ -523,7 +554,8 @@ const createApiClient = (): AxiosInstance => {
           // Create a new promise that will resolve after the retry delay
           return new Promise(resolve => {
             setTimeout(() => {
-              resolve(apiClient(originalRequest));
+              // Use the client instance itself, not the exported api object
+              resolve(client(originalRequest)); 
             }, retryConfig.delay);
           });
         }
@@ -548,7 +580,7 @@ const createApiClient = (): AxiosInstance => {
 };
 
 // Create API instance
-const apiClient = createApiClient();
+const apiClientInstance = createApiClient();
 
 // Initialize with a connectivity check
 checkNetworkConnectivity();
@@ -571,7 +603,7 @@ const api = {
       try {
         logger.info('API', 'Getting Square connect URL');
         // Note: Not used anymore as we build the URL manually
-        const response = await apiClient.get(config.square.endpoints.connect);
+        const response = await apiClientInstance.get(config.square.endpoints.connect);
         return response.data;
       } catch (error) {
         logger.error('API', 'Failed to get Square connect URL', { error });
@@ -936,7 +968,7 @@ const api = {
         // Use caching for catalog items with a reasonable TTL
         const ttl = 5 * 60 * 1000; // 5 minutes
         
-        const response = await apiClient.get(url, {
+        const response = await apiClientInstance.get(url, {
               cache: { ttl }
             });
         
@@ -957,7 +989,7 @@ const api = {
         logger.info('API', `Fetching catalog item by ID via /api: ${id}`);
         // Use /api prefix for consistency with CRUD
         const url = `/api/catalog/items/${id}`; 
-        const response = await apiClient.get(url, {
+        const response = await apiClientInstance.get(url, {
           cache: { ttl: 10 * 60 * 1000 } // Cache individual items longer - 10 minutes
         });
     return response.data;
@@ -971,7 +1003,7 @@ const api = {
       const url = '/api/catalog/items'; // Use /api prefix
       try {
         logger.info('API:Catalog', 'Creating new catalog item', { itemName: itemData.name });
-        const response = await apiClient.post<any>(url, itemData);
+        const response = await apiClientInstance.post<any>(url, itemData);
         logger.info('API:Catalog', 'Successfully created item', { itemId: response.data?.id });
         return { success: true, data: response.data };
       } catch (error) {
@@ -986,7 +1018,7 @@ const api = {
       const url = `/api/catalog/items/${itemId}`; // Use /api prefix
       try {
         logger.info('API:Catalog', 'Updating catalog item', { itemId });
-        const response = await apiClient.put<any>(url, itemData);
+        const response = await apiClientInstance.put<any>(url, itemData);
         logger.info('API:Catalog', 'Successfully updated item', { itemId });
         return { success: true, data: response.data };
       } catch (error) {
@@ -1001,7 +1033,7 @@ const api = {
       const url = `/api/catalog/items/${itemId}`; // Use /api prefix
       try {
         logger.info('API:Catalog', 'Deleting catalog item', { itemId });
-        await apiClient.delete(url);
+        await apiClientInstance.delete(url);
         logger.info('API:Catalog', 'Successfully deleted item', { itemId });
         return { success: true };
       } catch (error) {
@@ -1089,7 +1121,7 @@ const api = {
           'Cache-Control': 'no-cache'
         };
         
-        // Try using a direct fetch to bypass potential apiClient issues
+        // Try using a direct fetch to bypass potential apiClientInstance issues
         logger.debug('API', 'Making direct fetch for catalog search', { 
           url, 
           objectTypes: enhancedParams.objectTypes,
@@ -1165,7 +1197,7 @@ const api = {
         
         logger.debug('API', 'Categories request params', { url });
         
-        const response = await apiClient.get(url, {
+        const response = await apiClientInstance.get(url, {
           cache: { 
             key: cacheKey,
             ttl: 5 * 60 * 1000 // Cache categories for 5 minutes
@@ -1234,7 +1266,7 @@ const api = {
         
         // Use the search endpoint directly
         const url = config.square.endpoints.catalogSearch;
-        const response = await apiClient.post(url, searchParams, {
+        const response = await apiClientInstance.post(url, searchParams, {
           cache: { 
             key: cacheKey,
             ttl: 5 * 60 * 1000 // Cache category searches for 5 minutes
@@ -1263,7 +1295,7 @@ const api = {
         
         logger.debug('API', 'Merchant info request', { url });
         
-        const response = await apiClient.get(url, {
+        const response = await apiClientInstance.get(url, {
           cache: { 
             key: cacheKey,
             ttl: 24 * 60 * 60 * 1000 // Cache merchant info for 24 hours
@@ -1297,7 +1329,7 @@ const api = {
         
         logger.debug('API', 'Locations request', { url });
         
-        const response = await apiClient.get(url, {
+        const response = await apiClientInstance.get(url, {
           cache: { 
             key: cacheKey,
             ttl: 24 * 60 * 60 * 1000 // Cache locations for 24 hours
@@ -1328,7 +1360,7 @@ const api = {
         logger.info('API:Catalog', 'Searching catalog via custom backend', { queryType, queryValue });
         
         // Using the custom backend endpoint - sending queryValue as textFilter
-        const response = await apiClient.post<any>('/api/catalog/search-catalog-items', 
+        const response = await apiClientInstance.post<any>('/api/catalog/search-catalog-items', 
           { 
             textFilter: queryValue // Send query using the expected textFilter parameter
           }, 
@@ -1372,7 +1404,7 @@ const api = {
         logger.info('API', `Looking up product by barcode: ${barcode}`);
         
         const url = `/api/products/barcode/${encodeURIComponent(barcode)}`;
-        const response = await apiClient.get(url, {
+        const response = await apiClientInstance.get(url, {
           cache: { ttl: 30 * 60 * 1000 }, // Cache barcode lookups for 30 minutes
           retry: { count: 2, delay: 1000 }
         });
@@ -1391,7 +1423,7 @@ const api = {
       try {
         logger.info('API', 'Performing API health check');
         const url = '/api/webhooks/health';
-        const response = await apiClient.get(url, {
+        const response = await apiClientInstance.get(url, {
           // Don't cache health checks, and bypass connection check to avoid loops
           cache: false,
           bypassConnectionCheck: true,
@@ -1424,7 +1456,7 @@ const api = {
           return { success: false, webhooks: [], message: 'Not authenticated' };
         }
         
-        const response = await apiClient.get(url, {
+        const response = await apiClientInstance.get(url, {
           cache: { 
             ttl: 5 * 60 * 1000 // Cache webhooks for 5 minutes
           },
@@ -1486,8 +1518,8 @@ const api = {
     }
 
     try {
-      // Use the configured apiClient which includes interceptors
-      const response = await apiClient.get<CatalogListResponse>('/v2/catalog/list', {
+      // Use the configured apiClientInstance which includes interceptors
+      const response = await apiClientInstance.get<CatalogListResponse>('/v2/catalog/list', {
         params: params,
         // Caching might not be ideal for a full sync, ensure it's disabled or managed carefully
         cache: false, 
@@ -1533,6 +1565,54 @@ const api = {
            'UNKNOWN_ERROR'
          );
       }
+    }
+  },
+
+  // Placeholder for user-related endpoints
+  user: {
+    /**
+     * Sends the obtained Expo Push Token to the backend.
+     * @param {string} pushToken - The Expo Push Token.
+     * @returns {Promise<ApiResponse<any>>} - The API response.
+     */
+    registerPushToken: async (pushToken: string): Promise<ApiResponse<any>> => {
+      const tag = 'API:user:registerPushToken';
+      logger.info(tag, 'Registering push token with backend...');
+      if (!pushToken) {
+        logger.error(tag, 'Attempted to register an empty push token.');
+        return { success: false, error: new ApiError('Push token cannot be empty.', 'INVALID_INPUT') };
+      }
+      try {
+        // TODO: Replace with actual backend endpoint POST request
+        // Example:
+        // const response = await apiClientInstance.post('/api/user/push-token', { pushToken });
+        // logger.info(tag, 'Push token registered successfully.', { responseData: response.data });
+        // return { success: true, data: response.data };
+        
+        // --- Placeholder Implementation ---
+        await new Promise(resolve => setTimeout(resolve, 500)); // Simulate network call
+        logger.info(tag, 'Push token registration placeholder successful.');
+        return { success: true, message: 'Placeholder: Token registered' };
+        // --- End Placeholder ---
+
+      } catch (error) {
+        const apiResponseError: ApiResponse<never> = handleApiError(error, 'Failed to register push token');
+        logger.error(tag, 'Error registering push token', { error: apiResponseError.error });
+        return apiResponseError;
+      }
+    },
+
+    // Placeholder for unregistering (optional)
+    unregisterPushToken: async (pushToken: string): Promise<ApiResponse<any>> => {
+      const tag = 'API:user:unregisterPushToken';
+      logger.info(tag, 'Unregistering push token from backend...');
+       if (!pushToken) {
+        logger.error(tag, 'Attempted to unregister an empty push token.');
+        return { success: false, error: new ApiError('Push token cannot be empty.', 'INVALID_INPUT') };
+      }
+      // TODO: Implement backend DELETE request, e.g., apiClientInstance.delete('/api/user/push-token', { data: { pushToken } });
+      logger.info(tag, 'Push token unregistration placeholder successful.');
+      return { success: true, message: 'Placeholder: Token unregistered' };
     }
   },
 };
@@ -1778,6 +1858,85 @@ const directSquareApi = {
   },
 };
 
-// Export the main apiClient and the new directSquareApi
-export default apiClient; 
-export { apiClient, directSquareApi };
+// --- New API Function for Incremental Sync ---
+
+// Interface for the SearchCatalogObjects response via proxy
+interface SearchCatalogChangesResponse {
+  objects?: CatalogObjectFromApi[]; // Use the type defined/imported
+  cursor?: string;
+  errors?: Array<{ // Define structure based on Square API Errors
+      category: string;
+      code: string;
+      detail?: string;
+      field?: string;
+  }>;
+}
+
+/**
+ * Calls the backend proxy to search for catalog changes since the last sync point.
+ * Uses the cursor for pagination.
+ * 
+ * @param cursor The pagination cursor from the previous search response. Null/undefined for the first page.
+ * @returns Promise<SearchCatalogChangesResponse>
+ */
+export const searchCatalogChanges = async (
+  cursor?: string | null
+): Promise<SearchCatalogChangesResponse> => {
+  const tag = 'API:searchCatalogChanges';
+  logger.info(tag, 'Searching for catalog changes', { cursor: cursor ? '******' : null });
+
+  const requestBody = {
+    cursor: cursor || undefined, // Omit cursor if null/undefined/empty
+    object_types: [
+      'ITEM',
+      'ITEM_VARIATION',
+      'CATEGORY',
+      'TAX',
+      'DISCOUNT',
+      'MODIFIER_LIST',
+      'MODIFIER'
+      // Add other types if needed, e.g., 'IMAGE'
+    ],
+    include_deleted_objects: true,
+    limit: 200 // Adjust limit as needed
+  };
+
+  try {
+    // Using apiClientInstance which includes base URL and auth interceptor
+    // The specific endpoint path /v2/catalog/search is appended to the base URL
+    const response = await apiClientInstance.post<SearchCatalogChangesResponse>(
+      '/v2/catalog/search',
+      requestBody
+    );
+    
+    logger.debug(tag, 'Received catalog changes response', {
+      objectCount: response.data.objects?.length ?? 0,
+      hasNextPage: !!response.data.cursor,
+      // Avoid logging full objects unless necessary for deep debugging
+      // objects: response.data.objects
+    });
+
+    // Handle potential errors returned in the response body (Square format)
+    if (response.data.errors && response.data.errors.length > 0) {
+      logger.error(tag, 'Square API returned errors in search response', { errors: response.data.errors });
+      // Throw a specific error or return a structured error
+      throw new Error(`Square API error during search: ${response.data.errors[0]?.detail || 'Unknown error'}`);
+    }
+
+    return response.data;
+  } catch (error: any) {
+    // Log details from AxiosError if available
+    const errorDetails = error.isAxiosError ? error.response?.data : error.message;
+    logger.error(tag, 'Error searching catalog changes via proxy', { 
+        errorMessage: error.message,
+        errorDetails: errorDetails,
+        requestBody // Log what was sent (sensitive data might be included!)
+    });
+    // Re-throw the error for the caller (sync process) to handle
+    throw error;
+  }
+};
+
+// Export the main apiClientInstance and the new directSquareApi
+export default api; // Export the constructed api object as default
+export { api as apiClient, directSquareApi }; // Also export api as apiClient for compatibility if needed

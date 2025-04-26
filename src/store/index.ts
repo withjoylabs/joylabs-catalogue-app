@@ -67,6 +67,18 @@ interface AppState {
   // Square Connection State
   isSquareConnected: boolean;
   
+  // Label LIVE HTTP Settings
+  labelLiveHost: string | null;
+  labelLivePort: string | null;
+  labelLivePrinter: string | null;
+  labelLiveWindow: string | null;
+  labelLiveFieldMap: {
+    itemName: string | null;
+    variationName: string | null;
+    variationPrice: string | null;
+    barcode: string | null;
+  } | null;
+  
   // Actions
   setProducts: (products: ConvertedItem[]) => void;
   setSelectedProduct: (product: ConvertedItem | null) => void;
@@ -94,6 +106,13 @@ interface AppState {
   
   // Square Connection Action
   setSquareConnected: (isConnected: boolean) => void;
+
+  // Label LIVE Actions
+  setLabelLiveHost: (host: string) => void;
+  setLabelLivePort: (port: string) => void;
+  setLabelLivePrinter: (printer: string) => void;
+  setLabelLiveWindow: (window: string) => void;
+  setLabelLiveFieldMap: (map: AppState['labelLiveFieldMap']) => void;
   
   refreshProducts: () => Promise<void>;
   loadMoreProducts: () => Promise<void>;
@@ -131,6 +150,13 @@ export const useAppStore = create<AppState>()(
 
       // Initial Square Connection state
       isSquareConnected: false,
+
+      // Initial Label LIVE state
+      labelLiveHost: null,
+      labelLivePort: null,
+      labelLivePrinter: null,
+      labelLiveWindow: null,
+      labelLiveFieldMap: null,
       
       // Products actions
       setProducts: (products: ConvertedItem[]) => set({ products }),
@@ -195,6 +221,13 @@ export const useAppStore = create<AppState>()(
       // Square Connection action implementation
       setSquareConnected: (isSquareConnected: boolean) => set({ isSquareConnected }),
 
+      // Label LIVE action implementations
+      setLabelLiveHost: (labelLiveHost: string) => set({ labelLiveHost }),
+      setLabelLivePort: (labelLivePort: string) => set({ labelLivePort }),
+      setLabelLivePrinter: (labelLivePrinter: string) => set({ labelLivePrinter }),
+      setLabelLiveWindow: (labelLiveWindow: string) => set({ labelLiveWindow }),
+      setLabelLiveFieldMap: (labelLiveFieldMap: AppState['labelLiveFieldMap']) => set({ labelLiveFieldMap }),
+
       // Add placeholders for missing actions
       refreshProducts: async () => { console.warn('refreshProducts not implemented in store'); },
       loadMoreProducts: async () => { console.warn('loadMoreProducts not implemented in store'); },
@@ -208,7 +241,17 @@ export const useAppStore = create<AppState>()(
       partialize: (state) =>
         Object.fromEntries(
           Object.entries(state).filter(([key]) =>
-            ['scanHistory', 'adminScanHistory', 'autoSearchOnEnter', 'autoSearchOnTab'].includes(key)
+            [
+              'scanHistory',
+              'adminScanHistory',
+              'autoSearchOnEnter',
+              'autoSearchOnTab',
+              'labelLiveHost',
+              'labelLivePort',
+              'labelLivePrinter',
+              'labelLiveWindow',
+              'labelLiveFieldMap',
+            ].includes(key)
           )
         ),
     }

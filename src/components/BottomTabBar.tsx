@@ -76,11 +76,13 @@ export default function BottomTabBar({ activeTab }: BottomTabBarProps) {
         onPress={() => router.push('/labels')}
       >
         <Ionicons 
-          name="pricetag-outline" 
+          name={activeTab === 'labels' ? 'pricetag' : 'pricetag-outline'} 
           size={24} 
-          color="#8E8E93" 
+          color={activeTab === 'labels' ? '#007AFF' : '#8E8E93'} 
         />
-        <Text style={styles.tabLabel}>Labels</Text>
+        <Text style={[styles.tabLabel, activeTab === 'labels' && styles.activeTabLabel]}>
+          Labels
+        </Text>
       </TouchableOpacity>
       
       <TouchableOpacity 
