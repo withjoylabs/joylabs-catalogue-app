@@ -45,7 +45,7 @@ type ModifierListPickerItem = { id: string; name: string }; // Used for both CRV
 const EMPTY_ITEM: ConvertedItem = {
   id: '',
   name: '',
-  variationName: 'Regular',
+  variationName: null,
   sku: '',
   price: undefined,
   description: '',
@@ -65,7 +65,7 @@ const EMPTY_ITEM: ConvertedItem = {
 interface ItemVariation {
   id?: string;
   version?: number;
-  name: string;
+  name: string | null;
   sku: string | null;
   price?: number;
   barcode?: string;
@@ -104,7 +104,7 @@ export default function ItemDetails() {
   
   // State for variations
   const [variations, setVariations] = useState<ItemVariation[]>([{
-    name: 'Regular',
+    name: null,
     sku: '',
     price: undefined,
     barcode: ''
@@ -295,7 +295,7 @@ export default function ItemDetails() {
   // Handler to add a new variation
   const addVariation = () => {
     setVariations(prev => [...prev, {
-      name: '',
+      name: null,
       sku: '',
       price: undefined,
       barcode: ''
@@ -382,7 +382,7 @@ export default function ItemDetails() {
           reporting_category_id: item.reporting_category_id || null,
           // Include all variations
           variations: variations.map(v => ({
-            name: v.name || 'Regular',
+            name: v.name || null,
             price: v.price,
             sku: v.sku || null,
             barcode: v.barcode || null
@@ -410,7 +410,7 @@ export default function ItemDetails() {
         itemPayload.variations = variations.map(v => ({
           id: v.id, // Include ID if it exists (for existing variations)
           version: v.version, // Include version if it exists (for existing variations)
-          name: v.name || 'Regular',
+          name: v.name || null,
           price: v.price,
           sku: v.sku || null,
           barcode: v.barcode || null
@@ -438,7 +438,7 @@ export default function ItemDetails() {
           setVariations(savedItem.variations.map(v => ({
             id: v.id,
             version: v.version,
-            name: v.name || 'Regular',
+            name: v.name || null,
             sku: v.sku || null,
             price: v.price,
             barcode: v.barcode
@@ -527,7 +527,7 @@ export default function ItemDetails() {
               ? fetchedItem.variations.map(v => ({
                   id: v.id,
                   version: v.version,
-                  name: v.name || 'Regular',
+                  name: v.name || null,
                   sku: v.sku || null,
                   price: v.price,
                   barcode: v.barcode
@@ -535,7 +535,7 @@ export default function ItemDetails() {
               : [{
                   id: fetchedItem.variationId,
                   version: fetchedItem.variationVersion,
-                  name: fetchedItem.variationName || 'Regular',
+                  name: fetchedItem.variationName || null,
                   sku: fetchedItem.sku || null,
                   price: fetchedItem.price,
                   barcode: fetchedItem.barcode
@@ -896,8 +896,8 @@ export default function ItemDetails() {
                     <TextInput
                       style={styles.input}
                       value={variation.name || ''}
-                      onChangeText={(value) => handleVariationChange(index, 'name', value || 'Regular')}
-                      placeholder="e.g., Regular, Large, Blue"
+                      onChangeText={(value) => handleVariationChange(index, 'name', value)}
+                      placeholder="e.g., Regular, Large, Blue (optional)"
                       placeholderTextColor="#999"
                     />
                   </View>

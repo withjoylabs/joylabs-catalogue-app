@@ -81,3 +81,6 @@ coverage/
 
 #Development guides
 .cursorrules
+
+# Cursor AI history
+.specstory/

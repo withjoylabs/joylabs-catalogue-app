@@ -25,110 +25,41 @@ const SearchBar = forwardRef<RNTextInput, SearchBarProps>((
   },
   ref
 ) => {
-  // Capture input values
-  const [accumulatedValue, setAccumulatedValue] = useState<string>(value || "");
+  // Directly use props for value and onChangeText
   
-  // Scanner buffering and timing management
-  const isScanningRef = useRef<boolean>(false);
-  const isInitializedRef = useRef<boolean>(false);
-  const preInitBuffer = useRef<string[]>([]);
-  const inputFieldRef = useRef<RNTextInput | null>(null);
-  
-  // For timeout management
-  const scanCompleteTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const processScanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  
-  // Initialize immediately with pre-scan capture capabilities
-  useEffect(() => {
-    // Enable pre-initialization capture
-    isInitializedRef.current = true;
-    
-    // Process any pre-init buffer content
-    const bufferContent = preInitBuffer.current.join('');
-    if (bufferContent) {
-      // If we have buffered content, use it
-      handleInputChange(bufferContent);
-      preInitBuffer.current = [];
-    }
-    
-    return () => {
-      isInitializedRef.current = false;
-      clearAllTimeouts();
-    };
-  }, []);
-  
-  // Handle incoming input
+  // Handle input change directly
   const handleInputChange = (newInput: string) => {
-    // Update UI immediately
-    setAccumulatedValue(newInput);
-    
-    // Start/continue the scanning process
-    isScanningRef.current = true;
-    
-    // Reset any existing scan completion timer
-    if (scanCompleteTimeoutRef.current) {
-      clearTimeout(scanCompleteTimeoutRef.current);
-    }
-    
-    // Set new completion timer
-    scanCompleteTimeoutRef.current = setTimeout(() => {
-      // Scanning has completed, process the input
-      processScan(newInput);
-      scanCompleteTimeoutRef.current = null;
-    }, 300);
+    // Call parent's handler immediately
+    onChangeText(newInput);
   };
   
-  // Process a completed scan
-  const processScan = (scanText: string) => {
-    if (!isScanningRef.current) return;
-    
-    isScanningRef.current = false;
-    const trimmedScan = scanText.trim();
-    
-    // Update parent state
-    if (onChangeText && trimmedScan !== value) {
-      onChangeText(trimmedScan);
-    }
-    
-    // Clean up any pending process timers
-    if (processScanTimeoutRef.current) {
-      clearTimeout(processScanTimeoutRef.current);
-    }
-    
-    // Auto-submit if configured
-    if (autoSearchOnEnter && onSubmit && trimmedScan.length > 0) {
-      processScanTimeoutRef.current = setTimeout(() => {
-        onSubmit();
-        processScanTimeoutRef.current = null;
-      }, 50);
-    }
-  };
-  
-  // Handle special keys like Tab
+  // Handle special keys like Tab or Enter (if needed, but simplified)
   const handleKeyPress = (e: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
+    // Basic Enter key handling (if autoSearchOnEnter is true)
+    if (e.nativeEvent.key === 'Enter' && autoSearchOnEnter && onSubmit) {
+      onSubmit();
+    }
+    // Basic Tab key handling (if autoSearchOnTab is true)
     if (e.nativeEvent.key === 'Tab' && autoSearchOnTab && onSubmit) {
       // @ts-ignore - preventDefault may not exist in React Native, but some scanners send it
       if (e.preventDefault) e.preventDefault();
       
-      // Immediately process the current scan when Tab is detected
-      if (scanCompleteTimeoutRef.current) {
-        clearTimeout(scanCompleteTimeoutRef.current);
-        scanCompleteTimeoutRef.current = null;
-      }
+      // Introduce a tiny delay to allow state update for the last character
+      const submitTimeout = setTimeout(() => {
+          if (onSubmit) { // Check onSubmit still exists in case of quick unmounts
+              onSubmit(); 
+          }
+      }, 50); // 50ms delay - adjust if needed
       
-      processScan(accumulatedValue);
+      // Cleanup timeout if component unmounts quickly
+      // (Optional but good practice)
+      // This requires useEffect for cleanup, slightly more complex. 
+      // Let's keep it simple for now, the chance of unmount in 50ms is low.
     }
   };
   
-  // Handle pressing the GO button
+  // Handle pressing the GO button or submitting from keyboard
   const handleSubmit = () => {
-    if (scanCompleteTimeoutRef.current) {
-      clearTimeout(scanCompleteTimeoutRef.current);
-      scanCompleteTimeoutRef.current = null;
-    }
-    
-    processScan(accumulatedValue);
-    
     if (onSubmit) {
       onSubmit();
     }
@@ -136,51 +67,10 @@ const SearchBar = forwardRef<RNTextInput, SearchBarProps>((
   
   // Clear the input field
   const handleClear = () => {
-    setAccumulatedValue("");
-    preInitBuffer.current = [];
-    isScanningRef.current = false;
-    clearAllTimeouts();
-    
+    onChangeText(''); // Clear parent state directly
     if (onClear) {
       onClear();
     }
-  };
-  
-  // Helper to clear all timeouts
-  const clearAllTimeouts = () => {
-    if (scanCompleteTimeoutRef.current) {
-      clearTimeout(scanCompleteTimeoutRef.current);
-      scanCompleteTimeoutRef.current = null;
-    }
-    if (processScanTimeoutRef.current) {
-      clearTimeout(processScanTimeoutRef.current);
-      processScanTimeoutRef.current = null;
-    }
-  };
-  
-  // Sync local value with parent when not scanning
-  useEffect(() => {
-    if (!isScanningRef.current && value !== accumulatedValue) {
-      setAccumulatedValue(value || "");
-    }
-  }, [value]);
-  
-  // Clean up on unmount
-  useEffect(() => {
-    return clearAllTimeouts;
-  }, []);
-
-  // Save the ref for direct access if needed
-  const setRefs = (input: RNTextInput | null) => {
-    // Forward the ref to the parent
-    if (typeof ref === 'function') {
-      ref(input);
-    } else if (ref) {
-      ref.current = input;
-    }
-    
-    // Also keep our local ref
-    inputFieldRef.current = input;
   };
 
   return (
@@ -188,20 +78,20 @@ const SearchBar = forwardRef<RNTextInput, SearchBarProps>((
       <View style={styles.searchContainer}>
         <Ionicons name="search" size={24} color="#888" style={styles.searchIcon} />
         <TextInput
-          ref={setRefs}
+          ref={ref} // Use the forwarded ref directly
           style={styles.input}
-          value={accumulatedValue}
-          onChangeText={handleInputChange}
+          value={value} // Use value directly from props
+          onChangeText={handleInputChange} // Use simplified handler
           placeholder={placeholder}
           placeholderTextColor="#999"
-          onSubmitEditing={handleSubmit}
+          onSubmitEditing={handleSubmit} // Call simplified submit handler
           returnKeyType="search"
-          clearButtonMode="never" // Fix duplicate X issue by disabling built-in clear button
-          onKeyPress={handleKeyPress}
+          clearButtonMode="never" // Keep this to avoid duplicate X
+          onKeyPress={handleKeyPress} // Keep key press handling
           blurOnSubmit={false}
-          keyboardType="default" // Default keyboard better for scanner input
+          keyboardType="default"
         />
-        {accumulatedValue.length > 0 && (
+        {value.length > 0 && ( // Check value directly from props
           <TouchableOpacity onPress={handleClear} style={styles.clearButton}>
             <Ionicons name="close-circle" size={18} color="#aaa" />
           </TouchableOpacity>
@@ -210,7 +100,7 @@ const SearchBar = forwardRef<RNTextInput, SearchBarProps>((
       
       <TouchableOpacity 
         style={styles.goButton}
-        onPress={handleSubmit}
+        onPress={handleSubmit} // Call simplified submit handler
       >
         <Text style={styles.goButtonText}>GO</Text>
       </TouchableOpacity>

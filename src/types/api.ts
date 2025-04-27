@@ -103,7 +103,7 @@ export interface ConvertedItem {
   createdAt?: string;
   barcode?: string;
   stock?: number;
-  variationName?: string;
+  variationName?: string | null | undefined;
   variations?: Array<{
     id?: string;
     version?: number;
