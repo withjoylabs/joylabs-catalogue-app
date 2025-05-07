@@ -133,11 +133,7 @@ export const printItemLabel = async (labelData: LabelData): Promise<boolean> => 
     });
     
     // Convert variables object to the format needed in the query string
-    const variablesString = JSON.stringify(variables)
-      .replace(/"/g, "'") // Replace all double quotes with single quotes
-      .replace(/'/g, "'") // Ensure consistent quote style
-      .replace(/{/g, '%7B') // URL encode { and }
-      .replace(/}/g, '%7D');
+    const variablesString = encodeURIComponent(JSON.stringify(variables));
 
     // Construct the full URL with query parameters
     const url = `http://${host}:${port}/api/v1/print?design=joy-tags-aio&variables=${variablesString}&printer=${printer}&window=${windowParam}&copies=1`;

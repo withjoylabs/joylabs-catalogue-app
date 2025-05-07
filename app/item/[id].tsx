@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, useTransition, useOptimistic } from 'react';
 import { 
   View, 
   Text, 
@@ -33,9 +33,12 @@ import { useAppStore } from '../../src/store'; // Import Zustand store
 import logger from '../../src/utils/logger'; // Import logger
 import { printItemLabel, LabelData, getLabelPrinterStatus } from '../../src/utils/printLabel'; // Import the print functions
 import { styles } from './itemStyles';
+import CategorySelectionModal, { CategoryPickerItemType as ModalCategoryPickerItem } from '../../src/components/modals/CategorySelectionModal'; // Added import
+import VariationPrintSelectionModal from '../../src/components/modals/VariationPrintSelectionModal'; // Added import
+import PrintNotification from '../../src/components/modals/PrintNotification'; // Import the new component
 
 // Define type for category used in the picker
-type CategoryPickerItem = { id: string; name: string };
+// type CategoryPickerItem = { id: string; name: string }; // Now using ModalCategoryPickerItem or ensure consistency
 
 // Define type for Tax and Modifier List Pickers
 type TaxPickerItem = { id: string; name: string; percentage: string | null };
@@ -62,7 +65,7 @@ const EMPTY_ITEM: ConvertedItem = {
 };
 
 // Define a type for variations
-interface ItemVariation {
+export interface ItemVariation {
   id?: string;
   version?: number;
   name: string | null;
@@ -96,11 +99,20 @@ export default function ItemDetails() {
   // State for the current item
   const [item, setItem] = useState<ConvertedItem>(EMPTY_ITEM);
   const [originalItem, setOriginalItem] = useState<ConvertedItem | null>(null);
+  const [optimisticItem, setOptimisticItem] = useOptimistic(item, 
+    (currentItem: ConvertedItem, updatedValues: Partial<ConvertedItem>) => ({ ...currentItem, ...updatedValues })
+  );
   const [isEdited, setIsEdited] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
+  const [isSavingPending, startTransition] = useTransition();
+  const [isPrinting, setIsPrinting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showVariationModal, setShowVariationModal] = useState(false); // State for variation selection modal
+  
+  // State for print notification
+  const [showPrintNotification, setShowPrintNotification] = useState(false);
+  const [printNotificationMessage, setPrintNotificationMessage] = useState('');
+  const [printNotificationType, setPrintNotificationType] = useState<'success' | 'error'>('success');
   
   // State for variations
   const [variations, setVariations] = useState<ItemVariation[]>([{
@@ -109,10 +121,13 @@ export default function ItemDetails() {
     price: undefined,
     barcode: ''
   }]);
+  const [optimisticVariations, setOptimisticVariations] = useOptimistic(variations, 
+    (currentVariations: ItemVariation[], newVariations: ItemVariation[]) => newVariations
+  );
   
   // State for category list and modal
-  const [availableCategories, setAvailableCategories] = useState<CategoryPickerItem[]>([]);
-  const [filteredCategories, setFilteredCategories] = useState<CategoryPickerItem[]>([]);
+  const [availableCategories, setAvailableCategories] = useState<ModalCategoryPickerItem[]>([]);
+  const [filteredCategories, setFilteredCategories] = useState<ModalCategoryPickerItem[]>([]);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [categorySearch, setCategorySearch] = useState('');
   
@@ -120,7 +135,7 @@ export default function ItemDetails() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   
   // State for recent categories
-  const [recentCategories, setRecentCategories] = useState<CategoryPickerItem[]>([]);
+  const [recentCategories, setRecentCategories] = useState<ModalCategoryPickerItem[]>([]);
   
   // State for Taxes
   const [availableTaxes, setAvailableTaxes] = useState<TaxPickerItem[]>([]);
@@ -139,13 +154,15 @@ export default function ItemDetails() {
   const initiatePrint = useCallback(async (variationIndex: number) => {
     if (!item || !variations || variationIndex < 0 || variationIndex >= variations.length) {
       logger.warn('ItemDetails:initiatePrint', 'Invalid data for printing', { itemId: item?.id, variationIndex });
-      Alert.alert('Error', 'Could not get variation data for printing.');
+      setPrintNotificationMessage('Could not get variation data for printing.');
+      setPrintNotificationType('error');
+      setShowPrintNotification(true);
+      setTimeout(() => setShowPrintNotification(false), 3000);
       return;
     }
 
     const variationToPrint = variations[variationIndex];
 
-    // Construct the data payload for the print utility
     const labelData: LabelData = {
       itemId: item.id,
       itemName: item.name || 'Item Name',
@@ -163,31 +180,26 @@ export default function ItemDetails() {
     });
     
     try {
-      // Show loading indicator
-      setIsSaving(true); // Reuse the saving state for printing operation
-      
-      // Call the print utility with the constructed data
+      setIsPrinting(true); 
       const success = await printItemLabel(labelData);
-      
       if (success) {
-        Alert.alert(
-          'Print Successful', 
-          `Label for "${variationToPrint.name || item.name}" has been sent to the printer.`
-        );
+        setPrintNotificationMessage(`Label for "${variationToPrint.name || item.name || 'Item'}" sent to printer.`);
+        setPrintNotificationType('success');
       } else {
-        Alert.alert(
-          'Print Failed', 
-          'Could not print the label. Please check if the printer is connected and try again.'
-        );
+        setPrintNotificationMessage('Print failed. Check printer connection.');
+        setPrintNotificationType('error');
       }
     } catch (error) {
       logger.error('ItemDetails:initiatePrint', 'Error during print', { error });
-      Alert.alert('Print Error', 'An unexpected error occurred while trying to print.');
+      setPrintNotificationMessage('An unexpected error occurred during print.');
+      setPrintNotificationType('error');
     } finally {
-      setIsSaving(false); // Reset loading state
+      setIsPrinting(false);
+      setShowPrintNotification(true);
+      setTimeout(() => setShowPrintNotification(false), 3000);
     }
 
-  }, [item, variations, setIsSaving]); // Dependencies: item and variations array
+  }, [item, variations, setIsPrinting, setPrintNotificationMessage, setPrintNotificationType, setShowPrintNotification]);
 
   // Updated header print button handler
   const handlePrintLabel = useCallback(async () => {
@@ -195,17 +207,14 @@ export default function ItemDetails() {
       Alert.alert('Error', 'No variations available to print.');
       return;
     }
-
     if (variations.length === 1) {
-      // If only one variation, print it directly
       logger.info('ItemDetails:handlePrintLabel', 'Single variation found, printing directly.');
       initiatePrint(0);
     } else {
-      // If multiple variations, show the selection modal
       logger.info('ItemDetails:handlePrintLabel', 'Multiple variations found, showing modal.');
       setShowVariationModal(true);
     }
-  }, [variations, initiatePrint]); // Dependencies: variations array and the helper
+  }, [variations, initiatePrint, setShowVariationModal]);
 
   // Define handlers before they are used
   const handleInputChange = (key: keyof ConvertedItem, value: string | number | undefined) => {
@@ -335,7 +344,7 @@ export default function ItemDetails() {
   // == Stable Handlers ==
   const isEmpty = useCallback((): boolean => {
     return (
-      !item.name.trim() && 
+      !(item.name && item.name.trim()) && 
       !(item.sku && item.sku.trim()) && 
       item.price === undefined &&
       !(item.description && item.description.trim()) &&
@@ -356,105 +365,127 @@ export default function ItemDetails() {
     router.back();
   }, [router, setShowCancelModal]);
 
-  const handleSave = useCallback(async () => {
-    if (!item.name.trim()) {
-      Alert.alert('Error', 'Item name is required');
-      return;
-    }
-    
-    setIsSaving(true);
-    setError(null);
-    
-    try {
-      let savedItem;
-      let itemPayload: any; // Declare payload variable
+  const handleSaveAction = useCallback(async () => {
+    logger.info('ItemDetails:handleSaveAction', 'Save process initiated', { isNewItem, itemId: item.id });
+    Keyboard.dismiss();
 
+    const currentItemForOptimisticUpdate = { ...item }; 
+    const currentVariationsForOptimisticUpdate = variations.map(v => ({...v})); 
+
+    setOptimisticItem(currentItemForOptimisticUpdate); 
+    setOptimisticVariations(currentVariationsForOptimisticUpdate);
+
+    startTransition(async () => {
+      logger.info('ItemDetails:handleSaveAction', 'Save transition started');
+      setError(null);
+
+      if (!(item.name && item.name.trim())) { // Ensure item.name is not null/empty before trimming
+        Alert.alert('Error', 'Item name is required.');
+        logger.warn('ItemDetails:handleSaveAction', 'Save aborted: Item name missing');
+        return; 
+      }
+
+      const basePayload = {
+        ...item, 
+        name: item.name || null, 
+        description: item.description || null, 
+        sku: item.sku || null, 
+        abbreviation: item.abbreviation || null, 
+        reporting_category_id: item.reporting_category_id || null, 
+        variations: variations.map(v => ({ 
+          id: v.id,
+          version: v.version,
+          name: v.name as (string | null), // Explicit cast to help linter
+          price: v.price, 
+          sku: v.sku as (string | null), // Explicit cast
+          barcode: v.barcode || null, 
+        })),
+        taxIds: item.taxIds || [],
+        modifierListIds: item.modifierListIds || [],
+        isActive: typeof item.isActive === 'boolean' ? item.isActive : true, 
+      };
+
+      let submissionPayload: any = { ...basePayload };
+      delete submissionPayload.category; 
+      delete submissionPayload.categoryId; 
+      delete submissionPayload.variationName; 
+      
       if (isNewItem) {
-        // Construct payload specifically for CREATE
-        itemPayload = {
-          name: item.name,
-          abbreviation: item.abbreviation || null,
-          description: item.description || null, // Ensure null if empty
-          isActive: item.isActive, // Typically true for new items
-          images: item.images || [],
-          taxIds: item.taxIds || [],             // Pass taxIds (camelCase)
-          modifierListIds: item.modifierListIds || [], // Pass modifierListIds (camelCase)
-          reporting_category_id: item.reporting_category_id || null,
-          // Include all variations
-          variations: variations.map(v => ({
-            name: v.name || null,
-            price: v.price,
-            sku: v.sku || null,
-            barcode: v.barcode || null
-          }))
-        };
-        
-        savedItem = await createProduct(itemPayload); 
-        Alert.alert('Success', 'Item created successfully');
+        delete submissionPayload.id;
+        // `version` is optional in ConvertedItem and not needed for new Square items.
+        // It will be assigned by Square upon creation.
+        delete submissionPayload.version; 
       } else {
-        // Construct payload for UPDATE (include version)
-        itemPayload = { 
-          ...item, // Start with current state (includes version)
-          abbreviation: item.abbreviation || null,
-          reporting_category_id: item.reporting_category_id || null // Ensure correct ID is present
-        };
-        
-        // **FIXED: Explicitly remove potentially incorrect category object if spread from item**
-        delete (itemPayload as any).reporting_category; 
-
-        // Delete frontend-specific/derived fields before sending
-        delete itemPayload.category; 
-        delete itemPayload.categoryId; 
-
-        // Include variations with proper structure for update
-        itemPayload.variations = variations.map(v => ({
-          id: v.id, // Include ID if it exists (for existing variations)
-          version: v.version, // Include version if it exists (for existing variations)
-          name: v.name || null,
-          price: v.price,
-          sku: v.sku || null,
-          barcode: v.barcode || null
-        }));
-
-        if (typeof id !== 'string') {
-          throw new Error('Invalid item ID for update');
+        // For updates, ensure id and version are definitely present and correct.
+        if (!originalItem?.id || typeof item.version !== 'number') {
+          logger.error('ItemDetails:handleSaveAction', 'Missing id or version for update', { originalItem, itemVersion: item.version });
+          throw new Error('Cannot update item: missing ID or version.');
         }
-        savedItem = await updateProduct(id, itemPayload); 
-        Alert.alert('Success', 'Item updated successfully');
+        submissionPayload.id = originalItem.id; 
+        submissionPayload.version = item.version;
       }
-      
-      if (savedItem) {
-        const reportingCategoryId = savedItem.reporting_category_id ?? '';
-        const savedItemWithReportingId = { 
-           ...savedItem, 
-           reporting_category_id: reportingCategoryId 
-         };
-        setItem(savedItemWithReportingId);
-        setOriginalItem(savedItemWithReportingId);
-        setIsEdited(false);
-        
-        // Update variations from saved item if available
-        if (savedItem.variations && Array.isArray(savedItem.variations)) {
-          setVariations(savedItem.variations.map(v => ({
-            id: v.id,
-            version: v.version,
-            name: v.name || null,
-            sku: v.sku || null,
-            price: v.price,
-            barcode: v.barcode
-          })));
+
+      try {
+        let savedItemResponse: ConvertedItem | null | undefined; 
+
+        if (isNewItem) {
+          logger.info('ItemDetails:handleSaveAction', 'Creating new product with payload:', submissionPayload);
+          savedItemResponse = await createProduct(submissionPayload); // createProduct takes `any`
+        } else { 
+          // submissionPayload here should now have a definite id and version from the block above.
+          logger.info('ItemDetails:handleSaveAction', `Updating product ID ${submissionPayload.id} with payload:`, submissionPayload);
+          savedItemResponse = await updateProduct(submissionPayload.id, submissionPayload as ConvertedItem);
+        } 
+
+        if (savedItemResponse) {
+          const finalSavedItem: ConvertedItem = savedItemResponse; 
+          logger.info('ItemDetails:handleSaveAction', 'Product saved successfully to backend', { savedItemId: finalSavedItem.id });
+          setItem(finalSavedItem); 
+          setOriginalItem(finalSavedItem); 
+          setVariations(finalSavedItem.variations || []); 
+          setIsEdited(false);
+          
+          Alert.alert('Success', `Item ${item.name || 'Selected Item'} ${isNewItem ? 'created' : 'updated'} successfully.`);
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            router.replace('/');
+          }
+        } else {
+          logger.error('ItemDetails:handleSaveAction', 'Save operation completed but no saved item data was returned.');
+          setError('Save operation failed: No item data returned. Please try again.');
+          Alert.alert('Save Error', 'Save operation failed to return item data. The item may not have been saved correctly.');
         }
+      } catch (e: any) {
+        const errorMessage = e.message || 'An unexpected error occurred during save.';
+        logger.error('ItemDetails:handleSaveAction', 'Error saving product during transition:', { error: errorMessage, details: e });
+        setError(errorMessage);
+        Alert.alert('Save Error', errorMessage);
+        // If an error occurs, React automatically reverts optimistic updates tied to this transition.
+        // You might want to explicitly reset 'item' to 'originalItem' here if the optimistic state was very different
+        // and you don't want the user to see it anymore.
+        // Example: if (originalItem) setItem(originalItem);
       }
-      
-      router.back();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save item');
-      Alert.alert('Error', 'Failed to save item. Please try again.');
-      console.error('Error saving item:', err);
-    } finally {
-      setIsSaving(false);
-    }
-  }, [item, variations, isNewItem, id, createProduct, updateProduct, setIsSaving, setError, setItem, setOriginalItem, setIsEdited, router]); // Added variations to dependencies
+    });
+    logger.info('ItemDetails:handleSaveAction', 'Save process function call ended (transition may still be pending)');
+  }, [
+    item, 
+    variations, 
+    isNewItem, 
+    id, // original id from params for update target
+    originalItem, // for version and id for update
+    createProduct, 
+    updateProduct, 
+    setOptimisticItem, // Added
+    setOptimisticVariations, // Added
+    startTransition, // Added
+    setError, 
+    setItem, 
+    setOriginalItem, 
+    setIsEdited, 
+    navigation, // Added router from previous dependencies
+    router
+  ]);
   
   // Fetch the item data, categories, taxes, and modifiers on component mount
   useEffect(() => {
@@ -488,7 +519,7 @@ export default function ItemDetails() {
         const recentIds = await getRecentCategoryIds();
         const recentCategoryObjects = recentIds
           .map(id => fetchedCategories.find(cat => cat.id === id))
-          .filter((cat): cat is CategoryPickerItem => cat !== undefined); // Remove undefined if ID not found
+          .filter((cat): cat is ModalCategoryPickerItem => cat !== undefined); // Remove undefined if ID not found
         setRecentCategories(recentCategoryObjects);
         
         // Fetch item data if not a new item
@@ -573,38 +604,49 @@ export default function ItemDetails() {
       headerLeft: () => (
         <TouchableOpacity
           style={styles.headerButton}
-          onPress={handleCancel} // Use the stable handler
-          disabled={isSaving}
+          onPress={handleCancel}
+          disabled={isSavingPending || isPrinting}
         >
-          <Text style={[styles.headerButtonText, isSaving && styles.disabledText]}>
+          <Text style={[styles.headerButtonText, (isSavingPending || isPrinting) && styles.disabledText]}>
             Cancel
           </Text>
         </TouchableOpacity>
       ),
       headerRight: () => (
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={handlePrintLabel} // Use the new print handler
-          disabled={isSaving} // Disable only when saving for now
-        >
-          {isSaving ? (
-            <ActivityIndicator size="small" color={lightTheme.colors.primary} />
-          ) : (
-            <Text
-              style={[
-                styles.headerButtonText,
-                // Optionally add a different style for print? Keep saveButton for now.
-                styles.saveButton, 
-                isSaving && styles.disabledText // Apply disabled style when saving
-              ]}
+        <View /* style={styles.headerRightContainer} // Temporarily removed */ >
+          {!isNewItem && (
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={handlePrintLabel}
+              disabled={isSavingPending || isPrinting}
             >
-              Print
-            </Text>
+              {(isSavingPending || isPrinting) ? (
+                <ActivityIndicator size="small" color={lightTheme.colors.primary} />
+              ) : (
+                <Text style={[styles.headerButtonText, (isSavingPending || isPrinting) && styles.disabledText]}>
+                  Print Label
+                </Text>
+              )}
+            </TouchableOpacity>
           )}
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.headerButton,
+              (isSavingPending || isPrinting) && styles.disabledText
+            ]}
+            onPress={handleSaveAction}
+            disabled={isSavingPending || isPrinting}
+          >
+            {(isSavingPending) ? (
+              <ActivityIndicator size="small" color={lightTheme.colors.primary} />
+            ) : (
+              <Text style={[styles.headerButtonText, /* styles.saveButtonText // Temporarily use headerButtonText if saveButtonText is missing */]}>Save</Text>
+            )}
+          </TouchableOpacity>
+        </View>
       ),
     });
-  }, [navigation, isNewItem, isSaving, handleCancel, handlePrintLabel]); // Added handlePrintLabel, removed isEdited, handleSave
+  }, [navigation, isNewItem, isSavingPending, isPrinting, handleCancel, handlePrintLabel, handleSaveAction]);
   
   // Filter categories when search text changes
   useEffect(() => {
@@ -638,7 +680,7 @@ export default function ItemDetails() {
     if (isNewItem && item) {
        // Check if any field has changed from the empty state for a new item
        calculatedIsEdited =
-          !!item.name.trim() ||
+          !!(item.name && item.name.trim()) ||
           !!(item.sku && item.sku.trim()) ||
           item.price !== undefined ||
           !!(item.description && item.description.trim()) ||
@@ -813,10 +855,10 @@ export default function ItemDetails() {
   useEffect(() => {
     if (itemSaveTriggeredAt && itemSaveTriggeredAt !== lastProcessedSaveTrigger.current) {
       logger.info('ItemScreen', 'Save triggered via Zustand state', { timestamp: itemSaveTriggeredAt });
-      handleSave();
+      handleSaveAction();
       lastProcessedSaveTrigger.current = itemSaveTriggeredAt; // Mark this trigger as processed
     }
-  }, [itemSaveTriggeredAt, handleSave]);
+  }, [itemSaveTriggeredAt, handleSaveAction]);
   
   // If loading, show spinner
   if (isLoading) {
@@ -856,7 +898,7 @@ export default function ItemDetails() {
               <Text style={styles.label}>Item Name</Text>
               <TextInput
                 style={styles.input}
-                value={item.name}
+                value={item.name || ''}
                 onChangeText={value => handleInputChange('name', value)}
                 placeholder="Enter item name"
                 placeholderTextColor="#999"
@@ -1065,96 +1107,37 @@ export default function ItemDetails() {
             <View style={{ height: 40 }} />
           </ScrollView>
 
-          {/* Category Selection Modal */} 
-          <Modal
-            animationType="slide"
-            transparent={true}
+          {/* Category Selection Modal - Replaced with component */}
+          <CategorySelectionModal
             visible={showCategoryModal}
-            onRequestClose={() => setShowCategoryModal(false)}
-          >
-            <TouchableWithoutFeedback onPress={() => setShowCategoryModal(false)}>
-              <View style={styles.modalOverlay}>
-                <TouchableWithoutFeedback>
-                  <View style={styles.modalContent}>
-                    <Text style={styles.modalTitle}>Select Category</Text>
-                    <TextInput
-                      style={styles.searchInput}
-                      placeholder="Search categories..."
-                      value={categorySearch}
-                      onChangeText={setCategorySearch}
-                    />
-                    <FlatList
-                      data={filteredCategories}
-                      keyExtractor={cat => cat.id}
-                      renderItem={({ item: cat }) => (
-                        <TouchableOpacity
-                          style={styles.modalItem}
-                          onPress={() => {
-                            handleSelectCategory(cat.id);
-                            setShowCategoryModal(false);
-                          }}
-                        >
-                          <Text>{cat.name}</Text>
-                        </TouchableOpacity>
-                      )}
-                      ListEmptyComponent={<Text style={styles.emptyListText}>No matching categories</Text>}
-                    />
-                    <TouchableOpacity
-                      style={styles.closeButton}
-                      onPress={() => setShowCategoryModal(false)}
-                    >
-                      <Text style={styles.closeButtonText}>Close</Text>
-                    </TouchableOpacity>
-                  </View>
-                </TouchableWithoutFeedback>
-              </View>
-            </TouchableWithoutFeedback>
-          </Modal>
+            onClose={() => setShowCategoryModal(false)}
+            filteredCategories={filteredCategories}
+            onSelectCategory={(categoryId) => {
+              handleSelectCategory(categoryId); // This already calls setShowCategoryModal(false)
+            }}
+            categorySearch={categorySearch}
+            setCategorySearch={setCategorySearch}
+            // categories={availableCategories} // Pass availableCategories if needed by modal for its own filtering/display logic
+          />
 
-          {/* --- Variation Selection Modal --- */}
-          <Modal
-            animationType="slide"
-            transparent={true}
+          {/* --- Variation Selection Modal - Replaced with Component --- */}
+          <VariationPrintSelectionModal
             visible={showVariationModal}
-            onRequestClose={() => setShowVariationModal(false)}
-          >
-            <TouchableWithoutFeedback onPress={() => setShowVariationModal(false)}>
-              <View style={styles.modalOverlay}>
-                <TouchableWithoutFeedback>
-                  {/* Prevent taps inside the modal content from closing it */}
-                  <View style={styles.variationModalContent}>
-                    <Text style={styles.modalTitle}>Select Variation to Print</Text>
-                    <FlatList
-                      data={variations}
-                      keyExtractor={(v, index) => v.id || `variation-${index}`}
-                      renderItem={({ item: variationItem, index }) => (
-                        <TouchableOpacity
-                          style={styles.modalItem}
-                          onPress={() => {
-                            initiatePrint(index); // Initiate print for selected variation
-                            setShowVariationModal(false); // Close modal
-                          }}
-                        >
-                          <Text style={styles.modalItemText}>{variationItem.name || `Variation ${index + 1}`}</Text>
-                          {/* Optionally add SKU or Price here for identification */}
-                          {variationItem.sku && <Text style={styles.modalItemSubText}>SKU: {variationItem.sku}</Text>}
-                          {variationItem.price !== undefined && <Text style={styles.modalItemSubText}>Price: ${variationItem.price.toFixed(2)}</Text>}
-                        </TouchableOpacity>
-                      )}
-                      ItemSeparatorComponent={() => <View style={styles.modalSeparator} />} // Add separators
-                      ListEmptyComponent={<Text style={styles.emptyListText}>No variations found</Text>}
-                    />
-                    <TouchableOpacity
-                      style={styles.closeButton}
-                      onPress={() => setShowVariationModal(false)}
-                    >
-                      <Text style={styles.closeButtonText}>Cancel</Text>
-                    </TouchableOpacity>
-                  </View>
-                </TouchableWithoutFeedback>
-              </View>
-            </TouchableWithoutFeedback>
-          </Modal>
+            onClose={() => setShowVariationModal(false)}
+            variations={variations} // Pass the actual variations state
+            onSelectVariation={(index) => {
+              initiatePrint(index); // initiatePrint already exists
+              // setShowVariationModal(false); // Modal will close itself via its own onPress logic
+            }}
+          />
+
+          {/* Print Notification Modal */}
+          <PrintNotification
+            visible={showPrintNotification}
+            message={printNotificationMessage}
+            type={printNotificationType}
+            onClose={() => setShowPrintNotification(false)} // Allows manual close if ever needed by design
+          />
         </>
       )}
     </SafeAreaView>

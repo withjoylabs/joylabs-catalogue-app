@@ -84,3 +84,7 @@ coverage/
 
 # Cursor AI history
 .specstory/
+
+# Expo CNG native directories
+/ios
+/android

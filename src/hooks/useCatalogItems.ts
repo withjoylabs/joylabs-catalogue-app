@@ -204,18 +204,6 @@ export const useCatalogItems = () => {
       const itemData = JSON.parse(itemJson);
       const variationData = variationJson ? JSON.parse(variationJson) : {};
 
-      // --- Extract Modifier List IDs --- 
-      const modifierListInfo = itemData?.item_data?.modifier_list_info;
-      let actualModifierListIds: string[] = [];
-
-      if (modifierListInfo && Array.isArray(modifierListInfo) && modifierListInfo.length > 0) {
-        actualModifierListIds = modifierListInfo
-          .map((info: any) => info?.modifier_list_id)
-          .filter((modId: any): modId is string => typeof modId === 'string');
-        logger.debug('CatalogItems::getProductById', 'Extracted modifier IDs from item data', { itemId, count: actualModifierListIds.length, ids: actualModifierListIds });
-      }
-      // --- End: Extract Modifier List IDs ---
-
       // Reconstruct CatalogObject (ensure structure matches transformer expectations)
        const reconstructedCatalogObject: Partial<CatalogObjectFromApi> & { id: string } = {
           id: itemId, // Use the actual ITEM id
@@ -238,8 +226,8 @@ export const useCatalogItems = () => {
           }
         };
 
-      // Call the transformer, passing the actual modifier list IDs
-      const transformedItem = transformCatalogItemToItem(reconstructedCatalogObject as any, actualModifierListIds);
+      // Call the transformer, it now handles modifier extraction internally
+      const transformedItem = transformCatalogItemToItem(reconstructedCatalogObject as any);
 
       if (transformedItem) {
         logger.debug('CatalogItems::getProductById', 'Item successfully fetched and transformed from DB', { id });
@@ -271,23 +259,21 @@ export const useCatalogItems = () => {
       // 1. Construct the Square CatalogObject payload for creation
       const idempotencyKey = uuidv4();
       const squarePayload = {
-        id: `#${productData.name.replace(/\s+/g, '-')}-${Date.now()}`, // Temporary client ID
+        id: `#${productData.name.replace(/\s+/g, '-')}-${Date.now()}`,
         type: 'ITEM',
         item_data: {
           name: productData.name,
-          description: productData.description || undefined,
-          abbreviation: productData.abbreviation || undefined,
-          // **FIXED: Use reporting_category object structure**
+          description: productData.description,
+          abbreviation: productData.abbreviation,
           reporting_category: productData.reporting_category_id ? { id: productData.reporting_category_id } : undefined,
-          // Create variations array from productData.variations if available
           variations: productData.variations && Array.isArray(productData.variations) && productData.variations.length > 0
             ? productData.variations.map((variation: any, index: number) => ({
-                id: `#variation-${index}-${Date.now()}`, // Generate temporary client ID for each variation
+                id: `#variation-${index}-${Date.now()}`,
                 type: 'ITEM_VARIATION',
                 item_variation_data: {
-                  name: variation.name || 'Regular',
-                  sku: variation.sku || undefined,
-                  upc: variation.barcode || undefined,
+                  name: variation.name,
+                  sku: variation.sku,
+                  upc: variation.barcode,
                   pricing_type: variation.price !== undefined ? 'FIXED_PRICING' : 'VARIABLE_PRICING',
                   price_money: variation.price !== undefined ? {
                     amount: Math.round(variation.price * 100),
@@ -299,9 +285,9 @@ export const useCatalogItems = () => {
                 id: '#default-variation', // Temporary client ID for default variation
             type: 'ITEM_VARIATION',
             item_variation_data: {
-                  name: productData.variationName || 'Regular', // Fallback to variationName from input
-              sku: productData.sku || undefined, // SKU belongs here
-              upc: productData.barcode || undefined, // MAP BARCODE TO UPC
+                  name: productData.variationName,
+              sku: productData.sku,
+              upc: productData.barcode,
               pricing_type: productData.price !== undefined ? 'FIXED_PRICING' : 'VARIABLE_PRICING',
               price_money: productData.price !== undefined ? {
                 amount: Math.round(productData.price * 100),
@@ -430,8 +416,8 @@ export const useCatalogItems = () => {
         version: productData.version, // Crucial: Use the item's version
         item_data: {
           name: productData.name,
-          description: productData.description || undefined,
-          abbreviation: productData.abbreviation || undefined,
+          description: productData.description,
+          abbreviation: productData.abbreviation,
           reporting_category: productData.reporting_category_id ? { id: productData.reporting_category_id } : undefined,
           
           // Construct the variations array for the single update call
@@ -443,10 +429,9 @@ export const useCatalogItems = () => {
                 type: 'ITEM_VARIATION',
                 version: variation.version,
                 item_variation_data: {
-                  // OMIT item_id for updates
-                  name: variation.name || 'Regular',
-                  sku: variation.sku || undefined,
-                  upc: variation.barcode || undefined,
+                  name: variation.name,
+                  sku: variation.sku,
+                  upc: variation.barcode,
                   pricing_type: variation.price !== undefined ? 'FIXED_PRICING' : 'VARIABLE_PRICING',
                   price_money: variation.price !== undefined ? {
                     amount: Math.round(variation.price * 100),
@@ -461,10 +446,9 @@ export const useCatalogItems = () => {
             type: 'ITEM_VARIATION',
                 // NO version for new variations
             item_variation_data: {
-                  // OMIT item_id for updates
-                  name: variation.name || 'Regular',
-                  sku: variation.sku || undefined,
-                  upc: variation.barcode || undefined,
+                  name: variation.name,
+                  sku: variation.sku,
+                  upc: variation.barcode,
                   pricing_type: variation.price !== undefined ? 'FIXED_PRICING' : 'VARIABLE_PRICING',
                   price_money: variation.price !== undefined ? {
                     amount: Math.round(variation.price * 100),

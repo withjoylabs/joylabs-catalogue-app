@@ -87,7 +87,7 @@ export interface ConvertedItem {
   version?: number;
   variationId?: string;
   variationVersion?: number;
-  name: string;
+  name: string | null;
   sku: string | null;
   abbreviation?: string;
   price?: number;
@@ -107,7 +107,7 @@ export interface ConvertedItem {
   variations?: Array<{
     id?: string;
     version?: number;
-    name: string;
+    name: string | null;
     sku: string | null;
     price?: number;
     barcode?: string;

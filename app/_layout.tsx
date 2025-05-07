@@ -30,8 +30,11 @@ import { CatalogSyncService } from '../src/database/catalogSync'; // Adjust path
 import Constants from 'expo-constants';
 import { PaperProvider } from 'react-native-paper';
 import { MD3DarkTheme, MD3LightTheme } from 'react-native-paper';
+// import * as BackgroundTask from 'expo-background-task'; // Temporarily commented out
+// import * as Updates from 'expo-updates'; // Temporarily commented out, ensure Updates is not used elsewhere before removing
 
 const BACKGROUND_NOTIFICATION_TASK = 'CATALOG_SYNC_TASK';
+// const BACKGROUND_UPDATES_TASK_NAME = 'JOYLABS_BACKGROUND_UPDATES_CHECK'; // Temporarily commented out
 
 TaskManager.defineTask(BACKGROUND_NOTIFICATION_TASK, async ({ data, error, executionInfo }) => {
   const taskTag = '[TaskManager]'; // Define a tag for logging
@@ -71,6 +74,50 @@ TaskManager.defineTask(BACKGROUND_NOTIFICATION_TASK, async ({ data, error, execu
   // unless the task definition requires it (like BackgroundFetch). For notification handling,
   // completing the execution is sufficient.
 });
+
+// Temporarily commented out: Task for Background Expo Updates Check
+/*
+TaskManager.defineTask(BACKGROUND_UPDATES_TASK_NAME, async () => {
+  const taskTag = '[BackgroundUpdatesTask]';
+  logger.info(taskTag, 'Background updates task started.');
+  try {
+    logger.info(taskTag, 'Checking for app updates...');
+    const update = await Updates.checkForUpdateAsync();
+    if (update.isAvailable) {
+      logger.info(taskTag, 'New update available, downloading...');
+      await Updates.fetchUpdateAsync();
+      logger.info(taskTag, 'Update downloaded. It will be applied on next app restart.');
+    } else {
+      logger.info(taskTag, 'No new updates available.');
+    }
+  } catch (error: any) { 
+    logger.error(taskTag, 'Error during background update check:', { message: error?.message, error });
+    throw error; 
+  }
+});
+*/
+
+// Temporarily commented out: Function to register the background updates task
+/*
+async function registerBackgroundUpdatesTask() {
+  const taskTag = '[RegisterBackgroundUpdates]';
+  try {
+    const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_UPDATES_TASK_NAME!);
+    if (isRegistered) {
+      logger.info(taskTag, `Task ${BACKGROUND_UPDATES_TASK_NAME} already registered.`);
+    } 
+    if (!isRegistered) { 
+        logger.info(taskTag, `Registering task ${BACKGROUND_UPDATES_TASK_NAME}.`);
+        await BackgroundTask.registerTaskAsync(BACKGROUND_UPDATES_TASK_NAME!, {
+        minimumInterval: 60 * 60 * 6, 
+        });
+        logger.info(taskTag, `Task ${BACKGROUND_UPDATES_TASK_NAME} registered successfully.`);
+    }
+  } catch (error: any) {
+    logger.error(taskTag, `Failed to register task ${BACKGROUND_UPDATES_TASK_NAME}:`, { message: error?.message, error });
+  }
+}
+*/
 
 // Configure linking
 const linking = {
@@ -240,6 +287,8 @@ export default function RootLayout() {
     let responseListenerSubscription: Notifications.Subscription | null = null;
 
     logger.info('[Notifications]', 'Setting up notification handlers...');
+    // Call the background updates task registration here - Temporarily commented out
+    // registerBackgroundUpdatesTask(); 
 
     Notifications.setNotificationHandler({
       handleNotification: async (notification) => {
@@ -249,6 +298,8 @@ export default function RootLayout() {
             shouldShowAlert: false, // Silent handling
             shouldPlaySound: false,
             shouldSetBadge: false,
+            shouldShowBanner: false,
+            shouldShowList: false,
         };
       },
       handleSuccess: (notificationId) => {
