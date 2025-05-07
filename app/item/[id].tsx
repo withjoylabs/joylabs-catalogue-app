@@ -372,10 +372,14 @@ export default function ItemDetails() {
     const currentItemForOptimisticUpdate = { ...item }; 
     const currentVariationsForOptimisticUpdate = variations.map(v => ({...v})); 
 
-    setOptimisticItem(currentItemForOptimisticUpdate); 
-    setOptimisticVariations(currentVariationsForOptimisticUpdate);
+    // setOptimisticItem(currentItemForOptimisticUpdate); // Moved inside startTransition
+    // setOptimisticVariations(currentVariationsForOptimisticUpdate); // Moved inside startTransition
 
     startTransition(async () => {
+      // Set optimistic state inside the transition
+      setOptimisticItem(currentItemForOptimisticUpdate); 
+      setOptimisticVariations(currentVariationsForOptimisticUpdate);
+
       logger.info('ItemDetails:handleSaveAction', 'Save transition started');
       setError(null);
 
