@@ -11,7 +11,7 @@ import { ConvertedItem } from '../src/types/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useApi } from '../src/providers/ApiProvider';
 import { useAppStore } from '../src/store';
-import api from '../src/api';
+import { apiClientInstance } from '../src/api';
 import logger from '../src/utils/logger';
 import { DatabaseProvider } from '../src/components/DatabaseProvider';
 import { transformCatalogItemToItem } from '../src/utils/catalogTransformers';
@@ -164,23 +164,23 @@ function RootLayoutNav() {
       } else {
         // --- 2. Search Backend API (if not found locally) --- 
         logger.info('Home', 'Item not found locally, searching backend API...', { query, queryType });
-        const response = await api.searchCatalog(query, queryType);
+        const response = await apiClientInstance.post('/v2/catalog/search', { text_filter: query });
       
-        if (response.success && response.objects && response.objects.length > 0) {
+        if (response.data.success && response.data.objects && response.data.objects.length > 0) {
           
           // --- Handle Potential Duplicates --- 
-          if ((queryType === 'UPC' || queryType === 'SKU') && response.objects.length > 1) {
+          if ((queryType === 'UPC' || queryType === 'SKU') && response.data.objects.length > 1) {
             logger.warn('Home', `Multiple items found for ${queryType}: ${query}. Using the first result.`, {
-              count: response.objects.length,
+              count: response.data.objects.length,
               query,
               queryType,
-              firstItemId: response.objects[0]?.id
+              firstItemId: response.data.objects[0]?.id
             });
             // TODO: Implement UI to allow user to select the correct item when multiple are found for UPC/SKU.
           }
           // --- End Handle Potential Duplicates ---
           
-          const foundRawItem = response.objects[0]; // This is a raw CatalogObject
+          const foundRawItem = response.data.objects[0]; // This is a raw CatalogObject
           
           // We need to enrich this raw item before saving to history
           logger.debug('Home', 'API search found raw item, attempting enrichment...', { itemId: foundRawItem.id });
@@ -248,7 +248,7 @@ function RootLayoutNav() {
                   };
 
                   // Transform the enriched, reconstructed data
-                  enrichedItem = transformCatalogItemToItem(reconstructedCatalogObject as any, actualModifierListIds);
+                  enrichedItem = transformCatalogItemToItem(reconstructedCatalogObject as any);
                } else {
                   logger.warn('Home', 'Could not find necessary parent item JSON during API result enrichment', { apiFoundId: foundRawItem.id });
                }
@@ -278,12 +278,12 @@ function RootLayoutNav() {
             logger.warn('Home', 'API Search returned item but enrichment/transformation failed', { rawItem: foundRawItem });
             Alert.alert('Search Error', 'Found an item, but could not display its details.');
           }
-        } else if (response.success) {
+        } else if (response.data.success) {
           logger.info('Home', 'Search completed (API), no items found', { query, queryType });
           Alert.alert('Not Found', `No item found matching "${query}".`);
         } else {
-          logger.error('Home', 'Search API call failed', { query, queryType, error: response.error?.message });
-          Alert.alert('Search Error', response.error?.message || 'Could not perform search. Please check connection.');
+          logger.error('Home', 'Search API call failed', { query, queryType, error: response.data.error?.message });
+          Alert.alert('Search Error', response.data.error?.message || 'Could not perform search. Please check connection.');
         }
       }
       // --- End Search Logic --- 
@@ -314,7 +314,7 @@ function RootLayoutNav() {
       case 'oldest':
         return new Date(a.scanTime).getTime() - new Date(b.scanTime).getTime();
       case 'name':
-        return a.name.localeCompare(b.name);
+        return (a.name ?? '').localeCompare(b.name ?? '');
       case 'price':
         const aPrice = typeof a.price === 'number' ? a.price : 0;
         const bPrice = typeof b.price === 'number' ? b.price : 0;
@@ -356,7 +356,7 @@ function RootLayoutNav() {
           renderItem={({ item, index }) => (
             <SwipeableRow
               onDelete={() => handleDeleteHistoryItem(item.scanId)}
-              itemName={item.name}
+              itemName={item.name ?? undefined}
             >
               <CatalogueItemCard 
                 item={item}
@@ -393,7 +393,6 @@ const styles = StyleSheet.create({
   },
   mainContainer: {
     flex: 1,
-    paddingBottom: 80,
   },
   listContainer: {
     flex: 1,

@@ -25,38 +25,55 @@ const SearchBar = forwardRef<RNTextInput, SearchBarProps>((
   },
   ref
 ) => {
-  // Directly use props for value and onChangeText
-  
+  // Track if we're currently handling a barcode scan
+  const isScanning = useRef(false);
+  const scanTimeout = useRef<NodeJS.Timeout | null>(null);
+
   // Handle input change directly
   const handleInputChange = (newInput: string) => {
-    // Call parent's handler immediately
+    // If the input is numeric and longer than 8 digits, assume it's a barcode scan
+    if (/^\d+$/.test(newInput) && newInput.length > 8) {
+      isScanning.current = true;
+    }
     onChangeText(newInput);
   };
   
-  // Handle special keys like Tab or Enter (if needed, but simplified)
+  // Handle special keys like Tab or Enter
   const handleKeyPress = (e: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
-    // Basic Enter key handling (if autoSearchOnEnter is true)
+    // Basic Enter key handling
     if (e.nativeEvent.key === 'Enter' && autoSearchOnEnter && onSubmit) {
       onSubmit();
     }
-    // Basic Tab key handling (if autoSearchOnTab is true)
+    
+    // Tab key handling for barcode scanners
     if (e.nativeEvent.key === 'Tab' && autoSearchOnTab && onSubmit) {
       // @ts-ignore - preventDefault may not exist in React Native, but some scanners send it
       if (e.preventDefault) e.preventDefault();
       
-      // Introduce a tiny delay to allow state update for the last character
-      const submitTimeout = setTimeout(() => {
-          if (onSubmit) { // Check onSubmit still exists in case of quick unmounts
-              onSubmit(); 
-          }
-      }, 50); // 50ms delay - adjust if needed
+      // Clear any existing timeout
+      if (scanTimeout.current) {
+        clearTimeout(scanTimeout.current);
+      }
       
-      // Cleanup timeout if component unmounts quickly
-      // (Optional but good practice)
-      // This requires useEffect for cleanup, slightly more complex. 
-      // Let's keep it simple for now, the chance of unmount in 50ms is low.
+      // Set a timeout to allow the last character to be entered
+      // Increased to 100ms to be more reliable with different scanners
+      scanTimeout.current = setTimeout(() => {
+        if (onSubmit && isScanning.current) {
+          onSubmit();
+          isScanning.current = false;
+        }
+      }, 100);
     }
   };
+  
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (scanTimeout.current) {
+        clearTimeout(scanTimeout.current);
+      }
+    };
+  }, []);
   
   // Handle pressing the GO button or submitting from keyboard
   const handleSubmit = () => {
@@ -67,7 +84,8 @@ const SearchBar = forwardRef<RNTextInput, SearchBarProps>((
   
   // Clear the input field
   const handleClear = () => {
-    onChangeText(''); // Clear parent state directly
+    onChangeText('');
+    isScanning.current = false;
     if (onClear) {
       onClear();
     }
@@ -78,20 +96,22 @@ const SearchBar = forwardRef<RNTextInput, SearchBarProps>((
       <View style={styles.searchContainer}>
         <Ionicons name="search" size={24} color="#888" style={styles.searchIcon} />
         <TextInput
-          ref={ref} // Use the forwarded ref directly
+          ref={ref}
           style={styles.input}
-          value={value} // Use value directly from props
-          onChangeText={handleInputChange} // Use simplified handler
+          value={value}
+          onChangeText={handleInputChange}
           placeholder={placeholder}
           placeholderTextColor="#999"
-          onSubmitEditing={handleSubmit} // Call simplified submit handler
+          onSubmitEditing={handleSubmit}
           returnKeyType="search"
-          clearButtonMode="never" // Keep this to avoid duplicate X
-          onKeyPress={handleKeyPress} // Keep key press handling
+          clearButtonMode="never"
+          onKeyPress={handleKeyPress}
           blurOnSubmit={false}
-          keyboardType="default"
+          keyboardType="numeric" // Changed to numeric for better barcode scanning
+          autoCapitalize="none"
+          autoCorrect={false}
         />
-        {value.length > 0 && ( // Check value directly from props
+        {value.length > 0 && (
           <TouchableOpacity onPress={handleClear} style={styles.clearButton}>
             <Ionicons name="close-circle" size={18} color="#aaa" />
           </TouchableOpacity>
@@ -100,7 +120,7 @@ const SearchBar = forwardRef<RNTextInput, SearchBarProps>((
       
       <TouchableOpacity 
         style={styles.goButton}
-        onPress={handleSubmit} // Call simplified submit handler
+        onPress={handleSubmit}
       >
         <Text style={styles.goButtonText}>GO</Text>
       </TouchableOpacity>

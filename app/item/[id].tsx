@@ -381,8 +381,8 @@ export default function ItemDetails() {
       setOptimisticVariations(currentVariationsForOptimisticUpdate);
 
       logger.info('ItemDetails:handleSaveAction', 'Save transition started');
-      setError(null);
-
+    setError(null);
+    
       if (!(item.name && item.name.trim())) { // Ensure item.name is not null/empty before trimming
         Alert.alert('Error', 'Item name is required.');
         logger.warn('ItemDetails:handleSaveAction', 'Save aborted: Item name missing');
@@ -394,13 +394,13 @@ export default function ItemDetails() {
         name: item.name || null, 
         description: item.description || null, 
         sku: item.sku || null, 
-        abbreviation: item.abbreviation || null, 
-        reporting_category_id: item.reporting_category_id || null, 
-        variations: variations.map(v => ({ 
+          abbreviation: item.abbreviation || null,
+          reporting_category_id: item.reporting_category_id || null,
+          variations: variations.map(v => ({
           id: v.id,
           version: v.version,
           name: v.name as (string | null), // Explicit cast to help linter
-          price: v.price, 
+            price: v.price,
           sku: v.sku as (string | null), // Explicit cast
           barcode: v.barcode || null, 
         })),
@@ -439,16 +439,16 @@ export default function ItemDetails() {
           // submissionPayload here should now have a definite id and version from the block above.
           logger.info('ItemDetails:handleSaveAction', `Updating product ID ${submissionPayload.id} with payload:`, submissionPayload);
           savedItemResponse = await updateProduct(submissionPayload.id, submissionPayload as ConvertedItem);
-        } 
-
+      }
+      
         if (savedItemResponse) {
           const finalSavedItem: ConvertedItem = savedItemResponse; 
           logger.info('ItemDetails:handleSaveAction', 'Product saved successfully to backend', { savedItemId: finalSavedItem.id });
           setItem(finalSavedItem); 
           setOriginalItem(finalSavedItem); 
           setVariations(finalSavedItem.variations || []); 
-          setIsEdited(false);
-          
+        setIsEdited(false);
+        
           Alert.alert('Success', `Item ${item.name || 'Selected Item'} ${isNewItem ? 'created' : 'updated'} successfully.`);
           if (navigation.canGoBack()) {
             navigation.goBack();
@@ -619,14 +619,14 @@ export default function ItemDetails() {
       headerRight: () => (
         <View /* style={styles.headerRightContainer} // Temporarily removed */ >
           {!isNewItem && (
-            <TouchableOpacity
-              style={styles.headerButton}
+        <TouchableOpacity
+          style={styles.headerButton}
               onPress={handlePrintLabel}
               disabled={isSavingPending || isPrinting}
-            >
+        >
               {(isSavingPending || isPrinting) ? (
-                <ActivityIndicator size="small" color={lightTheme.colors.primary} />
-              ) : (
+            <ActivityIndicator size="small" color={lightTheme.colors.primary} />
+          ) : (
                 <Text style={[styles.headerButtonText, (isSavingPending || isPrinting) && styles.disabledText]}>
                   Print Label
                 </Text>
@@ -634,7 +634,7 @@ export default function ItemDetails() {
             </TouchableOpacity>
           )}
           <TouchableOpacity
-            style={[
+              style={[
               styles.headerButton,
               (isSavingPending || isPrinting) && styles.disabledText
             ]}
@@ -645,8 +645,8 @@ export default function ItemDetails() {
               <ActivityIndicator size="small" color={lightTheme.colors.primary} />
             ) : (
               <Text style={[styles.headerButtonText, /* styles.saveButtonText // Temporarily use headerButtonText if saveButtonText is missing */]}>Save</Text>
-            )}
-          </TouchableOpacity>
+          )}
+        </TouchableOpacity>
         </View>
       ),
     });
@@ -857,12 +857,14 @@ export default function ItemDetails() {
   
   // Effect to trigger save based on Zustand state
   useEffect(() => {
-    if (itemSaveTriggeredAt && itemSaveTriggeredAt !== lastProcessedSaveTrigger.current) {
-      logger.info('ItemScreen', 'Save triggered via Zustand state', { timestamp: itemSaveTriggeredAt });
+    // Only process if NOT loading and the trigger is new
+    if (!isLoading && itemSaveTriggeredAt && itemSaveTriggeredAt !== lastProcessedSaveTrigger.current) {
+      logger.info('ItemScreen', 'Save triggered via Zustand state (after load)', { timestamp: itemSaveTriggeredAt });
       handleSaveAction();
       lastProcessedSaveTrigger.current = itemSaveTriggeredAt; // Mark this trigger as processed
     }
-  }, [itemSaveTriggeredAt, handleSaveAction]);
+     // Also add isLoading to dependency array
+  }, [itemSaveTriggeredAt, handleSaveAction, isLoading, lastProcessedSaveTrigger]);
   
   // If loading, show spinner
   if (isLoading) {

@@ -1939,4 +1939,4 @@ export const searchCatalogChanges = async (
 
 // Export the main apiClientInstance and the new directSquareApi
 export default api; // Export the constructed api object as default
-export { api as apiClient, directSquareApi }; // Also export api as apiClient for compatibility if needed
+export { api as apiClient, directSquareApi, apiClientInstance }; // MODIFIED LINE: Add apiClientInstance
