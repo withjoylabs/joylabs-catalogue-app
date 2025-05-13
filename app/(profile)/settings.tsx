@@ -1,20 +1,31 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, Switch, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, Switch, StyleSheet, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
 import { lightTheme } from '../../src/themes'; // Assuming theme is used for styles
 import logger from '../../src/utils/logger'; // Added logger
 import * as notificationService from '../../src/services/notificationService'; // Import service
 import * as notificationState from '../../src/services/notificationState'; // Import state service
+import { useRouter } from 'expo-router'; // Import router for navigation
+import { Ionicons } from '@expo/vector-icons'; // Import icons
+import { useAppStore } from '../../src/store'; // Import Zustand store for app settings
 
 const TAG = '[ProfileSettingsScreen]';
 
 const ProfileSettingsScreen = () => {
+  const router = useRouter(); // Initialize router for navigation
   // State for settings
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [darkModeEnabled, setDarkModeEnabled] = useState(false);
+  const [scanSoundEnabled, setScanSoundEnabled] = useState(true);
   // Added state for loading and token management
   const [isLoading, setIsLoading] = useState(true); // Start true to load initial state
   const [storedPushToken, setStoredPushToken] = useState<string | null>(null);
   const [isToggling, setIsToggling] = useState(false); // Separate loading state for toggle action
+
+  // Auto-search settings from the Zustand store
+  const autoSearchOnEnter = useAppStore((state) => state.autoSearchOnEnter);
+  const autoSearchOnTab = useAppStore((state) => state.autoSearchOnTab);
+  const toggleAutoSearchOnEnter = useAppStore((state) => state.toggleAutoSearchOnEnter);
+  const toggleAutoSearchOnTab = useAppStore((state) => state.toggleAutoSearchOnTab);
 
   // Load initial state on mount
   useEffect(() => {
@@ -93,6 +104,11 @@ const ProfileSettingsScreen = () => {
     setIsToggling(false);
   }, [storedPushToken]); // Depend on storedPushToken for disabling logic
 
+  // Handler for navigating to the modal test screen
+  const navigateToModalTest = () => {
+    router.push('/modal-test');
+  };
+
   // Render loading indicator while fetching initial state
   if (isLoading) {
     return (
@@ -104,10 +120,16 @@ const ProfileSettingsScreen = () => {
 
   return (
     <View style={styles.container}>
+      {/* App Settings Section */}
       <View style={styles.sectionContent}>
         <Text style={styles.sectionTitle}>App Settings</Text>
+        
+        {/* Notifications toggle */}
         <View style={styles.settingItem}>
-          <Text style={styles.settingLabel}>Enable Sync Notifications</Text>
+          <View style={styles.settingTextContainer}>
+            <Text style={styles.settingLabel}>Enable Sync Notifications</Text>
+            <Text style={styles.settingDescription}>Receive alerts about inventory changes</Text>
+          </View>
           {isToggling ? (
              <ActivityIndicator size="small" color={lightTheme.colors.primary} />
           ) : (
@@ -121,8 +143,13 @@ const ProfileSettingsScreen = () => {
             />
           )}
         </View>
+        
+        {/* Dark Mode toggle */}
         <View style={styles.settingItem}>
-          <Text style={styles.settingLabel}>Dark Mode</Text>
+          <View style={styles.settingTextContainer}>
+            <Text style={styles.settingLabel}>Dark Mode</Text>
+            <Text style={styles.settingDescription}>Use dark theme throughout the app</Text>
+          </View>
           <Switch
             trackColor={{ false: lightTheme.colors.border, true: lightTheme.colors.primary }}
             thumbColor={darkModeEnabled ? lightTheme.colors.background : lightTheme.colors.secondary}
@@ -131,20 +158,88 @@ const ProfileSettingsScreen = () => {
             onValueChange={setDarkModeEnabled}
           />
         </View>
-        {/* Add more settings as needed */}
+        
+        {/* Scan Sound toggle */}
+        <View style={styles.settingItem}>
+          <View style={styles.settingTextContainer}>
+            <Text style={styles.settingLabel}>Scan Sound</Text>
+            <Text style={styles.settingDescription}>Play sound when item is scanned</Text>
+          </View>
+          <Switch
+            trackColor={{ false: lightTheme.colors.border, true: lightTheme.colors.primary }}
+            thumbColor={scanSoundEnabled ? lightTheme.colors.background : lightTheme.colors.secondary}
+            ios_backgroundColor={lightTheme.colors.border}
+            value={scanSoundEnabled}
+            onValueChange={setScanSoundEnabled}
+          />
+        </View>
+      </View>
+
+      {/* Scanner Settings Section */}
+      <View style={styles.sectionContent}>
+        <Text style={styles.sectionTitle}>Scanner Settings</Text>
+        
+        {/* Auto-search on Enter Key toggle */}
+        <View style={styles.settingItem}>
+          <View style={styles.settingTextContainer}>
+            <Text style={styles.settingLabel}>Auto-search on Enter Key</Text>
+            <Text style={styles.settingDescription}>Automatically search when Enter key is pressed</Text>
+          </View>
+          <Switch
+            trackColor={{ false: lightTheme.colors.border, true: lightTheme.colors.primary }}
+            thumbColor={autoSearchOnEnter ? lightTheme.colors.background : lightTheme.colors.secondary}
+            ios_backgroundColor={lightTheme.colors.border}
+            value={autoSearchOnEnter}
+            onValueChange={toggleAutoSearchOnEnter}
+          />
+        </View>
+        
+        {/* Auto-search on Tab Key toggle */}
+        <View style={styles.settingItem}>
+          <View style={styles.settingTextContainer}>
+            <Text style={styles.settingLabel}>Auto-search on Tab Key</Text>
+            <Text style={styles.settingDescription}>Automatically search when Tab key is pressed (for barcode scanners)</Text>
+          </View>
+          <Switch
+            trackColor={{ false: lightTheme.colors.border, true: lightTheme.colors.primary }}
+            thumbColor={autoSearchOnTab ? lightTheme.colors.background : lightTheme.colors.secondary}
+            ios_backgroundColor={lightTheme.colors.border}
+            value={autoSearchOnTab}
+            onValueChange={toggleAutoSearchOnTab}
+          />
+        </View>
+      </View>
+
+      {/* Developer Options Section */}
+      <View style={styles.sectionContent}>
+        <Text style={styles.sectionTitle}>Developer Options</Text>
+        
+        {/* Modal Test Navigation Option */}
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={navigateToModalTest}
+        >
+          <View style={styles.navItemContent}>
+            <Text style={styles.settingLabel}>System Modal Examples</Text>
+            <Ionicons 
+              name="chevron-forward" 
+              size={20} 
+              color={lightTheme.colors.text} 
+            />
+          </View>
+        </TouchableOpacity>
       </View>
     </View>
   );
 };
 
-// Styles extracted and adapted from original app/profile.tsx
+// Styles for the settings screen
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: lightTheme.colors.background,
-    // padding: 15, // Removed padding from container, add to sectionContent if needed per section
   },
-  centered: { // Added style for centering loading indicator
+  centered: {
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -153,8 +248,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 20,
     marginBottom: 20,
-    marginHorizontal: 15, // Added horizontal margin
-    marginTop: 15, // Added top margin
+    marginHorizontal: 15,
+    marginTop: 15,
   },
   sectionTitle: {
     fontSize: 18,
@@ -167,13 +262,30 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 12,
-    minHeight: 50, // Ensure consistent height even with ActivityIndicator
-    // borderBottomWidth: StyleSheet.hairlineWidth, // Optional: uncomment if you want separators
-    // borderBottomColor: lightTheme.colors.border,
+    minHeight: 50,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: lightTheme.colors.border,
+  },
+  settingTextContainer: {
+    flex: 1,
+    marginRight: 10,
   },
   settingLabel: {
     fontSize: 16,
     color: lightTheme.colors.text,
+  },
+  settingDescription: {
+    fontSize: 12,
+    color: lightTheme.colors.secondary || '#666',
+    marginTop: 4,
+  },
+  navItem: {
+    paddingVertical: 12,
+  },
+  navItemContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
 });
 
