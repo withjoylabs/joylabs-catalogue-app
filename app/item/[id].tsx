@@ -855,16 +855,21 @@ export default function ItemDetails() {
     return availableModifierLists.find(m => m.id === modifierId)?.name || 'Unknown Modifier';
   };
   
-  // Effect to trigger save based on Zustand state
+  // Effect to listen for global save triggers from the bottom tab bar
   useEffect(() => {
-    // Only process if NOT loading and the trigger is new
-    if (!isLoading && itemSaveTriggeredAt && itemSaveTriggeredAt !== lastProcessedSaveTrigger.current) {
-      logger.info('ItemScreen', 'Save triggered via Zustand state (after load)', { timestamp: itemSaveTriggeredAt });
-      handleSaveAction();
-      lastProcessedSaveTrigger.current = itemSaveTriggeredAt; // Mark this trigger as processed
+    if (itemSaveTriggeredAt && itemSaveTriggeredAt !== lastProcessedSaveTrigger.current) {
+      // Update ref to prevent processing the same trigger multiple times
+      lastProcessedSaveTrigger.current = itemSaveTriggeredAt;
+      
+      // Only save if the item has actually been edited
+      if (isEdited) {
+        logger.info('ItemDetails', 'Save triggered via bottom tab bar', { isNewItem, isEdited });
+        handleSaveAction();
+      } else {
+        logger.info('ItemDetails', 'Save trigger ignored - no changes to save', { isNewItem, isEdited });
+      }
     }
-     // Also add isLoading to dependency array
-  }, [itemSaveTriggeredAt, handleSaveAction, isLoading, lastProcessedSaveTrigger]);
+  }, [itemSaveTriggeredAt, isEdited, handleSaveAction, isNewItem]);
   
   // If loading, show spinner
   if (isLoading) {

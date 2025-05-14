@@ -208,10 +208,28 @@ export default function RootLayout() {
 
   // Function to check if we should show the tab bar
   const shouldShowTabBar = () => {
+    // Log the current path to debug the issue
+    console.log('TABBAR DEBUG - Current path:', pathname);
+    
+    // Check for all possible profile routes
+    const isProfileRoute = 
+      pathname === '/(profile)' || 
+      pathname === '/(profile)/index' || 
+      pathname === '/(profile)/settings' || 
+      pathname === '/(profile)/sync' || 
+      pathname.startsWith('/(profile)/') ||
+      pathname === '/profile' ||
+      pathname === '/Sync Catalog' ||  // Add the specific path seen in the logs
+      pathname === '/Profile' ||       // Add capitalized variations
+      pathname === '/Settings';        // Add Settings direct path
+      
+    console.log('TABBAR DEBUG - Is profile route:', isProfileRoute);
+    
+    // Return true for main routes and routes that should show the tab bar
     return pathname === '/' || 
-           pathname === '/(profile)' || pathname.startsWith('/(profile)/') ||
+           isProfileRoute ||
            pathname === '/labels' ||
-           pathname.startsWith('/item/'); // Restore showing tab bar on item screen
+           pathname.startsWith('/item/');
   };
   
   // Handle debug mode activation

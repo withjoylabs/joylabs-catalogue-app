@@ -187,10 +187,20 @@ function RootLayoutNav() {
         // --- 2. Search Backend API (if not found locally) --- 
         logger.info('Home', 'Item not found locally, searching backend API...', { query, queryType });
 
-        // Use text_filter for simple search - keep it as it was before
-        const response = await apiClientInstance.post('/v2/catalog/search', {
-          text_filter: query
-        });
+        // Use a proper query structure with text_query as recommended by Square API
+        logger.debug('Home', 'Sending search request with proper query structure', { fullQuery: query, queryType });
+        const searchPayload = {
+          object_types: ['ITEM', 'ITEM_VARIATION'],
+          query: {
+            text_query: {
+              keywords: [query]
+            }
+          },
+          limit: 100
+        };
+        
+        logger.debug('Home', 'Search payload:', searchPayload);
+        const response = await apiClientInstance.post('/v2/catalog/search', searchPayload);
       
         if (response.data.success && response.data.objects && response.data.objects.length > 0) {
           
