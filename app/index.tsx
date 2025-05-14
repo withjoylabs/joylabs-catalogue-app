@@ -48,7 +48,29 @@ function RootLayoutNav() {
   
   useEffect(() => {
     logger.info('Home', 'Home screen mounted');
+    // Focus the search input when the component mounts
+    setTimeout(() => {
+      if (searchInputRef.current) {
+        searchInputRef.current.focus();
+      }
+    }, 300); // Short delay to ensure the component is fully mounted
   }, []);
+  
+  // Also focus the search field when returning to this screen
+  useFocusEffect(
+    useCallback(() => {
+      // Focus the search input when the screen comes into focus
+      setTimeout(() => {
+        if (searchInputRef.current) {
+          searchInputRef.current.focus();
+        }
+      }, 300);
+      
+      return () => {
+        // Cleanup if needed
+      };
+    }, [])
+  );
   
   // Function to determine search type
   const getQueryType = (query: string): 'UPC' | 'SKU' | 'NAME' => {
@@ -164,7 +186,11 @@ function RootLayoutNav() {
       } else {
         // --- 2. Search Backend API (if not found locally) --- 
         logger.info('Home', 'Item not found locally, searching backend API...', { query, queryType });
-        const response = await apiClientInstance.post('/v2/catalog/search', { text_filter: query });
+
+        // Use text_filter for simple search - keep it as it was before
+        const response = await apiClientInstance.post('/v2/catalog/search', {
+          text_filter: query
+        });
       
         if (response.data.success && response.data.objects && response.data.objects.length > 0) {
           

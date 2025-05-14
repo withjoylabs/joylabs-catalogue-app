@@ -103,11 +103,10 @@ const SearchBar = forwardRef<RNTextInput, SearchBarProps>((
           placeholder={placeholder}
           placeholderTextColor="#999"
           onSubmitEditing={handleSubmit}
-          returnKeyType="search"
           clearButtonMode="never"
           onKeyPress={handleKeyPress}
           blurOnSubmit={false}
-          keyboardType="numeric" // Changed to numeric for better barcode scanning
+          keyboardType="default"
           autoCapitalize="none"
           autoCorrect={false}
         />
@@ -116,14 +115,13 @@ const SearchBar = forwardRef<RNTextInput, SearchBarProps>((
             <Ionicons name="close-circle" size={18} color="#aaa" />
           </TouchableOpacity>
         )}
+        
+        {value.length > 0 && (
+          <TouchableOpacity onPress={handleSubmit} style={styles.searchButton}>
+            <Ionicons name="arrow-forward-circle" size={24} color={lightTheme.colors.primary} />
+          </TouchableOpacity>
+        )}
       </View>
-      
-      <TouchableOpacity 
-        style={styles.goButton}
-        onPress={handleSubmit}
-      >
-        <Text style={styles.goButtonText}>GO</Text>
-      </TouchableOpacity>
     </View>
   );
 });
@@ -159,19 +157,9 @@ const styles = StyleSheet.create({
     padding: 4,
     zIndex: 10, // Ensure our custom clear button is on top
   },
-  goButton: {
-    backgroundColor: lightTheme.colors.primary,
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 10,
-  },
-  goButtonText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
+  searchButton: {
+    padding: 4,
+    marginLeft: 4,
   },
 });
 
