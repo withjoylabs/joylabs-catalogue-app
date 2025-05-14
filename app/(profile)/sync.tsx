@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import CatalogSyncStatus from '@/components/CatalogSyncStatus';
-import SyncLogsView from '@/components/SyncLogsView';
-import { lightTheme } from '@/themes';
+import CatalogSyncStatus from '../../src/components/CatalogSyncStatus';
+import SyncLogsView from '../../src/components/SyncLogsView';
+import { lightTheme } from '../../src/themes';
 
 const ProfileSyncScreen: React.FC = () => {
   return (

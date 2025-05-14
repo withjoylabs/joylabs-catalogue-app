@@ -87,7 +87,7 @@ export default function BottomTabBar({ activeTab }: BottomTabBarProps) {
       
       <TouchableOpacity 
         style={styles.tabButton} 
-        onPress={() => router.push('/profile')}
+        onPress={() => router.push('/(profile)')}
       >
         <Ionicons 
           name={activeTab === 'profile' ? 'person' : 'person-outline'} 

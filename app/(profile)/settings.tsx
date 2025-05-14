@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, Switch, StyleSheet, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
+import { View, Text, Switch, StyleSheet, ActivityIndicator, Alert, TouchableOpacity, ScrollView } from 'react-native';
 import { lightTheme } from '../../src/themes'; // Assuming theme is used for styles
 import logger from '../../src/utils/logger'; // Added logger
 import * as notificationService from '../../src/services/notificationService'; // Import service
@@ -119,7 +119,7 @@ const ProfileSettingsScreen = () => {
   }
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
       {/* App Settings Section */}
       <View style={styles.sectionContent}>
         <Text style={styles.sectionTitle}>App Settings</Text>
@@ -229,7 +229,7 @@ const ProfileSettingsScreen = () => {
           </View>
         </TouchableOpacity>
       </View>
-    </View>
+    </ScrollView>
   );
 };
 
@@ -238,6 +238,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: lightTheme.colors.background,
+  },
+  contentContainer: {
+    paddingBottom: 30, // Add padding to the bottom so content isn't cut off
   },
   centered: {
     justifyContent: 'center',

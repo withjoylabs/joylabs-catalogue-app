@@ -126,7 +126,7 @@ const linking = {
     initialRouteName: 'index',
     screens: {
       index: '',
-      profile: 'profile',
+      '(profile)': 'profile',
       modules: 'modules',
       catalogue: 'catalogue',
       labels: 'labels',
@@ -194,7 +194,7 @@ export default function RootLayout() {
   
   useEffect(() => {
     // Update the active tab based on the current route
-    if (pathname === '/profile') {
+    if (pathname === '/(profile)' || pathname.startsWith('/(profile)/')) {
       setActiveTab('profile');
     } else if (pathname === '/' || pathname.startsWith('/item/')) {
       setActiveTab('scan');
@@ -209,7 +209,7 @@ export default function RootLayout() {
   // Function to check if we should show the tab bar
   const shouldShowTabBar = () => {
     return pathname === '/' || 
-           pathname === '/profile' ||
+           pathname === '/(profile)' || pathname.startsWith('/(profile)/') ||
            pathname === '/labels' ||
            pathname.startsWith('/item/'); // Restore showing tab bar on item screen
   };
@@ -376,6 +376,12 @@ export default function RootLayout() {
                   />
                   <Stack.Screen
                     name="profile"
+                    options={{
+                      title: 'Profile',
+                    }}
+                  />
+                  <Stack.Screen
+                    name="(profile)"
                     options={{
                       title: 'Profile',
                     }}

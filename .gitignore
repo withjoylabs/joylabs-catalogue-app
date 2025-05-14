@@ -88,3 +88,5 @@ coverage/
 # Expo CNG native directories
 /ios
 /android
+# SpecStory explanation file
+.specstory/.what-is-this.md

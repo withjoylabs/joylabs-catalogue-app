@@ -279,10 +279,25 @@ const createApiClient = (): AxiosInstance => {
   const client = axios.create({
     baseURL: config.api.baseUrl,
     timeout: config.api.timeout,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    transformRequest: [(data, headers) => {
+      // Ensure headers exist and Content-Type is application/json
+      const contentType = headers ? headers['Content-Type'] || headers['content-type'] : null;
+      if (contentType === 'application/json' && typeof data === 'object' && data !== null) {
+        try {
+          return JSON.stringify(data);
+        } catch (e) {
+          logger.error('API', 'Failed to JSON.stringify request data in transformRequest', { error: e });
+          // Fallback: return data as is, or throw error, depending on desired behavior for stringify failure
+          return data;
+        }
+      }
+      // For other Content-Types or data types, return data as is
+      return data;
+    }],
+  });
 
   // Request interceptor for adding auth token and handling request config
   client.interceptors.request.use(

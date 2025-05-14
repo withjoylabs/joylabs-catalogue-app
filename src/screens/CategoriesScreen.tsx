@@ -160,8 +160,9 @@ Choose "Reset Sync State" to fix this.
             onPress: async () => {
               try {
                 Alert.alert("Syncing Categories", "Starting categories-only sync (no items)");
-                await catalogSyncService.syncCategories();
-                Alert.alert("Categories Sync", "Categories sync completed");
+                // TODO: This method doesn't exist in CatalogSyncService
+                // await catalogSyncService.syncCategories();
+                Alert.alert("Categories Sync", "Categories feature not implemented yet");
               } catch (error) {
                 console.error("Categories sync error:", error);
                 Alert.alert("Categories Sync Failed", `Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -208,7 +209,7 @@ Choose "Reset Sync State" to fix this.
           </Text>
           <TouchableOpacity
             style={styles.buttonPrimary}
-            onPress={() => navigation.navigate('Profile')}
+            onPress={() => navigation.navigate('/(profile)')}
           >
             <Text style={styles.buttonText}>Go to Profile</Text>
           </TouchableOpacity>
