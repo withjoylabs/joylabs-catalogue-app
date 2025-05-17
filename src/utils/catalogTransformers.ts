@@ -38,11 +38,28 @@ export function transformCatalogItemToItem(
     sku: string | null;
     price?: number;
     barcode?: string;
+    locationOverrides?: Array<{
+      locationId: string;
+      locationName?: string;
+      price?: number;
+    }>;
   }> = variations
     .map((variation: any) => {
       if (!variation.item_variation_data) return null;
       const varData = variation.item_variation_data;
       const price = varData.price_money ? varData.price_money.amount / 100 : undefined;
+
+      // Extract location overrides if they exist
+      const locationOverrides = varData.location_overrides?.map((override: any) => {
+        // Only include overrides with price data
+        if (!override.price_money) return null;
+        
+        return {
+          locationId: override.location_id,
+          // We don't have location name here, it will be filled by the component
+          price: override.price_money.amount / 100 // Convert cents to dollars
+        };
+      }).filter(Boolean) || [];
 
       return {
         id: variation.id,
@@ -51,6 +68,7 @@ export function transformCatalogItemToItem(
         sku: varData.sku || null, // Match ConvertedItem type (string | null)
         barcode: varData.upc || undefined, // Map upc to barcode
         price: price,
+        locationOverrides: locationOverrides.length > 0 ? locationOverrides : undefined
       };
     })
     .filter((v: any): v is {
@@ -60,6 +78,11 @@ export function transformCatalogItemToItem(
       sku: string | null;
       price?: number;
       barcode?: string;
+      locationOverrides?: Array<{
+        locationId: string;
+        locationName?: string;
+        price?: number;
+      }>;
     } => v !== null);
 
   // Find the first variation to pull top-level price/sku/barcode (for backward compatibility/simplicity)

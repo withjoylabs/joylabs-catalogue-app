@@ -1,25 +1,25 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { View, FlatList, StyleSheet, SafeAreaView, StatusBar, Text, TouchableOpacity, ActivityIndicator, TextInput } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
-import ConnectionStatusBar from '../src/components/ConnectionStatusBar';
-import SearchBar from '../src/components/SearchBar';
-import SortHeader from '../src/components/SortHeader';
-import CatalogueItemCard from '../src/components/CatalogueItemCard';
-import SwipeableRow from '../src/components/SwipeableRow';
-import { ScanHistoryItem } from '../src/types';
-import { ConvertedItem } from '../src/types/api';
+import ConnectionStatusBar from '../../src/components/ConnectionStatusBar';
+import SearchBar from '../../src/components/SearchBar';
+import SortHeader from '../../src/components/SortHeader';
+import CatalogueItemCard from '../../src/components/CatalogueItemCard';
+import SwipeableRow from '../../src/components/SwipeableRow';
+import { ScanHistoryItem } from '../../src/types';
+import { ConvertedItem, CatalogObject, CatalogItemData } from '../../src/types/api';
 import { Ionicons } from '@expo/vector-icons';
-import { useApi } from '../src/providers/ApiProvider';
-import { useAppStore } from '../src/store';
-import { apiClientInstance } from '../src/api';
-import logger from '../src/utils/logger';
-import { DatabaseProvider } from '../src/components/DatabaseProvider';
-import { transformCatalogItemToItem } from '../src/utils/catalogTransformers';
+import { useApi } from '../../src/providers/ApiProvider';
+import { useAppStore } from '../../src/store';
+import { apiClientInstance } from '../../src/api';
+import logger from '../../src/utils/logger';
+import { DatabaseProvider } from '../../src/components/DatabaseProvider';
+import { transformCatalogItemToItem } from '../../src/utils/catalogTransformers';
 import { Alert } from 'react-native';
 import { v4 as uuidv4 } from 'uuid';
-import { lightTheme } from '../src/themes';
-import * as modernDb from '../src/database/modernDb';
-import { CatalogObject, CatalogItemData } from '../src/types/api';
+import { lightTheme } from '../../src/themes';
+import * as modernDb from '../../src/database/modernDb';
+import { useCatalogItems } from '../../src/hooks/useCatalogItems';
 
 export default function App() {
   return (

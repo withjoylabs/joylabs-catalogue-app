@@ -1,5 +1,7 @@
 # JoyLabs Frontend Development Guide
 
+IMPORTANT: DO NOT RUN/TEST THE APP FOR ME. ALSO DO NOT UPLOAD OR COMMIT ANYTHING TO GITHUB UNLESS I SPECIFICALLY ASK YOU TO.
+
 This guide provides instructions and rules for developing the JoyLabs frontend application, focusing on integration with the JoyLabs backend API (v3).
 
 ## Table of Contents

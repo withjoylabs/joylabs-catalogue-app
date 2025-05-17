@@ -126,6 +126,97 @@ export const useSquareAuth = (): UseSquareAuthResult => {
   
   const { setSquareConnected } = useAppStore();
 
+  // Moved processCallback earlier to resolve linter errors
+  const processCallback = async (url: string): Promise<any> => {
+    try {
+      logger.info('SquareAuth', '🔄 Processing callback URL', { url: url.substring(0, 30) + '...' });
+      
+      let cleanUrl = url;
+      if (cleanUrl.includes('#')) {
+        const fragmentIndex = cleanUrl.indexOf('#');
+        cleanUrl = cleanUrl.substring(0, fragmentIndex);
+        logger.debug('SquareAuth', `Removed URL fragment at position ${fragmentIndex}`);
+      }
+      
+      const params: Record<string, string> = {};
+      if (cleanUrl.includes('?')) {
+        const queryStr = cleanUrl.split('?')[1];
+        const pairs = queryStr.split('&');
+        for (const pair of pairs) {
+          if (pair.includes('=')) {
+            const [key, value] = pair.split('=');
+            if (key && value) {
+              try {
+                params[key] = decodeURIComponent(value);
+              } catch (e) {
+                params[key] = value;
+                logger.warn('SquareAuth', `Failed to decode param ${key}, using raw value`);
+              }
+            }
+          }
+        }
+      } else {
+        logger.warn('SquareAuth', 'No query string found in callback URL');
+      }
+      
+      logger.info('SquareAuth', 'Extracted parameters from callback URL', {
+        paramCount: Object.keys(params).length,
+        hasCode: !!params.code,
+        hasState: !!params.state
+      });
+      
+      if (params.code && params.state) {
+        logger.info('SquareAuth', 'Processing OAuth code grant callback');
+        const codeVerifier = await SecureStore.getItemAsync(SQUARE_CODE_VERIFIER_KEY);
+        if (!codeVerifier) {
+          throw new Error('Code verifier not found. Cannot complete OAuth flow.');
+        }
+        const tokenResponse = await api.auth.exchangeToken(params.code, codeVerifier);
+        await tokenService.storeAuthData({
+          access_token: tokenResponse.access_token,
+          refresh_token: tokenResponse.refresh_token,
+          merchant_id: tokenResponse.merchant_id,
+          business_name: tokenResponse.business_name,
+          expires_in: tokenResponse.expires_in
+        });
+        setIsConnected(true);
+        setIsConnecting(false);
+        setSquareConnected(true);
+        if (tokenResponse.merchant_id) setMerchantId(tokenResponse.merchant_id);
+        if (tokenResponse.business_name) setBusinessName(tokenResponse.business_name);
+        await SecureStore.deleteItemAsync(SQUARE_CODE_VERIFIER_KEY);
+        await SecureStore.deleteItemAsync(SQUARE_STATE_KEY);
+        logger.info('SquareAuth', '🎉 OAuth code exchange completed successfully');
+        return { success: true, data: { accessToken: true, merchantId: tokenResponse.merchant_id, businessName: tokenResponse.business_name } };
+      } 
+      else if (params.access_token) {
+        logger.info('SquareAuth', 'Processing direct token callback');
+        await tokenService.storeAuthData({
+          access_token: params.access_token,
+          refresh_token: params.refresh_token,
+          merchant_id: params.merchant_id,
+          business_name: params.business_name,
+          expires_in: params.expires_in ? parseInt(params.expires_in) : undefined
+        });
+        setIsConnected(true);
+        setIsConnecting(false);
+        setSquareConnected(true);
+        if (params.merchant_id) setMerchantId(params.merchant_id);
+        if (params.business_name) setBusinessName(params.business_name);
+        logger.info('SquareAuth', '🎉 Direct token callback processed successfully');
+        return { success: true, data: { accessToken: true, merchantId: params.merchant_id, businessName: params.business_name } };
+      } else {
+        logger.error('SquareAuth', 'Invalid callback URL - missing code/state or access_token');
+        throw new Error('Invalid callback URL format. Missing required parameters.');
+      }
+    } catch (error) {
+      logger.error('SquareAuth', 'Error processing callback URL', error);
+      setError(error as Error);
+      setIsConnecting(false);
+      throw error;
+    }
+  };
+
   // Check for existing Square connection on mount
   useEffect(() => {
     const checkExistingConnection = async () => {
@@ -210,162 +301,61 @@ export const useSquareAuth = (): UseSquareAuthResult => {
           logger.info('SquareAuth', '🔍 Processing Square callback URL');
           
           try {
-            logger.debug('SquareAuth', 'Processing Square callback');
-            setIsConnecting(true);
-            setError(null);
-
-            // More robust URL handling approach
-            const originalUrl = event.url;
-            
-            // IMPORTANT: Handle hash fragments properly - Square adds #_=_ to callback URLs
-            // This is a common pattern in OAuth providers (Facebook, Square) that can break parameter extraction
-            let cleanUrl = originalUrl;
-            if (originalUrl.includes('#')) {
-              const fragmentIndex = originalUrl.indexOf('#');
-              cleanUrl = originalUrl.substring(0, fragmentIndex);
-              logger.info('SquareAuth', `🔧 Removed URL fragment at position ${fragmentIndex}. Original length: ${originalUrl.length}, New length: ${cleanUrl.length}`);
-            }
-            
-            // Extract the query portion directly using string operations
-            // This is more reliable than URL parsing which can fail with custom schemes
-            let queryString = '';
-            if (cleanUrl.includes('?')) {
-              queryString = cleanUrl.split('?')[1];
-              logger.debug('SquareAuth', `📝 Extracted query string: ${queryString}`);
-            } else {
-              logger.error('SquareAuth', '❌ No query parameters found in URL');
-              throw new Error('No query string found in callback URL');
-            }
-            
-            // Parse parameters directly from the query string using reliable string operations
-            const params: Record<string, string> = {};
-            
-            // Split by & and process each key-value pair
-            const pairs = queryString.split('&');
-            for (const pair of pairs) {
-              if (pair.includes('=')) {
-                const [key, encodedValue] = pair.split('=');
-                if (key && encodedValue) {
-                  // Always try to decode the value
-                  try {
-                    params[key] = decodeURIComponent(encodedValue);
-                    logger.debug('SquareAuth', `🔑 Extracted parameter: ${key}=${key.includes('token') ? '[REDACTED]' : params[key]}`);
-                  } catch (decodeError) {
-                    // If decoding fails, use the raw value
-                    params[key] = encodedValue;
-                    logger.warn('SquareAuth', `⚠️ Could not decode parameter value for ${key}, using raw value`);
-                  }
-                }
-              }
-            }
-            
-            // Log successful parameter extraction
-            logger.info('SquareAuth', '✅ Extracted parameters from URL', {
-              paramCount: Object.keys(params).length,
-              hasAccessToken: !!params.access_token,
-              accessTokenLength: params.access_token ? params.access_token.length : 0,
-              hasRefreshToken: !!params.refresh_token,
-              hasMerchantId: !!params.merchant_id,
-              hasBusinessName: !!params.business_name
-            });
-
-            // Validate we have the required parameters
-            if (!params.access_token) {
-              logger.error('SquareAuth', '❌ Missing access_token in callback');
-              throw new Error('Access token not found in callback URL');
-            }
-
-            // Extract tokens from response
-            const accessToken = params.access_token;
-            const refreshToken = params.refresh_token;
-            const merchantId = params.merchant_id;
-            const businessName = params.business_name;
-            const expiresIn = params.expires_in ? parseInt(params.expires_in) : undefined;
-            
-            if (!accessToken) {
-              throw new Error('No access token found in Square callback');
-            }
-            
-            logger.info('SquareAuth', '🔑 Received Square access token from callback');
-            
-            // Store tokens using tokenService
-            await tokenService.storeAuthData({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-              merchant_id: merchantId,
-              business_name: businessName,
-              expires_in: expiresIn
-            });
-            
-            // Clean up PKCE values
-            await SecureStore.deleteItemAsync(SQUARE_CODE_VERIFIER_KEY);
-            await SecureStore.deleteItemAsync(SQUARE_STATE_KEY);
-            
-            // Update app state
-            setIsConnected(true);
-            setIsConnecting(false);
-            setSquareConnected(true);
-            
-            if (merchantId) {
-              setMerchantId(merchantId);
-            }
-            
-            if (businessName) {
-              setBusinessName(businessName);
-            }
-            
-            logger.info('SquareAuth', '🎉 Square connection successfully completed');
-            
-            // Verify token storage after a short delay
-            setTimeout(async () => {
-              const verificationResult = await verifyTokenStorage();
-              logger.info('SquareAuth', '🔒 Verification after callback:', verificationResult);
-            }, 500);
-          } catch (err) {
-            logger.error('SquareAuth', 'Error handling Square callback', err);
-            setError(err as Error);
-            setIsConnected(false);
-            setSquareConnected(false);
-            setIsConnecting(false);
+            // Ensure processCallback is awaited and errors are caught
+            await processCallback(event.url); // Pass event.url to processCallback
+            logger.info('SquareAuth', '✅ Deep link processing completed successfully via event listener.');
+          } catch (procError) {
+            logger.error('SquareAuth', '❌ Error processing deep link via event listener', procError);
+            setError(procError as Error); // Update error state
+            setIsConnecting(false); // Ensure connecting state is reset
           }
         };
         
-        // Make handleDeepLink accessible to the connect function
-        // @ts-ignore - This is intentional to allow access from connect
+        // @ts-ignore
         globalThis._joylabs_handleSquareDeepLink = handleDeepLink;
-        
-        // Add deep link listener
-        subscription = Linking.addEventListener('url', handleDeepLink);
+        logger.debug('SquareAuth', 'Assigned handleDeepLink to globalThis._joylabs_handleSquareDeepLink');
+
+        subscription = ExpoLinking.addEventListener('url', handleDeepLink);
         logger.debug('SquareAuth', 'Deep link listener registered');
 
-        // Check for initial URL (handles app opened from deep link)
-        const initialUrl = await Linking.getInitialURL();
+        // Check initial URL
+        const initialUrl = await ExpoLinking.getInitialURL();
         logger.debug('SquareAuth', 'Checking initial URL', { initialUrl });
         if (initialUrl) {
           logger.debug('SquareAuth', 'App opened with deep link', { initialUrl });
-          await handleDeepLink({ url: initialUrl });
+          // No await here, let it run in background if needed, or await if critical
+          // Consider if initial URL processing needs setIsConnecting flags
+          handleDeepLink({ url: initialUrl });
         }
       } catch (err) {
-        logger.error('SquareAuth', 'Error setting up deep link handling', err);
+        logger.error('SquareAuth', 'Error setting up deep link handler', err);
         setError(err as Error);
       }
     };
-
+    
     setupDeepLinkHandling();
 
+    // Interval to check if connection state is stuck
+    const repairInterval = setInterval(async () => {
+      if (isConnecting) {
+        logger.debug('SquareAuth', 'Connection flow is in progress');
+        const pkceState = await SecureStore.getItemAsync(SQUARE_STATE_KEY);
+        if (!pkceState) { // If state cleared but still connecting, reset
+          logger.warn('SquareAuth', 'Connection state stuck, resetting...');
+          setIsConnecting(false);
+          setError(new Error('Connection timed out or was interrupted.'));
+        }
+      }
+    }, 5000); // Check every 5 seconds
+
     return () => {
-      logger.debug('SquareAuth', 'Cleaning up deep link handler');
-      if (subscription) {
-        subscription.remove();
-      }
-      // Clean up global reference
+      subscription?.remove();
       // @ts-ignore
-      if (globalThis._joylabs_handleSquareDeepLink) {
-        // @ts-ignore
-        delete globalThis._joylabs_handleSquareDeepLink;
-      }
+      delete globalThis._joylabs_handleSquareDeepLink;
+      logger.debug('SquareAuth', 'Deep link listener removed and global reference cleaned on unmount');
+      clearInterval(repairInterval); // Clear interval on unmount
     };
-  }, [setSquareConnected]);
+  }, [isConnecting, processCallback]); // processCallback is now in scope
   
   // Cleanup WebBrowser session when component unmounts
   useEffect(() => {
@@ -1030,147 +1020,6 @@ export const useSquareAuth = (): UseSquareAuthResult => {
         hasAccessToken: false,
         error: String((err as Error).message)
       };
-    }
-  };
-
-  // Add processCallback implementation for handling OAuth callback URLs
-  const processCallback = async (url: string): Promise<any> => {
-    try {
-      logger.info('SquareAuth', '🔄 Processing callback URL', { url: url.substring(0, 30) + '...' });
-      
-      // Extract and clean the URL
-      let cleanUrl = url;
-      if (cleanUrl.includes('#')) {
-        const fragmentIndex = cleanUrl.indexOf('#');
-        cleanUrl = cleanUrl.substring(0, fragmentIndex);
-        logger.debug('SquareAuth', `Removed URL fragment at position ${fragmentIndex}`);
-      }
-      
-      // Extract parameters directly from the query string
-      const params: Record<string, string> = {};
-      
-      if (cleanUrl.includes('?')) {
-        const queryStr = cleanUrl.split('?')[1];
-        const pairs = queryStr.split('&');
-        
-        for (const pair of pairs) {
-          if (pair.includes('=')) {
-            const [key, value] = pair.split('=');
-            if (key && value) {
-              try {
-                params[key] = decodeURIComponent(value);
-              } catch (e) {
-                params[key] = value;
-                logger.warn('SquareAuth', `Failed to decode param ${key}, using raw value`);
-              }
-            }
-          }
-        }
-      } else {
-        logger.warn('SquareAuth', 'No query string found in callback URL');
-      }
-      
-      logger.info('SquareAuth', 'Extracted parameters from callback URL', {
-        paramCount: Object.keys(params).length,
-        hasCode: !!params.code,
-        hasState: !!params.state
-      });
-      
-      // If we have code and state, this is the initial OAuth code grant
-      if (params.code && params.state) {
-        logger.info('SquareAuth', 'Processing OAuth code grant callback');
-        
-        // Retrieve the code verifier
-        const codeVerifier = await SecureStore.getItemAsync(SQUARE_CODE_VERIFIER_KEY);
-        if (!codeVerifier) {
-          throw new Error('Code verifier not found. Cannot complete OAuth flow.');
-        }
-        
-        // Exchange code for token using API
-        const tokenResponse = await api.auth.exchangeToken(params.code, codeVerifier);
-        
-        // Store the tokens using tokenService
-        await tokenService.storeAuthData({
-          access_token: tokenResponse.access_token,
-          refresh_token: tokenResponse.refresh_token,
-          merchant_id: tokenResponse.merchant_id,
-          business_name: tokenResponse.business_name,
-          expires_in: tokenResponse.expires_in
-        });
-        
-        // Update local state
-        setIsConnected(true);
-        setIsConnecting(false);
-        setSquareConnected(true);
-        
-        if (tokenResponse.merchant_id) {
-          setMerchantId(tokenResponse.merchant_id);
-        }
-        
-        if (tokenResponse.business_name) {
-          setBusinessName(tokenResponse.business_name);
-        }
-        
-        // Clean up PKCE values
-        await SecureStore.deleteItemAsync(SQUARE_CODE_VERIFIER_KEY);
-        await SecureStore.deleteItemAsync(SQUARE_STATE_KEY);
-        
-        logger.info('SquareAuth', '🎉 OAuth code exchange completed successfully');
-        
-        return {
-          success: true,
-          data: {
-            accessToken: true,
-            merchantId: tokenResponse.merchant_id,
-            businessName: tokenResponse.business_name
-          }
-        };
-      } 
-      // If we have access_token directly, this is an implicit grant or direct token callback
-      else if (params.access_token) {
-        logger.info('SquareAuth', 'Processing direct token callback');
-        
-        // Store tokens using tokenService
-        await tokenService.storeAuthData({
-          access_token: params.access_token,
-          refresh_token: params.refresh_token,
-          merchant_id: params.merchant_id,
-          business_name: params.business_name,
-          expires_in: params.expires_in ? parseInt(params.expires_in) : undefined
-        });
-        
-        // Update local state
-        setIsConnected(true);
-        setIsConnecting(false);
-        setSquareConnected(true);
-        
-        if (params.merchant_id) {
-          setMerchantId(params.merchant_id);
-        }
-        
-        if (params.business_name) {
-          setBusinessName(params.business_name);
-        }
-        
-        logger.info('SquareAuth', '🎉 Direct token callback processed successfully');
-        
-        return {
-          success: true,
-          data: {
-            accessToken: true,
-            merchantId: params.merchant_id,
-            businessName: params.business_name
-          }
-        };
-      } else {
-        logger.error('SquareAuth', 'Invalid callback URL - missing code/state or access_token');
-        throw new Error('Invalid callback URL format. Missing required parameters.');
-      }
-    } catch (error) {
-      logger.error('SquareAuth', 'Error processing callback URL', error);
-      setError(error as Error);
-      setIsConnecting(false);
-      throw error;
     }
   };
 

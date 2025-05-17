@@ -67,6 +67,9 @@ export async function initDatabase(): Promise<SQLiteDatabase> {
       await initializeSchema();
     }
     
+    // Ensure the locations table is properly set up
+    await ensureLocationsTable();
+    
     logger.info('Database', 'Database initialized successfully');
     
     return db;
@@ -1203,7 +1206,7 @@ export async function searchLocalItems(query: string): Promise<ConvertedItem[]> 
         });
 
         // Pass crvType to the transformer
-        const transformed = transformCatalogItemToItem(reconstructedCatalogObject as any, crvType);
+        const transformed = transformCatalogItemToItem(reconstructedCatalogObject as any);
 
         // Log the result from the transformer
         logger.debug('Database::searchLocalItems', 'Transformed item result:', transformed); 
@@ -1398,6 +1401,74 @@ export async function getAllModifierLists(): Promise<{ id: string; name: string 
   }
 }
 
+/**
+ * Ensure the locations table exists and has default data
+ */
+export async function ensureLocationsTable(): Promise<void> {
+  try {
+    const db = await getDatabase();
+    logger.info('Database', 'Ensuring locations table exists and has data');
+    
+    // Create the locations table directly with "IF NOT EXISTS" instead of checking first
+    await db.runAsync(`CREATE TABLE IF NOT EXISTS locations (
+      id TEXT PRIMARY KEY NOT NULL,
+      name TEXT,
+      merchant_id TEXT,
+      address TEXT,
+      timezone TEXT,
+      phone_number TEXT,
+      business_name TEXT,
+      business_email TEXT,
+      website_url TEXT,
+      description TEXT,
+      status TEXT,
+      type TEXT,
+      logo_url TEXT,
+      created_at TEXT,
+      last_updated TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      data TEXT,
+      is_deleted INTEGER NOT NULL DEFAULT 0
+    )`);
+    
+    // Create index on merchant_id (also using IF NOT EXISTS)
+    await db.runAsync('CREATE INDEX IF NOT EXISTS idx_locations_merchant_id ON locations (merchant_id)');
+    
+    logger.info('Database', 'Successfully ensured locations table exists');
+  } catch (error) {
+    logger.error('Database', 'Error ensuring locations table', { error });
+    throw error;
+  }
+}
+
+/**
+ * Fetches all locations (ID and Name) from the database.
+ * @returns A promise resolving to an array of locations { id: string, name: string }.
+ */
+export async function getAllLocations(): Promise<{ id: string; name: string }[]> {
+  const db = await getDatabase();
+  logger.info('Database', 'Fetching all locations');
+  
+  try {
+    // First ensure the locations table exists
+    await ensureLocationsTable();
+    
+    // Now try to fetch locations
+    const results = await db.getAllAsync<{ id: string; name: string }>(`
+      SELECT id, name 
+      FROM locations 
+      WHERE is_deleted = 0 
+      ORDER BY name ASC
+    `);
+    
+    logger.info('Database', `Fetched ${results.length} locations`);
+    return results;
+  } catch (error) {
+    logger.error('Database', 'Error fetching locations', { error });
+    // Return empty array instead of fallbacks
+    return [];
+  }
+}
+
 // Export default object with all methods
 export default {
   initDatabase,
@@ -1414,7 +1485,8 @@ export default {
   getFirstTenVariationsRaw,
   getAllCategories,
   getAllTaxes,
-  getAllModifierLists
+  getAllModifierLists,
+  getAllLocations
 }; 
 
 // --- New Functions for Incremental Sync Cursor --- 

@@ -2,14 +2,14 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform, ActivityIndicator, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useAppStore } from '../src/store';
+import { useAppStore } from '../../src/store';
 import * as ImagePicker from 'expo-image-picker';
 import * as Font from 'expo-font';
 import { Barcode } from 'expo-barcode-generator';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import logger from '../src/utils/logger';
+import logger from '../../src/utils/logger';
 import { format } from 'date-fns';
-import { printItemLabel, getLabelPrinterStatus, LabelData } from '../src/utils/printLabel';
+import { printItemLabel, getLabelPrinterStatus, LabelData } from '../../src/utils/printLabel';
 
 // Sample data for label preview
 const SAMPLE_ITEM = {
@@ -127,7 +127,7 @@ export default function LabelsScreen() {
   const loadFontsAsync = async () => {
     try {
       await Font.loadAsync({
-        'Fredoka-Regular': require('../assets/fonts/Fredoka-Regular.ttf'),
+        'Fredoka-Regular': require('../../assets/fonts/Fredoka-Regular.ttf'),
       });
       setIsFontLoaded(true);
     } catch (error) {

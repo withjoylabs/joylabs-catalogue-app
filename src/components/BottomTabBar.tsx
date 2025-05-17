@@ -1,18 +1,29 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, usePathname } from 'expo-router';
 import { useAppStore } from '../store';
 
 type BottomTabBarProps = {
   activeTab: string;
+  setActiveTab: React.Dispatch<React.SetStateAction<string>>;
+  setActiveScreen: React.Dispatch<React.SetStateAction<string>>;
 };
 
-export default function BottomTabBar({ activeTab }: BottomTabBarProps) {
+export default function BottomTabBar({ activeTab, setActiveTab, setActiveScreen }: BottomTabBarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const isItemDetails = pathname.startsWith('/item/');
   const triggerItemSave = useAppStore((state) => state.triggerItemSave);
+  
+  console.log("BOTTOM_TAB_BAR - Current pathname:", pathname);
+  console.log("BOTTOM_TAB_BAR - Active tab from prop:", activeTab);
+  
+  // Helper function to check if a tab should be active
+  // This now SOLELY relies on the activeTab prop from RootLayout
+  const isTabActive = (tabName: string) => {
+    return activeTab === tabName;
+  };
   
   // Handle save action when on item details page
   const handleSaveAction = () => {
@@ -23,33 +34,64 @@ export default function BottomTabBar({ activeTab }: BottomTabBarProps) {
       router.push('/item/new');
     }
   };
+
+  // Force-navigate home with extra options
+  const navigateToHome = () => {
+    console.log("NAV_EVENT - DIAGNOSTIC: Attempting to PUSH HOME ('/') from pathname:", pathname, "via BottomTabBar");
+    setActiveTab('scan'); 
+    setActiveScreen('index');
+    router.push('/'); // DIAGNOSTIC CHANGE
+  };
+  
+  const navigateToSearch = () => {
+    console.log("NAV_EVENT - Navigating to Search from:", pathname);
+    setActiveTab('search');
+    setActiveScreen('search');
+    router.push("/search"); // push is okay for these as they are distinct main sections
+  };
+  
+  const navigateToLabels = () => {
+    console.log("NAV_EVENT - Navigating to Labels from:", pathname);
+    setActiveTab('labels');
+    setActiveScreen('labels');
+    router.push("/labels"); // push is okay
+  };
+  
+  const navigateToProfile = () => {
+    console.log("NAV_EVENT - Navigating to Profile from:", pathname);
+    setActiveTab('profile');
+    setActiveScreen('profile');
+    router.replace("/(profile)"); // replace is good here to not stack profile on profile
+  };
   
   return (
     <View style={styles.container}>
       <TouchableOpacity 
         style={styles.tabButton} 
-        onPress={() => router.push('/')}
+        onPress={navigateToHome}
+        accessibilityState={{ selected: isTabActive('scan') }}
       >
         <Ionicons 
-          name={activeTab === 'scan' ? 'barcode' : 'barcode-outline'} 
+          name={isTabActive('scan') ? 'barcode' : 'barcode-outline'} 
           size={24} 
-          color={activeTab === 'scan' ? '#007AFF' : '#8E8E93'} 
+          color={isTabActive('scan') ? '#007AFF' : '#8E8E93'} 
         />
-        <Text style={[styles.tabLabel, activeTab === 'scan' && styles.activeTabLabel]}>
+        <Text style={[styles.tabLabel, isTabActive('scan') && styles.activeTabLabel]}>
           Scan
         </Text>
       </TouchableOpacity>
       
       <TouchableOpacity 
         style={styles.tabButton} 
-        onPress={() => router.push('/search')}
+        onPress={navigateToSearch}
+        accessibilityState={{ selected: isTabActive('search') }}
       >
         <Ionicons 
-          name={activeTab === 'search' ? 'search' : 'search-outline'} 
+          name={isTabActive('search') ? 'search' : 'search-outline'} 
           size={24} 
-          color={activeTab === 'search' ? '#007AFF' : '#8E8E93'} 
+          color={isTabActive('search') ? '#007AFF' : '#8E8E93'} 
         />
-        <Text style={[styles.tabLabel, activeTab === 'search' && styles.activeTabLabel]}>
+        <Text style={[styles.tabLabel, isTabActive('search') && styles.activeTabLabel]}>
           Search
         </Text>
       </TouchableOpacity>
@@ -73,28 +115,30 @@ export default function BottomTabBar({ activeTab }: BottomTabBarProps) {
       
       <TouchableOpacity 
         style={styles.tabButton} 
-        onPress={() => router.push('/labels')}
+        onPress={navigateToLabels}
+        accessibilityState={{ selected: isTabActive('labels') }}
       >
         <Ionicons 
-          name={activeTab === 'labels' ? 'pricetag' : 'pricetag-outline'} 
+          name={isTabActive('labels') ? 'pricetag' : 'pricetag-outline'} 
           size={24} 
-          color={activeTab === 'labels' ? '#007AFF' : '#8E8E93'} 
+          color={isTabActive('labels') ? '#007AFF' : '#8E8E93'} 
         />
-        <Text style={[styles.tabLabel, activeTab === 'labels' && styles.activeTabLabel]}>
+        <Text style={[styles.tabLabel, isTabActive('labels') && styles.activeTabLabel]}>
           Labels
         </Text>
       </TouchableOpacity>
       
       <TouchableOpacity 
         style={styles.tabButton} 
-        onPress={() => router.push('/(profile)')}
+        onPress={navigateToProfile}
+        accessibilityState={{ selected: isTabActive('profile') }}
       >
         <Ionicons 
-          name={activeTab === 'profile' ? 'person' : 'person-outline'} 
+          name={isTabActive('profile') ? 'person' : 'person-outline'} 
           size={24} 
-          color={activeTab === 'profile' ? '#007AFF' : '#8E8E93'} 
+          color={isTabActive('profile') ? '#007AFF' : '#8E8E93'} 
         />
-        <Text style={[styles.tabLabel, activeTab === 'profile' && styles.activeTabLabel]}>
+        <Text style={[styles.tabLabel, isTabActive('profile') && styles.activeTabLabel]}>
           Profile
         </Text>
       </TouchableOpacity>

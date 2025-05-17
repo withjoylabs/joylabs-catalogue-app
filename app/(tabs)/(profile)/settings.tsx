@@ -1,21 +1,30 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, Switch, StyleSheet, ActivityIndicator, Alert, TouchableOpacity, ScrollView } from 'react-native';
-import { lightTheme } from '../../src/themes'; // Assuming theme is used for styles
-import logger from '../../src/utils/logger'; // Added logger
-import * as notificationService from '../../src/services/notificationService'; // Import service
-import * as notificationState from '../../src/services/notificationState'; // Import state service
+import { lightTheme } from '../../../src/themes'; // Corrected path
+import logger from '../../../src/utils/logger'; // Corrected path
+import * as notificationService from '../../../src/services/notificationService'; // Corrected path
+import * as notificationState from '../../../src/services/notificationState'; // Corrected path
 import { useRouter } from 'expo-router'; // Import router for navigation
 import { Ionicons } from '@expo/vector-icons'; // Import icons
-import { useAppStore } from '../../src/store'; // Import Zustand store for app settings
+import { useAppStore } from '../../../src/store'; // Corrected path and assuming this is the intended import
 
 const TAG = '[ProfileSettingsScreen]';
 
+interface SettingsState {
+  notificationsEnabled: boolean;
+  backgroundSyncEnabled: boolean;
+  darkModeEnabled: boolean;
+  analyticsEnabled: boolean;
+}
+
 const ProfileSettingsScreen = () => {
   const router = useRouter(); // Initialize router for navigation
-  // State for settings
-  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
-  const [darkModeEnabled, setDarkModeEnabled] = useState(false);
-  const [scanSoundEnabled, setScanSoundEnabled] = useState(true);
+  const [settings, setSettings] = useState<SettingsState>({
+    notificationsEnabled: false,
+    backgroundSyncEnabled: false,
+    darkModeEnabled: false,
+    analyticsEnabled: true,
+  });
   // Added state for loading and token management
   const [isLoading, setIsLoading] = useState(true); // Start true to load initial state
   const [storedPushToken, setStoredPushToken] = useState<string | null>(null);
@@ -34,7 +43,12 @@ const ProfileSettingsScreen = () => {
       try {
         const enabled = await notificationState.loadNotificationEnabledStatus();
         const token = await notificationState.loadPushToken();
-        setNotificationsEnabled(enabled);
+        setSettings({
+          notificationsEnabled: enabled,
+          backgroundSyncEnabled: false,
+          darkModeEnabled: false,
+          analyticsEnabled: true,
+        });
         setStoredPushToken(token);
         logger.debug(TAG, 'Loaded initial notification state', { enabled, hasToken: !!token });
       } catch (error) {
@@ -62,21 +76,30 @@ const ProfileSettingsScreen = () => {
           await notificationState.savePushToken(newPushToken);
           await notificationState.saveNotificationEnabledStatus(true);
           setStoredPushToken(newPushToken);
-          setNotificationsEnabled(true);
+          setSettings({
+            ...settings,
+            notificationsEnabled: true,
+          });
           Alert.alert('Success', 'Sync notifications enabled.');
           logger.info(TAG, 'Notifications enabled successfully, token obtained and stored.');
         } else {
           // Failed to get permissions or token from Expo/OS
           Alert.alert('Error', 'Could not enable notifications. Please ensure permissions are granted in system settings.');
           logger.error(TAG, 'Failed to enable notifications (permission or token retrieval failed).');
-          setNotificationsEnabled(false); // Keep toggle off
+          setSettings({
+            ...settings,
+            notificationsEnabled: false,
+          });
           await notificationState.saveNotificationEnabledStatus(false); // Ensure stored state is false
         }
       } catch (error: any) {
         // Catch unexpected errors during registration process
         logger.error(TAG, 'Unexpected error enabling notifications', { error: error.message });
         Alert.alert('Error', `An unexpected error occurred: ${error.message}`);
-        setNotificationsEnabled(false); // Keep toggle off
+        setSettings({
+          ...settings,
+          notificationsEnabled: false,
+        });
         await notificationState.saveNotificationEnabledStatus(false);
       }
     } else {
@@ -97,12 +120,15 @@ const ProfileSettingsScreen = () => {
       await notificationState.clearPushToken();
       await notificationState.saveNotificationEnabledStatus(false);
       setStoredPushToken(null);
-      setNotificationsEnabled(false);
+      setSettings({
+        ...settings,
+        notificationsEnabled: false,
+      });
       Alert.alert('Disabled', 'Sync notifications disabled.');
     }
 
     setIsToggling(false);
-  }, [storedPushToken]); // Depend on storedPushToken for disabling logic
+  }, [settings, storedPushToken]); // Depend on storedPushToken for disabling logic
 
   // Handler for navigating to the modal test screen
   const navigateToModalTest = () => {
@@ -127,7 +153,7 @@ const ProfileSettingsScreen = () => {
         {/* Notifications toggle */}
         <View style={styles.settingItem}>
           <View style={styles.settingTextContainer}>
-            <Text style={styles.settingLabel}>Enable Sync Notifications</Text>
+          <Text style={styles.settingLabel}>Enable Sync Notifications</Text>
             <Text style={styles.settingDescription}>Receive alerts about inventory changes</Text>
           </View>
           {isToggling ? (
@@ -135,9 +161,9 @@ const ProfileSettingsScreen = () => {
           ) : (
             <Switch
               trackColor={{ false: lightTheme.colors.border, true: lightTheme.colors.primary }}
-              thumbColor={notificationsEnabled ? lightTheme.colors.background : lightTheme.colors.secondary}
+              thumbColor={settings.notificationsEnabled ? lightTheme.colors.background : lightTheme.colors.secondary}
               ios_backgroundColor={lightTheme.colors.border}
-              value={notificationsEnabled}
+              value={settings.notificationsEnabled}
               onValueChange={handleToggleNotifications}
               disabled={isToggling} // Disable while action is in progress
             />
@@ -147,15 +173,15 @@ const ProfileSettingsScreen = () => {
         {/* Dark Mode toggle */}
         <View style={styles.settingItem}>
           <View style={styles.settingTextContainer}>
-            <Text style={styles.settingLabel}>Dark Mode</Text>
+          <Text style={styles.settingLabel}>Dark Mode</Text>
             <Text style={styles.settingDescription}>Use dark theme throughout the app</Text>
           </View>
           <Switch
             trackColor={{ false: lightTheme.colors.border, true: lightTheme.colors.primary }}
-            thumbColor={darkModeEnabled ? lightTheme.colors.background : lightTheme.colors.secondary}
+            thumbColor={settings.darkModeEnabled ? lightTheme.colors.background : lightTheme.colors.secondary}
             ios_backgroundColor={lightTheme.colors.border}
-            value={darkModeEnabled}
-            onValueChange={setDarkModeEnabled}
+            value={settings.darkModeEnabled}
+            onValueChange={(newValue) => setSettings({ ...settings, darkModeEnabled: newValue })}
           />
         </View>
         
@@ -167,10 +193,10 @@ const ProfileSettingsScreen = () => {
           </View>
           <Switch
             trackColor={{ false: lightTheme.colors.border, true: lightTheme.colors.primary }}
-            thumbColor={scanSoundEnabled ? lightTheme.colors.background : lightTheme.colors.secondary}
+            thumbColor={settings.backgroundSyncEnabled ? lightTheme.colors.background : lightTheme.colors.secondary}
             ios_backgroundColor={lightTheme.colors.border}
-            value={scanSoundEnabled}
-            onValueChange={setScanSoundEnabled}
+            value={settings.backgroundSyncEnabled}
+            onValueChange={(newValue) => setSettings({ ...settings, backgroundSyncEnabled: newValue })}
           />
         </View>
       </View>
@@ -228,7 +254,7 @@ const ProfileSettingsScreen = () => {
             />
           </View>
         </TouchableOpacity>
-      </View>
+    </View>
     </ScrollView>
   );
 };

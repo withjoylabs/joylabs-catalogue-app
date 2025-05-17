@@ -493,6 +493,70 @@ export class CatalogSyncService {
         logger.info('CatalogSync', 'Existing catalog data cleared.');
       }
       
+      // Fetch and sync locations from Square API before catalog items
+      logger.info('CatalogSync', 'Syncing locations from Square API...');
+      
+      // Implement location syncing directly here
+      try {
+        const response = await directSquareApi.fetchLocations();
+        
+        if (!response.success || !response.data || !response.data.locations) {
+          logger.warn('CatalogSync', 'Failed to fetch locations from Square API', { 
+            responseSuccess: response.success, 
+            error: response.error
+          });
+        } else {
+          const locations = response.data.locations;
+          logger.info('CatalogSync', `Fetched ${locations.length} locations from Square API`);
+          
+          // Get the database
+          const db = await modernDb.getDatabase();
+          
+          // Process and store locations
+          await db.withTransactionAsync(async () => {
+            // First mark all existing locations as deleted
+            await db.runAsync('UPDATE locations SET is_deleted = 1');
+            
+            // Insert/update each location from the API
+            for (const location of locations) {
+              // Format address as JSON string if it exists
+              const addressStr = location.address ? JSON.stringify(location.address) : null;
+              
+              await db.runAsync(`
+                INSERT OR REPLACE INTO locations (
+                  id, name, merchant_id, address, timezone,
+                  phone_number, business_name, business_email,
+                  website_url, description, status, type,
+                  created_at, last_updated, data, is_deleted
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              `, [
+                location.id,
+                location.name,
+                location.merchant_id,
+                addressStr,
+                location.timezone,
+                location.phone_number,
+                location.business_name,
+                location.business_email,
+                location.website_url,
+                location.description,
+                location.status,
+                location.type,
+                location.created_at,
+                new Date().toISOString(),
+                JSON.stringify(location), // Store full location data as JSON
+                0 // Not deleted
+              ]);
+            }
+          });
+          
+          logger.info('CatalogSync', `Successfully synced ${locations.length} locations to database`);
+        }
+      } catch (locationError) {
+        logger.error('CatalogSync', 'Error syncing locations from Square API', { error: locationError });
+        // Continue with catalog sync even if location sync fails
+      }
+      
       do {
         logger.info('CatalogSync', `Fetching page ${page}. Cursor: ${cursor ? 'Yes' : 'No'}`);
         

@@ -27,7 +27,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useCatalogItems } from '../../src/hooks/useCatalogItems';
 import { ConvertedItem, ConvertedCategory } from '../../src/types/api';
 import { lightTheme } from '../../src/themes';
-import { getAllCategories, getAllTaxes, getAllModifierLists } from '../../src/database/modernDb'; // Import the new function
+import { getAllCategories, getAllTaxes, getAllModifierLists, getAllLocations } from '../../src/database/modernDb'; // Import the new function
 import { getRecentCategoryIds, addRecentCategoryId } from '../../src/utils/recentCategories'; // Import recent category utils
 import { useAppStore } from '../../src/store'; // Import Zustand store
 import logger from '../../src/utils/logger'; // Import logger
@@ -36,6 +36,7 @@ import { styles } from './itemStyles';
 import CategorySelectionModal, { CategoryPickerItemType as ModalCategoryPickerItem } from '../../src/components/modals/CategorySelectionModal'; // Added import
 import VariationPrintSelectionModal from '../../src/components/modals/VariationPrintSelectionModal'; // Added import
 import PrintNotification from '../../src/components/modals/PrintNotification'; // Import the new component
+import apiClient from '../../src/api'; // Import API client
 
 // Define type for category used in the picker
 // type CategoryPickerItem = { id: string; name: string }; // Now using ModalCategoryPickerItem or ensure consistency
@@ -72,6 +73,11 @@ export interface ItemVariation {
   sku: string | null;
   price?: number;
   barcode?: string;
+  locationOverrides?: Array<{
+    locationId: string;
+    locationName?: string;
+    price?: number;
+  }>;
 }
 
 export default function ItemDetails() {
@@ -144,6 +150,9 @@ export default function ItemDetails() {
 
   // State for Modifiers
   const [availableModifierLists, setAvailableModifierLists] = useState<ModifierListPickerItem[]>([]);
+  
+  // State for Locations
+  const [availableLocations, setAvailableLocations] = useState<Array<{id: string, name: string}>>([]);
   
   const itemSaveTriggeredAt = useAppStore((state) => state.itemSaveTriggeredAt);
   const lastProcessedSaveTrigger = useRef<number | null>(null);
@@ -289,6 +298,9 @@ export default function ItemDetails() {
         
         const dollars = cents / 100;
         newVariations[index] = { ...newVariations[index], price: dollars };
+      } else if (field === 'locationOverrides') {
+        // Handle location overrides as a special case
+        newVariations[index] = { ...newVariations[index], locationOverrides: value as any };
       } else {
         // Handle other fields
         newVariations[index] = { ...newVariations[index], [field]: value };
@@ -320,6 +332,98 @@ export default function ItemDetails() {
     }
 
     setVariations(prev => prev.filter((_, i) => i !== index));
+    setIsEdited(true);
+  };
+
+  // Handler to add a price override to a variation
+  const addPriceOverride = (variationIndex: number) => {
+    setVariations(prevVariations => {
+      const newVariations = [...prevVariations];
+      const variation = newVariations[variationIndex];
+      
+      // Initialize locationOverrides array if it doesn't exist
+      if (!variation.locationOverrides) {
+        variation.locationOverrides = [];
+      }
+      
+      // Add a new empty override
+      variation.locationOverrides.push({
+        locationId: '', // Will be selected by user
+        price: undefined // Will be entered by user
+      });
+      
+      return newVariations;
+    });
+    
+    setIsEdited(true);
+  };
+
+  // Handler to remove a price override from a variation
+  const removePriceOverride = (variationIndex: number, overrideIndex: number) => {
+    setVariations(prevVariations => {
+      const newVariations = [...prevVariations];
+      const variation = newVariations[variationIndex];
+      
+      if (variation.locationOverrides && variation.locationOverrides.length > overrideIndex) {
+        variation.locationOverrides.splice(overrideIndex, 1);
+      }
+      
+      return newVariations;
+    });
+    
+    setIsEdited(true);
+  };
+
+  // Handler to update a price override
+  const updatePriceOverride = (variationIndex: number, overrideIndex: number, field: 'locationId' | 'price', value: string | number | undefined) => {
+    setVariations(prevVariations => {
+      const newVariations = [...prevVariations];
+      const variation = newVariations[variationIndex];
+      
+      if (!variation.locationOverrides || variation.locationOverrides.length <= overrideIndex) {
+        return newVariations;
+      }
+      
+      if (field === 'price') {
+        // Handle price conversion similar to handleInputChange
+        const textValue = value as string;
+        
+        if (textValue === '' || textValue === null || textValue === undefined) {
+          variation.locationOverrides[overrideIndex].price = undefined;
+          return newVariations;
+        }
+        
+        const digits = textValue.replace(/[^0-9]/g, '');
+        
+        if (digits === '') {
+          variation.locationOverrides[overrideIndex].price = undefined;
+          return newVariations;
+        }
+        
+        const cents = parseInt(digits, 10);
+        
+        if (isNaN(cents)) {
+          console.warn('Invalid number parsed for override price:', digits);
+          variation.locationOverrides[overrideIndex].price = undefined;
+          return newVariations;
+        }
+        
+        const dollars = cents / 100;
+        variation.locationOverrides[overrideIndex].price = dollars;
+      } else {
+        // Handle locationId
+        variation.locationOverrides[overrideIndex].locationId = value as string;
+        
+        // Update the location name if available
+        const location = availableLocations.find(loc => loc.id === value);
+        if (location) {
+          variation.locationOverrides[overrideIndex].locationName = location.name;
+        }
+      }
+      
+      return newVariations;
+    });
+    
     setIsEdited(true);
   };
 
@@ -403,6 +507,17 @@ export default function ItemDetails() {
             price: v.price,
           sku: v.sku as (string | null), // Explicit cast
           barcode: v.barcode || null, 
+          // Include location overrides if they exist
+          location_overrides: v.locationOverrides?.length 
+            ? v.locationOverrides.filter(override => override.locationId && override.price !== undefined)
+              .map(override => ({
+                location_id: override.locationId,
+                price_money: {
+                  amount: Math.round(Number(override.price) * 100), // Convert dollars to cents
+                  currency: 'USD'
+                }
+              }))
+            : undefined
         })),
         taxIds: item.taxIds || [],
         modifierListIds: item.modifierListIds || [],
@@ -498,17 +613,19 @@ export default function ItemDetails() {
       setError(null);
       
       try {
-        // Fetch categories, taxes, and modifiers concurrently
-        const [fetchedCategories, fetchedTaxes, fetchedModifierLists] = await Promise.all([
+        // Fetch categories, taxes, modifiers, and locations concurrently
+        const [fetchedCategories, fetchedTaxes, fetchedModifierLists, fetchedLocations] = await Promise.all([
           getAllCategories(),
           getAllTaxes(),
-          getAllModifierLists()
+          getAllModifierLists(),
+          getAllLocations()
         ]);
 
         setAvailableCategories(fetchedCategories);
         setFilteredCategories(fetchedCategories); // Initialize filtered category list
         setAvailableTaxes(fetchedTaxes);
         setAvailableModifierLists(fetchedModifierLists);
+        setAvailableLocations(fetchedLocations);
         
         // Log available categories for debugging
         console.log('[ItemDetails] Available Categories:', JSON.stringify(fetchedCategories.map(c => ({id: c.id, name: c.name})), null, 2));
@@ -871,6 +988,22 @@ export default function ItemDetails() {
     }
   }, [itemSaveTriggeredAt, isEdited, handleSaveAction, isNewItem]);
   
+  // Function to fetch location data
+  const fetchLocations = async (): Promise<Array<{id: string, name: string}>> => {
+    try {
+      logger.info('ItemDetails:fetchLocations', 'Fetching locations from database');
+      const locations = await getAllLocations();
+      
+      logger.info('ItemDetails:fetchLocations', `Retrieved ${locations.length} locations`);
+      
+      return locations;
+    } catch (error) {
+      logger.error('ItemDetails:fetchLocations', 'Failed to fetch locations', { error });
+      // Return empty array instead of fallbacks
+      return [];
+    }
+  };
+  
   // If loading, show spinner
   if (isLoading) {
     return (
@@ -983,6 +1116,157 @@ export default function ItemDetails() {
                       />
                     </View>
                     <Text style={styles.helperText}>Leave blank for variable pricing</Text> 
+
+                    {/* Price Overrides Section */}
+                    <View style={{
+                      marginTop: 10,
+                      borderTopWidth: 1,
+                      borderTopColor: '#eeeeee',
+                      paddingTop: 8,
+                    }}>
+                      <View style={{
+                        flexDirection: 'row',
+                        justifyContent: 'flex-start',
+                        marginBottom: 8,
+                        alignItems: 'center',
+                      }}>
+                        {/* Show "Add Price Override" button */}
+                        <TouchableOpacity 
+                          style={{
+                            paddingHorizontal: 12,
+                            paddingVertical: 6,
+                            borderRadius: 6,
+                            backgroundColor: '#f0f8ff',
+                            borderWidth: 1,
+                            borderColor: lightTheme.colors.primary,
+                          }}
+                          onPress={() => addPriceOverride(index)}
+                          disabled={availableLocations.length === 0}
+                        >
+                          <Text style={{
+                            color: lightTheme.colors.primary,
+                            fontSize: 14,
+                            fontWeight: '500',
+                          }}>
+                            Add Price Override
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      {/* Render existing price overrides */}
+                      {variation.locationOverrides && variation.locationOverrides.map((override, overrideIndex) => (
+                        <View key={`override-${index}-${overrideIndex}`} style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          marginBottom: 8,
+                          backgroundColor: '#f3f8ff', // Lighter blue background to make overrides more visible
+                          borderWidth: 1,
+                          borderColor: '#b3d4ff', // Blue border
+                          borderRadius: 4,
+                          padding: 8,
+                        }}>
+                          {/* Price override input */}
+                          <View style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            width: 95,
+                            borderWidth: 1,
+                            borderColor: '#ddd',
+                            borderRadius: 4,
+                            backgroundColor: 'white',
+                            paddingHorizontal: 4,
+                            marginRight: 6,
+                            height: 34,
+                          }}>
+                            <Text style={styles.currencySymbol}>$</Text>
+                            <TextInput
+                              style={{
+                                flex: 1,
+                                height: 32,
+                                paddingHorizontal: 2,
+                                fontSize: 14,
+                              }}
+                              value={override.price !== undefined ? override.price.toFixed(2) : ''}
+                              onChangeText={(value) => updatePriceOverride(index, overrideIndex, 'price', value)}
+                              placeholder="Price"
+                              placeholderTextColor="#999"
+                              keyboardType="numeric"
+                            />
+                          </View>
+
+                          {/* Location selector */}
+                          <View style={{
+                            flex: 1,
+                            height: 34,
+                          }}>
+                            {availableLocations.length > 0 ? (
+                              <TouchableOpacity 
+                                style={{
+                                  flexDirection: 'row',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  borderWidth: 1,
+                                  borderColor: '#ddd',
+                                  backgroundColor: 'white',
+                                  borderRadius: 4,
+                                  paddingHorizontal: 8,
+                                  height: 34,
+                                }}
+                                onPress={() => {
+                                  // Show a modal or ActionSheet for location selection
+                                  Alert.alert(
+                                    "Select Location",
+                                    "Choose a location for this price override",
+                                    availableLocations.map(location => ({
+                                      text: location.name,
+                                      onPress: () => updatePriceOverride(index, overrideIndex, 'locationId', location.id)
+                                    })),
+                                    { cancelable: true }
+                                  );
+                                }}
+                              >
+                                <Text style={[
+                                  {
+                                    fontSize: 14,
+                                    color: '#333',
+                                  },
+                                  !override.locationId && { color: '#999', fontStyle: 'italic' }
+                                ]}>
+                                  {override.locationId ? 
+                                    availableLocations.find(loc => loc.id === override.locationId)?.name || 'Select Location' :
+                                    'Select Location'}
+                                </Text>
+                                <Ionicons name="chevron-down" size={16} color="#666" />
+                              </TouchableOpacity>
+                            ) : (
+                              <Text style={{
+                                fontSize: 14,
+                                color: '#999',
+                                fontStyle: 'italic',
+                                padding: 6,
+                              }}>No locations available</Text>
+                            )}
+                          </View>
+
+                          {/* Remove override button */}
+                          <TouchableOpacity 
+                            style={{
+                              padding: 6,
+                              marginLeft: 2,
+                              backgroundColor: '#fff5f5',
+                              borderRadius: 16,
+                              width: 28,
+                              height: 28,
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                            onPress={() => removePriceOverride(index, overrideIndex)}
+                          >
+                            <Ionicons name="close-circle" size={18} color="#ff3b30" />
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                    </View>
                   </View>
                   
                   {/* UPC/Barcode */}

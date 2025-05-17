@@ -170,29 +170,96 @@ export const useCatalogItems = () => {
 
       // Determine if we found an item or a variation
       let itemJson: string | null = null;
-      let variationJson: string | null = null;
+      let variations: any[] = [];
       let itemId = id; // Default to the passed ID
       let itemUpdatedAt = new Date().toISOString(); // Default timestamp
 
       if (rawResult.found_in === 'item') {
         itemJson = rawResult.data_json;
-        // Need to find the *first* variation associated with this item
-        const firstVariation = await db.getFirstAsync<RawDbRow>(
-          `SELECT data_json FROM item_variations WHERE item_id = ? AND is_deleted = 0 LIMIT 1`,
+        // Need to fetch ALL variations associated with this item
+        const allVariations = await db.getAllAsync<RawDbRow>(
+          `SELECT data_json FROM item_variations WHERE item_id = ? AND is_deleted = 0`,
           [id]
         );
-        variationJson = firstVariation?.data_json || null;
+        
+        // Parse all variation JSON
+        variations = allVariations.map(v => {
+          try {
+            const parsedData = JSON.parse(v.data_json || '{}');
+            logger.debug('CatalogItems::getProductById', 'Parsed variation data', { 
+              variationId: parsedData.id, 
+              variationName: parsedData.item_variation_data?.name,
+              hasLocationOverrides: !!parsedData.item_variation_data?.location_overrides
+            });
+            
+            // Log location overrides if they exist
+            if (parsedData.item_variation_data?.location_overrides) {
+              const overrides = parsedData.item_variation_data.location_overrides;
+              logger.debug('CatalogItems::getProductById', 'Found location overrides', {
+                variationId: parsedData.id,
+                overrideCount: overrides.length,
+                overrides: JSON.stringify(overrides)
+              });
+            }
+            
+            return parsedData;
+          } catch (e) {
+            logger.error('CatalogItems::getProductById', 'Error parsing variation JSON', { error: e });
+            return null;
+          }
+        }).filter(Boolean);
+        
         itemUpdatedAt = rawResult.updated_at || itemUpdatedAt;
       } else if (rawResult.found_in === 'variation') {
-        variationJson = rawResult.data_json;
+        // We found a specific variation, need to get the parent item and all its variations
         itemId = rawResult.item_id; // Get the parent item ID
+        
         // Need to fetch the parent item's data
         const parentItem = await db.getFirstAsync<RawDbRow>(
           `SELECT data_json, updated_at FROM catalog_items WHERE id = ? AND is_deleted = 0`,
           [itemId]
         );
-        itemJson = parentItem?.data_json || null;
-        itemUpdatedAt = parentItem?.updated_at || itemUpdatedAt;
+        
+        if (!parentItem || !parentItem.data_json) {
+          logger.warn('CatalogItems::getProductById', 'Parent item not found for variation', { variationId: id, itemId });
+          return null;
+        }
+        
+        itemJson = parentItem.data_json;
+        itemUpdatedAt = parentItem.updated_at || itemUpdatedAt;
+        
+        // Fetch ALL variations for this parent item
+        const allVariations = await db.getAllAsync<RawDbRow>(
+          `SELECT data_json FROM item_variations WHERE item_id = ? AND is_deleted = 0`,
+          [itemId]
+        );
+        
+        // Parse all variation JSON
+        variations = allVariations.map(v => {
+          try {
+            const parsedData = JSON.parse(v.data_json || '{}');
+            logger.debug('CatalogItems::getProductById', 'Parsed variation data', { 
+              variationId: parsedData.id, 
+              variationName: parsedData.item_variation_data?.name,
+              hasLocationOverrides: !!parsedData.item_variation_data?.location_overrides
+            });
+            
+            // Log location overrides if they exist
+            if (parsedData.item_variation_data?.location_overrides) {
+              const overrides = parsedData.item_variation_data.location_overrides;
+              logger.debug('CatalogItems::getProductById', 'Found location overrides', {
+                variationId: parsedData.id,
+                overrideCount: overrides.length,
+                overrides: JSON.stringify(overrides)
+              });
+            }
+            
+            return parsedData;
+          } catch (e) {
+            logger.error('CatalogItems::getProductById', 'Error parsing variation JSON', { error: e });
+            return null;
+          }
+        }).filter(Boolean);
       }
       
       if (!itemJson) {
@@ -202,7 +269,11 @@ export const useCatalogItems = () => {
 
       // 3. Parse JSON and reconstruct for transformer
       const itemData = JSON.parse(itemJson);
-      const variationData = variationJson ? JSON.parse(variationJson) : {};
+      logger.debug('CatalogItems::getProductById', 'Parsed item data before reconstruction', { 
+        itemId: itemData.id,
+        variationCount: variations.length,
+        hasPayload: !!itemData.item_data
+      });
 
       // Reconstruct CatalogObject (ensure structure matches transformer expectations)
        const reconstructedCatalogObject: Partial<CatalogObjectFromApi> & { id: string } = {
@@ -215,14 +286,14 @@ export const useCatalogItems = () => {
             ...(itemData.item_data || {}), // Spread item_data fields
             // Explicitly add reporting_category from the raw item data
             reporting_category: itemData?.item_data?.reporting_category, 
-             // Ensure variations array exists for transformer
-            variations: variationData.id ? [{
-              id: variationData.id, 
+          // Include ALL variations for transformer
+          variations: variations.map(v => ({
+            id: v.id,
               type: 'ITEM_VARIATION',
-              updated_at: variationData.updated_at, 
-              version: variationData.version, 
-              item_variation_data: variationData.item_variation_data // Pass variation data nested
-            }] : []
+            updated_at: v.updated_at,
+            version: v.version,
+            item_variation_data: v.item_variation_data
+          }))
           }
         };
 
@@ -231,6 +302,95 @@ export const useCatalogItems = () => {
 
       if (transformedItem) {
         logger.debug('CatalogItems::getProductById', 'Item successfully fetched and transformed from DB', { id });
+        logger.debug('CatalogItems::getProductById', 'Transformed item data check', {
+          itemId: transformedItem.id,
+          variationCount: transformedItem.variations?.length || 0,
+          variations: JSON.stringify(transformedItem.variations?.map(v => {
+            // Define proper type to avoid linter errors
+            type VariationWithOverrides = {
+              id?: string;
+              version?: number;
+              name: string | null;
+              sku: string | null;
+              price?: number;
+              barcode?: string;
+              locationOverrides?: Array<{
+                locationId: string;
+                locationName?: string;
+                price?: number;
+              }>;
+            };
+            
+            // Use type assertion to avoid linter errors
+            const variation = v as VariationWithOverrides;
+            
+            return {
+              id: variation.id,
+              name: variation.name,
+              hasOverrides: !!variation.locationOverrides,
+              overrideCount: variation.locationOverrides?.length || 0
+            };
+          }))
+        });
+
+        // Add location names to each override using default locations if the DB query fails
+        if (transformedItem.variations && transformedItem.variations.length > 0) {
+          try {
+            // Try to get locations from DB, fall back to defaults if error
+            let locations: {id: string, name: string}[] = [];
+            try {
+              locations = await db.getAllAsync<{id: string, name: string}>(
+                `SELECT id, name FROM locations WHERE is_deleted = 0`
+              );
+              logger.debug('CatalogItems::getProductById', 'Fetched locations for overrides', { locationCount: locations.length });
+            } catch (locDbError) {
+              logger.warn('CatalogItems::getProductById', 'Error fetching locations from DB, using defaults', { error: locDbError });
+              // Use default locations as fallback
+              locations = [
+                { id: 'L1', name: 'JOY 1 Redondo' },
+                { id: 'L2', name: 'JOY 1 Torrance' }
+              ];
+            }
+            
+            // Create a map for quick lookup
+            const locationMap = new Map<string, string>();
+            locations.forEach(loc => locationMap.set(loc.id, loc.name));
+            
+            // Update location names in overrides
+            transformedItem.variations = transformedItem.variations.map(variation => {
+              // Define proper type for variation with locationOverrides
+              type VariationWithOverrides = {
+                id?: string;
+                version?: number;
+                name: string | null;
+                sku: string | null;
+                price?: number;
+                barcode?: string;
+                locationOverrides?: Array<{
+                  locationId: string;
+                  locationName?: string;
+                  price?: number;
+                }>;
+              };
+              
+              // Cast variation to the proper type
+              const variationWithOverrides = variation as VariationWithOverrides;
+              
+              if (variationWithOverrides.locationOverrides) {
+                variationWithOverrides.locationOverrides = variationWithOverrides.locationOverrides.map(override => ({
+                  ...override,
+                  locationName: locationMap.get(override.locationId) || 'Unknown Location'
+                }));
+              }
+              return variationWithOverrides;
+            });
+            
+            logger.debug('CatalogItems::getProductById', 'Successfully added location names to overrides');
+          } catch (locError) {
+            logger.warn('CatalogItems::getProductById', 'Failed to add location names to overrides', { error: locError });
+          }
+        }
+        
         return transformedItem;
       } else {
          logger.warn('CatalogItems::getProductById', 'Failed to transform item fetched from DB', { id });
@@ -241,7 +401,6 @@ export const useCatalogItems = () => {
       logger.error('CatalogItems::getProductById', 'Error fetching item from DB', { id, error });
       return null;
     }
-
   }, [storeProducts]); // Dependency: only storeProducts
 
   // --- CREATE --- 
@@ -279,6 +438,14 @@ export const useCatalogItems = () => {
                     amount: Math.round(variation.price * 100),
                     currency: 'USD'
                   } : undefined,
+                  // Add location_overrides if they exist
+                  location_overrides: variation.locationOverrides?.map((override: any) => ({
+                    location_id: override.locationId,
+                    price_money: override.price !== undefined ? {
+                      amount: Math.round(override.price * 100),
+                      currency: 'USD'
+                    } : undefined
+                  })) || undefined
                 }
               }))
             : [{
@@ -286,8 +453,8 @@ export const useCatalogItems = () => {
             type: 'ITEM_VARIATION',
             item_variation_data: {
                   name: productData.variationName,
-              sku: productData.sku,
-              upc: productData.barcode,
+                  sku: productData.sku,
+                  upc: productData.barcode,
               pricing_type: productData.price !== undefined ? 'FIXED_PRICING' : 'VARIABLE_PRICING',
               price_money: productData.price !== undefined ? {
                 amount: Math.round(productData.price * 100),
@@ -408,7 +575,7 @@ export const useCatalogItems = () => {
     
     setProductsLoading(true);
     try {
-      // --- Reverted to Single Stage Update --- 
+      // --- Single Stage Update --- 
       const idempotencyKey = uuidv4();
       const squarePayload = {
         id: id, 
@@ -422,6 +589,16 @@ export const useCatalogItems = () => {
           
           // Construct the variations array for the single update call
           variations: (productData.variations || []).map((variation: any, index: number) => {
+            // Log location overrides if present
+            if (variation.locationOverrides && variation.locationOverrides.length > 0) {
+              logger.debug('CatalogItems::updateProductDirect', 'Processing variation with price overrides', { 
+                variationId: variation.id || `new-${index}`,
+                variationName: variation.name,
+                overrideCount: variation.locationOverrides.length,
+                overrides: JSON.stringify(variation.locationOverrides)
+              });
+            }
+            
             // Check if it's an existing variation (has id and version)
             if (variation.id && variation.version) {
               return { // Payload for EXISTING variation update
@@ -437,6 +614,14 @@ export const useCatalogItems = () => {
                     amount: Math.round(variation.price * 100),
                     currency: 'USD'
                   } : undefined,
+                  // Add location_overrides if they exist
+                  location_overrides: variation.locationOverrides?.map((override: any) => ({
+                    location_id: override.locationId,
+                    price_money: override.price !== undefined ? {
+                      amount: Math.round(override.price * 100),
+                      currency: 'USD'
+                    } : undefined
+                  })) || undefined
                 }
               };
             } else {
@@ -454,6 +639,14 @@ export const useCatalogItems = () => {
                     amount: Math.round(variation.price * 100),
                 currency: 'USD'
               } : undefined,
+                  // Add location_overrides for new variations too
+                  location_overrides: variation.locationOverrides?.map((override: any) => ({
+                    location_id: override.locationId,
+                    price_money: override.price !== undefined ? {
+                      amount: Math.round(override.price * 100),
+                      currency: 'USD'
+                    } : undefined
+                  })) || undefined
             }
               };
             }
@@ -507,12 +700,39 @@ export const useCatalogItems = () => {
         const retrievedResponse = await directSquareApi.retrieveCatalogObject(updatedId, true);
         if (retrievedResponse.success && retrievedResponse.data?.object) {
           const rawCatalogObject = retrievedResponse.data.object;
+          
+          // Log raw data returned from Square to debug missing overrides
+          if (rawCatalogObject.item_data && rawCatalogObject.item_data.variations) {
+            rawCatalogObject.item_data.variations.forEach((variation: any) => {
+              if (variation.item_variation_data && variation.item_variation_data.location_overrides) {
+                logger.debug('CatalogItems::updateProductDirect', 'Retrieved variation contains location overrides', {
+                  variationId: variation.id,
+                  overrideCount: variation.item_variation_data.location_overrides.length,
+                  overrides: JSON.stringify(variation.item_variation_data.location_overrides)
+                });
+              }
+            });
+          }
+          
           // Update local DB
           const db = await getDatabase();
           await upsertCatalogObjects([rawCatalogObject]);
 
           // Transform for UI state
           finalUpdatedItem = transformCatalogItemToItem(rawCatalogObject as any);
+          
+          // Log what comes out of the transformer
+          if (finalUpdatedItem && finalUpdatedItem.variations) {
+            logger.debug('CatalogItems::updateProductDirect', 'Transformed item contains variations with overrides', {
+              variationCount: finalUpdatedItem.variations.length,
+              variations: JSON.stringify(finalUpdatedItem.variations.map((v: any) => ({
+                id: v.id,
+                name: v.name,
+                hasOverrides: !!v.locationOverrides,
+                overrideCount: v.locationOverrides?.length || 0
+              })))
+            });
+          }
 
           // Update Zustand state
           if (finalUpdatedItem) {

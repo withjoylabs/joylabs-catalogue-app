@@ -4,7 +4,7 @@ import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import logger from '../../src/utils/logger';
+import logger from '../../../src/utils/logger';
 
 // Screen components are now routed via file system routing with Stack
 // import ProfileTab from './index';

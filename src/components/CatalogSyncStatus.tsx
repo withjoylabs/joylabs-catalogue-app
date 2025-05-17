@@ -1,11 +1,11 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, TextInput, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import * as modernDb from '../database/modernDb';
 import catalogSyncService from '../database/catalogSync';
 import { useSquareAuth } from '../hooks/useSquareAuth';
-import api from '../api';
+import api, { directSquareApi } from '../api';
 import logger from '../utils/logger';
 
 interface SyncStatus {
@@ -18,6 +18,12 @@ interface SyncStatus {
   syncAttempt: number;
 }
 
+interface LocationData {
+  id: string;
+  name: string;
+  data?: string; // JSON string with full location data
+}
+
 // Component that displays catalog sync status and controls
 export default function CatalogSyncStatus() {
   const [status, setStatus] = useState<SyncStatus | null>(null);
@@ -26,6 +32,9 @@ export default function CatalogSyncStatus() {
   const [isInspectingDb, setIsInspectingDb] = useState(false);
   const [dbItemCount, setDbItemCount] = useState({ categoryCount: 0, itemCount: 0 });
   const [isResettingDb, setIsResettingDb] = useState(false);
+  const [locations, setLocations] = useState<LocationData[]>([]);
+  const [isSyncingLocations, setIsSyncingLocations] = useState(false);
+  const [expandedLocationIds, setExpandedLocationIds] = useState<string[]>([]);
   const { hasValidToken } = useSquareAuth();
 
   // Initialize the sync service when component mounts
@@ -36,6 +45,7 @@ export default function CatalogSyncStatus() {
         await catalogSyncService.initialize();
         // After initialization, fetch the status immediately
         fetchSyncStatus();
+        fetchLocations();
       } catch (error) {
         logger.error('CatalogSyncStatus', 'Failed to initialize sync service', { error });
       }
@@ -43,6 +53,76 @@ export default function CatalogSyncStatus() {
     
     initializeSyncService();
   }, []);
+
+  // Fetch locations from database
+  const fetchLocations = async () => {
+    try {
+      const locationsData = await modernDb.getAllLocations();
+      
+      // Get full location data for each location
+      const enrichedLocations = await Promise.all(locationsData.map(async (location) => {
+        try {
+          // Get the full location data from the database
+          const db = await modernDb.getDatabase();
+          const fullLocationData = await db.getFirstAsync<{ data: string }>(
+            'SELECT data FROM locations WHERE id = ?', 
+            [location.id]
+          );
+          
+          return {
+            ...location,
+            data: fullLocationData?.data
+          };
+        } catch (error) {
+          logger.error('CatalogSyncStatus', `Failed to get full data for location ${location.id}`, { error });
+          return location;
+        }
+      }));
+      
+      setLocations(enrichedLocations);
+    } catch (error) {
+      logger.error('CatalogSyncStatus', 'Failed to fetch locations', { error });
+    }
+  };
+
+  // Toggle location expansion
+  const toggleLocationExpansion = (locationId: string) => {
+    setExpandedLocationIds(prevIds => {
+      if (prevIds.includes(locationId)) {
+        return prevIds.filter(id => id !== locationId);
+      } else {
+        return [...prevIds, locationId];
+      }
+    });
+  };
+
+  // Extract location details from the JSON string
+  const getLocationDetails = (locationData?: string) => {
+    if (!locationData) return null;
+    
+    try {
+      return JSON.parse(locationData);
+    } catch (error) {
+      logger.error('CatalogSyncStatus', 'Failed to parse location data', { error });
+      return null;
+    }
+  };
+
+  // Format business hours for display
+  const formatBusinessHours = (businessHours: any) => {
+    if (!businessHours || !businessHours.periods || !Array.isArray(businessHours.periods)) {
+      return 'No business hours available';
+    }
+    
+    const daysOfWeek = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+    const sortedPeriods = [...businessHours.periods].sort((a, b) => 
+      daysOfWeek.indexOf(a.day_of_week) - daysOfWeek.indexOf(b.day_of_week)
+    );
+    
+    return sortedPeriods.map(period => (
+      `${period.day_of_week}: ${period.start_local_time} - ${period.end_local_time}`
+    )).join('\n');
+  };
 
   // Fetch sync status from the database
   const fetchSyncStatus = async () => {
@@ -116,6 +196,7 @@ export default function CatalogSyncStatus() {
       logger.debug('CatalogSyncStatus', 'Component focused, fetching status once');
       // Just fetch the status once when the component gains focus
       fetchSyncStatus();
+      fetchLocations();
       
       // No polling interval - we'll only update when actions are taken
       return () => {
@@ -138,7 +219,7 @@ export default function CatalogSyncStatus() {
       // Immediately fetch status after starting sync to update UI
       setTimeout(() => {
         logger.debug('CatalogSyncStatus', 'Fetching status after starting sync');
-        fetchSyncStatus();
+      fetchSyncStatus();
       }, 500); // Short delay to let sync process start
       
     } catch (error) {
@@ -147,25 +228,224 @@ export default function CatalogSyncStatus() {
     }
   };
 
-  // Sync only categories - Comment out as method doesn't exist
-  /*
-  const syncCategoriesOnly = async () => {
+  // Sync only locations
+  const syncLocationsOnly = async () => {
     try {
       if (!hasValidToken) {
         Alert.alert('Auth Required', 'Please connect to Square first');
         return;
       }
       
-      await catalogSyncService.initialize();
-      // This method needs to be implemented in catalogSyncService if needed
-      // await catalogSyncService.syncCategories(); 
-      fetchSyncStatus();
+      setIsSyncingLocations(true);
+      
+      try {
+        logger.info('CatalogSyncStatus', 'Starting locations sync');
+        const response = await directSquareApi.fetchLocations();
+        
+        if (!response.success || !response.data) {
+          throw new Error('Failed to fetch locations from Square API');
+        }
+        
+        logger.debug('CatalogSyncStatus', 'Square locations response:', response.data);
+        
+        // Get locations array or handle locationCount format
+        let locations = [];
+        if (response.data.locations && Array.isArray(response.data.locations)) {
+          locations = response.data.locations;
+        } else if (response.data.locationCount > 0) {
+          // If response has locationCount but no locations array, we need to make a follow-up call
+          logger.info('CatalogSyncStatus', `Response indicates ${response.data.locationCount} locations exist but no locations array was returned`);
+          
+          // In this case, we'd typically make another API call to fetch details
+          throw new Error('API returned locationCount without locations array. Additional API calls needed to fetch location details.');
+        }
+        
+        if (locations.length === 0) {
+          logger.warn('CatalogSyncStatus', 'No locations returned from Square API');
+          Alert.alert('Warning', 'No locations found in your Square account');
+          setIsSyncingLocations(false);
+          return;
+        }
+        
+        logger.info('CatalogSyncStatus', `Fetched ${locations.length} locations from Square API`);
+        
+        try {
+          // Get the database
+          const db = await modernDb.getDatabase();
+          
+          // Ensure the locations table exists
+          await modernDb.ensureLocationsTable();
+          
+          // Check if is_deleted column exists
+          try {
+            const hasIsDeletedColumn = await db.getFirstAsync<{ count: number }>(
+              "SELECT COUNT(*) as count FROM pragma_table_info('locations') WHERE name = 'is_deleted'"
+            );
+            
+            if (!hasIsDeletedColumn || hasIsDeletedColumn.count === 0) {
+              logger.info('CatalogSyncStatus', 'Adding is_deleted column to locations table');
+              // Add the missing column
+              await db.runAsync("ALTER TABLE locations ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0");
+            }
+          } catch (columnCheckError) {
+            logger.error('CatalogSyncStatus', 'Error checking for is_deleted column', { error: columnCheckError });
+            // If we can't check/add the column, we'll need to proceed without using is_deleted
+          }
+          
+          // Process and store locations
+          await db.withTransactionAsync(async () => {
+            try {
+              // First attempt to mark all existing locations as deleted (if is_deleted column exists)
+              try {
+                await db.runAsync('UPDATE locations SET is_deleted = 1');
+              } catch (updateError) {
+                // If this fails, the column likely doesn't exist despite our check
+                logger.warn('CatalogSyncStatus', 'Could not update is_deleted flag, continuing without it', { error: updateError });
+              }
+              
+              // Insert/update each location from the API
+              for (const location of locations) {
+                try {
+                  // Format address as JSON string if it exists
+                  const addressStr = location.address ? JSON.stringify(location.address) : null;
+                  
+                  // Check if the location exists first
+                  const existingLocation = await db.getFirstAsync<{ id: string }>(
+                    'SELECT id FROM locations WHERE id = ?', [location.id]
+                  );
+                  
+                  if (existingLocation) {
+                    // Location exists - UPDATE
+                    await db.runAsync(`
+                      UPDATE locations SET
+                        name = ?,
+                        merchant_id = ?,
+                        address = ?,
+                        timezone = ?,
+                        phone_number = ?,
+                        business_name = ?,
+                        business_email = ?,
+                        website_url = ?,
+                        description = ?,
+                        status = ?,
+                        type = ?,
+                        created_at = ?,
+                        last_updated = ?,
+                        data = ?,
+                        is_deleted = 0
+                      WHERE id = ?
+                    `, [
+                      location.name || '',
+                      location.merchant_id || '',
+                      addressStr,
+                      location.timezone || null,
+                      location.phone_number || null,
+                      location.business_name || null,
+                      location.business_email || null,
+                      location.website_url || null,
+                      location.description || null,
+                      location.status || null,
+                      location.type || null,
+                      location.created_at || new Date().toISOString(),
+                      new Date().toISOString(),
+                      JSON.stringify(location),
+                      location.id
+                    ]);
+                  } else {
+                    // Location doesn't exist - INSERT
+                    try {
+                      // Try with is_deleted column
+                      await db.runAsync(`
+                        INSERT INTO locations (
+                          id, name, merchant_id, address, timezone,
+                          phone_number, business_name, business_email,
+                          website_url, description, status, type,
+                          created_at, last_updated, data, is_deleted
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                      `, [
+                        location.id || '',
+                        location.name || '',
+                        location.merchant_id || '',
+                        addressStr,
+                        location.timezone || null,
+                        location.phone_number || null,
+                        location.business_name || null,
+                        location.business_email || null,
+                        location.website_url || null,
+                        location.description || null,
+                        location.status || null,
+                        location.type || null,
+                        location.created_at || new Date().toISOString(),
+                        new Date().toISOString(),
+                        JSON.stringify(location),
+                        0 // Not deleted
+                      ]);
+                    } catch (insertError) {
+                      // If insert fails with is_deleted, try without it
+                      logger.warn('CatalogSyncStatus', `Error inserting with is_deleted, trying without it`, { locationId: location.id });
+                      
+                      await db.runAsync(`
+                        INSERT INTO locations (
+                          id, name, merchant_id, address, timezone,
+                          phone_number, business_name, business_email,
+                          website_url, description, status, type,
+                          created_at, last_updated, data
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                      `, [
+                        location.id || '',
+                        location.name || '',
+                        location.merchant_id || '',
+                        addressStr,
+                        location.timezone || null,
+                        location.phone_number || null,
+                        location.business_name || null,
+                        location.business_email || null,
+                        location.website_url || null,
+                        location.description || null,
+                        location.status || null,
+                        location.type || null,
+                        location.created_at || new Date().toISOString(),
+                        new Date().toISOString(),
+                        JSON.stringify(location)
+                      ]);
+                    }
+                  }
+                } catch (locationError) {
+                  // Log the error but continue with other locations
+                  logger.error('CatalogSyncStatus', `Error processing location ${location.id}`, { 
+                    error: locationError, 
+                    location: JSON.stringify(location)
+                  });
+                }
+              }
+              
+            } catch (transactionError) {
+              logger.error('CatalogSyncStatus', 'Error in transaction', { error: transactionError });
+              throw transactionError;
+            }
+          });
+          
+          logger.info('CatalogSyncStatus', `Successfully synced ${locations.length} locations to database`);
+          Alert.alert('Success', `Successfully synced ${locations.length} locations`);
+          
+          // Refresh locations in UI
+          fetchLocations();
+        } catch (dbError) {
+          logger.error('CatalogSyncStatus', 'Database error during location sync', { error: dbError });
+          Alert.alert('Error', 'Database error while syncing locations: ' + (dbError instanceof Error ? dbError.message : 'Unknown error'));
+        }
+      } catch (error) {
+        logger.error('CatalogSyncStatus', 'Error syncing locations', { error });
+        Alert.alert('Error', 'Failed to sync locations: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      } finally {
+        setIsSyncingLocations(false);
+      }
     } catch (error) {
-      logger.error('CatalogSyncStatus', 'Failed to sync categories', { error });
-      Alert.alert('Error', 'Failed to sync categories');
+      logger.error('CatalogSyncStatus', 'Failed to sync locations', { error });
+      Alert.alert('Error', 'Failed to sync locations');
+      setIsSyncingLocations(false);
     }
   };
-  */
 
   // Test API connectivity
   const testApi = async () => {
@@ -271,6 +551,95 @@ export default function CatalogSyncStatus() {
     );
   };
 
+  // Display locations section with expandable details
+  const renderLocationItem = (location: LocationData) => {
+    const isExpanded = expandedLocationIds.includes(location.id);
+    const locationDetails = getLocationDetails(location.data);
+    
+    return (
+      <View key={location.id} style={styles.locationItemContainer}>
+        <TouchableOpacity 
+          style={styles.locationItemHeader}
+          onPress={() => toggleLocationExpansion(location.id)}
+        >
+          <Text style={styles.locationItemName}>{location.name}</Text>
+          <Ionicons 
+            name={isExpanded ? "chevron-up" : "chevron-down"} 
+            size={20} 
+            color="#555"
+          />
+        </TouchableOpacity>
+        
+        {isExpanded && locationDetails && (
+          <View style={styles.locationDetailsContainer}>
+            {locationDetails.business_name && (
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Business Name:</Text>
+                <Text style={styles.detailValue}>{locationDetails.business_name}</Text>
+              </View>
+            )}
+            
+            {locationDetails.country && (
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Country:</Text>
+                <Text style={styles.detailValue}>{locationDetails.country}</Text>
+              </View>
+            )}
+            
+            {locationDetails.currency && (
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Currency:</Text>
+                <Text style={styles.detailValue}>{locationDetails.currency}</Text>
+              </View>
+            )}
+            
+            {locationDetails.website_url && (
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Website:</Text>
+                <Text style={styles.detailValue}>{locationDetails.website_url}</Text>
+              </View>
+            )}
+            
+            {locationDetails.business_email && (
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Email:</Text>
+                <Text style={styles.detailValue}>{locationDetails.business_email}</Text>
+              </View>
+            )}
+            
+            {locationDetails.business_hours && (
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Hours:</Text>
+                <Text style={styles.detailValue}>
+                  {formatBusinessHours(locationDetails.business_hours)}
+                </Text>
+              </View>
+            )}
+            
+            {locationDetails.phone_number && (
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Phone:</Text>
+                <Text style={styles.detailValue}>{locationDetails.phone_number}</Text>
+              </View>
+            )}
+            
+            {locationDetails.address && (
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Address:</Text>
+                <Text style={styles.detailValue}>
+                  {locationDetails.address.address_line_1}
+                  {locationDetails.address.address_line_2 ? `, ${locationDetails.address.address_line_2}` : ''}
+                  {`\n${locationDetails.address.locality}, ${locationDetails.address.administrative_district_level_1} ${locationDetails.address.postal_code}`}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  // Render the main component
   if (loading && !status) {
     return (
       <View style={styles.container}>
@@ -291,63 +660,64 @@ export default function CatalogSyncStatus() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerSection}>
-        <Text style={styles.headerText}>Catalog Sync Status</Text>
-        <View style={styles.headerActions}>
-          <TouchableOpacity 
-            onPress={fetchSyncStatus}
-            style={styles.refreshButton}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator size="small" color="#2196f3" />
-            ) : (
-              <Ionicons name="refresh-outline" size={20} color="#333" />
+      <ScrollView style={styles.scrollContainer}>
+        <View style={styles.headerSection}>
+          <Text style={styles.headerText}>Catalog Sync Status</Text>
+          <View style={styles.headerActions}>
+            <TouchableOpacity 
+              onPress={fetchSyncStatus}
+              style={styles.refreshButton}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#2196f3" />
+              ) : (
+                <Ionicons name="refresh-outline" size={20} color="#333" />
+              )}
+            </TouchableOpacity>
+            {status?.isSyncing && (
+              <View style={styles.syncingIndicator}>
+                <ActivityIndicator size="small" color="#2196f3" />
+                <Text style={styles.syncingText}>Syncing...</Text>
+              </View>
             )}
-          </TouchableOpacity>
-          {status?.isSyncing && (
-            <View style={styles.syncingIndicator}>
-              <ActivityIndicator size="small" color="#2196f3" />
-              <Text style={styles.syncingText}>Syncing...</Text>
-            </View>
-          )}
+          </View>
         </View>
-      </View>
 
       <View style={styles.statusSection}>
         <Text style={styles.label}>Last Sync:</Text>
         <Text style={styles.value}>{lastSyncText}</Text>
       </View>
 
-      {/* Add item count indicators */}
-      <View style={styles.statusSection}>
-        <Text style={styles.label}>Items in Database:</Text>
-        <Text style={styles.value}>{dbItemCount.itemCount}</Text>
-      </View>
+        {/* Item count indicators */}
+        <View style={styles.statusSection}>
+          <Text style={styles.label}>Items in Database:</Text>
+          <Text style={styles.value}>{dbItemCount.itemCount}</Text>
+        </View>
 
-      <View style={styles.statusSection}>
-        <Text style={styles.label}>Categories in Database:</Text>
-        <Text style={styles.value}>{dbItemCount.categoryCount}</Text>
-      </View>
+        <View style={styles.statusSection}>
+          <Text style={styles.label}>Categories in Database:</Text>
+          <Text style={styles.value}>{dbItemCount.categoryCount}</Text>
+        </View>
 
       {status?.isSyncing && (
-        <>
-          <View style={styles.statusSection}>
-            <Text style={styles.label}>Progress:</Text>
-            <Text style={styles.value}>
-              {status.syncProgress} / {status.syncTotal} ({syncProgress}%)
-            </Text>
-          </View>
-          
-          <View style={styles.progressBarContainer}>
-            <View 
-              style={[
-                styles.progressBar, 
-                { width: `${syncProgress}%` }
-              ]} 
-            />
-          </View>
-        </>
+          <>
+        <View style={styles.statusSection}>
+          <Text style={styles.label}>Progress:</Text>
+          <Text style={styles.value}>
+            {status.syncProgress} / {status.syncTotal} ({syncProgress}%)
+          </Text>
+        </View>
+            
+            <View style={styles.progressBarContainer}>
+              <View 
+                style={[
+                  styles.progressBar, 
+                  { width: `${syncProgress}%` }
+                ]} 
+              />
+            </View>
+          </>
       )}
 
       {status?.syncError && (
@@ -355,40 +725,41 @@ export default function CatalogSyncStatus() {
           <Text style={styles.errorText}>{status.syncError}</Text>
         </View>
       )}
-      
-      {!status?.isSyncing && !status?.syncError && status?.lastSyncTime && (
-        <View style={styles.statusMessageContainer}>
-          <Ionicons name="checkmark-circle" size={20} color="#4caf50" />
-          <Text style={styles.statusMessageText}>Sync completed successfully</Text>
-        </View>
-      )}
-      
-      {!status?.lastSyncTime && !status?.isSyncing && (
-        <View style={styles.statusMessageContainer}>
-          <Ionicons name="information-circle" size={20} color="#ff9800" />
-          <Text style={styles.statusMessageText}>Never synced</Text>
-        </View>
-      )}
+        
+        {!status?.isSyncing && !status?.syncError && status?.lastSyncTime && (
+          <View style={styles.statusMessageContainer}>
+            <Ionicons name="checkmark-circle" size={20} color="#4caf50" />
+            <Text style={styles.statusMessageText}>Sync completed successfully</Text>
+          </View>
+        )}
+        
+        {!status?.lastSyncTime && !status?.isSyncing && (
+          <View style={styles.statusMessageContainer}>
+            <Ionicons name="information-circle" size={20} color="#ff9800" />
+            <Text style={styles.statusMessageText}>Never synced</Text>
+          </View>
+        )}
 
       <View style={styles.buttonContainer}>
         <TouchableOpacity
-          style={[styles.button, status?.isSyncing && styles.buttonDisabled]}
+            style={[styles.button, status?.isSyncing ? styles.buttonDisabled : null]}
           onPress={startFullSync}
-          disabled={status?.isSyncing}
+            disabled={status?.isSyncing || !hasValidToken}
         >
           <Text style={styles.buttonText}>Full Sync</Text>
         </TouchableOpacity>
 
-        {/* Comment out Categories Only button */}
-        {/*
         <TouchableOpacity
-          style={[styles.button, status?.isSyncing && styles.buttonDisabled]}
-          onPress={syncCategoriesOnly}
-          disabled={status?.isSyncing}
+            style={[styles.button, isSyncingLocations ? styles.buttonDisabled : null]}
+            onPress={syncLocationsOnly}
+            disabled={isSyncingLocations || !hasValidToken}
         >
-          <Text style={styles.buttonText}>Categories Only</Text>
+            {isSyncingLocations ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Sync Locations</Text>
+            )}
         </TouchableOpacity>
-        */}
 
         <TouchableOpacity
           style={[styles.debugButton]}
@@ -411,7 +782,7 @@ export default function CatalogSyncStatus() {
             style={styles.debugActionButton}
             onPress={resetSync}
           >
-            <Text style={styles.buttonText}>Reset Sync Status</Text>
+              <Text style={styles.buttonText}>Reset Sync Status</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -425,21 +796,34 @@ export default function CatalogSyncStatus() {
               <Text style={styles.buttonText}>Inspect DB (First 10)</Text>
             )}
           </TouchableOpacity>
-          
-          {/* Add the complete database reset button */}
-          <TouchableOpacity
-            style={[styles.debugActionButton, styles.dangerButton, isResettingDb && styles.buttonDisabled]}
-            onPress={resetDatabase}
-            disabled={isResettingDb}
-          >
-            {isResettingDb ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Text style={styles.buttonText}>Reset ENTIRE Database</Text>
-            )}
-          </TouchableOpacity>
+            
+            {/* Add the complete database reset button */}
+            <TouchableOpacity
+              style={[styles.debugActionButton, styles.dangerButton, isResettingDb && styles.buttonDisabled]}
+              onPress={resetDatabase}
+              disabled={isResettingDb}
+            >
+              {isResettingDb ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>Reset ENTIRE Database</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Locations Section - Enhanced with expandable details */}
+        <View style={styles.locationsSection}>
+          <Text style={styles.sectionHeader}>Locations ({locations.length})</Text>
+          {locations.length === 0 ? (
+            <Text style={styles.noDataText}>No locations found</Text>
+          ) : (
+            <View style={styles.locationsList}>
+              {locations.map(location => renderLocationItem(location))}
+            </View>
+          )}
         </View>
-      )}
+      </ScrollView>
     </View>
   );
 }
@@ -447,9 +831,12 @@ export default function CatalogSyncStatus() {
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#fff',
-    padding: 16,
     borderRadius: 8,
-    marginBottom: 20,
+    flex: 1,
+  },
+  scrollContainer: {
+    flex: 1,
+    padding: 16,
   },
   headerSection: {
     flexDirection: 'row',
@@ -514,6 +901,7 @@ const styles = StyleSheet.create({
     flex: 1,
     marginHorizontal: 4,
     alignItems: 'center',
+    justifyContent: 'center', // Added to center activity indicator
   },
   buttonDisabled: {
     backgroundColor: '#bdbdbd',
@@ -545,18 +933,6 @@ const styles = StyleSheet.create({
     marginTop: 10,
     minHeight: 44,
   },
-  debugInput: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    marginTop: 15,
-    marginBottom: 10,
-    backgroundColor: '#fff',
-    fontSize: 14,
-    color: '#333',
-  },
   progressBarContainer: {
     height: 10,
     backgroundColor: '#e0e0e0',
@@ -580,5 +956,64 @@ const styles = StyleSheet.create({
   },
   dangerButton: {
     backgroundColor: '#d32f2f',
+  },
+  // Locations section styles
+  locationsSection: {
+    marginTop: 20,
+    paddingTop: 15,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+  },
+  sectionHeader: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    color: '#333',
+  },
+  noDataText: {
+    fontSize: 14,
+    color: '#666',
+    fontStyle: 'italic',
+    marginBottom: 10,
+  },
+  locationsList: {
+    marginTop: 5,
+  },
+  locationItemContainer: {
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
+  locationItemHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: '#f5f5f5',
+  },
+  locationItemName: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333',
+  },
+  locationDetailsContainer: {
+    padding: 12,
+    backgroundColor: '#fff',
+  },
+  detailRow: {
+    marginBottom: 8,
+  },
+  detailLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#444',
+    marginBottom: 2,
+  },
+  detailValue: {
+    fontSize: 14,
+    color: '#666',
   },
 }); 
