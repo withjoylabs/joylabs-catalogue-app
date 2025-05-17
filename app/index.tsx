@@ -47,6 +47,14 @@ function RootLayoutNav() {
   const autoSearchOnTab = useAppStore((state) => state.autoSearchOnTab);
   
   useEffect(() => {
+    // Log the settings when the component mounts and when they change
+    logger.info('Home::SettingsCheck', 'Current auto-search settings:', { 
+      autoSearchOnEnter,
+      autoSearchOnTab,
+    });
+  }, [autoSearchOnEnter, autoSearchOnTab]);
+  
+  useEffect(() => {
     logger.info('Home', 'Home screen mounted');
     // Focus the search input when the component mounts
     setTimeout(() => {
@@ -59,15 +67,21 @@ function RootLayoutNav() {
   // Also focus the search field when returning to this screen
   useFocusEffect(
     useCallback(() => {
-      // Focus the search input when the screen comes into focus
-      setTimeout(() => {
-        if (searchInputRef.current) {
-          searchInputRef.current.focus();
-        }
-      }, 300);
+      logger.info('Home::useFocusEffect', 'Screen focused, attempting to focus search input.');
+      // Attempt to focus directly without setTimeout
+      if (searchInputRef.current) {
+        logger.info('Home::useFocusEffect', 'searchInputRef.current is available, calling focus().');
+        searchInputRef.current.focus();
+      } else {
+        logger.warn('Home::useFocusEffect', 'searchInputRef.current is NULL when direct focus attempt was made.');
+      }
       
       return () => {
-        // Cleanup if needed
+        logger.info('Home::useFocusEffect', 'Screen lost focus.');
+        // Optional: blur input when screen loses focus
+        // if (searchInputRef.current) {
+        //   searchInputRef.current.blur();
+        // }
       };
     }, [])
   );
@@ -87,14 +101,26 @@ function RootLayoutNav() {
     return 'NAME';
   };
   
-  const handleSearch = async () => {
-    if (!search.trim()) return;
-    // Blur input when search starts
-    searchInputRef.current?.blur();
-    const query = search.trim();
+  const handleSearch = async (submittedValue?: string) => {
+    // Prioritize submittedValue if provided, otherwise use component's search state.
+    const valueToSearch = typeof submittedValue === 'string' ? submittedValue : search;
+    
+    logger.info('Home::handleSearch', `Search initiated. Source: ${typeof submittedValue === 'string' ? 'direct_submission' : 'state'}, Value: "${valueToSearch}"`);
+
+    if (!valueToSearch.trim()) {
+      logger.warn('Home::handleSearch', 'Search value is empty, aborting.');
+      return;
+    }
+    
+    // Blur input when search starts - check if searchInputRef.current exists
+    if (searchInputRef.current) {
+      searchInputRef.current.blur();
+    }
+    
+    const query = valueToSearch.trim();
     const queryType = getQueryType(query);
     
-    logger.info('Home', `Starting search - Type: ${queryType}`, { query });
+    logger.info('Home', `Processing search - Value: "${query}", Type: ${queryType}`);
     setIsSearching(true);
     
     try {
@@ -171,7 +197,7 @@ function RootLayoutNav() {
                // 3. Try navigating
                logger.info('Home', 'Navigating to item details', { itemId: localItemToUse.id });
                router.push(`/item/${localItemToUse.id}`);
-               setSearch(''); // Clear search only on successful navigation
+               setSearch(''); // Clear search input in UI
              } catch (navigationError) {
                logger.error('Home', 'Error navigating to item details', { error: navigationError, itemId: localItemToUse.id });
                throw navigationError; // Re-throw to be caught by outer catch
@@ -309,7 +335,7 @@ function RootLayoutNav() {
             };
             addScanHistoryItem(historyItem);
             router.push(`/item/${enrichedItem.id}`);
-            setSearch('');
+            setSearch(''); // Clear search input in UI
           } else {
             logger.warn('Home', 'API Search returned item but enrichment/transformation failed', { rawItem: foundRawItem });
             Alert.alert('Search Error', 'Found an item, but could not display its details.');

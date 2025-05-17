@@ -1,12 +1,13 @@
 import React, { forwardRef, useState, useRef, useEffect } from 'react';
-import { View, TextInput, TouchableOpacity, StyleSheet, Text, NativeSyntheticEvent, TextInputKeyPressEventData, TextInput as RNTextInput, Platform } from 'react-native';
+import { View, TextInput, TouchableOpacity, StyleSheet, Text, NativeSyntheticEvent, TextInputKeyPressEventData, TextInputChangeEventData, TextInput as RNTextInput, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { lightTheme } from '../themes';
+import logger from '../utils/logger'; // Assuming logger is correctly set up
 
 interface SearchBarProps {
   value: string;
   onChangeText: (text: string) => void;
-  onSubmit?: () => void;
+  onSubmit?: (submittedValue: string) => void;
   onClear?: () => void;
   placeholder?: string;
   autoSearchOnEnter: boolean;
@@ -27,68 +28,100 @@ const SearchBar = forwardRef<RNTextInput, SearchBarProps>((
 ) => {
   // Track if we're currently handling a barcode scan
   const isScanning = useRef(false);
-  const scanTimeout = useRef<NodeJS.Timeout | null>(null);
+  const scanEndTimeout = useRef<NodeJS.Timeout | null>(null);
+  const latestInputValueRef = useRef<string>(value); // Ref to store the latest input value synchronously
 
-  // Handle input change directly
-  const handleInputChange = (newInput: string) => {
-    // If the input is numeric and longer than 8 digits, assume it's a barcode scan
-    if (/^\d+$/.test(newInput) && newInput.length > 8) {
+  // Keep latestInputValueRef in sync if the prop value changes externally (e.g. parent clears it)
+  useEffect(() => {
+    latestInputValueRef.current = value;
+  }, [value]);
+
+  // Modified to handle event from onChange prop
+  const handleInputChange = (event: NativeSyntheticEvent<TextInputChangeEventData>) => {
+    const newInput = event.nativeEvent.text;
+    latestInputValueRef.current = newInput; // Update ref synchronously
+    
+    if (!isScanning.current && newInput.length > 4 && /^\d*\w*\d*$/.test(newInput)) {
       isScanning.current = true;
     }
-    onChangeText(newInput);
+    if (newInput.length === 0) {
+      isScanning.current = false;
+    }
+    onChangeText(newInput); // Call the parent's state updater (setSearch)
   };
   
+  // Clears any pending scan-end timeout
+  const clearPendingSubmit = () => {
+    if (scanEndTimeout.current) {
+      clearTimeout(scanEndTimeout.current);
+      scanEndTimeout.current = null;
+    }
+  };
+
   // Handle special keys like Tab or Enter
   const handleKeyPress = (e: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
-    // Basic Enter key handling
-    if (e.nativeEvent.key === 'Enter' && autoSearchOnEnter && onSubmit) {
-      onSubmit();
-    }
-    
-    // Tab key handling for barcode scanners
-    if (e.nativeEvent.key === 'Tab' && autoSearchOnTab && onSubmit) {
-      // @ts-ignore - preventDefault may not exist in React Native, but some scanners send it
-      if (e.preventDefault) e.preventDefault();
+    const key = e.nativeEvent.key;
+    // Conditional logging to see if this block is entered when flags are false
+    if ((key === 'Enter' && autoSearchOnEnter) || (key === 'Tab' && autoSearchOnTab)) {
+      logger.info('SearchBar::handleKeyPress', 'Enter/Tab auto-search condition met', { key, autoSearchOnEnter, autoSearchOnTab });
+      if (e.preventDefault && key === 'Tab') e.preventDefault();
+      clearPendingSubmit();
       
-      // Clear any existing timeout
-      if (scanTimeout.current) {
-        clearTimeout(scanTimeout.current);
-      }
+      // Capture the value from the SYNCHRONOUSLY updated ref
+      const valueToSubmit = latestInputValueRef.current;
       
-      // Set a timeout to allow the last character to be entered
-      // Increased to 100ms to be more reliable with different scanners
-      scanTimeout.current = setTimeout(() => {
-        if (onSubmit && isScanning.current) {
-          onSubmit();
-          isScanning.current = false;
+      logger.info('SearchBar::handleKeyPress', 'Scheduling timeout for Tab/Enter', { 
+        key,
+        valueCapturedFromRef: valueToSubmit 
+      });
+
+      scanEndTimeout.current = setTimeout(() => {
+        logger.info('SearchBar::handleKeyPress', `Timeout fired for ${key}. Submitting.`, { 
+          valueBeingSubmitted: valueToSubmit, // This value was from the ref at scheduling time
+          originalKey: key 
+        });
+
+        if (onSubmit) {
+          onSubmit(valueToSubmit); // Pass the value from the ref captured at scheduling
         }
-      }, 100);
+        isScanning.current = false; 
+      }, 50);
+    } else if (key === 'Enter' || key === 'Tab') {
+      // currentValue: value here refers to the value prop of the current render when this else branch is hit.
+      logger.info('SearchBar::handleKeyPress', 'Enter/Tab pressed, but auto-search flags are false or condition not met', { key, autoSearchOnEnter, autoSearchOnTab, currentValueFromProp: value, currentValueFromRef: latestInputValueRef.current });
     }
   };
   
   // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
-      if (scanTimeout.current) {
-        clearTimeout(scanTimeout.current);
-      }
+      clearPendingSubmit();
     };
   }, []);
   
-  // Handle pressing the GO button or submitting from keyboard
-  const handleSubmit = () => {
+  // This handleSubmit is for the search icon button
+  const handleSubmitFromIcon = () => {
+    clearPendingSubmit();
+    // For icon press, the user has paused, so the prop `value` should be up-to-date.
+    // Or, to be absolutely consistent, we could use latestInputValueRef.current here too.
+    // Let's use latestInputValueRef for consistency for now.
+    const valueToSubmit = latestInputValueRef.current;
+    logger.info('SearchBar::handleSubmitFromIcon', 'Submitting due to icon press', { submittedValue: valueToSubmit });
     if (onSubmit) {
-      onSubmit();
+      onSubmit(valueToSubmit);
     }
+    isScanning.current = false;
   };
   
   // Clear the input field
   const handleClear = () => {
+    latestInputValueRef.current = ''; // Clear ref
     onChangeText('');
     isScanning.current = false;
     if (onClear) {
       onClear();
     }
+    clearPendingSubmit(); // Also clear timeout if input is manually cleared
   };
 
   return (
@@ -99,10 +132,9 @@ const SearchBar = forwardRef<RNTextInput, SearchBarProps>((
           ref={ref}
           style={styles.input}
           value={value}
-          onChangeText={handleInputChange}
+          onChange={handleInputChange}
           placeholder={placeholder}
           placeholderTextColor="#999"
-          onSubmitEditing={handleSubmit}
           clearButtonMode="never"
           onKeyPress={handleKeyPress}
           blurOnSubmit={false}
@@ -117,7 +149,7 @@ const SearchBar = forwardRef<RNTextInput, SearchBarProps>((
         )}
         
         {value.length > 0 && (
-          <TouchableOpacity onPress={handleSubmit} style={styles.searchButton}>
+          <TouchableOpacity onPress={handleSubmitFromIcon} style={styles.searchButton}>
             <Ionicons name="arrow-forward-circle" size={24} color={lightTheme.colors.primary} />
           </TouchableOpacity>
         )}
@@ -155,7 +187,6 @@ const styles = StyleSheet.create({
   },
   clearButton: {
     padding: 4,
-    zIndex: 10, // Ensure our custom clear button is on top
   },
   searchButton: {
     padding: 4,
