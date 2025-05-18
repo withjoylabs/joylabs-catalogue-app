@@ -1,10 +1,11 @@
 import { StyleSheet } from 'react-native';
-import { lightTheme } from '../../../src/themes';
+import { lightTheme } from '../../src/themes';
 
 // Define interface for the styles
 interface ItemStyles {
   container: any;
   content: any;
+  scrollContentContainer: any;
   fieldContainer: any;
   loadingContainer: any;
   loadingText: any;
@@ -29,8 +30,8 @@ interface ItemStyles {
   checkboxContainer: any;
   checkboxIcon: any;
   checkboxLabel: any;
-  headerButton: any;
-  headerButtonText: any;
+  headerButton: any; // General header button, if used elsewhere
+  headerButtonText: any; // General header button text
   disabledText: any;
   bottomButtonsContainer: any;
   deleteButton: any;
@@ -56,18 +57,54 @@ interface ItemStyles {
   selectAllButtonTextSelected: any;
   noItemsText: any;
   highlightedText: any;
+  
+  // Custom Modal Header Styles
+  customHeaderContainer: any;
+  customHeaderLeftActions: any;
+  customHeaderTitleWrapper: any;
+  customHeaderTitle: any;
+  customHeaderButton: any; // Specifically for modal header buttons
+  customHeaderButtonText: any; // Specifically for modal header button text
+  customHeaderRightActions: any;
+  customHeaderSaveButton: any;
+  customHeaderSaveButtonText: any;
+
+  // Price Overrides Styles
   priceOverridesContainer: any;
   priceOverrideHeader: any;
   addPriceOverrideButton: any;
   addPriceOverrideButtonText: any;
-  priceOverrideRow: any;
-  priceOverrideInputContainer: any;
+  priceOverrideItemContainer: any;
+  priceOverrideInputWrapper: any;
   priceOverrideInput: any;
-  locationSelectorContainer: any;
+  priceOverrideLocationSelectorWrapper: any;
+  priceOverrideLocationButton: any;
+  priceOverrideLocationText: any;
+  priceOverrideLocationPlaceholder: any;
+  noLocationsText: any;
+  removePriceOverrideButton: any;
+  
+  // Legacy/Unused (can be removed if definitely not needed)
+  locationSelectorContainer: any; 
   locationSelector: any;
   locationSelectorText: any;
-  noLocationsText: any;
-  removeOverrideButton: any;
+  removeOverrideButton: any; 
+  priceOverrideRow: any;
+
+  // Delete Button Container
+  deleteButtonContainer: any;
+
+  // Modal Styles (for cancel confirmation)
+  centeredView: any;
+  modalView: any;
+  modalText: any;
+  modalButtonsContainer: any;
+  modalButton: any;
+  modalButtonPrimary: any;
+  modalButtonSecondary: any;
+  modalButtonText: any;
+  modalButtonTextPrimary: any;
+  modalButtonTextSecondary: any;
 }
 
 // Export the styles with type safety
@@ -79,6 +116,9 @@ export const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 16,
+  },
+  scrollContentContainer: {
+    paddingBottom: 100, 
   },
   fieldContainer: {
     marginBottom: 20,
@@ -159,6 +199,7 @@ export const styles = StyleSheet.create({
   currencySymbol: {
     fontSize: 16,
     color: '#333',
+    marginRight: 4,
   },
   priceInput: {
     flex: 1,
@@ -185,7 +226,6 @@ export const styles = StyleSheet.create({
     fontSize: 16,
     marginLeft: 8,
   },
-  
   selectorButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -203,7 +243,6 @@ export const styles = StyleSheet.create({
   placeholderText: {
     color: '#999',
   },
-  
   checkboxContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -216,12 +255,11 @@ export const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
   },
-  
-  headerButton: {
+  headerButton: { // General, if used elsewhere
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  headerButtonText: {
+  headerButtonText: { // General, if used elsewhere
     fontSize: 16,
     color: lightTheme.colors.primary,
     fontWeight: '500',
@@ -229,7 +267,6 @@ export const styles = StyleSheet.create({
   disabledText: {
     opacity: 0.5,
   },
-  
   bottomButtonsContainer: {
     padding: 16,
     borderTopWidth: 1,
@@ -237,60 +274,57 @@ export const styles = StyleSheet.create({
     backgroundColor: 'white',
   },
   deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#ff3b30',
     padding: 12,
     borderRadius: 5,
-    alignItems: 'center',
     marginTop: 10,
   },
   deleteButtonText: {
     color: 'white',
     fontSize: 16,
     fontWeight: '500',
+    marginLeft: 8,
   },
-  
-  // Category Selection styles
   recentCategoriesContainer: {
     marginTop: 10,
   },
   recentLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 8,
-    color: '#666',
+    fontSize: 13,
+    color: '#555',
+    marginBottom: 5,
   },
   recentCategoryChip: {
-    backgroundColor: '#f0f0f0',
-    borderRadius: 16,
-    paddingHorizontal: 12,
+    backgroundColor: '#e9e9e9',
+    borderRadius: 15,
     paddingVertical: 6,
+    paddingHorizontal: 12,
     marginRight: 8,
-    marginBottom: 8,
   },
   recentCategoryChipText: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#333',
   },
-  
-  // Variation related styles
   variationContainer: {
-    backgroundColor: '#f8f8f8',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
     borderRadius: 8,
     padding: 12,
     marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#eee',
+    backgroundColor: '#f9f9f9',
   },
   variationHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   variationTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: '#444',
   },
   variationHeaderButtons: {
     flexDirection: 'row',
@@ -299,10 +333,8 @@ export const styles = StyleSheet.create({
   inlinePrintButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'transparent',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
     marginRight: 8,
   },
   inlinePrintIcon: {
@@ -319,31 +351,29 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'transparent',
-    paddingVertical: 8,
+    paddingVertical: 10,
     paddingHorizontal: 12,
-    borderRadius: 4,
     borderWidth: 1,
-    borderStyle: 'dashed',
     borderColor: lightTheme.colors.primary,
+    borderStyle: 'dashed',
+    borderRadius: 5,
+    marginTop: 8,
   },
   addVariationText: {
-    fontSize: 14,
+    marginLeft: 8,
+    fontSize: 16,
     color: lightTheme.colors.primary,
-    marginLeft: 4,
   },
-  
-  // Section header styles
-  sectionHeader: {
+  sectionHeader: { 
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 8, 
   },
   selectAllButton: {
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 4,
+    paddingVertical: 5,
+    borderRadius: 5,
     borderWidth: 1,
     borderColor: lightTheme.colors.primary,
   },
@@ -351,125 +381,227 @@ export const styles = StyleSheet.create({
     backgroundColor: lightTheme.colors.primary,
   },
   selectAllButtonText: {
-    fontSize: 12,
+    fontSize: 13,
     color: lightTheme.colors.primary,
   },
   selectAllButtonTextSelected: {
     color: 'white',
   },
-  
   noItemsText: {
     fontSize: 14,
+    color: '#777',
     fontStyle: 'italic',
-    color: '#999',
     textAlign: 'center',
-    padding: 12,
+    marginTop: 10,
   },
-  
   highlightedText: {
-    backgroundColor: '#FFFF99',
     fontWeight: 'bold',
+    backgroundColor: lightTheme.colors.secondary, 
+    color: 'white',
   },
   
-  // Price Override styles - FIXED AND IMPROVED
-  priceOverridesContainer: {
-    marginTop: 16,
-    marginBottom: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#eeeeee',
-    paddingTop: 12,
-  },
-  priceOverrideHeader: {
+  // Custom Modal Header Styles
+  customHeaderContainer: {
     flexDirection: 'row',
-    justifyContent: 'flex-start',
-    marginBottom: 12,
     alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingTop: 12, // Adjust as needed for status bar height
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: lightTheme.colors.border,
+    backgroundColor: lightTheme.colors.card, // Or background
   },
-  addPriceOverrideButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 6,
-    backgroundColor: '#f0f8ff',
-    borderWidth: 1,
-    borderColor: lightTheme.colors.primary,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
-    elevation: 1,
+  customHeaderLeftActions: {
+    // e.g., minWidth: 60, to give some space for the Cancel button
+    justifyContent: 'flex-start',
   },
-  addPriceOverrideButtonText: {
+  customHeaderTitleWrapper: {
+    flex: 1, // Allows title to take up remaining space
+    justifyContent: 'center',
+    alignItems: 'center', // Centers title text horizontally
+  },
+  customHeaderTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: lightTheme.colors.text,
+    textAlign: 'center', // Ensures text itself is centered if it wraps
+  },
+  customHeaderButton: { // Style for individual header buttons (Cancel, Print, Save text container)
+    paddingHorizontal: 8, // Reduced from 10 for tighter fit if needed
+    paddingVertical: 5,
+  },
+  customHeaderButtonText: { 
+    fontSize: 17,
     color: lightTheme.colors.primary,
-    fontSize: 14,
     fontWeight: '500',
   },
-  priceOverrideRow: {
+  customHeaderRightActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
-    backgroundColor: '#fafafa',
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 6,
-    padding: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
-    elevation: 1,
+    justifyContent: 'flex-end',
+    // e.g., minWidth: 60, // To balance with left actions
   },
-  priceOverrideInputContainer: {
+  customHeaderSaveButton: { 
+    marginLeft: 10, // Space between Print icon and Save button
+  },
+  customHeaderSaveButtonText: { 
+    fontWeight: '600',
+    fontSize: 17, // Match cancel button text
+    color: lightTheme.colors.primary, 
+  },
+
+  // Price Overrides Styles
+  priceOverridesContainer: { 
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#eeeeee',
+    paddingTop: 10,
+  },
+  priceOverrideHeader: { 
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#555',
+    marginBottom: 8,
+  },
+  addPriceOverrideButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    width: 100,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: lightTheme.colors.secondary, 
+    borderRadius: 5,
+    alignSelf: 'flex-start', 
+  },
+  addPriceOverrideButtonText: {
+    fontSize: 14,
+    color: 'white', 
+    marginLeft: 4,
+  },
+  priceOverrideItemContainer: { 
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    paddingVertical: 4,
+  },
+  priceOverrideInputWrapper: { 
+    flexDirection: 'row',
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: '#ddd',
-    borderRadius: 4,
+    borderRadius: 5,
     backgroundColor: 'white',
-    paddingHorizontal: 8,
-    marginRight: 10,
-    height: 40,
+    paddingLeft: 8,
+    flex: 1, 
+    marginRight: 8,
   },
   priceOverrideInput: {
     flex: 1,
-    height: 38,
-    paddingHorizontal: 4,
-    fontSize: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    fontSize: 15,
   },
-  locationSelectorContainer: {
-    flex: 1,
-    height: 40,
+  priceOverrideLocationSelectorWrapper: { 
+    flex: 1.2, 
+    marginRight: 8,
   },
-  locationSelector: {
+  priceOverrideLocationButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: 1,
     borderColor: '#ddd',
+    borderRadius: 5,
+    paddingVertical: 10, 
+    paddingHorizontal: 8,
     backgroundColor: 'white',
-    borderRadius: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 0,
-    height: 40,
   },
-  locationSelectorText: {
-    fontSize: 14,
+  priceOverrideLocationText: {
+    fontSize: 15,
     color: '#333',
   },
-  noLocationsText: {
-    fontSize: 14,
+  priceOverrideLocationPlaceholder: {
     color: '#999',
+  },
+  noLocationsText: { 
+    fontSize: 14,
+    color: '#888',
     fontStyle: 'italic',
-    padding: 10,
+    paddingVertical: 10, 
   },
-  removeOverrideButton: {
-    padding: 8,
-    marginLeft: 8,
-    backgroundColor: '#fff5f5',
-    borderRadius: 20,
-    width: 36,
-    height: 36,
-    alignItems: 'center',
+  removePriceOverrideButton: {
+    padding: 5, 
+  },
+  
+  // Legacy/Unused (can be removed if not needed after verification)
+  locationSelectorContainer: {}, 
+  locationSelector: {},
+  locationSelectorText: {},
+  removeOverrideButton: {}, 
+  priceOverrideRow: {},
+
+  // Delete Button Container
+  deleteButtonContainer: { 
+    marginTop: 20,
+  },
+
+  // Modal Styles (for cancel confirmation)
+  centeredView: {
+    flex: 1,
     justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)', 
   },
-}) as ItemStyles; 
+  modalView: {
+    margin: 20,
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 25,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    width: '85%',
+  },
+  modalText: {
+    marginBottom: 20,
+    textAlign: 'center',
+    fontSize: 17,
+    lineHeight: 24,
+  },
+  modalButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between', 
+    width: '100%',
+  },
+  modalButton: {
+    borderRadius: 5,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    elevation: 2,
+    flex: 1, 
+    marginHorizontal: 5, 
+    alignItems: 'center', 
+  },
+  modalButtonPrimary: {
+    backgroundColor: lightTheme.colors.primary,
+  },
+  modalButtonSecondary: {
+    backgroundColor: '#e0e0e0', 
+  },
+  modalButtonText: {
+    fontWeight: 'bold',
+    textAlign: 'center',
+    fontSize: 15,
+  },
+  modalButtonTextPrimary: {
+    color: 'white',
+  },
+  modalButtonTextSecondary: {
+    color: '#333', 
+  },
+}) as unknown as ItemStyles; // Ensures stricter type checking by TypeScript

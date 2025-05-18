@@ -1,28 +1,127 @@
 import { StyleSheet } from 'react-native';
 import { lightTheme } from '../../src/themes';
 
-// Disable this file from being treated as a route
-export const unstable_settings = {
-  disableLayout: true,
+// Define interface for the styles
+interface ItemStyles {
+  container: any;
+  content: any;
+  scrollContentContainer: any;
+  fieldContainer: any;
+  loadingContainer: any;
+  loadingText: any;
+  errorContainer: any;
+  errorText: any;
+  errorButton: any;
+  errorButtonText: any;
+  label: any;
+  subLabel: any;
+  sectionHeaderText: any;
+  input: any;
+  textArea: any;
+  priceInputContainer: any;
+  currencySymbol: any;
+  priceInput: any;
+  helperText: any;
+  uploadButton: any;
+  uploadButtonText: any;
+  selectorButton: any;
+  selectorText: any;
+  placeholderText: any;
+  checkboxContainer: any;
+  checkboxIcon: any;
+  checkboxLabel: any;
+  headerButton: any; // General header button, if used elsewhere
+  headerButtonText: any; // General header button text
+  disabledText: any;
+  bottomButtonsContainer: any;
+  deleteButton: any;
+  deleteButtonText: any;
+  recentCategoriesContainer: any;
+  recentLabel: any;
+  recentCategoryChip: any;
+  recentCategoryChipText: any;
+  variationContainer: any;
+  variationHeader: any;
+  variationTitle: any;
+  variationHeaderButtons: any;
+  inlinePrintButton: any;
+  inlinePrintIcon: any;
+  inlinePrintButtonText: any;
+  removeVariationButton: any;
+  addVariationButton: any;
+  addVariationText: any;
+  sectionHeader: any;
+  selectAllButton: any;
+  selectAllButtonSelected: any;
+  selectAllButtonText: any;
+  selectAllButtonTextSelected: any;
+  noItemsText: any;
+  highlightedText: any;
+  
+  // Custom Modal Header Styles
+  customHeaderContainer: any;
+  customHeaderLeftActions: any;
+  customHeaderTitleWrapper: any;
+  customHeaderTitle: any;
+  customHeaderButton: any; // Specifically for modal header buttons
+  customHeaderButtonText: any; // Specifically for modal header button text
+  customHeaderRightActions: any;
+  customHeaderSaveButton: any;
+  customHeaderSaveButtonText: any;
+
+  // Price Overrides Styles
+  priceOverridesContainer: any;
+  priceOverrideHeader: any;
+  addPriceOverrideButton: any;
+  addPriceOverrideButtonText: any;
+  priceOverrideItemContainer: any;
+  priceOverrideInputWrapper: any;
+  priceOverrideInput: any;
+  priceOverrideLocationSelectorWrapper: any;
+  priceOverrideLocationButton: any;
+  priceOverrideLocationText: any;
+  priceOverrideLocationPlaceholder: any;
+  noLocationsText: any;
+  removePriceOverrideButton: any;
+  
+  // Legacy/Unused (can be removed if definitely not needed)
+  locationSelectorContainer: any; 
+  locationSelector: any;
+  locationSelectorText: any;
+  removeOverrideButton: any; 
+  priceOverrideRow: any;
+
+  // Delete Button Container
+  deleteButtonContainer: any;
+
+  // Modal Styles (for cancel confirmation)
+  centeredView: any;
+  modalView: any;
+  modalText: any;
+  modalButtonsContainer: any;
+  modalButton: any;
+  modalButtonPrimary: any;
+  modalButtonSecondary: any;
+  modalButtonText: any;
+  modalButtonTextPrimary: any;
+  modalButtonTextSecondary: any;
 }
 
-// Export a default empty function to satisfy Expo Router requirements
-export default function EmptyComponent() {
-  return null;
-}
-
+// Export the styles with type safety
 export const styles = StyleSheet.create({
-  // === Layout & Container Styles ===
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: lightTheme.colors.background,
   },
   content: {
     flex: 1,
     padding: 16,
   },
+  scrollContentContainer: {
+    paddingBottom: 100, 
+  },
   fieldContainer: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
   loadingContainer: {
     flex: 1,
@@ -30,50 +129,45 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
   },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: lightTheme.colors.primary,
+  },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
-
-  // === Typography Styles ===
+  errorText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: 'red',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  errorButton: {
+    backgroundColor: lightTheme.colors.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 5,
+  },
+  errorButtonText: {
+    color: 'white',
+    fontSize: 16,
+  },
   label: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '500',
     marginBottom: 8,
     color: '#333',
   },
   subLabel: {
     fontSize: 14,
     fontWeight: '500',
-    marginBottom: 6,
+    marginBottom: 8,
     color: '#555',
-  },
-  helperText: {
-    fontSize: 12,
-    color: '#777',
-    marginTop: 4,
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: '#555',
-  },
-  errorText: {
-    marginTop: 15,
-    fontSize: 16,
-    color: 'red',
-    textAlign: 'center',
-  },
-  disabledText: {
-    opacity: 0.5,
-  },
-  noItemsText: {
-    fontSize: 14,
-    color: '#777',
-    fontStyle: 'italic',
-    marginTop: 8,
   },
   sectionHeaderText: {
     fontSize: 18,
@@ -81,298 +175,78 @@ export const styles = StyleSheet.create({
     marginBottom: 12,
     color: '#333',
   },
-  modalItemText: {
-    fontSize: 16,
-    color: '#333',
-  },
-  modalItemSubText: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 2,
-  },
-  highlightedText: {
-    backgroundColor: 'rgba(0, 122, 255, 0.2)',
-    color: '#007AFF',
-  },
-  
-  // === Input Styles ===
   input: {
-    height: 44,
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    paddingHorizontal: 12,
+    borderColor: '#ddd',
+    borderRadius: 5,
+    padding: 12,
     fontSize: 16,
-    backgroundColor: '#fff',
+    backgroundColor: 'white',
   },
   textArea: {
     height: 100,
-    paddingTop: 10,
+    textAlignVertical: 'top',
   },
   priceInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 44,
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    backgroundColor: '#fff',
+    borderColor: '#ddd',
+    borderRadius: 5,
+    backgroundColor: 'white',
+    paddingLeft: 10,
   },
   currencySymbol: {
-    paddingHorizontal: 12,
     fontSize: 16,
     color: '#333',
+    marginRight: 4,
   },
   priceInput: {
     flex: 1,
-    height: '100%',
-    fontSize: 16,
-    paddingRight: 12,
-  },
-  searchInput: {
-    height: 40,
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    fontSize: 16,
-    backgroundColor: '#fff',
-    marginBottom: 12,
-  },
-  
-  // === Button Styles ===
-  headerButton: {
-    paddingHorizontal: 12,
-  },
-  headerButtonText: {
-    fontSize: 16,
-    color: lightTheme.colors.primary,
-    fontWeight: '500',
-  },
-  saveButton: {
-    color: lightTheme.colors.primary,
-    fontWeight: '600',
-  },
-  errorButton: {
-    marginTop: 20,
-    backgroundColor: lightTheme.colors.primary,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-  },
-  errorButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  closeButton: {
-    marginTop: 12,
-    backgroundColor: '#f2f2f2',
     padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  closeButtonText: {
-    color: '#333',
     fontSize: 16,
-    fontWeight: '500',
+  },
+  helperText: {
+    fontSize: 12,
+    color: '#777',
+    marginTop: 4,
+  },
+  uploadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: lightTheme.colors.primary,
+    borderRadius: 5,
+    padding: 10,
+    marginTop: 10,
+  },
+  uploadButtonText: {
+    color: lightTheme.colors.primary,
+    fontSize: 16,
+    marginLeft: 8,
   },
   selectorButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    height: 44,
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    backgroundColor: '#fff',
+    borderColor: '#ddd',
+    borderRadius: 5,
+    padding: 12,
+    backgroundColor: 'white',
   },
   selectorText: {
     fontSize: 16,
     color: '#333',
   },
-  selectAllButton: {
-    backgroundColor: '#f2f2f2',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    marginLeft: 'auto',
+  placeholderText: {
+    color: '#999',
   },
-  selectAllButtonSelected: {
-    backgroundColor: 'rgba(0, 122, 255, 0.2)',
-  },
-  selectAllButtonText: {
-    fontSize: 14,
-    color: '#333',
-  },
-  selectAllButtonTextSelected: {
-    color: lightTheme.colors.primary,
-  },
-  deleteButton: {
-    backgroundColor: '#ff3b30',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginVertical: 16,
-  },
-  deleteButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  discardButton: {
-    borderWidth: 1,
-    borderColor: '#ff3b30',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginVertical: 8,
-  },
-  discardButtonText: {
-    color: '#ff3b30',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  confirmButton: {
-    backgroundColor: '#007AFF',
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  confirmButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  
-  // === Modal Styles ===
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    width: '80%',
-    maxHeight: '70%',
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  variationModalContent: {
-    width: '80%',
-    maxHeight: '70%',
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  confirmModalContent: {
-    width: '80%',
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  modalSeparator: {
-    height: 1,
-    backgroundColor: '#eee',
-    marginVertical: 8,
-  },
-  modalItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f2f2f2',
-  },
-  emptyListText: {
-    padding: 20,
-    textAlign: 'center',
-    color: '#888',
-  },
-  
-  // === Variation Styles ===
-  variationContainer: {
-    marginBottom: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    backgroundColor: '#f9f9f9',
-  },
-  variationHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  variationHeaderButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  variationTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
-  removeVariationButton: {
-    padding: 4,
-    marginLeft: 8,
-  },
-  addVariationButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
-    padding: 8,
-  },
-  addVariationText: {
-    marginLeft: 6,
-    fontSize: 16,
-    color: lightTheme.colors.primary,
-  },
-  inlinePrintButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 6,
-    backgroundColor: 'rgba(0, 122, 255, 0.1)',
-    borderRadius: 6,
-    alignSelf: 'flex-start',
-  },
-  inlinePrintIcon: {
-    marginRight: 4,
-  },
-  inlinePrintButtonText: {
-    color: lightTheme.colors.primary,
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  
-  // === Checkbox & Selection Styles ===
   checkboxContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
+    marginBottom: 10,
   },
   checkboxIcon: {
     marginRight: 8,
@@ -381,72 +255,353 @@ export const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
   },
-  
-  // === Recent Categories Styles ===
-  recentCategoriesContainer: {
-    marginTop: 8,
+  headerButton: { // General, if used elsewhere
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  headerButtonText: { // General, if used elsewhere
+    fontSize: 16,
+    color: lightTheme.colors.primary,
+    fontWeight: '500',
+  },
+  disabledText: {
+    opacity: 0.5,
+  },
+  bottomButtonsContainer: {
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    backgroundColor: 'white',
+  },
+  deleteButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'wrap',
+    justifyContent: 'center',
+    backgroundColor: '#ff3b30',
+    padding: 12,
+    borderRadius: 5,
+    marginTop: 10,
+  },
+  deleteButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '500',
+    marginLeft: 8,
+  },
+  recentCategoriesContainer: {
+    marginTop: 10,
   },
   recentLabel: {
-    fontSize: 14,
-    color: '#666',
-    marginRight: 8,
+    fontSize: 13,
+    color: '#555',
+    marginBottom: 5,
   },
   recentCategoryChip: {
-    backgroundColor: '#f0f0f0',
-    padding: 8,
-    borderRadius: 20,
+    backgroundColor: '#e9e9e9',
+    borderRadius: 15,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
     marginRight: 8,
-    marginBottom: 8,
   },
   recentCategoryChipText: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#333',
   },
+  variationContainer: {
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    backgroundColor: '#f9f9f9',
+  },
+  variationHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  variationTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#444',
+  },
+  variationHeaderButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  inlinePrintButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    marginRight: 8,
+  },
+  inlinePrintIcon: {
+    marginRight: 4,
+  },
+  inlinePrintButtonText: {
+    fontSize: 14,
+    color: lightTheme.colors.primary,
+  },
+  removeVariationButton: {
+    padding: 4,
+  },
+  addVariationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: lightTheme.colors.primary,
+    borderStyle: 'dashed',
+    borderRadius: 5,
+    marginTop: 8,
+  },
+  addVariationText: {
+    marginLeft: 8,
+    fontSize: 16,
+    color: lightTheme.colors.primary,
+  },
+  sectionHeader: { 
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8, 
+  },
+  selectAllButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: lightTheme.colors.primary,
+  },
+  selectAllButtonSelected: {
+    backgroundColor: lightTheme.colors.primary,
+  },
+  selectAllButtonText: {
+    fontSize: 13,
+    color: lightTheme.colors.primary,
+  },
+  selectAllButtonTextSelected: {
+    color: 'white',
+  },
+  noItemsText: {
+    fontSize: 14,
+    color: '#777',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginTop: 10,
+  },
+  highlightedText: {
+    fontWeight: 'bold',
+    backgroundColor: lightTheme.colors.secondary, 
+    color: 'white',
+  },
   
-  // === Misc Styles ===
-  header: {
+  // Custom Modal Header Styles
+  customHeaderContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    paddingTop: 0,
-    backgroundColor: '#fff',
+    paddingHorizontal: 10,
+    paddingTop: 12, // Adjust as needed for status bar height
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: lightTheme.colors.border,
+    backgroundColor: lightTheme.colors.card, // Or background
   },
-  logo: {
-    width: 100,
-    height: 40,
-    resizeMode: 'contain',
+  customHeaderLeftActions: {
+    // e.g., minWidth: 60, to give some space for the Cancel button
+    justifyContent: 'flex-start',
   },
-  sectionHeader: {
+  customHeaderTitleWrapper: {
+    flex: 1, // Allows title to take up remaining space
+    justifyContent: 'center',
+    alignItems: 'center', // Centers title text horizontally
+  },
+  customHeaderTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: lightTheme.colors.text,
+    textAlign: 'center', // Ensures text itself is centered if it wraps
+  },
+  customHeaderButton: { // Style for individual header buttons (Cancel, Print, Save text container)
+    paddingHorizontal: 8, // Reduced from 10 for tighter fit if needed
+    paddingVertical: 5,
+  },
+  customHeaderButtonText: { 
+    fontSize: 17,
+    color: lightTheme.colors.primary,
+    fontWeight: '500',
+  },
+  customHeaderRightActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
+    // e.g., minWidth: 60, // To balance with left actions
+  },
+  customHeaderSaveButton: { 
+    marginLeft: 10, // Space between Print icon and Save button
+  },
+  customHeaderSaveButtonText: { 
+    fontWeight: '600',
+    fontSize: 17, // Match cancel button text
+    color: lightTheme.colors.primary, 
+  },
+
+  // Price Overrides Styles
+  priceOverridesContainer: { 
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#eeeeee',
+    paddingTop: 10,
+  },
+  priceOverrideHeader: { 
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#555',
     marginBottom: 8,
   },
-  separator: {
-    height: 1,
-    backgroundColor: '#f2f2f2',
-    marginVertical: 16,
+  addPriceOverrideButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: lightTheme.colors.secondary, 
+    borderRadius: 5,
+    alignSelf: 'flex-start', 
   },
-  imageContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 8,
-    backgroundColor: '#f2f2f2',
+  addPriceOverrideButtonText: {
+    fontSize: 14,
+    color: 'white', 
+    marginLeft: 4,
+  },
+  priceOverrideItemContainer: { 
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    paddingVertical: 4,
+  },
+  priceOverrideInputWrapper: { 
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 5,
+    backgroundColor: 'white',
+    paddingLeft: 8,
+    flex: 1, 
+    marginRight: 8,
+  },
+  priceOverrideInput: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    fontSize: 15,
+  },
+  priceOverrideLocationSelectorWrapper: { 
+    flex: 1.2, 
+    marginRight: 8,
+  },
+  priceOverrideLocationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 5,
+    paddingVertical: 10, 
+    paddingHorizontal: 8,
+    backgroundColor: 'white',
+  },
+  priceOverrideLocationText: {
+    fontSize: 15,
+    color: '#333',
+  },
+  priceOverrideLocationPlaceholder: {
+    color: '#999',
+  },
+  noLocationsText: { 
+    fontSize: 14,
+    color: '#888',
+    fontStyle: 'italic',
+    paddingVertical: 10, 
+  },
+  removePriceOverrideButton: {
+    padding: 5, 
+  },
+  
+  // Legacy/Unused (can be removed if not needed after verification)
+  locationSelectorContainer: {}, 
+  locationSelector: {},
+  locationSelectorText: {},
+  removeOverrideButton: {}, 
+  priceOverrideRow: {},
+
+  // Delete Button Container
+  deleteButtonContainer: { 
+    marginTop: 20,
+  },
+
+  // Modal Styles (for cancel confirmation)
+  centeredView: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)', 
   },
-  itemImage: {
+  modalView: {
+    margin: 20,
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 25,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    width: '85%',
+  },
+  modalText: {
+    marginBottom: 20,
+    textAlign: 'center',
+    fontSize: 17,
+    lineHeight: 24,
+  },
+  modalButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between', 
     width: '100%',
-    height: '100%',
-    borderRadius: 8,
   },
-  placeholderText: {
-    color: '#999',
-    fontSize: 12,
+  modalButton: {
+    borderRadius: 5,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    elevation: 2,
+    flex: 1, 
+    marginHorizontal: 5, 
+    alignItems: 'center', 
   },
-}); 
+  modalButtonPrimary: {
+    backgroundColor: lightTheme.colors.primary,
+  },
+  modalButtonSecondary: {
+    backgroundColor: '#e0e0e0', 
+  },
+  modalButtonText: {
+    fontWeight: 'bold',
+    textAlign: 'center',
+    fontSize: 15,
+  },
+  modalButtonTextPrimary: {
+    color: 'white',
+  },
+  modalButtonTextSecondary: {
+    color: '#333', 
+  },
+}) as unknown as ItemStyles; // Ensures stricter type checking by TypeScript

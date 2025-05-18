@@ -38,7 +38,7 @@ const fabStyles = StyleSheet.create({
 function CustomFabButton() {
   const router = useRouter();
   const pathname = usePathname();
-  const isItemDetails = pathname.startsWith('/(tabs)/item/');
+  const isItemDetails = pathname.startsWith('/item/');
   const triggerItemSave = useAppStore((state) => state.triggerItemSave);
 
   const handlePress = () => {
@@ -132,12 +132,6 @@ export default function MainTabsLayout() {
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'person' : 'person-outline'} size={24} color={color} />
           ),
-        }}
-      />
-      <Tabs.Screen
-        name="item" 
-        options={{
-          href: null,
         }}
       />
     </Tabs>

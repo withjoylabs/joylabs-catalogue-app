@@ -24,22 +24,19 @@ import { useRouter, useLocalSearchParams, Stack, useNavigation } from 'expo-rout
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 // import { useCategories } from '../../src/hooks'; // Commented out
-import { useCatalogItems } from '../../../src/hooks/useCatalogItems';
-import { ConvertedItem, ConvertedCategory } from '../../../src/types/api';
-import { lightTheme } from '../../../src/themes';
-import { getAllCategories, getAllTaxes, getAllModifierLists, getAllLocations } from '../../../src/database/modernDb';
-import { getRecentCategoryIds, addRecentCategoryId } from '../../../src/utils/recentCategories'; // Corrected path
-import { useAppStore } from '../../../src/store'; // Corrected path
-import logger from '../../../src/utils/logger';
-import { printItemLabel, LabelData, getLabelPrinterStatus } from '../../../src/utils/printLabel'; // Corrected path
+import { useCatalogItems } from '../../src/hooks/useCatalogItems';
+import { ConvertedItem, ConvertedCategory } from '../../src/types/api';
+import { lightTheme } from '../../src/themes';
+import { getAllCategories, getAllTaxes, getAllModifierLists, getAllLocations } from '../../src/database/modernDb';
+import { getRecentCategoryIds, addRecentCategoryId } from '../../src/utils/recentCategories';
+import { useAppStore } from '../../src/store';
+import logger from '../../src/utils/logger';
+import { printItemLabel, LabelData, getLabelPrinterStatus } from '../../src/utils/printLabel';
 import { styles } from './itemStyles';
-import CategorySelectionModal, { CategoryPickerItemType as ModalCategoryPickerItem } from '../../../src/components/modals/CategorySelectionModal'; // Corrected path
-import VariationPrintSelectionModal from '../../../src/components/modals/VariationPrintSelectionModal'; // Corrected path
-import PrintNotification from '../../../src/components/modals/PrintNotification'; // Corrected path
-import apiClient from '../../../src/api'; // Corrected path
-
-// Define type for category used in the picker
-// type CategoryPickerItem = { id: string; name: string }; // Now using ModalCategoryPickerItem or ensure consistency
+import CategorySelectionModal, { CategoryPickerItemType as ModalCategoryPickerItem } from '../../src/components/modals/CategorySelectionModal';
+import VariationPrintSelectionModal from '../../src/components/modals/VariationPrintSelectionModal';
+import PrintNotification from '../../src/components/modals/PrintNotification';
+import apiClient from '../../src/api';
 
 // Define type for Tax and Modifier List Pickers
 type TaxPickerItem = { id: string; name: string; percentage: string | null };
@@ -114,6 +111,7 @@ export default function ItemDetails() {
   const [isPrinting, setIsPrinting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showVariationModal, setShowVariationModal] = useState(false); // State for variation selection modal
+  const [printingVariationIndex, setPrintingVariationIndex] = useState<number | null>(null); // For inline print button loading state
   
   // State for print notification
   const [showPrintNotification, setShowPrintNotification] = useState(false);
@@ -460,38 +458,34 @@ export default function ItemDetails() {
     if (isEdited && !isEmpty()) {
       setShowCancelModal(true);
     } else {
-      // For both new and existing items, cancel should go to the root/scan tab.
-      router.replace('/'); 
+      router.back(); // Dismiss modal
     }
-  }, [isEdited, isEmpty, router, setShowCancelModal]); // isNewItem is implicitly handled by always going to '/'
+  }, [isEdited, isEmpty, router, setShowCancelModal]);
 
   const handleConfirmCancel = useCallback(() => {
     setShowCancelModal(false);
-    // For both new and existing items, cancel should go to the root/scan tab.
-    router.replace('/');
-  }, [router, setShowCancelModal]); // isNewItem is implicitly handled
+    router.back(); // Dismiss modal
+  }, [router, setShowCancelModal]);
 
   const handleSaveAction = useCallback(async () => {
     logger.info('ItemDetails:handleSaveAction', 'Save process initiated', { isNewItem, itemId: item.id });
     Keyboard.dismiss();
+    // setIsSavingPending(true); // This is handled by startTransition
 
     const currentItemForOptimisticUpdate = { ...item }; 
     const currentVariationsForOptimisticUpdate = variations.map(v => ({...v})); 
 
-    // setOptimisticItem(currentItemForOptimisticUpdate); // Moved inside startTransition
-    // setOptimisticVariations(currentVariationsForOptimisticUpdate); // Moved inside startTransition
-
     startTransition(async () => {
-      // Set optimistic state inside the transition
       setOptimisticItem(currentItemForOptimisticUpdate); 
       setOptimisticVariations(currentVariationsForOptimisticUpdate);
 
       logger.info('ItemDetails:handleSaveAction', 'Save transition started');
-    setError(null);
+      setError(null);
     
-      if (!(item.name && item.name.trim())) { // Ensure item.name is not null/empty before trimming
+      if (!(item.name && item.name.trim())) {
         Alert.alert('Error', 'Item name is required.');
         logger.warn('ItemDetails:handleSaveAction', 'Save aborted: Item name missing');
+        // setIsSavingPending(false); // Handled by transition
         return; 
       }
 
@@ -505,17 +499,16 @@ export default function ItemDetails() {
           variations: variations.map(v => ({
           id: v.id,
           version: v.version,
-          name: v.name as (string | null), // Explicit cast to help linter
+          name: v.name as (string | null), 
             price: v.price,
-          sku: v.sku as (string | null), // Explicit cast
+          sku: v.sku as (string | null), 
           barcode: v.barcode || null, 
-          // Include location overrides if they exist
           location_overrides: v.locationOverrides?.length 
             ? v.locationOverrides.filter(override => override.locationId && override.price !== undefined)
               .map(override => ({
                 location_id: override.locationId,
                 price_money: {
-                  amount: Math.round(Number(override.price) * 100), // Convert dollars to cents
+                  amount: Math.round(Number(override.price) * 100),
                   currency: 'USD'
                 }
               }))
@@ -533,13 +526,12 @@ export default function ItemDetails() {
       
       if (isNewItem) {
         delete submissionPayload.id;
-        // `version` is optional in ConvertedItem and not needed for new Square items.
-        // It will be assigned by Square upon creation.
         delete submissionPayload.version; 
       } else {
-        // For updates, ensure id and version are definitely present and correct.
         if (!originalItem?.id || typeof item.version !== 'number') {
           logger.error('ItemDetails:handleSaveAction', 'Missing id or version for update', { originalItem, itemVersion: item.version });
+          setError('Cannot update item: missing ID or version.');
+          // setIsSavingPending(false); // Handled by transition
           throw new Error('Cannot update item: missing ID or version.');
         }
         submissionPayload.id = originalItem.id; 
@@ -551,9 +543,8 @@ export default function ItemDetails() {
 
         if (isNewItem) {
           logger.info('ItemDetails:handleSaveAction', 'Creating new product with payload:', submissionPayload);
-          savedItemResponse = await createProduct(submissionPayload); // createProduct takes `any`
+          savedItemResponse = await createProduct(submissionPayload);
         } else { 
-          // submissionPayload here should now have a definite id and version from the block above.
           logger.info('ItemDetails:handleSaveAction', `Updating product ID ${submissionPayload.id} with payload:`, submissionPayload);
           savedItemResponse = await updateProduct(submissionPayload.id, submissionPayload as ConvertedItem);
       }
@@ -561,17 +552,10 @@ export default function ItemDetails() {
         if (savedItemResponse) {
           const finalSavedItem: ConvertedItem = savedItemResponse; 
           logger.info('ItemDetails:handleSaveAction', 'Product saved successfully to backend', { savedItemId: finalSavedItem.id });
-          setItem(finalSavedItem); 
-          setOriginalItem(finalSavedItem); 
-          setVariations(finalSavedItem.variations || []); 
-        setIsEdited(false);
+          setIsEdited(false);
         
           Alert.alert('Success', `Item ${item.name || 'Selected Item'} ${isNewItem ? 'created' : 'updated'} successfully.`);
-          if (navigation.canGoBack()) {
-            navigation.goBack();
-          } else {
-            router.replace('/');
-          }
+          router.back(); // Dismiss modal on success
         } else {
           logger.error('ItemDetails:handleSaveAction', 'Save operation completed but no saved item data was returned.');
           setError('Save operation failed: No item data returned. Please try again.');
@@ -582,29 +566,25 @@ export default function ItemDetails() {
         logger.error('ItemDetails:handleSaveAction', 'Error saving product during transition:', { error: errorMessage, details: e });
         setError(errorMessage);
         Alert.alert('Save Error', errorMessage);
-        // If an error occurs, React automatically reverts optimistic updates tied to this transition.
-        // You might want to explicitly reset 'item' to 'originalItem' here if the optimistic state was very different
-        // and you don't want the user to see it anymore.
-        // Example: if (originalItem) setItem(originalItem);
-      }
+      } 
+      // finally { // isSavingPending is automatically managed by useTransition
+      //   // setIsSavingPending(false); 
+      // }
     });
     logger.info('ItemDetails:handleSaveAction', 'Save process function call ended (transition may still be pending)');
   }, [
     item, 
     variations, 
     isNewItem, 
-    id, // original id from params for update target
-    originalItem, // for version and id for update
+    id, 
+    originalItem, 
     createProduct, 
     updateProduct, 
-    setOptimisticItem, // Added
-    setOptimisticVariations, // Added
-    startTransition, // Added
+    setOptimisticItem, 
+    setOptimisticVariations, 
+    startTransition, 
     setError, 
-    setItem, 
-    setOriginalItem, 
     setIsEdited, 
-    navigation, // Added router from previous dependencies
     router
   ]);
   
@@ -624,75 +604,63 @@ export default function ItemDetails() {
         ]);
 
         setAvailableCategories(fetchedCategories);
-        setFilteredCategories(fetchedCategories); // Initialize filtered category list
+        setFilteredCategories(fetchedCategories); 
         setAvailableTaxes(fetchedTaxes);
         setAvailableModifierLists(fetchedModifierLists);
         setAvailableLocations(fetchedLocations);
         
-        // Log available categories for debugging
         console.log('[ItemDetails] Available Categories:', JSON.stringify(fetchedCategories.map(c => ({id: c.id, name: c.name})), null, 2));
         
-        // Check if all available taxes are initially selected in the item
         const initialTaxIdsSet = new Set(item?.taxIds || []);
         const allFetchedTaxIds = new Set(fetchedTaxes.map(tax => tax.id));
         const areAllSelected = fetchedTaxes.length > 0 && fetchedTaxes.every(tax => initialTaxIdsSet.has(tax.id));
         setAllTaxesSelected(Boolean(areAllSelected));
         
-        // Fetch recent category IDs and map them to full category objects
         const recentIds = await getRecentCategoryIds();
         const recentCategoryObjects = recentIds
           .map(id => fetchedCategories.find(cat => cat.id === id))
-          .filter((cat): cat is ModalCategoryPickerItem => cat !== undefined); // Remove undefined if ID not found
+          .filter((cat): cat is ModalCategoryPickerItem => cat !== undefined); 
         setRecentCategories(recentCategoryObjects);
         
-        // Fetch item data if not a new item
         if (!isNewItem && typeof id === 'string') {
           const fetchedItem = await getProductById(id);
           if (fetchedItem) {
-            // Ensure reporting_category_id is set from fetched data
-            // Try to get it from reporting_category.id OR directly from reporting_category_id
-            console.log('[ItemDetails] Fetched Item Data:', JSON.stringify(fetchedItem, null, 2)); // Log fetched item
+            console.log('[ItemDetails] Fetched Item Data:', JSON.stringify(fetchedItem, null, 2)); 
             const initialReportingCategoryId = (fetchedItem as any).reporting_category?.id || fetchedItem.reporting_category_id || '';
-            console.log('[ItemDetails] Initial Reporting Category ID:', initialReportingCategoryId); // Log extracted ID
+            console.log('[ItemDetails] Initial Reporting Category ID:', initialReportingCategoryId); 
             
-            // Extract initial Tax IDs (assuming fetchedItem has taxIds)
             const initialTaxIds = fetchedItem.taxIds || [];
-            
-            // Extract initial Modifier List IDs
-            // Assumes transformCatalogItemToItem sets modifierListIds based on modifier_list_info
             const initialModifierListIds = fetchedItem.modifierListIds || [];
-            
-            // Extract the version from the fetched item
             const initialVersion = fetchedItem.version; 
             
             const itemWithReportingId = { 
               ...fetchedItem, 
-              version: initialVersion, // Ensure version is stored in state
+              version: initialVersion, 
               reporting_category_id: initialReportingCategoryId,
-              taxIds: initialTaxIds, // Ensure taxIds are set in the state
-              modifierListIds: initialModifierListIds // Ensure Modifier IDs are set
+              taxIds: initialTaxIds, 
+              modifierListIds: initialModifierListIds 
             };
             setItem(itemWithReportingId);
             setOriginalItem(itemWithReportingId); 
             
-            // Initialize variations from the fetched item
-            // If no variations exist, create a default one
             const itemVariations = fetchedItem.variations && Array.isArray(fetchedItem.variations) && fetchedItem.variations.length > 0
               ? fetchedItem.variations.map(v => ({
-                  id: v.id,
-                  version: v.version,
-                  name: v.name || null,
-                  sku: v.sku || null,
-                  price: v.price,
-                  barcode: v.barcode
+                  id: (v as ItemVariation).id,
+                  version: (v as ItemVariation).version,
+                  name: (v as ItemVariation).name || null,
+                  sku: (v as ItemVariation).sku || null,
+                  price: (v as ItemVariation).price,
+                  barcode: (v as ItemVariation).barcode,
+                  locationOverrides: (v as ItemVariation).locationOverrides // Pass locationOverrides through
                 }))
               : [{
-                  id: fetchedItem.variationId,
+                  id: fetchedItem.variationId, // This might be from an older structure
                   version: fetchedItem.variationVersion,
                   name: fetchedItem.variationName || null,
                   sku: fetchedItem.sku || null,
                   price: fetchedItem.price,
-                  barcode: fetchedItem.barcode
+                  barcode: fetchedItem.barcode,
+                  // No locationOverrides for this fallback structure by default
                 }];
             
             setVariations(itemVariations);
@@ -703,6 +671,13 @@ export default function ItemDetails() {
         } else if (isNewItem) {
           setItem(EMPTY_ITEM);
           setOriginalItem(null);
+          // Initialize with one default variation for new items
+          setVariations([{
+            name: 'Regular',
+            sku: '',
+            price: undefined,
+            barcode: ''
+          }]);
         } else {
           setError('Invalid Item ID');
           setItem(EMPTY_ITEM);
@@ -711,7 +686,7 @@ export default function ItemDetails() {
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load data');
         console.error('Error fetching initial data:', err);
-        setItem(EMPTY_ITEM); // Reset item on error
+        setItem(EMPTY_ITEM);
       } finally {
         setIsLoading(false);
       }
@@ -719,57 +694,6 @@ export default function ItemDetails() {
     
     fetchInitialData();
   }, [id, getProductById, isNewItem]);
-  
-  // Effect to update header options dynamically
-  useEffect(() => {
-    navigation.setOptions({
-      title: isNewItem ? 'Add New Item' : 'Edit Item',
-      headerLeft: () => (
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={handleCancel}
-          disabled={isSavingPending || isPrinting}
-        >
-          <Text style={[styles.headerButtonText, (isSavingPending || isPrinting) && styles.disabledText]}>
-            Cancel
-          </Text>
-        </TouchableOpacity>
-      ),
-      headerRight: () => (
-        <View /* style={styles.headerRightContainer} // Temporarily removed */ >
-          {!isNewItem && (
-        <TouchableOpacity
-          style={styles.headerButton}
-              onPress={handlePrintLabel}
-              disabled={isSavingPending || isPrinting}
-        >
-              {(isSavingPending || isPrinting) ? (
-            <ActivityIndicator size="small" color={lightTheme.colors.primary} />
-          ) : (
-                <Text style={[styles.headerButtonText, (isSavingPending || isPrinting) && styles.disabledText]}>
-                  Print Label
-                </Text>
-              )}
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity
-              style={[
-              styles.headerButton,
-              (isSavingPending || isPrinting) && styles.disabledText
-            ]}
-            onPress={handleSaveAction}
-            disabled={isSavingPending || isPrinting}
-          >
-            {(isSavingPending) ? (
-              <ActivityIndicator size="small" color={lightTheme.colors.primary} />
-            ) : (
-              <Text style={[styles.headerButtonText, /* styles.saveButtonText // Temporarily use headerButtonText if saveButtonText is missing */]}>Save</Text>
-          )}
-        </TouchableOpacity>
-        </View>
-      ),
-    });
-  }, [navigation, isNewItem, isSavingPending, isPrinting, handleCancel, handlePrintLabel, handleSaveAction]);
   
   // Filter categories when search text changes
   useEffect(() => {
@@ -788,32 +712,36 @@ export default function ItemDetails() {
   useEffect(() => {
     // 1. Calculate 'all taxes selected' state
     let areAllSelected = false;
-    // Ensure calculation only happens when necessary arrays are populated
     if (item && availableTaxes && availableTaxes.length > 0) {
         const currentTaxIdsSet = new Set(item.taxIds || []);
-        // Check if every available tax ID is present in the item's tax IDs
         areAllSelected = availableTaxes.every(tax => currentTaxIdsSet.has(tax.id));
     }
-    // Set the state - areAllSelected is guaranteed to be boolean here
     setAllTaxesSelected(areAllSelected);
 
     // 2. Calculate 'isEdited' state
-    let calculatedIsEdited: boolean | undefined = undefined; // Start as undefined
+    let calculatedIsEdited = false; 
 
-    if (isNewItem && item) {
-       // Check if any field has changed from the empty state for a new item
-       calculatedIsEdited =
-          !!(item.name && item.name.trim()) ||
-          !!(item.sku && item.sku.trim()) ||
-          item.price !== undefined ||
-          !!(item.description && item.description.trim()) ||
-          !!item.reporting_category_id ||
-          (item.taxIds && item.taxIds.length > 0) ||
-          (item.modifierListIds && item.modifierListIds.length > 0);
-    } else if (item && originalItem) { // Only compare if both item and originalItem exist
-        // Compare sorted arrays to ignore order differences
+    if (isNewItem) {
+        if (item) { // Ensure item is not null
+            const defaultNewVariations = [{ name: 'Regular', sku: '', price: undefined, barcode: '' }];
+            const variationsChanged = JSON.stringify(variations) !== JSON.stringify(defaultNewVariations);
+            
+            calculatedIsEdited =
+                !!(item.name && item.name.trim()) ||
+                !!(item.sku && item.sku.trim()) || // SKU at top level is likely not for new item, but for variations
+                item.price !== undefined || // Price at top level is likely not for new item
+                !!(item.description && item.description.trim()) ||
+                !!item.reporting_category_id ||
+                (item.taxIds && item.taxIds.length > 0) ||
+                (item.modifierListIds && item.modifierListIds.length > 0) ||
+                variationsChanged; // Check if variations changed from default
+        }
+    } else if (item && originalItem) {
         const taxIdsChanged = JSON.stringify(originalItem.taxIds?.sort() || []) !== JSON.stringify(item.taxIds?.sort() || []);
         const modifierIdsChanged = JSON.stringify(originalItem.modifierListIds?.sort() || []) !== JSON.stringify(item.modifierListIds?.sort() || []);
+        const variationsChanged = JSON.stringify(originalItem.variations?.map(v => ({...(v as ItemVariation), locationOverrides: (v as ItemVariation).locationOverrides?.slice().sort((a: {locationId: string},b: {locationId: string}) => a.locationId.localeCompare(b.locationId))})).sort((a: ItemVariation,b: ItemVariation) => (a.id || '').localeCompare(b.id || '')) || []) !== 
+                                JSON.stringify(variations?.map(v => ({...(v as ItemVariation), locationOverrides: (v as ItemVariation).locationOverrides?.slice().sort((a: {locationId: string},b: {locationId: string}) => a.locationId.localeCompare(b.locationId))})).sort((a: ItemVariation,b: ItemVariation) => (a.id || '').localeCompare(b.id || '')) || []);
+
 
         calculatedIsEdited =
           originalItem.name !== item.name ||
@@ -822,14 +750,13 @@ export default function ItemDetails() {
           originalItem.description !== item.description ||
           originalItem.reporting_category_id !== item.reporting_category_id ||
           taxIdsChanged ||
-          modifierIdsChanged;
+          modifierIdsChanged ||
+          variationsChanged; // Include variations in edit check
     }
     
-     // Set the state - Use the calculated value, defaulting to false if undefined
-    setIsEdited(calculatedIsEdited === undefined ? false : calculatedIsEdited);
+    setIsEdited(calculatedIsEdited);
 
-  // Dependencies: Recalculate whenever the item, original item, or available taxes change
-  }, [item, originalItem, isNewItem, availableTaxes]);
+  }, [item, originalItem, variations, isNewItem, availableTaxes]); // Added variations to dependencies
   
   // Update a field in the item state
   const updateItem = (key: keyof ConvertedItem, value: any) => {
@@ -887,7 +814,6 @@ export default function ItemDetails() {
       newTaxIds = availableTaxes.map(tax => tax.id);
     }
     updateItem('taxIds', newTaxIds);
-    setAllTaxesSelected(!allTaxesSelected);
   };
   
   // Get the current category name for display, handle loading state
@@ -898,6 +824,9 @@ export default function ItemDetails() {
     if (categoryId) {
       const found = availableCategories.find(c => c.id === categoryId);
       if (found) {
+        if (originalItem?.reporting_category_id !== categoryId) { // Check if recently changed
+             addRecentCategoryId(categoryId);
+        }
         return found.name;
       } else {
         console.warn(`[ItemDetails SelectedCategory] Category ID "${categoryId}" found in item but NOT in availableCategories list!`);
@@ -905,18 +834,19 @@ export default function ItemDetails() {
       }
     }
     return 'Select Category'; // No ID set
-  }, [item.reporting_category_id, availableCategories, isLoading]);
+  }, [item.reporting_category_id, availableCategories, isLoading, originalItem]);
   
   // Handle selecting a category
   const handleSelectCategory = (categoryId: string) => {
     updateItem('reporting_category_id', categoryId); 
+    addRecentCategoryId(categoryId); // Also add to recent when selected this way
     setShowCategoryModal(false);
     setCategorySearch(''); // Reset search on selection
   };
   
   // Handle delete button press
   const handleDelete = useCallback(async () => {
-    if (!item?.id) return;
+    if (!item?.id || isNewItem) return; // Do not allow delete for new items
 
     Alert.alert(
       'Delete Item',
@@ -931,14 +861,9 @@ export default function ItemDetails() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await deleteProduct(item.id);
+              await deleteProduct(item.id as string); // Ensure item.id is passed as string
               Alert.alert('Success', 'Item deleted successfully');
-              if (navigation.canGoBack()) {
-                navigation.goBack();
-              } else {
-                // Fallback if cannot go back (e.g., deep link)
-                router.push('/'); // Navigate to the root route
-              }
+              router.back(); // Dismiss modal on delete
             } catch (error: any) {
               console.error('Error deleting item:', error);
               Alert.alert('Error', `Error deleting item: ${error.message}`);
@@ -948,7 +873,7 @@ export default function ItemDetails() {
       ],
       { cancelable: true } // Allow dismissing by tapping outside on Android
     );
-  }, [item, deleteProduct, navigation, router]);
+  }, [item, deleteProduct, router, isNewItem]);
   
   // Render component for matching text in search results
   const highlightMatchingText = (text: string, query: string) => {
@@ -977,15 +902,12 @@ export default function ItemDetails() {
   // Effect to listen for global save triggers from the bottom tab bar
   useEffect(() => {
     if (itemSaveTriggeredAt && itemSaveTriggeredAt !== lastProcessedSaveTrigger.current) {
-      // Update ref to prevent processing the same trigger multiple times
       lastProcessedSaveTrigger.current = itemSaveTriggeredAt;
-      
-      // Only save if the item has actually been edited
-      if (isEdited) {
-        logger.info('ItemDetails', 'Save triggered via bottom tab bar', { isNewItem, isEdited });
+      if (isEdited) { // Only save if there are actual changes
+        logger.info('ItemDetails', 'Save triggered via bottom tab bar (modal context)', { isNewItem, isEdited });
         handleSaveAction();
       } else {
-        logger.info('ItemDetails', 'Save trigger ignored - no changes to save', { isNewItem, isEdited });
+        logger.info('ItemDetails', 'Save trigger via bottom tab bar ignored - no changes (modal context)', { isNewItem, isEdited });
       }
     }
   }, [itemSaveTriggeredAt, isEdited, handleSaveAction, isNewItem]);
@@ -997,11 +919,9 @@ export default function ItemDetails() {
       const locations = await getAllLocations();
       
       logger.info('ItemDetails:fetchLocations', `Retrieved ${locations.length} locations`);
-      
       return locations;
     } catch (error) {
       logger.error('ItemDetails:fetchLocations', 'Failed to fetch locations', { error });
-      // Return empty array instead of fallbacks
       return [];
     }
   };
@@ -1024,8 +944,52 @@ export default function ItemDetails() {
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
 
+      {/* Custom Modal Header */}
+      <View style={styles.customHeaderContainer}>
+        <View style={styles.customHeaderLeftActions}> 
+          <TouchableOpacity
+            style={styles.customHeaderButton}
+            onPress={handleCancel}
+            disabled={isSavingPending} // Disable during save
+          >
+            <Text style={[styles.customHeaderButtonText, isSavingPending && styles.disabledText]}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.customHeaderTitleWrapper}> 
+          <Text style={styles.customHeaderTitle}>{isNewItem ? 'Add New Item' : 'Edit Item'}</Text>
+        </View>
+
+        <View style={styles.customHeaderRightActions}>
+           {!isNewItem && (
+            <TouchableOpacity
+              style={styles.customHeaderButton}
+              onPress={handlePrintLabel} // Corrected: was handlePrintLabel not handleSaveAction
+              disabled={isSavingPending || isPrinting}
+            >
+              {(isPrinting && printingVariationIndex === null) ? ( // General printing state for header
+                <ActivityIndicator size="small" color={lightTheme.colors.primary} />
+              ) : (
+                <Ionicons name="print-outline" size={24} color={lightTheme.colors.primary} />
+              )}
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={[styles.customHeaderButton, styles.customHeaderSaveButton]}
+            onPress={handleSaveAction}
+            disabled={isSavingPending || isPrinting} // Disable during print as well
+          >
+            {isSavingPending ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={[styles.customHeaderButtonText, styles.customHeaderSaveButtonText]}>Save</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </View>
+
       {/* Error handling: Render error view if error exists */} 
-      {error && !isNewItem && (
+      {error && !isNewItem && ( // Only show full error screen if not new item and error occurs
         <View style={styles.errorContainer}> 
           <Ionicons name="alert-circle-outline" size={48} color="red" />
           <Text style={styles.errorText}>{error}</Text>
@@ -1035,10 +999,10 @@ export default function ItemDetails() {
         </View>
       )}
 
-      {/* Main Content: Render ScrollView and Modal if NO error */} 
-      {!error && (
+      {/* Main Content: Render ScrollView and Modal if NO error OR if it's a new item (allows form filling even if some dropdown data failed) */} 
+      {(!error || isNewItem) && (
         <>
-          <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
+          <ScrollView style={styles.content} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scrollContentContainer}>
             {/* Item Name */}
             <View style={styles.fieldContainer}>
               <Text style={styles.label}>Item Name</Text>
@@ -1062,15 +1026,23 @@ export default function ItemDetails() {
                     <View style={styles.variationHeaderButtons}>
                       <TouchableOpacity
                         style={styles.inlinePrintButton}
-                        onPress={() => initiatePrint(index)}
+                        onPress={() => initiatePrint(index)} // Direct call to initiatePrint with index
+                        disabled={isPrinting} // Disable if any print is ongoing
                       >
-                        <Ionicons name="print-outline" size={18} color={lightTheme.colors.primary} style={styles.inlinePrintIcon} />
-                        <Text style={styles.inlinePrintButtonText}>Print</Text>
+                        {isPrinting && printingVariationIndex === index ? (
+                           <ActivityIndicator size="small" color={lightTheme.colors.primary} />
+                        ) : (
+                          <>
+                            <Ionicons name="print-outline" size={18} color={lightTheme.colors.primary} style={styles.inlinePrintIcon} />
+                            <Text style={styles.inlinePrintButtonText}>Print</Text>
+                          </>
+                        )}
                       </TouchableOpacity>
                     {variations.length > 1 && (
                       <TouchableOpacity 
                         onPress={() => removeVariation(index)}
                         style={styles.removeVariationButton}
+                         disabled={isSavingPending} // Disable during save
                       >
                         <Ionicons name="close-circle" size={22} color="#ff3b30" />
                       </TouchableOpacity>
@@ -1099,7 +1071,7 @@ export default function ItemDetails() {
                       onChangeText={(value) => handleVariationChange(index, 'sku', value)}
                       placeholder="Enter SKU (optional)"
                       placeholderTextColor="#999"
-                      autoCapitalize="characters"
+                      autoCapitalize="characters" // Keep autoCapitalize for SKU
                     />
                   </View>
 
@@ -1132,62 +1104,22 @@ export default function ItemDetails() {
                         marginBottom: 8,
                         alignItems: 'center',
                       }}>
-                        {/* Show "Add Price Override" button */}
                         <TouchableOpacity 
-                          style={{
-                            paddingHorizontal: 12,
-                            paddingVertical: 6,
-                            borderRadius: 6,
-                            backgroundColor: '#f0f8ff',
-                            borderWidth: 1,
-                            borderColor: lightTheme.colors.primary,
-                          }}
+                          style={styles.addPriceOverrideButton} // Use style from styles.ts
                           onPress={() => addPriceOverride(index)}
-                          disabled={availableLocations.length === 0}
+                          disabled={availableLocations.length === 0 || isSavingPending} // Disable during save
                         >
-                          <Text style={{
-                            color: lightTheme.colors.primary,
-                            fontSize: 14,
-                            fontWeight: '500',
-                          }}>
-                            Add Price Override
-                          </Text>
+                          <Text style={styles.addPriceOverrideButtonText}>Add Price Override</Text>
                         </TouchableOpacity>
                       </View>
 
                       {/* Render existing price overrides */}
                       {variation.locationOverrides && variation.locationOverrides.map((override, overrideIndex) => (
-                        <View key={`override-${index}-${overrideIndex}`} style={{
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          marginBottom: 8,
-                          backgroundColor: '#f3f8ff', // Lighter blue background to make overrides more visible
-                          borderWidth: 1,
-                          borderColor: '#b3d4ff', // Blue border
-                          borderRadius: 4,
-                          padding: 8,
-                        }}>
-                          {/* Price override input */}
-                          <View style={{
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            width: 95,
-                            borderWidth: 1,
-                            borderColor: '#ddd',
-                            borderRadius: 4,
-                            backgroundColor: 'white',
-                            paddingHorizontal: 4,
-                            marginRight: 6,
-                            height: 34,
-                          }}>
+                        <View key={`override-${index}-${overrideIndex}`} style={styles.priceOverrideItemContainer}>
+                          <View style={styles.priceOverrideInputWrapper}>
                             <Text style={styles.currencySymbol}>$</Text>
                             <TextInput
-                              style={{
-                                flex: 1,
-                                height: 32,
-                                paddingHorizontal: 2,
-                                fontSize: 14,
-                              }}
+                              style={styles.priceOverrideInput}
                               value={override.price !== undefined ? override.price.toFixed(2) : ''}
                               onChangeText={(value) => updatePriceOverride(index, overrideIndex, 'price', value)}
                               placeholder="Price"
@@ -1197,25 +1129,11 @@ export default function ItemDetails() {
                           </View>
 
                           {/* Location selector */}
-                          <View style={{
-                            flex: 1,
-                            height: 34,
-                          }}>
+                          <View style={styles.priceOverrideLocationSelectorWrapper}>
                             {availableLocations.length > 0 ? (
                               <TouchableOpacity 
-                                style={{
-                                  flexDirection: 'row',
-                                  alignItems: 'center',
-                                  justifyContent: 'space-between',
-                                  borderWidth: 1,
-                                  borderColor: '#ddd',
-                                  backgroundColor: 'white',
-                                  borderRadius: 4,
-                                  paddingHorizontal: 8,
-                                  height: 34,
-                                }}
+                                style={styles.priceOverrideLocationButton}
                                 onPress={() => {
-                                  // Show a modal or ActionSheet for location selection
                                   Alert.alert(
                                     "Select Location",
                                     "Choose a location for this price override",
@@ -1228,41 +1146,25 @@ export default function ItemDetails() {
                                 }}
                               >
                                 <Text style={[
-                                  {
-                                    fontSize: 14,
-                                    color: '#333',
-                                  },
-                                  !override.locationId && { color: '#999', fontStyle: 'italic' }
+                                  styles.priceOverrideLocationText,
+                                  !override.locationId && styles.priceOverrideLocationPlaceholder
                                 ]}>
                                   {override.locationId ? 
-                                    availableLocations.find(loc => loc.id === override.locationId)?.name || 'Select Location' :
+                                    (override.locationName || availableLocations.find(loc => loc.id === override.locationId)?.name || 'Select Location') :
                                     'Select Location'}
                                 </Text>
                                 <Ionicons name="chevron-down" size={16} color="#666" />
                               </TouchableOpacity>
                             ) : (
-                              <Text style={{
-                                fontSize: 14,
-                                color: '#999',
-                                fontStyle: 'italic',
-                                padding: 6,
-                              }}>No locations available</Text>
+                              <Text style={styles.noLocationsText}>No locations</Text>
                             )}
                           </View>
 
                           {/* Remove override button */}
-                          <TouchableOpacity 
-                            style={{
-                              padding: 6,
-                              marginLeft: 2,
-                              backgroundColor: '#fff5f5',
-                              borderRadius: 16,
-                              width: 28,
-                              height: 28,
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                            }}
+                          <TouchableOpacity
+                            style={styles.removePriceOverrideButton}
                             onPress={() => removePriceOverride(index, overrideIndex)}
+                            disabled={isSavingPending}
                           >
                             <Ionicons name="close-circle" size={18} color="#ff3b30" />
                           </TouchableOpacity>
@@ -1280,7 +1182,7 @@ export default function ItemDetails() {
                       onChangeText={(value) => handleVariationChange(index, 'barcode', value)}
                       placeholder="Enter UPC or scan barcode"
                       placeholderTextColor="#999"
-                      keyboardType="numeric"
+                      keyboardType="numeric" // Barcodes can be numeric
                     />
                   </View>
                 </View>
@@ -1289,6 +1191,7 @@ export default function ItemDetails() {
               <TouchableOpacity 
                 style={styles.addVariationButton}
                 onPress={addVariation}
+                disabled={isSavingPending} // Disable during save
               >
                 <Ionicons name="add-circle-outline" size={20} color={lightTheme.colors.primary} />
                 <Text style={styles.addVariationText}>Add Variation</Text>
@@ -1298,7 +1201,7 @@ export default function ItemDetails() {
             {/* Reporting Category */}
             <View style={styles.fieldContainer}>
               <Text style={styles.label}>Reporting Category</Text>
-              <TouchableOpacity style={styles.selectorButton} onPress={() => setShowCategoryModal(true)}>
+              <TouchableOpacity style={styles.selectorButton} onPress={() => setShowCategoryModal(true)} disabled={isSavingPending}>
                 <Text style={styles.selectorText}>{selectedCategoryName}</Text>
                 <Ionicons name="chevron-down" size={20} color="#666" />
               </TouchableOpacity>
@@ -1309,11 +1212,12 @@ export default function ItemDetails() {
                   <>
                     <Text style={styles.recentLabel}>Recent:</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                      {recentCategories.map(cat => (
+                      {recentCategories.map((cat) => (
                         <TouchableOpacity
                           key={cat.id}
                           style={styles.recentCategoryChip}
                           onPress={() => handleSelectCategory(cat.id)}
+                          disabled={isSavingPending}
                         >
                           <Text style={styles.recentCategoryChipText}>{cat.name}</Text>
                         </TouchableOpacity>
@@ -1331,6 +1235,7 @@ export default function ItemDetails() {
                 <TouchableOpacity 
                   style={[styles.selectAllButton, allTaxesSelected && styles.selectAllButtonSelected]}
                   onPress={handleSelectAllTaxes}
+                  disabled={isSavingPending} // Disable during save
                 >
                   <Text style={[styles.selectAllButtonText, allTaxesSelected && styles.selectAllButtonTextSelected]}>
                     {allTaxesSelected ? 'Deselect All' : 'Select All'}
@@ -1338,12 +1243,13 @@ export default function ItemDetails() {
                 </TouchableOpacity>
               </View>
               {availableTaxes.length > 0 ? (
-                availableTaxes.map(tax => (
+                availableTaxes.map((tax) => (
                   <TouchableOpacity
                     key={tax.id}
                     style={styles.checkboxContainer}
                     onPress={() => handleTaxSelection(tax.id)}
                     activeOpacity={0.7}
+                    disabled={isSavingPending} // Disable during save
                   >
                     <Ionicons
                       name={item.taxIds?.includes(tax.id) ? 'checkbox' : 'square-outline'}
@@ -1363,12 +1269,13 @@ export default function ItemDetails() {
             <View style={styles.fieldContainer}>
               <Text style={styles.label}>Modifiers</Text>
               {availableModifierLists.length > 0 ? (
-                availableModifierLists.map(modifier => (
+                availableModifierLists.map((modifier) => (
                   <TouchableOpacity
                     key={modifier.id}
                     style={styles.checkboxContainer}
-                    onPress={() => handleModifierSelection(modifier.id)} // Use direct ID toggle
+                    onPress={() => handleModifierSelection(modifier.id)}
                     activeOpacity={0.7}
+                    disabled={isSavingPending} // Disable during save
                   >
                     <Ionicons
                       name={item.modifierListIds?.includes(modifier.id) ? 'checkbox' : 'square-outline'}
@@ -1377,7 +1284,6 @@ export default function ItemDetails() {
                       style={styles.checkboxIcon}
                     />
                     <Text style={styles.checkboxLabel}>{modifier.name}</Text>
-                    {/* Optional: Add more info about the modifier list */}
                   </TouchableOpacity>
                 ))
               ) : (
@@ -1391,17 +1297,31 @@ export default function ItemDetails() {
               <TextInput
                 style={[styles.input, styles.textArea]}
                 value={item.description || ''}
-                onChangeText={text => updateItem('description', text)} // Corrected onChangeText
+                onChangeText={(text) => updateItem('description', text)}
                 placeholder="Enter item description (optional)"
                 placeholderTextColor="#999"
                 multiline
                 numberOfLines={4}
-                textAlignVertical="top" // For Android alignment
+                textAlignVertical="top"
               />
             </View>
+            
+            {/* Delete Button - Only for existing items */}
+            {!isNewItem && (
+              <View style={styles.deleteButtonContainer}>
+                <TouchableOpacity
+                  style={styles.deleteButton}
+                  onPress={handleDelete}
+                  disabled={isSavingPending} // Disable during save
+                >
+                  <Ionicons name="trash-outline" size={20} color={styles.deleteButtonText.color} />
+                  <Text style={styles.deleteButtonText}>Delete Item</Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
-            {/* Spacer to push delete button to the bottom */}
-            <View style={{ height: 40 }} />
+            {/* Spacer to push delete button to the bottom / general spacing */}
+            <View style={{ height: Platform.OS === 'ios' ? 80 : 100 }} /> 
           </ScrollView>
 
           {/* Category Selection Modal - Replaced with component */}
@@ -1410,21 +1330,20 @@ export default function ItemDetails() {
             onClose={() => setShowCategoryModal(false)}
             filteredCategories={filteredCategories}
             onSelectCategory={(categoryId) => {
-              handleSelectCategory(categoryId); // This already calls setShowCategoryModal(false)
+              handleSelectCategory(categoryId);
             }}
             categorySearch={categorySearch}
             setCategorySearch={setCategorySearch}
-            // categories={availableCategories} // Pass availableCategories if needed by modal for its own filtering/display logic
           />
 
           {/* --- Variation Selection Modal - Replaced with Component --- */}
           <VariationPrintSelectionModal
             visible={showVariationModal}
             onClose={() => setShowVariationModal(false)}
-            variations={variations} // Pass the actual variations state
+            variations={variations} 
             onSelectVariation={(index) => {
-              initiatePrint(index); // initiatePrint already exists
-              // setShowVariationModal(false); // Modal will close itself via its own onPress logic
+              setPrintingVariationIndex(index); // Set which variation is being printed
+              initiatePrint(index); 
             }}
           />
 
@@ -1433,8 +1352,36 @@ export default function ItemDetails() {
             visible={showPrintNotification}
             message={printNotificationMessage}
             type={printNotificationType}
-            onClose={() => setShowPrintNotification(false)} // Allows manual close if ever needed by design
+            onClose={() => setShowPrintNotification(false)}
           />
+
+          {/* Cancel Confirmation Modal */}
+          <Modal
+            animationType="fade"
+            transparent={true}
+            visible={showCancelModal}
+            onRequestClose={() => setShowCancelModal(false)}
+          >
+            <View style={styles.centeredView}>
+              <View style={styles.modalView}>
+                <Text style={styles.modalText}>You have unsaved changes. Are you sure you want to discard them?</Text>
+                <View style={styles.modalButtonsContainer}>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.modalButtonSecondary]}
+                    onPress={() => setShowCancelModal(false)}
+                  >
+                    <Text style={[styles.modalButtonText, styles.modalButtonTextSecondary]}>Keep Editing</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.modalButtonPrimary]}
+                    onPress={handleConfirmCancel} // This will call router.back()
+                  >
+                    <Text style={[styles.modalButtonText, styles.modalButtonTextPrimary]}>Discard</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
         </>
       )}
     </SafeAreaView>
