@@ -1,5 +1,5 @@
 import { StyleSheet } from 'react-native';
-import { lightTheme } from '../../src/themes';
+import { lightTheme } from '../../../src/themes';
 
 // Define interface for the styles
 interface ItemStyles {

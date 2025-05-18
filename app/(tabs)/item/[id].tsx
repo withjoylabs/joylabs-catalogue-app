@@ -24,19 +24,19 @@ import { useRouter, useLocalSearchParams, Stack, useNavigation } from 'expo-rout
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 // import { useCategories } from '../../src/hooks'; // Commented out
-import { useCatalogItems } from '../../src/hooks/useCatalogItems';
-import { ConvertedItem, ConvertedCategory } from '../../src/types/api';
-import { lightTheme } from '../../src/themes';
-import { getAllCategories, getAllTaxes, getAllModifierLists, getAllLocations } from '../../src/database/modernDb'; // Import the new function
-import { getRecentCategoryIds, addRecentCategoryId } from '../../src/utils/recentCategories'; // Import recent category utils
-import { useAppStore } from '../../src/store'; // Import Zustand store
-import logger from '../../src/utils/logger'; // Import logger
-import { printItemLabel, LabelData, getLabelPrinterStatus } from '../../src/utils/printLabel'; // Import the print functions
+import { useCatalogItems } from '../../../src/hooks/useCatalogItems';
+import { ConvertedItem, ConvertedCategory } from '../../../src/types/api';
+import { lightTheme } from '../../../src/themes';
+import { getAllCategories, getAllTaxes, getAllModifierLists, getAllLocations } from '../../../src/database/modernDb';
+import { getRecentCategoryIds, addRecentCategoryId } from '../../../src/utils/recentCategories'; // Corrected path
+import { useAppStore } from '../../../src/store'; // Corrected path
+import logger from '../../../src/utils/logger';
+import { printItemLabel, LabelData, getLabelPrinterStatus } from '../../../src/utils/printLabel'; // Corrected path
 import { styles } from './itemStyles';
-import CategorySelectionModal, { CategoryPickerItemType as ModalCategoryPickerItem } from '../../src/components/modals/CategorySelectionModal'; // Added import
-import VariationPrintSelectionModal from '../../src/components/modals/VariationPrintSelectionModal'; // Added import
-import PrintNotification from '../../src/components/modals/PrintNotification'; // Import the new component
-import apiClient from '../../src/api'; // Import API client
+import CategorySelectionModal, { CategoryPickerItemType as ModalCategoryPickerItem } from '../../../src/components/modals/CategorySelectionModal'; // Corrected path
+import VariationPrintSelectionModal from '../../../src/components/modals/VariationPrintSelectionModal'; // Corrected path
+import PrintNotification from '../../../src/components/modals/PrintNotification'; // Corrected path
+import apiClient from '../../../src/api'; // Corrected path
 
 // Define type for category used in the picker
 // type CategoryPickerItem = { id: string; name: string }; // Now using ModalCategoryPickerItem or ensure consistency
@@ -82,7 +82,7 @@ export interface ItemVariation {
 
 export default function ItemDetails() {
   const router = useRouter();
-  const { id } = useLocalSearchParams();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const navigation = useNavigation();
   const isNewItem = id === 'new';
   
@@ -154,7 +154,7 @@ export default function ItemDetails() {
   // State for Locations
   const [availableLocations, setAvailableLocations] = useState<Array<{id: string, name: string}>>([]);
   
-  const itemSaveTriggeredAt = useAppStore((state) => state.itemSaveTriggeredAt);
+  const itemSaveTriggeredAt = useAppStore((state: any) => state.itemSaveTriggeredAt);
   const lastProcessedSaveTrigger = useRef<number | null>(null);
   
   // --- Printing Logic --- 
@@ -460,14 +460,16 @@ export default function ItemDetails() {
     if (isEdited && !isEmpty()) {
       setShowCancelModal(true);
     } else {
-      router.back();
+      // For both new and existing items, cancel should go to the root/scan tab.
+      router.replace('/'); 
     }
-  }, [isEdited, isEmpty, router, setShowCancelModal]);
+  }, [isEdited, isEmpty, router, setShowCancelModal]); // isNewItem is implicitly handled by always going to '/'
 
   const handleConfirmCancel = useCallback(() => {
     setShowCancelModal(false);
-    router.back();
-  }, [router, setShowCancelModal]);
+    // For both new and existing items, cancel should go to the root/scan tab.
+    router.replace('/');
+  }, [router, setShowCancelModal]); // isNewItem is implicitly handled
 
   const handleSaveAction = useCallback(async () => {
     logger.info('ItemDetails:handleSaveAction', 'Save process initiated', { isNewItem, itemId: item.id });

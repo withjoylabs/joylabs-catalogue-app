@@ -12,12 +12,12 @@ const fabStyles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     width: 70,
-    height: Platform.OS === 'ios' ? 80 : 60,
+    height: Platform.OS === 'ios' ? (80 - 15) : (60 -15),
   },
   fabButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 55,
+    height: 55,
+    borderRadius: 27.5,
     backgroundColor: '#007AFF',
     justifyContent: 'center',
     alignItems: 'center',
@@ -27,7 +27,7 @@ const fabStyles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 3,
     position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 30 : 15,
+    bottom: Platform.OS === 'ios' ? 15 : 0,
     alignSelf: 'center',
   },
   saveButton: {
@@ -38,15 +38,15 @@ const fabStyles = StyleSheet.create({
 function CustomFabButton() {
   const router = useRouter();
   const pathname = usePathname();
-  const isItemDetails = pathname.startsWith('/item/');
+  const isItemDetails = pathname.startsWith('/(tabs)/item/');
   const triggerItemSave = useAppStore((state) => state.triggerItemSave);
 
   const handlePress = () => {
     if (isItemDetails) {
-      logger.info('CustomFabButton', 'Save action triggered');
+      logger.info('CustomFabButton', 'Save action triggered', { pathname });
       triggerItemSave();
     } else {
-      logger.info('CustomFabButton', 'Add action triggered, navigating to /item/new');
+      logger.info('CustomFabButton', 'Add action triggered, navigating to /item/new', { pathname });
       router.push('/item/new');
     }
   };
@@ -132,6 +132,12 @@ export default function MainTabsLayout() {
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'person' : 'person-outline'} size={24} color={color} />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="item" 
+        options={{
+          href: null,
         }}
       />
     </Tabs>

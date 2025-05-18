@@ -215,14 +215,6 @@ export default function RootLayout() {
                   options={{ headerShown: false }}
                 />
                 <Stack.Screen
-                  name="item/[id]"
-                  options={{
-                    title: 'Item Details',
-                    headerShown: true,
-                    presentation: 'card',
-                  }}
-                />
-                <Stack.Screen
                   name="auth/success"
                   options={{
                     title: 'Authentication',
