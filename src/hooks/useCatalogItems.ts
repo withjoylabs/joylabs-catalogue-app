@@ -12,11 +12,18 @@ import {
   upsertCatalogObjects
 } from '../database/modernDb';
 import { v4 as uuidv4 } from 'uuid';
+import { Platform } from 'react-native';
 
 // Define a more specific type for raw DB results if possible
 type RawDbRow = any; // Replace 'any' if a better type exists
 
 type CatalogObjectFromApi = any; // Reuse or define specific type
+
+// Add this helper function at the top level
+const generateIdempotencyKey = () => {
+  // Use a timestamp-based approach for idempotency keys
+  return `joylabs-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+};
 
 export const useCatalogItems = () => {
   const { 
@@ -416,7 +423,7 @@ export const useCatalogItems = () => {
     setProductsLoading(true);
     try {
       // 1. Construct the Square CatalogObject payload for creation
-      const idempotencyKey = uuidv4();
+      const idempotencyKey = generateIdempotencyKey();
       const squarePayload = {
         id: `#${productData.name.replace(/\s+/g, '-')}-${Date.now()}`,
         type: 'ITEM',
@@ -531,7 +538,7 @@ export const useCatalogItems = () => {
             // **FIXED: Also add to scan history**
             const historyItem: ScanHistoryItem = {
               ...createdItem,
-              scanId: uuidv4(), // Generate unique ID for this scan event
+              scanId: generateIdempotencyKey(),
               scanTime: new Date().toISOString(),
             };
             addScanHistoryItem(historyItem);
@@ -576,7 +583,7 @@ export const useCatalogItems = () => {
     setProductsLoading(true);
     try {
       // --- Single Stage Update --- 
-      const idempotencyKey = uuidv4();
+      const idempotencyKey = generateIdempotencyKey();
       const squarePayload = {
         id: id, 
         type: 'ITEM',
@@ -741,7 +748,7 @@ export const useCatalogItems = () => {
             );
             const historyItem: ScanHistoryItem = {
               ...finalUpdatedItem,
-              scanId: uuidv4(),
+              scanId: generateIdempotencyKey(),
               scanTime: new Date().toISOString(),
             };
             addScanHistoryItem(historyItem);

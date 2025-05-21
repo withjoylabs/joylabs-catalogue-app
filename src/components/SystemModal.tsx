@@ -158,6 +158,7 @@ const SystemModal: React.FC<SystemModalProps> = ({
   // Handle animation and auto-close
   useEffect(() => {
     if (visible) {
+      // Slide down animation
       Animated.timing(animatedValue, {
         toValue: 1,
         duration: 300,
@@ -167,24 +168,33 @@ const SystemModal: React.FC<SystemModalProps> = ({
       // Set up auto-close if enabled
       if (autoClose && !onPrimaryAction) {
         const timer = setTimeout(() => {
-          handleClose();
-        }, autoCloseTime);
+          // Start slide up animation
+          Animated.timing(animatedValue, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+          }).start(() => {
+            onClose();
+          });
+        }, 2000); // Changed from autoCloseTime to 2000ms
         
         return () => clearTimeout(timer);
       }
     } else {
+      // Slide up animation when manually closed
       Animated.timing(animatedValue, {
         toValue: 0,
-        duration: 250,
+        duration: 300,
         useNativeDriver: true,
       }).start();
     }
-  }, [visible, autoClose, autoCloseTime]);
+  }, [visible, autoClose]);
 
   const handleClose = () => {
+    // Start slide up animation
     Animated.timing(animatedValue, {
       toValue: 0,
-      duration: 250,
+      duration: 300,
       useNativeDriver: true,
     }).start(() => {
       onClose();
@@ -287,7 +297,10 @@ const SystemModal: React.FC<SystemModalProps> = ({
       testID={testID}
     >
       <TouchableWithoutFeedback onPress={handleBackdropPress}>
-        <View style={styles.overlay}>
+        <View style={[
+          styles.overlay,
+          (position === 'top' || position === 'bottom') && { backgroundColor: 'transparent' }
+        ]}>
           <TouchableWithoutFeedback>
             <Animated.View style={[getContainerStyle(), getAnimationStyle()]}>
               {/* For top/bottom notifications */}
@@ -385,7 +398,7 @@ const styles = StyleSheet.create({
   },
   topContainer: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 50 : 20,
+    top: Platform.OS === 'ios' ? 54 : 20,
     left: 20,
     right: 20,
     minHeight: 60,

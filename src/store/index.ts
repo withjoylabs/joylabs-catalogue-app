@@ -79,6 +79,12 @@ interface AppState {
     barcode: string | null;
   } | null;
   
+  // Success Notification State
+  showSuccessNotification: boolean;
+  setShowSuccessNotification: (show: boolean) => void;
+  successMessage: string;
+  setSuccessMessage: (message: string) => void;
+  
   // Actions
   setProducts: (products: ConvertedItem[]) => void;
   setSelectedProduct: (product: ConvertedItem | null) => void;
@@ -117,6 +123,11 @@ interface AppState {
   refreshProducts: () => Promise<void>;
   loadMoreProducts: () => Promise<void>;
 }
+
+// Add the same helper function
+const generateIdempotencyKey = () => {
+  return `joylabs-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+};
 
 // Create store using zustand with persistence for scanHistory
 export const useAppStore = create<AppState>()(
@@ -157,6 +168,12 @@ export const useAppStore = create<AppState>()(
       labelLivePrinter: null,
       labelLiveWindow: null,
       labelLiveFieldMap: null,
+      
+      // Success Notification State
+      showSuccessNotification: false,
+      setShowSuccessNotification: (show: boolean) => set({ showSuccessNotification: show }),
+      successMessage: '',
+      setSuccessMessage: (message: string) => set({ successMessage: message }),
       
       // Products actions
       setProducts: (products: ConvertedItem[]) => set({ products }),
@@ -251,6 +268,8 @@ export const useAppStore = create<AppState>()(
               'labelLivePrinter',
               'labelLiveWindow',
               'labelLiveFieldMap',
+              'showSuccessNotification',
+              'successMessage',
             ].includes(key)
           )
         ),

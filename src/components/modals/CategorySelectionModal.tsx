@@ -7,9 +7,10 @@ import {
   TouchableOpacity,
   TextInput,
   TouchableWithoutFeedback,
+  StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { styles as itemStyles } from '../../../app/item/itemStyles';
+import { lightTheme } from '../../themes';
 
 export interface CategoryPickerItemType { id: string; name: string };
 
@@ -37,15 +38,16 @@ const CategorySelectionModal: React.FC<CategorySelectionModalProps> = ({
       visible={visible}
       onRequestClose={onClose}
     >
-      <View style={{ flex: 1 }}>
+      <View style={styles.modalOverlay}> 
         <TouchableWithoutFeedback onPress={onClose}>
-          <View style={itemStyles.modalOverlay}>
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}> 
             <TouchableWithoutFeedback>
-              <View style={itemStyles.modalContent}>
-                <Text style={itemStyles.modalTitle}>Select Category</Text>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Select Category</Text>
                 <TextInput
-                  style={itemStyles.searchInput}
+                  style={styles.searchInput}
                   placeholder="Search categories..."
+                  placeholderTextColor="#999"
                   value={categorySearch}
                   onChangeText={setCategorySearch}
                 />
@@ -54,22 +56,22 @@ const CategorySelectionModal: React.FC<CategorySelectionModalProps> = ({
                   keyExtractor={(cat) => cat.id}
                   renderItem={({ item: cat }) => (
                     <TouchableOpacity
-                      style={itemStyles.modalItem}
+                      style={styles.modalItem}
                       onPress={() => {
                         onSelectCategory(cat.id);
                       }}
                     >
-                      <Text style={itemStyles.modalItemText}>{cat.name}</Text>
+                      <Text style={styles.modalItemText}>{cat.name}</Text>
                     </TouchableOpacity>
                   )}
-                  ListEmptyComponent={<Text style={itemStyles.emptyListText}>No matching categories</Text>}
-                  style={{ marginTop: 10 }}
+                  ListEmptyComponent={<Text style={styles.emptyListText}>No matching categories</Text>}
+                  style={styles.listStyle}
                 />
                 <TouchableOpacity
-                  style={itemStyles.closeButton}
+                  style={styles.closeButton}
                   onPress={onClose}
                 >
-                  <Text style={itemStyles.closeButtonText}>Close</Text>
+                  <Text style={styles.closeButtonText}>Close</Text>
                 </TouchableOpacity>
               </View>
             </TouchableWithoutFeedback>
@@ -79,5 +81,74 @@ const CategorySelectionModal: React.FC<CategorySelectionModalProps> = ({
     </Modal>
   );
 };
+
+const styles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: lightTheme.colors.card,
+    borderRadius: 10,
+    padding: 20,
+    width: '90%',
+    maxHeight: '80%',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 15,
+    textAlign: 'center',
+    color: lightTheme.colors.text,
+  },
+  searchInput: {
+    height: 45,
+    borderColor: lightTheme.colors.border,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 15,
+    marginBottom: 15,
+    fontSize: 16,
+    backgroundColor: lightTheme.colors.background,
+    color: lightTheme.colors.text,
+  },
+  listStyle: {
+    maxHeight: '60%',
+  },
+  modalItem: {
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: lightTheme.colors.border,
+  },
+  modalItemText: {
+    fontSize: 17,
+    color: lightTheme.colors.text,
+  },
+  emptyListText: {
+    textAlign: 'center',
+    color: '#888',
+    fontSize: 16,
+    marginTop: 20,
+  },
+  closeButton: {
+    backgroundColor: lightTheme.colors.primary,
+    borderRadius: 8,
+    paddingVertical: 12,
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    color: 'white',
+    fontSize: 17,
+    fontWeight: '600',
+  },
+});
 
 export default CategorySelectionModal; 

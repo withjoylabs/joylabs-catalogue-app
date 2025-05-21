@@ -7,10 +7,11 @@ interface PrintNotificationProps {
   visible: boolean;
   message: string;
   type: 'success' | 'error';
-  onClose: () => void; // Optional: if you want a manual close option, though it auto-hides
+  onClose: () => void;
+  nonBlocking?: boolean; // Add nonBlocking prop
 }
 
-const PrintNotification: React.FC<PrintNotificationProps> = ({ visible, message, type, onClose }) => {
+const PrintNotification: React.FC<PrintNotificationProps> = ({ visible, message, type, onClose, nonBlocking = false }) => {
   const animatedValue = React.useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -25,20 +26,28 @@ const PrintNotification: React.FC<PrintNotificationProps> = ({ visible, message,
         toValue: 0,
         duration: 300,
         useNativeDriver: true,
-      }).start();
+      }).start(() => {
+        // Only call onClose after animation completes
+        if (!visible) {
+          onClose();
+        }
+      });
     }
-  }, [visible, animatedValue]);
-
-  if (!visible && animatedValue === new Animated.Value(0)) {
-    // Don't render if not visible and animation is reset (to avoid brief flash)
-    return null;
-  }
+  }, [visible, animatedValue, onClose]);
 
   const backgroundColor = type === 'success' ? lightTheme.colors.secondary : lightTheme.colors.notification;
   const iconName = type === 'success' ? 'checkmark-circle-outline' : 'alert-circle-outline';
 
   return (
-    <Modal transparent visible={visible} animationType="none" onRequestClose={onClose}>
+    <Modal 
+      transparent 
+      visible={visible} 
+      animationType="none" 
+      onRequestClose={onClose}
+      statusBarTranslucent={true}
+      hardwareAccelerated={true}
+      presentationStyle="overFullScreen"
+    >
       <Animated.View
         style={[
           styles.container,
@@ -55,6 +64,7 @@ const PrintNotification: React.FC<PrintNotificationProps> = ({ visible, message,
             ],
           },
         ]}
+        pointerEvents={nonBlocking ? 'none' : 'auto'}
       >
         <Ionicons name={iconName as keyof typeof Ionicons.glyphMap} size={24} color="white" style={styles.icon} />
         <Text style={styles.message}>{message}</Text>
@@ -83,6 +93,7 @@ const styles = StyleSheet.create({
     // shadowOpacity: 0.2,
     // shadowRadius: 2,
     minHeight: 60, // Ensure it has some height
+    zIndex: 9999,
   },
   icon: {
     marginRight: 10,

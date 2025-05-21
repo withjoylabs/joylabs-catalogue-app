@@ -26,6 +26,8 @@ import * as Notifications from 'expo-notifications';
 import type { NotificationBehavior } from 'expo-notifications';
 import { CatalogSyncService } from '../src/database/catalogSync';
 import { PaperProvider, MD3DarkTheme, MD3LightTheme } from 'react-native-paper';
+import { useAppStore } from '../src/store';
+import SystemModal from '../src/components/SystemModal';
 
 const BACKGROUND_NOTIFICATION_TASK = 'CATALOG_SYNC_TASK';
 
@@ -87,10 +89,26 @@ SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   const [debugTapCount, setDebugTapCount] = useState(0);
   const [debugModeActive, setDebugModeActive] = useState(false);
+  const [debugTapTimeout, setDebugTapTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [responseListenerSubscription, setResponseListenerSubscription] = useState<Notifications.Subscription | null>(null);
+  const [notificationBehavior, setNotificationBehavior] = useState<NotificationBehavior>({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+    shouldShowBanner: true,
+    shouldShowList: true
+  });
+
   const colorScheme = useColorScheme();
   
   const paperTheme = colorScheme === 'dark' ? MD3DarkTheme : MD3LightTheme;
   const [loaded, fontError] = useFonts({ ...FontAwesome.font });
+  
+  const { 
+    showSuccessNotification, 
+    setShowSuccessNotification,
+    successMessage 
+  } = useAppStore();
   
   useEffect(() => {
     const startTime = Date.now();
@@ -262,6 +280,16 @@ export default function RootLayout() {
           </ApiProvider>
         </DatabaseProvider>
       </PaperProvider>
+      
+      <SystemModal
+        visible={showSuccessNotification}
+        onClose={() => setShowSuccessNotification(false)}
+        message={successMessage}
+        type="success"
+        position="top"
+        autoClose={true}
+        autoCloseTime={3000}
+      />
     </GestureHandlerRootView>
   );
 }

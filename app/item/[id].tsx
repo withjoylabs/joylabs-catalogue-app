@@ -37,6 +37,7 @@ import CategorySelectionModal, { CategoryPickerItemType as ModalCategoryPickerIt
 import VariationPrintSelectionModal from '../../src/components/modals/VariationPrintSelectionModal';
 import PrintNotification from '../../src/components/modals/PrintNotification';
 import apiClient from '../../src/api';
+import SystemModal from '../../src/components/SystemModal';
 
 // Define type for Tax and Modifier List Pickers
 type TaxPickerItem = { id: string; name: string; percentage: string | null };
@@ -107,6 +108,7 @@ export default function ItemDetails() {
   );
   const [isEdited, setIsEdited] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [isSavingPending, startTransition] = useTransition();
   const [isPrinting, setIsPrinting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -154,6 +156,14 @@ export default function ItemDetails() {
   
   const itemSaveTriggeredAt = useAppStore((state: any) => state.itemSaveTriggeredAt);
   const lastProcessedSaveTrigger = useRef<number | null>(null);
+  
+  // Get notification state from store
+  const { 
+    setShowSuccessNotification, 
+    setSuccessMessage,
+    showSuccessNotification,
+    successMessage 
+  } = useAppStore();
   
   // --- Printing Logic --- 
 
@@ -467,126 +477,70 @@ export default function ItemDetails() {
     router.back(); // Dismiss modal
   }, [router, setShowCancelModal]);
 
-  const handleSaveAction = useCallback(async () => {
-    logger.info('ItemDetails:handleSaveAction', 'Save process initiated', { isNewItem, itemId: item.id });
-    Keyboard.dismiss();
-    // setIsSavingPending(true); // This is handled by startTransition
+  const handleSaveAction = async () => {
+    try {
+      if (!item.name) {
+        setError('Item name is required');
+        return;
+      }
 
-    const currentItemForOptimisticUpdate = { ...item }; 
-    const currentVariationsForOptimisticUpdate = variations.map(v => ({...v})); 
-
-    startTransition(async () => {
-      setOptimisticItem(currentItemForOptimisticUpdate); 
-      setOptimisticVariations(currentVariationsForOptimisticUpdate);
-
-      logger.info('ItemDetails:handleSaveAction', 'Save transition started');
+      setIsSaving(true);
       setError(null);
-    
-      if (!(item.name && item.name.trim())) {
-        Alert.alert('Error', 'Item name is required.');
-        logger.warn('ItemDetails:handleSaveAction', 'Save aborted: Item name missing');
-        // setIsSavingPending(false); // Handled by transition
-        return; 
-      }
 
-      const basePayload = {
-        ...item, 
-        name: item.name || null, 
-        description: item.description || null, 
-        sku: item.sku || null, 
-          abbreviation: item.abbreviation || null,
-          reporting_category_id: item.reporting_category_id || null,
-          variations: variations.map(v => ({
-          id: v.id,
-          version: v.version,
-          name: v.name as (string | null), 
-            price: v.price,
-          sku: v.sku as (string | null), 
-          barcode: v.barcode || null, 
-          location_overrides: v.locationOverrides?.length 
-            ? v.locationOverrides.filter(override => override.locationId && override.price !== undefined)
-              .map(override => ({
-                location_id: override.locationId,
-                price_money: {
-                  amount: Math.round(Number(override.price) * 100),
-                  currency: 'USD'
-                }
-              }))
-            : undefined
-        })),
-        taxIds: item.taxIds || [],
-        modifierListIds: item.modifierListIds || [],
-        isActive: typeof item.isActive === 'boolean' ? item.isActive : true, 
-      };
+      // Log the action
+      logger.info('ItemDetails', 'Starting save action', {
+        isNewItem: !item.id,
+        itemId: item.id,
+        itemName: item.name,
+        variationsCount: variations.length
+      });
 
-      let submissionPayload: any = { ...basePayload };
-      delete submissionPayload.category; 
-      delete submissionPayload.categoryId; 
-      delete submissionPayload.variationName; 
-      
-      if (isNewItem) {
-        delete submissionPayload.id;
-        delete submissionPayload.version; 
+      let savedItemResponse;
+      if (!item.id) {
+        // Create new product
+        logger.info('ItemDetails', 'Creating new product', { itemName: item.name });
+        savedItemResponse = await createProduct({
+          ...item,
+          variations
+        });
       } else {
-        if (!originalItem?.id || typeof item.version !== 'number') {
-          logger.error('ItemDetails:handleSaveAction', 'Missing id or version for update', { originalItem, itemVersion: item.version });
-          setError('Cannot update item: missing ID or version.');
-          // setIsSavingPending(false); // Handled by transition
-          throw new Error('Cannot update item: missing ID or version.');
-        }
-        submissionPayload.id = originalItem.id; 
-        submissionPayload.version = item.version;
+        // Update existing product
+        logger.info('ItemDetails', 'Updating existing product', { 
+          itemId: item.id,
+          itemName: item.name,
+          version: item.version
+        });
+        savedItemResponse = await updateProduct(item.id, {
+          ...item,
+          variations
+        });
       }
 
-      try {
-        let savedItemResponse: ConvertedItem | null | undefined; 
+      if (savedItemResponse) {
+        logger.info('ItemDetails', 'Save successful', { 
+          itemId: savedItemResponse.id,
+          itemName: savedItemResponse.name
+        });
 
-        if (isNewItem) {
-          logger.info('ItemDetails:handleSaveAction', 'Creating new product with payload:', submissionPayload);
-          savedItemResponse = await createProduct(submissionPayload);
-        } else { 
-          logger.info('ItemDetails:handleSaveAction', `Updating product ID ${submissionPayload.id} with payload:`, submissionPayload);
-          savedItemResponse = await updateProduct(submissionPayload.id, submissionPayload as ConvertedItem);
+        // First, navigate back to close the modal
+        router.replace('/(tabs)');
+
+        // Wait a very short time for the modal to start closing
+        await new Promise(resolve => setTimeout(resolve, 50));
+
+        // Then show success notification
+        setSuccessMessage(`Item ${!item.id ? 'created' : 'updated'} successfully`);
+        setShowSuccessNotification(true);
+      } else {
+        throw new Error('Failed to save item');
       }
-      
-        if (savedItemResponse) {
-          const finalSavedItem: ConvertedItem = savedItemResponse; 
-          logger.info('ItemDetails:handleSaveAction', 'Product saved successfully to backend', { savedItemId: finalSavedItem.id });
-          setIsEdited(false);
-        
-          Alert.alert('Success', `Item ${item.name || 'Selected Item'} ${isNewItem ? 'created' : 'updated'} successfully.`);
-          router.back(); // Dismiss modal on success
-        } else {
-          logger.error('ItemDetails:handleSaveAction', 'Save operation completed but no saved item data was returned.');
-          setError('Save operation failed: No item data returned. Please try again.');
-          Alert.alert('Save Error', 'Save operation failed to return item data. The item may not have been saved correctly.');
-        }
-      } catch (e: any) {
-        const errorMessage = e.message || 'An unexpected error occurred during save.';
-        logger.error('ItemDetails:handleSaveAction', 'Error saving product during transition:', { error: errorMessage, details: e });
-        setError(errorMessage);
-        Alert.alert('Save Error', errorMessage);
-      } 
-      // finally { // isSavingPending is automatically managed by useTransition
-      //   // setIsSavingPending(false); 
-      // }
-    });
-    logger.info('ItemDetails:handleSaveAction', 'Save process function call ended (transition may still be pending)');
-  }, [
-    item, 
-    variations, 
-    isNewItem, 
-    id, 
-    originalItem, 
-    createProduct, 
-    updateProduct, 
-    setOptimisticItem, 
-    setOptimisticVariations, 
-    startTransition, 
-    setError, 
-    setIsEdited, 
-    router
-  ]);
+    } catch (error) {
+      logger.error('ItemDetails', 'Error saving item', error);
+      setError('Failed to save item. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
   
   // Fetch the item data, categories, taxes, and modifiers on component mount
   useEffect(() => {
@@ -603,13 +557,14 @@ export default function ItemDetails() {
           getAllLocations()
         ]);
 
+        console.log('[ItemDetails] Fetched Taxes:', JSON.stringify(fetchedTaxes, null, 2));
+        console.log('[ItemDetails] Fetched Modifier Lists:', JSON.stringify(fetchedModifierLists, null, 2));
+
         setAvailableCategories(fetchedCategories);
         setFilteredCategories(fetchedCategories); 
         setAvailableTaxes(fetchedTaxes);
         setAvailableModifierLists(fetchedModifierLists);
         setAvailableLocations(fetchedLocations);
-        
-        console.log('[ItemDetails] Available Categories:', JSON.stringify(fetchedCategories.map(c => ({id: c.id, name: c.name})), null, 2));
         
         const initialTaxIdsSet = new Set(item?.taxIds || []);
         const allFetchedTaxIds = new Set(fetchedTaxes.map(tax => tax.id));
@@ -673,7 +628,7 @@ export default function ItemDetails() {
           setOriginalItem(null);
           // Initialize with one default variation for new items
           setVariations([{
-            name: 'Regular',
+            name: null,
             sku: '',
             price: undefined,
             barcode: ''
@@ -723,7 +678,7 @@ export default function ItemDetails() {
 
     if (isNewItem) {
         if (item) { // Ensure item is not null
-            const defaultNewVariations = [{ name: 'Regular', sku: '', price: undefined, barcode: '' }];
+            const defaultNewVariations = [{ name: null, sku: '', price: undefined, barcode: '' }];
             const variationsChanged = JSON.stringify(variations) !== JSON.stringify(defaultNewVariations);
             
             calculatedIsEdited =
@@ -1347,12 +1302,26 @@ export default function ItemDetails() {
             }}
           />
 
-          {/* Print Notification Modal */}
-          <PrintNotification
+          {/* Print Notification Modal - Replaced with SystemModal */}
+          <SystemModal
             visible={showPrintNotification}
+            onClose={() => setShowPrintNotification(false)}
             message={printNotificationMessage}
             type={printNotificationType}
-            onClose={() => setShowPrintNotification(false)}
+            position="top"
+            autoClose={true}
+            autoCloseTime={2000}
+          />
+
+          {/* Success Notification */}
+          <SystemModal
+            visible={showSuccessNotification}
+            onClose={() => setShowSuccessNotification(false)}
+            message={successMessage}
+            type="success"
+            position="top"
+            autoClose={true}
+            autoCloseTime={2000}
           />
 
           {/* Cancel Confirmation Modal */}
