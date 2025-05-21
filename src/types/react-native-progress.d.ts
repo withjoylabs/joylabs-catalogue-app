@@ -13,7 +13,7 @@ declare module 'react-native-progress/Bar' {
   }
 
   export default class Bar extends Component<ProgressBarProps> {}
-}
+} 
 
 declare module 'react-native-progress/Pie';
 declare module 'react-native-progress/Circle';

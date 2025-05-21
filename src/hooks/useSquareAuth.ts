@@ -314,7 +314,7 @@ export const useSquareAuth = (): UseSquareAuthResult => {
         // @ts-ignore
         globalThis._joylabs_handleSquareDeepLink = handleDeepLink;
         logger.debug('SquareAuth', 'Assigned handleDeepLink to globalThis._joylabs_handleSquareDeepLink');
-
+        
         subscription = ExpoLinking.addEventListener('url', handleDeepLink);
         logger.debug('SquareAuth', 'Deep link listener registered');
 
@@ -332,7 +332,7 @@ export const useSquareAuth = (): UseSquareAuthResult => {
         setError(err as Error);
       }
     };
-    
+
     setupDeepLinkHandling();
 
     // Interval to check if connection state is stuck
@@ -350,8 +350,8 @@ export const useSquareAuth = (): UseSquareAuthResult => {
 
     return () => {
       subscription?.remove();
-      // @ts-ignore
-      delete globalThis._joylabs_handleSquareDeepLink;
+        // @ts-ignore
+        delete globalThis._joylabs_handleSquareDeepLink;
       logger.debug('SquareAuth', 'Deep link listener removed and global reference cleaned on unmount');
       clearInterval(repairInterval); // Clear interval on unmount
     };

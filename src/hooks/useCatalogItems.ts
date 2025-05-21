@@ -9,7 +9,10 @@ import logger from '../utils/logger';
 import {
   getDatabase,
   getItemOrVariationRawById,
-  upsertCatalogObjects
+  upsertCatalogObjects,
+  searchCatalogItems,
+  SearchFilters,
+  RawSearchResult
 } from '../database/modernDb';
 import { v4 as uuidv4 } from 'uuid';
 import { Platform } from 'react-native';
@@ -816,6 +819,55 @@ export const useCatalogItems = () => {
     }
   }, [setProductsLoading, setProductError, setProducts, isSquareConnected, storeProducts]);
 
+  const [isSearching, setIsSearching] = useState<boolean>(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+
+  // Function to perform search using local DB
+  const performSearch = useCallback(async (searchTerm: string, filters: SearchFilters): Promise<ConvertedItem[]> => {
+    if (!searchTerm.trim()) {
+      return [];
+    }
+    setIsSearching(true);
+    setSearchError(null);
+    logger.info('useCatalogItems', 'Performing search', { searchTerm, filters });
+
+    try {
+      const rawResults: RawSearchResult[] = await searchCatalogItems(searchTerm, filters);
+      logger.debug('useCatalogItems', `Search returned ${rawResults.length} raw results.`);
+
+      const transformedResults = rawResults.map(rawResult => {
+        let catalogObject: CatalogObject | null = null;
+        try {
+          catalogObject = JSON.parse(rawResult.data_json) as CatalogObject;
+        } catch (e) {
+          logger.error('useCatalogItems', 'Error parsing data_json from search result', { id: rawResult.id, error: e });
+          return null;
+        }
+
+        if (!catalogObject) return null;
+
+        const convertedItem = transformCatalogItemToItem(catalogObject);
+        if (convertedItem) {
+          return {
+            ...convertedItem,
+            matchType: rawResult.match_type,
+            matchContext: rawResult.match_context
+          } as ConvertedItem; // Cast to ConvertedItem, SearchResultItem will be used in UI
+        }
+        return null;
+      }).filter((item): item is ConvertedItem => item !== null);
+
+      logger.info('useCatalogItems', `Search transformed ${transformedResults.length} items.`);
+      setIsSearching(false);
+      return transformedResults;
+    } catch (error: any) {
+      logger.error('useCatalogItems', 'Error performing search', { error });
+      setSearchError(error.message || 'Failed to search items');
+      setIsSearching(false);
+      return [];
+    }
+  }, []); // Dependencies: transformCatalogItemToItem is pure, searchCatalogItems is from modernDb
+
   return {
     products: storeProducts,
     isProductsLoading,
@@ -830,6 +882,9 @@ export const useCatalogItems = () => {
     getProductById,
     createProduct,
     updateProduct,
-    deleteProduct
+    deleteProduct,
+    performSearch,
+    isSearching,
+    searchError
   };
 }; 

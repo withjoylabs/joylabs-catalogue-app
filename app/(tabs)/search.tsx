@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { 
   View, 
   Text, 
@@ -6,7 +6,6 @@ import {
   FlatList, 
   TextInput, 
   TouchableOpacity, 
-  Keyboard, 
   KeyboardAvoidingView, 
   Platform, 
   StatusBar,
@@ -19,6 +18,23 @@ import ConnectionStatusBar from '../../src/components/ConnectionStatusBar';
 import { useApi } from '../../src/providers/ApiProvider';
 import { ConvertedItem } from '../../src/types/api';
 import { styles } from './searchStyles';
+import { useCatalogItems } from '../../src/hooks/useCatalogItems';
+import { SearchFilters } from '../../src/database/modernDb';
+
+// Debounce utility
+const debounce = <F extends (...args: any[]) => any>(func: F, waitFor: number) => {
+  let timeout: NodeJS.Timeout | null = null;
+
+  const debounced = (...args: Parameters<F>) => {
+    if (timeout !== null) {
+      clearTimeout(timeout);
+      timeout = null;
+    }
+    timeout = setTimeout(() => func(...args), waitFor);
+  };
+
+  return debounced as (...args: Parameters<F>) => ReturnType<F>;
+};
 
 // Placeholder for search result type
 interface SearchResultItem extends ConvertedItem {
@@ -31,17 +47,13 @@ interface SearchResultItem extends ConvertedItem {
 export default function SearchScreen() {
   const router = useRouter();
   const { isConnected } = useApi();
+  const { performSearch, isSearching, searchError } = useCatalogItems();
   
   // State
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [searching, setSearching] = useState<boolean>(false);
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>('');
   const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
-  const [searchFilters, setSearchFilters] = useState<{
-    name: boolean;
-    sku: boolean;
-    barcode: boolean;
-    category: boolean;
-  }>({
+  const [searchFilters, setSearchFilters] = useState<SearchFilters>({
     name: true,
     sku: true,
     barcode: true,
@@ -51,9 +63,31 @@ export default function SearchScreen() {
   // Reference to the search input
   const searchInputRef = useRef<TextInput>(null);
 
+  // Debounce search query
+  const debouncedSetQuery = useCallback(debounce(setDebouncedSearchQuery, 300), []);
+
+  useEffect(() => {
+    debouncedSetQuery(searchQuery);
+  }, [searchQuery, debouncedSetQuery]);
+
+  // Perform search when debounced query or filters change
+  useEffect(() => {
+    const executeSearch = async () => {
+      if (debouncedSearchQuery.trim() === '') {
+        setSearchResults([]); // Clear results if search query is empty
+        return;
+      }
+      const results = await performSearch(debouncedSearchQuery, searchFilters);
+      setSearchResults(results as SearchResultItem[]);
+    };
+
+    executeSearch();
+  }, [debouncedSearchQuery, searchFilters, performSearch]);
+
   // Clear search and results
   const handleClearSearch = () => {
     setSearchQuery('');
+    setDebouncedSearchQuery('');
     setSearchResults([]);
     // Focus the search input again after clearing
     searchInputRef.current?.focus();
@@ -66,7 +100,7 @@ export default function SearchScreen() {
   };
   
   // Toggle search filters
-  const toggleFilter = (filter: keyof typeof searchFilters) => {
+  const toggleFilter = (filter: keyof SearchFilters) => {
     setSearchFilters(prev => ({
       ...prev,
       [filter]: !prev[filter]
@@ -74,7 +108,7 @@ export default function SearchScreen() {
   };
   
   // Render a search result item
-  const renderSearchResultItem = ({ item, index }: { item: SearchResultItem; index: number }) => {
+  const renderSearchResultItem = ({ item }: { item: SearchResultItem; index: number }) => {
     // Format price safely
     const formattedPrice = typeof item.price === 'number' 
       ? `$${item.price.toFixed(2)}` 
@@ -107,8 +141,8 @@ export default function SearchScreen() {
             {item.sku && (
               <Text style={styles.resultSku}>SKU: {item.sku}</Text>
             )}
-            {item.categoryId && (
-              <Text style={styles.resultCategory}>{item.category || 'Uncategorized'}</Text>
+            {item.category && (
+              <Text style={styles.resultCategory}>{item.category}</Text>
             )}
             {item.barcode && (
               <Text style={styles.resultBarcode}>UPC: {item.barcode}</Text>
@@ -126,7 +160,24 @@ export default function SearchScreen() {
   
   // Render an empty state when no results or query
   const renderEmptyState = () => {
-    if (searchQuery.length === 0) {
+    if (searchError) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Ionicons name="alert-circle-outline" size={48} color="#FF3B30" />
+          <Text style={styles.emptyTitle}>Search Error</Text>
+          <Text style={styles.emptyText}>{searchError}</Text>
+        </View>
+      );
+    }
+    if (isSearching) {
+      return (
+        <View style={styles.emptyContainer}>
+          <ActivityIndicator size="large" color={lightTheme.colors.primary} />
+          <Text style={styles.searchingText}>Searching...</Text>
+        </View>
+      );
+    }
+    if (searchQuery.length === 0 && debouncedSearchQuery.length === 0) {
       return (
         <View style={styles.emptyContainer}>
           <Ionicons name="search" size={48} color="#ccc" />
@@ -136,24 +187,19 @@ export default function SearchScreen() {
           </Text>
         </View>
       );
-    } else if (searching) {
+    }
+    if (searchResults.length === 0 && (searchQuery.length > 0 || debouncedSearchQuery.length > 0)) {
       return (
         <View style={styles.emptyContainer}>
-          <ActivityIndicator size="large" color={lightTheme.colors.primary} />
-          <Text style={styles.searchingText}>Searching...</Text>
-        </View>
-      );
-    } else {
-      return (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="alert-circle-outline" size={48} color="#ccc" />
+          <Ionicons name="file-tray-outline" size={48} color="#ccc" />
           <Text style={styles.emptyTitle}>No Results</Text>
           <Text style={styles.emptyText}>
-            No items found matching "{searchQuery}"
+            No items found matching "{debouncedSearchQuery || searchQuery}"
           </Text>
         </View>
       );
     }
+    return null;
   };
 
   // Show active filters
@@ -161,7 +207,7 @@ export default function SearchScreen() {
     // Only render if we have any filters selected
     const activeFilters = Object.entries(searchFilters)
       .filter(([_, isEnabled]) => isEnabled)
-      .map(([key]) => key);
+      .map(([key]) => key as keyof SearchFilters);
       
     if (activeFilters.length === 4 || activeFilters.length === 0) {
       return null; // All filters enabled or none enabled, don't show badges
@@ -197,6 +243,7 @@ export default function SearchScreen() {
           contentContainerStyle={styles.resultsContainer}
           ListEmptyComponent={renderEmptyState}
           ListHeaderComponent={renderFilterBadges}
+          keyboardShouldPersistTaps="handled"
         />
         
         {/* Filter Buttons - rendered only when keyboard is visible */}

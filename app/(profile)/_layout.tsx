@@ -116,7 +116,7 @@ const styles = StyleSheet.create({
   // Removed header, headerTitle, headerActions styles as they are not used with default header
   // backButton style is now used by ProfileIndexBackButton if needed, or can be inline
   debugContainer: {
-    position: 'absolute', 
+    position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
@@ -124,7 +124,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#ddd',
     padding: 16,
-    paddingBottom: 32, 
+    paddingBottom: 32,
     zIndex: 10, 
   },
   debugHeader: {

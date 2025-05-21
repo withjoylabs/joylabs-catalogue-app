@@ -1594,4 +1594,149 @@ export async function deleteCatalogObjectById(objectId: string): Promise<void> {
     // Re-throw the error to be handled by the caller (e.g., the sync process)
     throw error;
   }
+}
+
+export interface SearchFilters {
+  name: boolean;
+  sku: boolean;
+  barcode: boolean;
+  category: boolean;
+}
+
+export interface RawSearchResult {
+  id: string; // This will be the item ID
+  data_json: string; // The data_json of the main catalog_item
+  match_type: 'name' | 'sku' | 'barcode' | 'category';
+  match_context: string; // e.g., the actual SKU value, category name, etc.
+}
+
+export async function searchCatalogItems(
+  searchTerm: string,
+  filters: SearchFilters
+): Promise<RawSearchResult[]> {
+  if (!searchTerm.trim()) {
+    return [];
+  }
+
+  const db = await getDatabase();
+  const likeTerm = `%${searchTerm}%`;
+  const queries: string[] = [];
+  const params: SQLiteBindValue[] = [];
+  const resultsById: { [key: string]: RawSearchResult } = {};
+
+  logger.debug('searchCatalogItems', 'Starting search', { searchTerm, filters });
+
+  // 1. Search by Item Name
+  if (filters.name) {
+    const nameQuery = `
+      SELECT
+        ci.id,
+        ci.data_json,
+        'name' as match_type,
+        ci.name as match_context
+      FROM catalog_items ci
+      WHERE ci.name LIKE ? AND ci.is_deleted = 0
+    `;
+    queries.push(nameQuery);
+    params.push(likeTerm);
+    logger.debug('searchCatalogItems', 'Added name query');
+  }
+
+  // 2. Search by SKU in Item Variations
+  if (filters.sku) {
+    const skuQuery = `
+      SELECT
+        iv.item_id as id,
+        ci.data_json,
+        'sku' as match_type,
+        iv.sku as match_context
+      FROM item_variations iv
+      JOIN catalog_items ci ON iv.item_id = ci.id
+      WHERE iv.sku LIKE ? AND iv.is_deleted = 0 AND ci.is_deleted = 0
+    `;
+    queries.push(skuQuery);
+    params.push(likeTerm);
+    logger.debug('searchCatalogItems', 'Added SKU query');
+  }
+
+  // 3. Search by Barcode (UPC) in Item Variations (data_json)
+  if (filters.barcode) {
+    // Note: json_extract might be slow on large datasets without specific indexing.
+    // Square stores UPC in item_variation_data.upc
+    const barcodeQuery = `
+      SELECT
+        iv.item_id as id,
+        ci.data_json,
+        'barcode' as match_type,
+        json_extract(iv.data_json, '$.item_variation_data.upc') as match_context
+      FROM item_variations iv
+      JOIN catalog_items ci ON iv.item_id = ci.id
+      WHERE json_extract(iv.data_json, '$.item_variation_data.upc') LIKE ?
+        AND iv.is_deleted = 0 AND ci.is_deleted = 0
+    `;
+    // Make sure the path '$.item_variation_data.upc' is correct based on your JSON structure
+    // For initial search, we assume it is. If no results, this might need adjustment or broader JSON search.
+    queries.push(barcodeQuery);
+    params.push(likeTerm);
+    logger.debug('searchCatalogItems', 'Added barcode query');
+  }
+
+  // 4. Search by Category Name
+  if (filters.category) {
+    // First, find matching category IDs
+    const matchingCategories = await db.getAllAsync<{ id: string }>(
+      `SELECT id FROM categories WHERE name LIKE ? AND is_deleted = 0`,
+      [likeTerm]
+    );
+
+    if (matchingCategories.length > 0) {
+      const categoryIds = matchingCategories.map(c => c.id);
+      const placeholders = categoryIds.map(() => '?').join(',');
+      const categoryQuery = `
+        SELECT
+          ci.id,
+          ci.data_json,
+          'category' as match_type,
+          cat.name as match_context
+        FROM catalog_items ci
+        JOIN categories cat ON ci.category_id = cat.id
+        WHERE ci.category_id IN (${placeholders}) AND ci.is_deleted = 0
+      `;
+      queries.push(categoryQuery);
+      params.push(...categoryIds);
+      logger.debug('searchCatalogItems', 'Added category query for IDs:', { categoryIds });
+    }
+  }
+
+  if (queries.length === 0) {
+    logger.debug('searchCatalogItems', 'No active filters, returning empty results.');
+    return [];
+  }
+
+  const fullQuery = queries.join('\nUNION\n') + '\nLIMIT 50;'; // Combine queries and limit results
+  logger.debug('searchCatalogItems', 'Executing combined query', { query: fullQuery, params });
+
+  try {
+    const rawResults = await db.getAllAsync<RawSearchResult>(fullQuery, params);
+    logger.debug('searchCatalogItems', `Raw query returned ${rawResults.length} results.`);
+
+    // Deduplicate results, preferring the first encountered match for an item ID
+    rawResults.forEach(row => {
+      if (row && row.id && row.data_json) { // Ensure essential fields are present
+        if (!resultsById[row.id]) {
+          resultsById[row.id] = row;
+        }
+      } else {
+        logger.warn('searchCatalogItems', 'Skipping invalid row from DB search', { row });
+      }
+    });
+    
+    const finalResults = Object.values(resultsById);
+    logger.info('searchCatalogItems', `Search for '${searchTerm}' found ${finalResults.length} unique items.`);
+    return finalResults;
+
+  } catch (error) {
+    logger.error('searchCatalogItems', 'Error executing search query', { error, query: fullQuery });
+    throw error; // Re-throw to be handled by the calling hook
+  }
 } 
