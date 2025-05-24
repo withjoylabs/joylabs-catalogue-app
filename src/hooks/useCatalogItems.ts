@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import api, { apiClient, directSquareApi } from '../api';
 import { useAppStore } from '../store';
-import { CatalogObject, ConvertedItem } from '../types/api';
+import { CatalogObject, ConvertedItem, SearchResultItem } from '../types/api';
 import { ScanHistoryItem } from '../types';
 import { transformCatalogItemToItem } from '../utils/catalogTransformers';
 import { useApi } from '../providers/ApiProvider';
@@ -54,9 +54,13 @@ export const useCatalogItems = () => {
   // Update category map when categories change
   useEffect(() => {
     const map: Record<string, string> = {};
-    categories.forEach(category => {
-      map[category.id] = category.name;
-    });
+    if (categories && Array.isArray(categories)) {
+      categories.forEach(category => {
+        if (category && category.id && category.name) {
+            map[category.id] = category.name;
+        }
+      });
+    }
     categoryMapRef.current = map;
   }, [categories]);
 
@@ -822,51 +826,69 @@ export const useCatalogItems = () => {
   const [isSearching, setIsSearching] = useState<boolean>(false);
   const [searchError, setSearchError] = useState<string | null>(null);
 
-  // Function to perform search using local DB
-  const performSearch = useCallback(async (searchTerm: string, filters: SearchFilters): Promise<ConvertedItem[]> => {
-    if (!searchTerm.trim()) {
-      return [];
+  // Helper function to transform raw DB search results to SearchResultItem
+  const transformDbResultToItem = useCallback((rawResult: RawSearchResult): SearchResultItem | null => {
+    if (!rawResult.data_json) {
+      logger.warn('useCatalogItems', 'transformDbResultToItem received item with no data_json', { id: rawResult.id });
+      return null;
     }
-    setIsSearching(true);
-    setSearchError(null);
-    logger.info('useCatalogItems', 'Performing search', { searchTerm, filters });
-
     try {
-      const rawResults: RawSearchResult[] = await searchCatalogItems(searchTerm, filters);
-      logger.debug('useCatalogItems', `Search returned ${rawResults.length} raw results.`);
+      const parsedItemData = JSON.parse(rawResult.data_json);
+      const transformedItem = transformCatalogItemToItem(parsedItemData as CatalogObject);
 
-      const transformedResults = rawResults.map(rawResult => {
-        let catalogObject: CatalogObject | null = null;
-        try {
-          catalogObject = JSON.parse(rawResult.data_json) as CatalogObject;
-        } catch (e) {
-          logger.error('useCatalogItems', 'Error parsing data_json from search result', { id: rawResult.id, error: e });
-          return null;
-        }
+      if (!transformedItem) return null;
 
-        if (!catalogObject) return null;
-
-        const convertedItem = transformCatalogItemToItem(catalogObject);
-        if (convertedItem) {
-          return {
-            ...convertedItem,
-            matchType: rawResult.match_type,
-            matchContext: rawResult.match_context
-          } as ConvertedItem; // Cast to ConvertedItem, SearchResultItem will be used in UI
-        }
-        return null;
-      }).filter((item): item is ConvertedItem => item !== null);
-
-      logger.info('useCatalogItems', `Search transformed ${transformedResults.length} items.`);
-      setIsSearching(false);
-      return transformedResults;
-    } catch (error: any) {
-      logger.error('useCatalogItems', 'Error performing search', { error });
-      setSearchError(error.message || 'Failed to search items');
-      setIsSearching(false);
-      return [];
+      let finalCategoryName = transformedItem.category; 
+      if (rawResult.match_type === 'category' && rawResult.match_context) {
+        finalCategoryName = rawResult.match_context;
+      } else if (!finalCategoryName && transformedItem.categoryId) {
+        finalCategoryName = categoryMapRef.current[transformedItem.categoryId] || undefined;
+      } else if (!finalCategoryName && transformedItem.reporting_category_id) {
+        finalCategoryName = categoryMapRef.current[transformedItem.reporting_category_id] || undefined;
+      }
+      
+      return {
+        ...transformedItem,
+        category: finalCategoryName, 
+        categoryId: transformedItem.categoryId || transformedItem.reporting_category_id, 
+        matchType: rawResult.match_type,
+        matchContext: rawResult.match_context,
+      } as SearchResultItem;
+    } catch (error) {
+      logger.error('useCatalogItems', 'Error transforming DB search result', { id: rawResult.id, error });
+      return null;
     }
-  }, []); // Dependencies: transformCatalogItemToItem is pure, searchCatalogItems is from modernDb
+  }, [categoryMapRef]);
+
+  // Function to perform search using local DB
+  const performSearch = useCallback(
+    async (searchTerm: string, filters: SearchFilters): Promise<SearchResultItem[]> => {
+      if (!searchTerm.trim()) {
+        return [];
+      }
+      setIsSearching(true);
+      setSearchError(null);
+      try {
+        logger.info('useCatalogItems', 'Performing search', { searchTerm, filters });
+        const rawResults = await searchCatalogItems(searchTerm, filters); // Returns RawSearchResult[]
+        logger.debug('useCatalogItems', `Search returned ${rawResults.length} raw results.`);
+
+        const finalResults = rawResults
+          .map(rawResult => transformDbResultToItem(rawResult))
+          .filter((item): item is SearchResultItem => item !== null);
+        
+        logger.info('useCatalogItems', `Search transformed ${finalResults.length} items.`);
+        setIsSearching(false);
+        return finalResults;
+      } catch (error: any) {
+        logger.error('useCatalogItems', 'Error performing search', { error });
+        setSearchError(error.message || 'Failed to perform search');
+        setIsSearching(false);
+        return [];
+      }
+    },
+    [transformDbResultToItem] // Dependency on the memoized transformDbResultToItem
+  );
 
   return {
     products: storeProducts,

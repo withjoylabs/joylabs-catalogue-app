@@ -127,6 +127,13 @@ export interface ConvertedCategory {
   updatedAt: string;
 }
 
+// New SearchResultItem type
+export interface SearchResultItem extends ConvertedItem {
+  matchType?: 'name' | 'sku' | 'barcode' | 'category';
+  matchContext?: string;
+  // categoryId and category name should be reliably populated by transformers
+}
+
 // Webhook Types
 export interface WebhookData {
   id: string;

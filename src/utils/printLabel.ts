@@ -113,8 +113,9 @@ export const printItemLabel = async (labelData: LabelData): Promise<boolean> => 
       variables[fieldMap.itemName] = labelData.itemName;
     }
     
-    if (fieldMap.variationName && labelData.variationName) {
-      variables[fieldMap.variationName] = labelData.variationName;
+    // Ensure VARIATION_NAME is always included, even if empty
+    if (fieldMap.variationName) {
+      variables[fieldMap.variationName] = labelData.variationName || ''; // Use empty string if undefined or null
     }
     
     if (fieldMap.variationPrice && labelData.price !== undefined) {

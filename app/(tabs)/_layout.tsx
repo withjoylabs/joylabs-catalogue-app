@@ -134,6 +134,10 @@ export default function MainTabsLayout() {
           ),
         }}
       />
+      <Tabs.Screen 
+        name="scanHistory"
+        options={{ href: null }}
+      />
     </Tabs>
   );
 } 

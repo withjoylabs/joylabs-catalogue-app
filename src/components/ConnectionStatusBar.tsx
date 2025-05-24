@@ -57,4 +57,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ConnectionStatusBar; 
+export default React.memo(ConnectionStatusBar); 

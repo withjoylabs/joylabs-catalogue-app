@@ -80,7 +80,7 @@ export interface ItemVariation {
 
 export default function ItemDetails() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, ...params } = useLocalSearchParams<{ id: string, name?: string, sku?: string, barcode?: string }>();
   const navigation = useNavigation();
   const isNewItem = id === 'new';
   
@@ -184,7 +184,7 @@ export default function ItemDetails() {
       itemId: item.id,
       itemName: item.name || 'Item Name',
       variationId: variationToPrint.id,
-      variationName: variationToPrint.name || 'Regular',
+      variationName: variationToPrint.name === null ? undefined : variationToPrint.name,
       price: variationToPrint.price,
       sku: variationToPrint.sku,
       barcode: variationToPrint.barcode,
@@ -627,11 +627,29 @@ export default function ItemDetails() {
           setItem(EMPTY_ITEM);
           setOriginalItem(null);
           // Initialize with one default variation for new items
+          let initialSku = '';
+          let initialBarcode = '';
+
+          const initialItemState = { ...EMPTY_ITEM };
+          if (params.name) {
+            initialItemState.name = params.name;
+          }
+          if (params.sku) {
+            initialSku = params.sku;
+            initialItemState.sku = params.sku; // Also set on item for consistency, though primary is variation
+          }
+          if (params.barcode) {
+            initialBarcode = params.barcode;
+            // Barcode is primarily a variation field, but can be set on item if needed by backend
+          }
+
+          setItem(initialItemState);
+
           setVariations([{
-            name: null,
-            sku: '',
+            name: null, // Default variation name
+            sku: initialSku,
             price: undefined,
-            barcode: ''
+            barcode: initialBarcode
           }]);
         } else {
           setError('Invalid Item ID');

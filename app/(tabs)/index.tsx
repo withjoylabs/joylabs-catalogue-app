@@ -1,13 +1,23 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { View, FlatList, StyleSheet, SafeAreaView, StatusBar, Text, TouchableOpacity, ActivityIndicator, TextInput } from 'react-native';
-import { useRouter, useFocusEffect } from 'expo-router';
+import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
+import {
+  View, 
+  FlatList, 
+  // StyleSheet, // Will be replaced by indexStyles
+  SafeAreaView, 
+  StatusBar, 
+  Text, 
+  TouchableOpacity, 
+  ActivityIndicator, 
+  TextInput, 
+  // Button, // No longer explicitly needed
+  Platform, // For KeyboardAvoidingView if we re-add it, but SearchBar handles its input.
+  KeyboardAvoidingView, // Keep for filter pills for now, may remove if SearchBar covers all
+  ScrollView,
+  Modal
+} from 'react-native';
+import { useRouter, useFocusEffect, Link } from 'expo-router';
 import ConnectionStatusBar from '../../src/components/ConnectionStatusBar';
-import SearchBar from '../../src/components/SearchBar';
-import SortHeader from '../../src/components/SortHeader';
-import CatalogueItemCard from '../../src/components/CatalogueItemCard';
-import SwipeableRow from '../../src/components/SwipeableRow';
-import { ScanHistoryItem } from '../../src/types';
-import { ConvertedItem, CatalogObject, CatalogItemData } from '../../src/types/api';
+import { ConvertedItem, SearchResultItem } from '../../src/types/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useApi } from '../../src/providers/ApiProvider';
 import { useAppStore } from '../../src/store';
@@ -20,6 +30,420 @@ import { v4 as uuidv4 } from 'uuid';
 import { lightTheme } from '../../src/themes';
 import * as modernDb from '../../src/database/modernDb';
 import { useCatalogItems } from '../../src/hooks/useCatalogItems';
+import { styles } from './indexStyles'; // Import new styles
+import { SearchFilters } from '../../src/database/modernDb'; // For search filters type
+
+// Debounce utility (copied from search.tsx)
+const debounce = <F extends (...args: any[]) => any>(func: F, waitFor: number) => {
+  let timeout: NodeJS.Timeout | null = null;
+  const debounced = (...args: Parameters<F>) => {
+    if (timeout !== null) {
+      clearTimeout(timeout);
+      timeout = null;
+    }
+    timeout = setTimeout(() => func(...args), waitFor);
+  };
+  return debounced as (...args: Parameters<F>) => ReturnType<F>;
+};
+
+// --- START: SearchResultsArea Component Definition ---
+interface SearchResultsAreaProps {
+  initialSearchQuery: string;
+  // We need a way to access router for navigation from handleResultItemPress
+  // Passing router directly can be problematic for memoization if router instance changes.
+  // Alternatively, useRouter can be called inside if it's part of the same router context.
+}
+
+const SearchResultsArea = memo(({ initialSearchQuery }: SearchResultsAreaProps) => {
+  const router = useRouter(); 
+
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>('');
+  const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
+  const [searchFilters, setSearchFilters] = useState<SearchFilters>({
+    name: true, 
+    sku: true,
+    barcode: true,
+    category: false 
+  });
+  const [sortOrder, setSortOrder] = useState<'default' | 'az' | 'za' | 'price_asc' | 'price_desc'>('default');
+  const [selectedResultCategoryId, setSelectedResultCategoryId] = useState<string | null>(null);
+  const [availableResultCategories, setAvailableResultCategories] = useState<Array<{ id: string; name: string }>>([]);
+  const [currentRawResults, setCurrentRawResults] = useState<SearchResultItem[]>([]); 
+
+  const { performSearch, isSearching: catalogIsSearching, searchError: catalogSearchError } = useCatalogItems();
+  const debouncedSetQuery = useCallback(debounce(setDebouncedSearchQuery, 300), []); 
+
+  useEffect(() => {
+    debouncedSetQuery(initialSearchQuery);
+  }, [initialSearchQuery, debouncedSetQuery]);
+
+  useEffect(() => {
+    const fetchCategoriesForFilter = async () => {
+      try {
+        const categoriesFromDb = await modernDb.getAllCategories();
+        const formattedCategories = categoriesFromDb
+          .map(cat => ({ id: cat.id, name: cat.name }))
+          .sort((a, b) => a.name.localeCompare(b.name));
+        setAvailableResultCategories(formattedCategories);
+      } catch (err) {
+        logger.error('SearchResultsArea: Failed to fetch categories for filter', String(err));
+        setAvailableResultCategories([]); // Set to empty on error
+      }
+    };
+    fetchCategoriesForFilter();
+  }, []);
+
+  useEffect(() => {
+    const executeSearch = async () => {
+      if (debouncedSearchQuery.trim() === '') {
+        setSearchResults([]);
+        setCurrentRawResults([]);
+        return;
+      }
+      
+      const rawResults = await performSearch(debouncedSearchQuery, searchFilters);
+      setCurrentRawResults(rawResults); 
+      
+      let processedResults = [...rawResults];
+
+      if (selectedResultCategoryId) {
+        processedResults = processedResults.filter(item => item.categoryId === selectedResultCategoryId);
+      }
+
+      switch (sortOrder) {
+        case 'az':
+          processedResults.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
+          break;
+        case 'za':
+          processedResults.sort((a, b) => (b.name ?? '').localeCompare(a.name ?? ''));
+          break;
+        case 'price_asc':
+          processedResults.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
+          break;
+        case 'price_desc':
+          processedResults.sort((a, b) => (b.price ?? -Infinity) - (a.price ?? -Infinity));
+          break;
+      }
+      setSearchResults(processedResults);
+    };
+    executeSearch();
+  }, [debouncedSearchQuery, searchFilters, performSearch, sortOrder, selectedResultCategoryId ]);
+
+  const toggleFilter = useCallback((toggledFilter: keyof Omit<SearchFilters, 'category'>) => {
+    setSearchFilters(currentFilters => {
+      const relevantFilters = { name: currentFilters.name, sku: currentFilters.sku, barcode: currentFilters.barcode };
+      let countActive = 0;
+      let isToggledFilterActive = false;
+      for (const key in relevantFilters) {
+        if (relevantFilters[key as keyof typeof relevantFilters]) {
+          countActive++;
+          if (key === toggledFilter) {
+            isToggledFilterActive = true;
+          }
+        }
+      }
+      const isCurrentlyTheOnlyActiveFilter = isToggledFilterActive && countActive === 1;
+      if (isCurrentlyTheOnlyActiveFilter) {
+        return { ...currentFilters, name: true, sku: true, barcode: true };
+      } else {
+        const newFiltersState: SearchFilters = { ...currentFilters, name: false, sku: false, barcode: false };
+        newFiltersState[toggledFilter] = true;
+        return newFiltersState;
+      }
+    });
+  }, [setSearchFilters]);
+
+  const handleSelectResultCategory = useCallback((categoryId: string | null) => {
+      setSelectedResultCategoryId(categoryId);
+  }, [setSelectedResultCategoryId]);
+
+  const handleResultItemPress = useCallback((item: SearchResultItem) => {
+    logger.info('SearchResultsArea', 'Search result selected', { itemId: item.id, name: item.name });
+    router.push(`/item/${item.id}`);
+  }, [router]);
+
+  const renderSearchResultItem = useCallback(({ item }: { item: SearchResultItem; index: number }) => {
+    const formattedPrice = typeof item.price === 'number' 
+      ? `$${item.price.toFixed(2)}` 
+      : (item.price ? String(item.price) : 'N/A');
+    let matchIcon: keyof typeof Ionicons.glyphMap = 'document-text-outline';
+    if (item.matchType === 'sku') matchIcon = 'pricetag-outline';
+    if (item.matchType === 'barcode') matchIcon = 'barcode-outline';
+    if (item.matchType === 'category') matchIcon = 'folder-outline';
+    return (
+      <TouchableOpacity style={styles.resultItem} onPress={() => handleResultItemPress(item)}>
+        <View style={styles.resultIconContainer}><Ionicons name={matchIcon} size={24} color="#888" /></View>
+        <View style={styles.resultDetails}>
+          <Text style={styles.resultName} numberOfLines={1}>{item.name ?? 'N/A'}</Text>
+          <View style={styles.resultMeta}>
+            {item.sku && <Text style={styles.resultSku}>SKU: {item.sku}</Text>}
+            {item.category && <Text style={styles.resultCategory}>{item.category}</Text>}
+            {item.barcode && <Text style={styles.resultBarcode}>UPC: {item.barcode}</Text>}
+          </View>
+        </View>
+        <View style={styles.resultPrice}>
+          <Text style={styles.priceText}>{formattedPrice}</Text>
+          <Ionicons name="chevron-forward" size={18} color="#ccc" />
+        </View>
+      </TouchableOpacity>
+    );
+  }, [handleResultItemPress, styles]);
+
+  const renderEmptyState = useCallback(() => {
+    if (catalogSearchError) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Ionicons name="alert-circle-outline" size={48} color="#FF3B30" />
+          <Text style={styles.emptyTitle}>Search Error</Text>
+          <Text style={styles.emptyText}>{catalogSearchError}</Text>
+        </View>
+      );
+    }
+    if (catalogIsSearching && debouncedSearchQuery.trim() !== '') {
+      return (
+        <View style={styles.emptyContainer}>
+          <ActivityIndicator size="large" color={lightTheme.colors.primary} />
+          <Text style={styles.searchingText}>Searching...</Text>
+        </View>
+      );
+    }
+    if (debouncedSearchQuery.trim() === '' && initialSearchQuery.trim() === '') {
+      return (
+        <View style={styles.emptyContainer}>
+          <Ionicons name="search-outline" size={48} color="#ccc" />
+          <Text style={styles.emptyTitle}>Scan or Search Your Catalog</Text>
+          <Text style={styles.emptyText}>Use the input below to search by name, SKU, barcode, or category.</Text>
+        </View>
+      );
+    }
+    if (searchResults.length === 0 && debouncedSearchQuery.trim() !== '') {
+      const query = debouncedSearchQuery.trim();
+      return (
+        <View style={styles.emptyContainer}>
+          <Ionicons name="file-tray-outline" size={48} color="#ccc" />
+          <Text style={styles.emptyTitle}>No Results Found</Text>
+          <Text style={styles.emptyText}>No items found matching "{query}".</Text>
+          <View style={styles.createItemButtonsContainer}>
+            <TouchableOpacity 
+              style={styles.createItemButton} 
+              onPress={() => router.push({ pathname: '/item/new', params: { name: query }})}
+            >
+              <Text style={styles.createItemButtonText}>Create new item with name "{query}"</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.createItemButton} 
+              onPress={() => router.push({ pathname: '/item/new', params: { sku: query }})}
+            >
+              <Text style={styles.createItemButtonText}>Create new item with SKU "{query}"</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.createItemButton} 
+              onPress={() => router.push({ pathname: '/item/new', params: { barcode: query }})}
+            >
+              <Text style={styles.createItemButtonText}>Create new item with UPC "{query}"</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    }
+    return null;
+  }, [catalogSearchError, catalogIsSearching, debouncedSearchQuery, initialSearchQuery, searchResults, styles, lightTheme, router]);
+
+  const renderFilterBadges = useCallback(() => {
+    const activeFilters = Object.entries(searchFilters).filter(([key, isEnabled]) => key !== 'category' && isEnabled).map(([key]) => key as keyof SearchFilters);
+    if (activeFilters.length === 3 || activeFilters.length === 0) return null;
+    if (initialSearchQuery.trim().length === 0) return null; 
+    return (
+      <View style={styles.filterBadgesContainer}>
+        {activeFilters.map((filterKey) => (
+          <View key={filterKey} style={styles.filterBadge}><Text style={styles.filterBadgeText}>{filterKey.charAt(0).toUpperCase() + filterKey.slice(1)}</Text></View>
+        ))}
+        {selectedResultCategoryId && availableResultCategories.find(c => c.id === selectedResultCategoryId) && (
+            <View style={styles.filterBadge}><Text style={styles.filterBadgeText}>Category: {availableResultCategories.find(c => c.id === selectedResultCategoryId)?.name}</Text></View>
+        )}
+      </View>
+    );
+  }, [searchFilters, initialSearchQuery, styles, selectedResultCategoryId, availableResultCategories]);
+
+  return (
+    <View style={styles.mainContent}> 
+      <FlatList
+        data={searchResults}
+        renderItem={renderSearchResultItem}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.resultsContainer}
+        ListEmptyComponent={renderEmptyState}
+        ListHeaderComponent={renderFilterBadges}
+        keyboardShouldPersistTaps="handled"
+        style={{ flex: 1 }}
+      />
+      {initialSearchQuery.trim().length > 0 && (
+        <FilterAndSortControls 
+          searchFilters={searchFilters} 
+          onToggleFilter={toggleFilter} 
+          sortOrder={sortOrder} 
+          onSetSortOrder={setSortOrder} 
+          availableResultCategories={availableResultCategories}
+          selectedResultCategoryId={selectedResultCategoryId}
+          onSelectResultCategory={handleSelectResultCategory}
+        />
+      )}
+    </View>
+  );
+});
+// --- END: SearchResultsArea Component Definition ---
+
+// --- START: FilterAndSortControls Component Definition ---
+interface FilterAndSortControlsProps {
+  searchFilters: SearchFilters;
+  onToggleFilter: (filter: keyof Omit<SearchFilters, 'category'>) => void;
+  sortOrder: 'default' | 'az' | 'za' | 'price_asc' | 'price_desc';
+  onSetSortOrder: (order: 'default' | 'az' | 'za' | 'price_asc' | 'price_desc') => void;
+  availableResultCategories: Array<{ id: string; name: string }>;
+  selectedResultCategoryId: string | null;
+  onSelectResultCategory: (categoryId: string | null) => void;
+}
+const FilterAndSortControls = memo(({
+  searchFilters, 
+  onToggleFilter, 
+  sortOrder, 
+  onSetSortOrder,
+  availableResultCategories,
+  selectedResultCategoryId,
+  onSelectResultCategory
+}: FilterAndSortControlsProps) => {
+  const sortLabels: Record<typeof sortOrder, string> = {
+    default: 'Default',
+    az: 'A-Z',
+    za: 'Z-A',
+    price_asc: 'Price Low-High',
+    price_desc: 'Price High-Low',
+  };
+
+  const handleSortCycle = () => {
+    const orders: Array<typeof sortOrder> = ['default', 'az', 'za', 'price_asc', 'price_desc'];
+    const currentIndex = orders.indexOf(sortOrder);
+    const nextIndex = (currentIndex + 1) % orders.length;
+    onSetSortOrder(orders[nextIndex]);
+  };
+
+  const [isCategoryModalVisible, setCategoryModalVisible] = useState(false);
+  const [modalCategorySearchTerm, setModalCategorySearchTerm] = useState('');
+
+  const filteredModalCategories = availableResultCategories.filter(cat => 
+    cat.name.toLowerCase().includes(modalCategorySearchTerm.toLowerCase())
+  );
+
+  const selectedCategoryName = selectedResultCategoryId 
+    ? availableResultCategories.find(c => c.id === selectedResultCategoryId)?.name 
+    : 'Category';
+
+  return (
+    <View style={styles.controlsContainer}> 
+      <View style={styles.filterAndSortInnerContainer}> 
+        <View style={styles.filterContainer}>
+          <TouchableOpacity style={[styles.filterButton, searchFilters.name && styles.filterButtonActive]} onPress={() => onToggleFilter('name')}><Text style={[styles.filterButtonText, searchFilters.name && styles.filterButtonTextActive]}>Name</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.filterButton, searchFilters.sku && styles.filterButtonActive]} onPress={() => onToggleFilter('sku')}><Text style={[styles.filterButtonText, searchFilters.sku && styles.filterButtonTextActive]}>SKU</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.filterButton, searchFilters.barcode && styles.filterButtonActive]} onPress={() => onToggleFilter('barcode')}><Text style={[styles.filterButtonText, searchFilters.barcode && styles.filterButtonTextActive]}>UPC</Text></TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.filterButton, selectedResultCategoryId && styles.filterButtonActive, styles.categoryFilterButtonInline]} 
+            onPress={() => setCategoryModalVisible(true)}
+          >
+            <Ionicons name="filter-outline" size={14} color={selectedResultCategoryId ? '#FFFFFF' : lightTheme.colors.text} style={{ marginRight: 3 }} />
+            <Text style={[styles.filterButtonText, selectedResultCategoryId && styles.filterButtonTextActive]}>
+              {selectedCategoryName}
+            </Text>
+          </TouchableOpacity>
+        </View>
+        
+        <TouchableOpacity style={styles.sortCycleButton} onPress={handleSortCycle}>
+          <Ionicons name="swap-vertical-outline" size={16} color={lightTheme.colors.text} style={{ marginRight: 5 }} />
+          <Text style={styles.sortCycleButtonText}>Sort: {sortLabels[sortOrder]}</Text>
+        </TouchableOpacity>
+      </View>
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={isCategoryModalVisible}
+        onRequestClose={() => {
+          setCategoryModalVisible(false);
+          setModalCategorySearchTerm('');
+        }}
+      >
+        <View style={styles.categoryModalContainer}>
+          <KeyboardAvoidingView 
+            behavior={Platform.OS === "ios" ? "padding" : "height"} 
+            style={{ flexShrink: 1 }} 
+            keyboardVerticalOffset={Platform.OS === "ios" ? 20 : 0} 
+          >
+            <View style={styles.categoryModalContent}>
+              <Text style={styles.categoryModalTitle}>Filter by Category</Text>
+              <FlatList
+                data={[{ id: null, name: `All Categories` }, ...filteredModalCategories]}
+                keyExtractor={(item) => item.id ?? 'all'}
+                renderItem={({ item }) => (
+                  <TouchableOpacity 
+                      style={styles.categoryModalItem}
+                      onPress={() => {
+                          onSelectResultCategory(item.id); 
+                          setCategoryModalVisible(false);
+                          setModalCategorySearchTerm('');
+                      }}
+                  >
+                    <Text 
+                      style={[
+                          styles.categoryModalItemText,
+                          (item.id === selectedResultCategoryId) && styles.categoryModalItemTextSelected 
+                      ]}
+                    >
+                      {item.name}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                ListEmptyComponent={() => (
+                  <View style={styles.categoryModalEmpty}>
+                    <Text style={styles.categoryModalEmptyText}>No categories match "{modalCategorySearchTerm}"</Text>
+                  </View>
+                )}
+              />
+              <TextInput
+                style={styles.categoryModalSearchInput}
+                placeholder="Search categories..."
+                placeholderTextColor="#999"
+                value={modalCategorySearchTerm}
+                onChangeText={setModalCategorySearchTerm}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <View style={styles.categoryModalFooter}>
+                  <TouchableOpacity 
+                      style={[styles.categoryModalButton, styles.categoryModalClearButton]} 
+                      onPress={() => {
+                          onSelectResultCategory(null); 
+                          setCategoryModalVisible(false);
+                          setModalCategorySearchTerm('');
+                      }}
+                  >
+                      <Text style={[styles.categoryModalButtonText, styles.categoryModalClearButtonText]}>Clear Selection</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                      style={[styles.categoryModalButton, styles.categoryModalCloseButton]} 
+                      onPress={() => {
+                          setCategoryModalVisible(false);
+                          setModalCategorySearchTerm('');
+                      }}
+                  >
+                      <Text style={styles.categoryModalButtonText}>Close</Text>
+                  </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
+    </View>
+  );
+});
+// --- END: FilterAndSortControls Component Definition ---
 
 export default function App() {
   return (
@@ -31,466 +455,180 @@ export default function App() {
 
 function RootLayoutNav() {
   const router = useRouter();
-  const [search, setSearch] = useState('');
-  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'name' | 'price'>('newest');
-  const [isSearching, setIsSearching] = useState(false);
-  
-  // Ref for the search input
-  const searchInputRef = useRef<TextInput>(null);
-  
   const { isConnected } = useApi();
   
+  // Catalog items hook (from search.tsx, performSearch, isSearching, searchError are key)
+  const { performSearch, isSearching: catalogIsSearching, searchError: catalogSearchError } = useCatalogItems();
+
+  // Zustand store hooks (some were already in index.tsx)
   const scanHistory = useAppStore((state) => state.scanHistory);
   const addScanHistoryItem = useAppStore((state) => state.addScanHistoryItem);
-  const removeScanHistoryItem = useAppStore((state) => state.removeScanHistoryItem);
   const autoSearchOnEnter = useAppStore((state) => state.autoSearchOnEnter);
   const autoSearchOnTab = useAppStore((state) => state.autoSearchOnTab);
   
+  // State for search functionality (from search.tsx, adapted)
+  const [searchQuery, setSearchQuery] = useState<string>(''); // Primary input query
+  const searchInputRef = useRef<TextInput>(null);
+
+  // Focus management (targets searchInputRef)
   useEffect(() => {
-    // Log the settings when the component mounts and when they change
-    logger.info('Home::SettingsCheck', 'Current auto-search settings:', { 
-      autoSearchOnEnter,
-      autoSearchOnTab,
-    });
-  }, [autoSearchOnEnter, autoSearchOnTab]);
-  
-  useEffect(() => {
-    logger.info('Home', 'Home screen mounted');
-    // Focus the search input when the component mounts
+    logger.info('Home', 'Home screen mounted, attempting to focus search input.');
     setTimeout(() => {
-      if (searchInputRef.current) {
-        searchInputRef.current.focus();
-      }
-    }, 300); // Short delay to ensure the component is fully mounted
+      searchInputRef.current?.focus();
+    }, 300); 
   }, []);
   
-  // Also focus the search field when returning to this screen
   useFocusEffect(
     useCallback(() => {
       logger.info('Home::useFocusEffect', 'Screen focused, attempting to focus search input.');
-      // Attempt to focus directly without setTimeout
-      if (searchInputRef.current) {
-        logger.info('Home::useFocusEffect', 'searchInputRef.current is available, calling focus().');
-        searchInputRef.current.focus();
-      } else {
-        logger.warn('Home::useFocusEffect', 'searchInputRef.current is NULL when direct focus attempt was made.');
-      }
-      
+      searchInputRef.current?.focus();
       return () => {
         logger.info('Home::useFocusEffect', 'Screen lost focus.');
-        // Optional: blur input when screen loses focus
-        // if (searchInputRef.current) {
-        //   searchInputRef.current.blur();
-        // }
       };
     }, [])
   );
   
-  // Function to determine search type
-  const getQueryType = (query: string): 'UPC' | 'SKU' | 'NAME' => {
-    // UPC: 8, 12, 13, or 14 digits
-    if (/^\d{8}$|^\d{12,14}$/.test(query)) {
-      return 'UPC';
-    }
-    // Simple SKU check (alphanumeric, potentially starting/ending specific way - adjust if needed)
-    if (/^[a-zA-Z0-9\-]+$/.test(query) && !/^\d+$/.test(query)) { // Alphanumeric but not *only* digits
-        // Add more specific SKU patterns here if applicable
-        return 'SKU';
-    }
-    // Default to name search
-    return 'NAME';
-  };
+  const handleClearSearch = useCallback(() => {
+    setSearchQuery('');
+    // Debounced query in SearchResultsArea will also clear via its useEffect dependency on initialSearchQuery
+    searchInputRef.current?.focus();
+  }, [setSearchQuery, searchInputRef]);
+
+  const navigateToHistory = useCallback(() => {
+    router.push('/(tabs)/scanHistory');
+  }, [router]);
   
-  const handleSearch = async (submittedValue?: string) => {
-    // Prioritize submittedValue if provided, otherwise use component's search state.
-    const valueToSearch = typeof submittedValue === 'string' ? submittedValue : search;
-    
-    logger.info('Home::handleSearch', `Search initiated. Source: ${typeof submittedValue === 'string' ? 'direct_submission' : 'state'}, Value: "${valueToSearch}"`);
-
-    if (!valueToSearch.trim()) {
-      logger.warn('Home::handleSearch', 'Search value is empty, aborting.');
-      return;
-    }
-    
-    // Blur input when search starts - check if searchInputRef.current exists
-    if (searchInputRef.current) {
-      searchInputRef.current.blur();
-    }
-    
-    const query = valueToSearch.trim();
-    const queryType = getQueryType(query);
-    
-    logger.info('Home', `Processing search - Value: "${query}", Type: ${queryType}`);
-    setIsSearching(true);
-    
-    try {
-      // --- 1. Search Local Database First --- 
-      logger.debug('Home', 'Attempting local DB search first...', { query });
-      const localItems = await modernDb.searchLocalItems(query);
-      
-      if (localItems.length > 0) {
-        // Item found locally
-        logger.info('Home', 'Item found in local DB', { count: localItems.length, query });
-        
-        if (localItems.length > 1) {
-          logger.warn('Home', 'Multiple items found locally. Using the first result.', {
-            count: localItems.length,
-            query,
-            firstItemId: localItems[0]?.id
-          });
-          // TODO: Implement UI to allow user to select the correct item when multiple are found locally.
-        }
-        
-        const localItemToUse = localItems[0]; // Use the first item for now
-        
-        // ** Add check for valid item and ID before routing **
-        if (localItemToUse && typeof localItemToUse.id === 'string' && localItemToUse.id.trim() !== '') {
-          let historyItem: ScanHistoryItem | null = null;
-          try {
-            // 1. Try creating history item
-            logger.debug('Home', 'Attempting to generate scanId...');
-            // ** TEMP TEST: Use Date.now() instead of uuidv4 **
-            const scanId = `temp-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`; 
-            // const scanId = uuidv4(); // Generate UUID first
-            logger.debug('Home', 'Generated scanId', { scanId });
-            
-            logger.debug('Home', 'Attempting to create historyItem object (with full data)...');
-            // Explicitly include all relevant fields from the enriched localItemToUse
-            historyItem = {
-              id: localItemToUse.id,
-              name: localItemToUse.name,
-              description: localItemToUse.description,
-              price: localItemToUse.price,
-              sku: localItemToUse.sku, // Ensure SKU is included
-              barcode: localItemToUse.barcode, // Ensure Barcode/UPC is included
-              isActive: localItemToUse.isActive,
-              category: localItemToUse.category,
-              categoryId: localItemToUse.categoryId,
-              images: localItemToUse.images,
-              createdAt: localItemToUse.createdAt,
-              updatedAt: localItemToUse.updatedAt,
-              taxIds: localItemToUse.taxIds, // Ensure Tax IDs are included
-              // History specific fields
-              scanId: scanId,
-              scanTime: new Date().toISOString(),
-            };
-            logger.debug('Home', 'History item object created', { scanId: historyItem.scanId });
-          } catch (historyCreationError) {
-            // Catch errors from either uuid or object creation
-            logger.error('Home', 'Error creating history item object from local item', { error: historyCreationError, item: localItemToUse });
-            throw historyCreationError; // Re-throw to be caught by outer catch
-          }
-          
-          if (historyItem) {
-             // Log the complete history item before adding to store
-             logger.debug('Home', 'Attempting to add history item to store:', historyItem);
-             try {
-               // 2. Try adding to Zustand store
-               addScanHistoryItem(historyItem);
-               logger.debug('Home', 'Added item to scan history store', { scanId: historyItem.scanId });
-             } catch (storeError) {
-               logger.error('Home', 'Error adding item to Zustand store', { error: storeError, historyItem });
-               throw storeError; // Re-throw to be caught by outer catch
-             }
-             
-             try {
-               // 3. Try navigating
-               logger.info('Home', 'Navigating to item details', { itemId: localItemToUse.id });
-               router.push(`/item/${localItemToUse.id}`);
-               setSearch(''); // Clear search input in UI
-             } catch (navigationError) {
-               logger.error('Home', 'Error navigating to item details', { error: navigationError, itemId: localItemToUse.id });
-               throw navigationError; // Re-throw to be caught by outer catch
-             }
-          }
-          
-        } else {
-           // Log error if ID is missing or invalid
-           logger.error('Home', 'Local search found item but ID is missing or invalid', { itemData: JSON.stringify(localItemToUse) });
-           Alert.alert('Search Error', 'Found item locally, but could not navigate to its details (Invalid ID).');
-        }
-      } else {
-        // --- 2. Search Backend API (if not found locally) --- 
-        logger.info('Home', 'Item not found locally, searching backend API...', { query, queryType });
-
-        // Use a proper query structure with text_query as recommended by Square API
-        logger.debug('Home', 'Sending search request with proper query structure', { fullQuery: query, queryType });
-        const searchPayload = {
-          object_types: ['ITEM', 'ITEM_VARIATION'],
-          query: {
-            text_query: {
-              keywords: [query]
-            }
-          },
-          limit: 100
-        };
-        
-        logger.debug('Home', 'Search payload:', searchPayload);
-        const response = await apiClientInstance.post('/v2/catalog/search', searchPayload);
-      
-        if (response.data.success && response.data.objects && response.data.objects.length > 0) {
-          
-          // --- Handle Potential Duplicates --- 
-          if ((queryType === 'UPC' || queryType === 'SKU') && response.data.objects.length > 1) {
-            logger.warn('Home', `Multiple items found for ${queryType}: ${query}. Using the first result.`, {
-              count: response.data.objects.length,
-              query,
-              queryType,
-              firstItemId: response.data.objects[0]?.id
-            });
-            // TODO: Implement UI to allow user to select the correct item when multiple are found for UPC/SKU.
-          }
-          // --- End Handle Potential Duplicates ---
-          
-          const foundRawItem = response.data.objects[0]; // This is a raw CatalogObject
-          
-          // We need to enrich this raw item before saving to history
-          logger.debug('Home', 'API search found raw item, attempting enrichment...', { itemId: foundRawItem.id });
-          
-          let enrichedItem: ConvertedItem | null = null;
-          try {
-            const db = await modernDb.getDatabase();
-            // Fetch the full raw data from DB using the ID found via API
-            // Use getItemOrVariationRawById to ensure we handle both cases
-            const rawDbResult = await modernDb.getItemOrVariationRawById(foundRawItem.id);
-            
-            if (rawDbResult?.data_json) {
-               let itemJson: string | null = null;
-               let variationJson: string | null = null;
-               let itemId = foundRawItem.id;
-               let itemUpdatedAt = new Date().toISOString();
-
-               if (rawDbResult.found_in === 'item') {
-                 itemJson = rawDbResult.data_json;
-                 const firstVariation = await db.getFirstAsync<any>(
-                   `SELECT data_json FROM item_variations WHERE item_id = ? AND is_deleted = 0 LIMIT 1`,
-                   [itemId]
-                 );
-                 variationJson = firstVariation?.data_json || null;
-                 itemUpdatedAt = rawDbResult.updated_at || itemUpdatedAt;
-               } else if (rawDbResult.found_in === 'variation') {
-                 variationJson = rawDbResult.data_json;
-                 itemId = rawDbResult.item_id;
-                 const parentItem = await db.getFirstAsync<any>(
-                   `SELECT data_json, updated_at FROM catalog_items WHERE id = ? AND is_deleted = 0`,
-                   [itemId]
-                 );
-                 itemJson = parentItem?.data_json || null;
-                 itemUpdatedAt = parentItem?.updated_at || itemUpdatedAt;
-               }
-
-               if (itemJson) {
-                 const itemData = JSON.parse(itemJson);
-                 const variationData = variationJson ? JSON.parse(variationJson) : {};
-
-                 // Extract Modifier IDs
-                 const modifierListInfo = itemData?.item_data?.modifier_list_info;
-                 let actualModifierListIds: string[] = [];
-
-                 if (modifierListInfo && Array.isArray(modifierListInfo) && modifierListInfo.length > 0) {
-                   actualModifierListIds = modifierListInfo
-                     .map((info: any) => info?.modifier_list_id)
-                     .filter((id: any): id is string => typeof id === 'string');
-                 }
-                 
-                 // Reconstruct for transformer
-                  const reconstructedCatalogObject: Partial<CatalogObject> & { id: string } = {
-                    id: itemId,
-                    type: 'ITEM',
-                    updated_at: itemUpdatedAt,
-                    version: itemData.version || '0', 
-                    is_deleted: false,
-                    item_data: {
-                      ...(itemData.item_data || {}),
-                      variations: variationData.id ? [{
-                        id: variationData.id, type: 'ITEM_VARIATION', updated_at: variationData.updated_at, 
-                        version: variationData.version, item_variation_data: variationData.item_variation_data
-                      }] : []
-                    }
-                  };
-
-                  // Transform the enriched, reconstructed data
-                  enrichedItem = transformCatalogItemToItem(reconstructedCatalogObject as any);
-               } else {
-                  logger.warn('Home', 'Could not find necessary parent item JSON during API result enrichment', { apiFoundId: foundRawItem.id });
-               }
-            } else {
-               logger.warn('Home', 'API found item ID, but no corresponding raw data found in DB for enrichment', { itemId: foundRawItem.id });
-               // Fallback: Use the initially transformed (incomplete) item?
-               enrichedItem = transformCatalogItemToItem(foundRawItem); // This will lack tax/crv
-            }
-          } catch (enrichError) {
-             logger.error('Home', 'Error enriching item found via API', { itemId: foundRawItem.id, error: enrichError });
-             enrichedItem = transformCatalogItemToItem(foundRawItem); // Fallback to basic transform on error
-          }
-
-          // Use the enriched item (or fallback) if available
-          if (enrichedItem) {
-            logger.info('Home', 'Item enriched (or fell back) after API search', { itemId: enrichedItem.id, name: enrichedItem.name, hasTax: !!enrichedItem.taxIds?.length });
-            
-            const historyItem: ScanHistoryItem = {
-              ...enrichedItem, // Use the enriched item data
-              scanId: uuidv4(),
-              scanTime: new Date().toISOString(),
-            };
-            addScanHistoryItem(historyItem);
-            router.push(`/item/${enrichedItem.id}`);
-            setSearch(''); // Clear search input in UI
-          } else {
-            logger.warn('Home', 'API Search returned item but enrichment/transformation failed', { rawItem: foundRawItem });
-            Alert.alert('Search Error', 'Found an item, but could not display its details.');
-          }
-        } else if (response.data.success) {
-          logger.info('Home', 'Search completed (API), no items found', { query, queryType });
-          Alert.alert('Not Found', `No item found matching "${query}".`);
-        } else {
-          logger.error('Home', 'Search API call failed', { query, queryType, error: response.data.error?.message });
-          Alert.alert('Search Error', response.data.error?.message || 'Could not perform search. Please check connection.');
-        }
-      }
-      // --- End Search Logic --- 
-      
-    } catch (error) {
-      logger.error('Home', 'Error during search execution', { query, queryType, error });
-      Alert.alert('Search Error', 'An unexpected error occurred during search.');
-    } finally {
-      setIsSearching(false);
-    }
-  };
-  
-  const handleItemPress = (item: ScanHistoryItem | ConvertedItem) => {
-    const itemId = item.id;
-    logger.info('Home', 'Item selected from history', { itemId });
-    router.push(`/item/${itemId}`);
-  };
-  
-  const handleDeleteHistoryItem = (scanId: string) => {
-    logger.info('Home', 'Removing item from scan history', { scanId });
-    removeScanHistoryItem(scanId);
-  };
-  
-  const sortedItems = [...scanHistory].sort((a, b) => {
-    switch (sortOrder) {
-      case 'newest':
-        return new Date(b.scanTime).getTime() - new Date(a.scanTime).getTime();
-      case 'oldest':
-        return new Date(a.scanTime).getTime() - new Date(b.scanTime).getTime();
-      case 'name':
-        return (a.name ?? '').localeCompare(b.name ?? '');
-      case 'price':
-        const aPrice = typeof a.price === 'number' ? a.price : 0;
-        const bPrice = typeof b.price === 'number' ? b.price : 0;
-        return bPrice - aPrice;
-      default:
-        return 0;
-    }
-  });
+  // KAV Offsets for BottomSearchBarComponent (can be defined here or inside BottomSearchBarComponent)
+  const KAV_OFFSET_IOS = 0;
+  const KAV_OFFSET_ANDROID = 0;
   
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={lightTheme.colors.background} />
       
-      <View style={styles.mainContainer}>
         <ConnectionStatusBar 
           connected={isConnected} 
           message="Square Connection Status" 
         />
         
-        <SearchBar 
-          ref={searchInputRef}
-          value={search}
-          onChangeText={setSearch}
-          onSubmit={handleSearch}
-          onClear={() => setSearch('')}
-          autoSearchOnEnter={autoSearchOnEnter}
-          autoSearchOnTab={autoSearchOnTab}
-        />
-        
-        <SortHeader 
-          title="Scan History" 
-          sortOrder={sortOrder}
-          onSortChange={setSortOrder}
-        />
-        
-        <FlatList
-          data={sortedItems}
-          keyExtractor={(item) => item.scanId}
-          renderItem={({ item, index }) => (
-            <SwipeableRow
-              onDelete={() => handleDeleteHistoryItem(item.scanId)}
-              itemName={item.name ?? undefined}
-            >
-              <CatalogueItemCard 
-                item={item}
-                index={sortedItems.length - index}
-                onPress={() => handleItemPress(item)}
-              />
-            </SwipeableRow>
-          )}
-          contentContainerStyle={styles.listContent}
-          style={styles.listContainer}
-          ListEmptyComponent={() => (
-            <View style={styles.emptyListContainer}>
-              <Ionicons name="scan-circle-outline" size={60} color="#ccc" />
-              <Text style={styles.emptyListText}>Scan history is empty.</Text>
-              <Text style={styles.emptyListSubText}>Search for items to add them here.</Text>
-            </View>
-          )}
-        />
-      </View>
-      {isSearching && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color={lightTheme.colors.primary} />
-          <Text style={styles.loadingText}>Searching...</Text>
-        </View>
-      )}
+      {/* Use Memoized ScanHistoryButtonComponent */}
+      <ScanHistoryButtonComponent count={scanHistory.length} onNavigate={navigateToHistory} />
+
+      <SearchResultsArea initialSearchQuery={searchQuery} />
+
+      <BottomSearchBarComponent 
+        searchInputRef={searchInputRef} 
+        searchQuery={searchQuery} 
+        setSearchQuery={setSearchQuery} 
+        onClearSearch={handleClearSearch} 
+        // Pass KAV_OFFSET_IOS and KAV_OFFSET_ANDROID if BottomSearchBarComponent needs them as props
+        // For now, assuming BottomSearchBarComponent defines its own or they are fixed as 0.
+      />
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  mainContainer: {
-    flex: 1,
-  },
-  listContainer: {
-    flex: 1,
-  },
-  listContent: {
-    paddingBottom: 20,
-    flexGrow: 1,
-  },
-  emptyListContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 40,
-    marginTop: 50,
-  },
-  emptyListText: {
-    marginTop: 15,
-    fontSize: 18,
-    fontWeight: '500',
-    color: '#888',
-  },
-  emptyListSubText: {
-    marginTop: 5,
-    fontSize: 14,
-    color: '#aaa',
-    textAlign: 'center',
-  },
-  loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: '#555',
-  },
-}); 
+// Define Memoized Components
+interface FilterButtonsProps {
+  searchFilters: SearchFilters;
+  onToggleFilter: (filter: keyof SearchFilters) => void;
+}
+const FilterButtonsComponent = memo(({ searchFilters, onToggleFilter }: FilterButtonsProps) => {
+  return (
+    <View style={styles.filterContainer}>
+      <TouchableOpacity style={[styles.filterButton, searchFilters.name && styles.filterButtonActive]} onPress={() => onToggleFilter('name')}><Text style={[styles.filterButtonText, searchFilters.name && styles.filterButtonTextActive]}>Name</Text></TouchableOpacity>
+      <TouchableOpacity style={[styles.filterButton, searchFilters.sku && styles.filterButtonActive]} onPress={() => onToggleFilter('sku')}><Text style={[styles.filterButtonText, searchFilters.sku && styles.filterButtonTextActive]}>SKU</Text></TouchableOpacity>
+      <TouchableOpacity style={[styles.filterButton, searchFilters.barcode && styles.filterButtonActive]} onPress={() => onToggleFilter('barcode')}><Text style={[styles.filterButtonText, searchFilters.barcode && styles.filterButtonTextActive]}>UPC</Text></TouchableOpacity>
+      <TouchableOpacity style={[styles.filterButton, searchFilters.category && styles.filterButtonActive]} onPress={() => onToggleFilter('category')}><Text style={[styles.filterButtonText, searchFilters.category && styles.filterButtonTextActive]}>Category</Text></TouchableOpacity>
+    </View>
+  );
+});
+
+interface BottomSearchBarProps {
+  searchInputRef: React.RefObject<TextInput | null>;
+  searchQuery: string;
+  setSearchQuery: (query: string) => void;
+  onClearSearch: () => void;
+  // KAV_OFFSET_IOS?: number; // Optional props if needed
+  // KAV_OFFSET_ANDROID?: number;
+}
+const BottomSearchBarComponent = memo(({ 
+  searchInputRef, 
+  searchQuery, 
+  setSearchQuery, 
+  onClearSearch,
+  // KAV_OFFSET_IOS = 0, // Default values if props aren't passed
+  // KAV_OFFSET_ANDROID = 0
+}: BottomSearchBarProps) => {
+  // Define KAV offsets directly here if they are static for this component
+  const KAV_OFFSET_IOS_internal = 0; 
+  const KAV_OFFSET_ANDROID_internal = 0;
+
+  return (
+    <KeyboardAvoidingView 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? KAV_OFFSET_IOS_internal : KAV_OFFSET_ANDROID_internal}
+      style={styles.searchBarContainer} 
+    >
+      <TouchableOpacity 
+        style={[styles.externalClearTextButton, searchQuery.length === 0 && styles.externalClearTextButtonDisabled]}
+        onPress={onClearSearch}
+        disabled={searchQuery.length === 0}
+      >
+        <Text style={[styles.externalClearButtonText, searchQuery.length === 0 && styles.externalClearButtonTextDisabled]}>Clear</Text>
+      </TouchableOpacity>
+      <View style={styles.searchInputWrapper}>
+        {/* The search icon is now the first element inside searchInputWrapper */}
+        <Ionicons name="search" size={22} color="#888" style={styles.searchIcon} />
+        <TextInput
+          ref={searchInputRef}
+          style={styles.searchInput}
+          placeholder="Scan or Search items..."
+          placeholderTextColor="#999"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="search"
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity style={styles.clearButton} onPress={onClearSearch}>
+            <Ionicons name="close-circle" size={20} color="#aaa" />
+          </TouchableOpacity>
+        )}
+      </View>
+    </KeyboardAvoidingView>
+  );
+});
+
+// Define Memoized ScanHistoryButtonComponent
+interface ScanHistoryButtonProps {
+  count: number;
+  onNavigate: () => void;
+}
+const ScanHistoryButtonComponent = memo(({ count, onNavigate }: ScanHistoryButtonProps) => {
+  return (
+    <View style={styles.historyButtonContainer}>
+      <Link href="/(tabs)/scanHistory" asChild>
+        {/* We use TouchableOpacity directly for onPress, Link is for href */}
+        {/* To make Link work with onPress, we can pass the onPress to the TouchableOpacity */}
+        {/* Or, let Link handle navigation and don't use a separate onNavigate if Link is sufficient */}
+        {/* For simplicity with memoization, router.push via onNavigate is fine */}
+        <TouchableOpacity style={styles.historyButton} onPress={onNavigate}>
+          <Ionicons name="archive-outline" size={20} color={lightTheme.colors.primary} style={{marginRight: 8}} />
+          <Text style={styles.historyButtonText}>View Scan History ({count})</Text>
+        </TouchableOpacity>
+      </Link>
+    </View>
+  );
+});
+
+// Note: The StyleSheet.create block is now expected to be in ./indexStyles.tsx
+// Ensure styles.loadingOverlay and styles.loadingText are defined in indexStyles.tsx
+
+// The old StyleSheet from index.tsx is removed, but its specific styles (like loadingOverlay)
+// need to be present in indexStyles.tsx or merged.
+// I will assume indexStyles.tsx (copied from searchStyles.tsx) will be the base,
+// and any unique, necessary styles from the original index.tsx's StyleSheet (like loadingOverlay)
+// should be added to indexStyles.tsx if not already covered.
+// For now, I will add loadingOverlay to indexStyles.tsx as it's referenced. 

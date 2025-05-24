@@ -1,7 +1,7 @@
-import React, { useEffect, createContext, useContext, useState } from 'react';
+import React, { useEffect, createContext, useContext, useState, useMemo, useCallback } from 'react';
 import { useSquareAuth } from '../hooks/useSquareAuth';
 import logger from '../utils/logger';
-import apiClient, { ApiResponse } from '../api';
+import { apiClientInstance } from '../api';
 import tokenService from '../services/tokenService';
 import { useAppStore } from '../store';
 import {
@@ -87,7 +87,7 @@ export const ApiProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [initialConnectionChecked]);
   
   // Function to refresh data from the API
-  const refreshData = async (dataType?: 'categories' | 'items' | 'all') => {
+  const refreshData = useCallback(async (dataType?: 'categories' | 'items' | 'all') => {
     if (!isConnected) {
       logger.info('ApiProvider', 'Skipping data refresh - not connected to Square');
       return;
@@ -115,7 +115,7 @@ export const ApiProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Refresh categories if specified
       if (refreshType === 'categories' || refreshType === 'all') {
         logger.info('ApiProvider', 'Refreshing catalog categories');
-        await apiClient.get('/v2/catalog/list', { params: { types: 'CATEGORY' } })
+        await apiClientInstance.get('/v2/catalog/list', { params: { types: 'CATEGORY' } })
           .then((response) => {
              if (response?.data?.objects && Array.isArray(response.data.objects)) {
                const rawCategories = response.data.objects as CatalogObject[];
@@ -141,7 +141,7 @@ export const ApiProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Refresh catalog items if specified
       if (refreshType === 'items' || refreshType === 'all') {
         logger.info('ApiProvider', 'Refreshing catalog items');
-        await apiClient.get('/v2/catalog/list', { params: { types: 'ITEM', limit: 100 } })
+        await apiClientInstance.get('/v2/catalog/list', { params: { types: 'ITEM', limit: 100 } })
           .then((response) => {
              if (response?.data?.objects && Array.isArray(response.data.objects)) {
                const rawItems = response.data.objects as CatalogObject[];
@@ -169,10 +169,10 @@ export const ApiProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error('ApiProvider', 'Error during data refresh', { error: errorMessage });
     }
-  };
+  }, [isConnected, lastRefreshTimes, setProducts, setCategories]);
 
   // Improved connection verification using tokenService
-  const verifyConnection = async (): Promise<boolean> => {
+  const verifyConnection = useCallback(async (): Promise<boolean> => {
     try {
       // Check if we have a valid token
       const tokenStatus = await tokenService.checkTokenStatus();
@@ -196,10 +196,9 @@ export const ApiProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       logger.error('ApiProvider', 'Error verifying connection', error);
       return false;
     }
-  };
+  }, []);
   
-  // Create the context value
-  const contextValue: ApiContextType = {
+  const contextValue = useMemo(() => ({
     isConnected,
     merchantId,
     isLoading,
@@ -207,8 +206,17 @@ export const ApiProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     connectToSquare: connect,
     disconnectFromSquare: disconnect,
     refreshData,
+    verifyConnection,
+  }), [
+    isConnected, 
+    merchantId, 
+    isLoading, 
+    authError, 
+    connect, 
+    disconnect, 
+    refreshData, 
     verifyConnection
-  };
+  ]);
   
   return (
     <ApiContext.Provider value={contextValue}>

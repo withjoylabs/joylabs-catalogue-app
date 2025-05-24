@@ -1683,29 +1683,33 @@ export async function searchCatalogItems(
 
   // 4. Search by Category Name
   if (filters.category) {
-    // First, find matching category IDs
-    const matchingCategories = await db.getAllAsync<{ id: string }>(
-      `SELECT id FROM categories WHERE name LIKE ? AND is_deleted = 0`,
-      [likeTerm]
-    );
+    const categoryQueryPart1 = `
+      SELECT
+        ci.id,
+        ci.data_json,
+        'category' as match_type,
+        c.name as match_context
+      FROM catalog_items ci
+      JOIN categories c ON ci.category_id = c.id
+      WHERE c.name LIKE ? AND ci.is_deleted = 0 AND c.is_deleted = 0
+    `;
+    queries.push(categoryQueryPart1);
+    params.push(likeTerm);
+    logger.debug('searchCatalogItems', 'Added category query (standard category_id)');
 
-    if (matchingCategories.length > 0) {
-      const categoryIds = matchingCategories.map(c => c.id);
-      const placeholders = categoryIds.map(() => '?').join(',');
-      const categoryQuery = `
-        SELECT
-          ci.id,
-          ci.data_json,
-          'category' as match_type,
-          cat.name as match_context
-        FROM catalog_items ci
-        JOIN categories cat ON ci.category_id = cat.id
-        WHERE ci.category_id IN (${placeholders}) AND ci.is_deleted = 0
-      `;
-      queries.push(categoryQuery);
-      params.push(...categoryIds);
-      logger.debug('searchCatalogItems', 'Added category query for IDs:', { categoryIds });
-    }
+    const categoryQueryPart2 = `
+      SELECT
+        ci.id,
+        ci.data_json,
+        'category' as match_type,
+        c.name as match_context
+      FROM catalog_items ci
+      JOIN categories c ON json_extract(ci.data_json, '$.item_data.reporting_category.id') = c.id
+      WHERE c.name LIKE ? AND ci.is_deleted = 0 AND c.is_deleted = 0
+    `;
+    queries.push(categoryQueryPart2);
+    params.push(likeTerm);
+    logger.debug('searchCatalogItems', 'Added category query (reporting_category_id)');
   }
 
   if (queries.length === 0) {
@@ -1713,7 +1717,7 @@ export async function searchCatalogItems(
     return [];
   }
 
-  const fullQuery = queries.join('\nUNION\n') + '\nLIMIT 50;'; // Combine queries and limit results
+  const fullQuery = queries.join('\nUNION\n') + '\nLIMIT 250;'; // Combine queries and limit results
   logger.debug('searchCatalogItems', 'Executing combined query', { query: fullQuery, params });
 
   try {
