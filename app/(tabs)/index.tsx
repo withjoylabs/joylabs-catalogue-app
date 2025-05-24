@@ -13,9 +13,12 @@ import {
   Platform, // For KeyboardAvoidingView if we re-add it, but SearchBar handles its input.
   KeyboardAvoidingView, // Keep for filter pills for now, may remove if SearchBar covers all
   ScrollView,
-  Modal
+  Modal,
+  Animated, // For swipe action
+  Alert, // Added for print feedback
 } from 'react-native';
 import { useRouter, useFocusEffect, Link } from 'expo-router';
+import { Swipeable } from 'react-native-gesture-handler'; // Added for swipe actions
 import ConnectionStatusBar from '../../src/components/ConnectionStatusBar';
 import { ConvertedItem, SearchResultItem } from '../../src/types/api';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,13 +28,14 @@ import { apiClientInstance } from '../../src/api';
 import logger from '../../src/utils/logger';
 import { DatabaseProvider } from '../../src/components/DatabaseProvider';
 import { transformCatalogItemToItem } from '../../src/utils/catalogTransformers';
-import { Alert } from 'react-native';
 import { v4 as uuidv4 } from 'uuid';
 import { lightTheme } from '../../src/themes';
 import * as modernDb from '../../src/database/modernDb';
 import { useCatalogItems } from '../../src/hooks/useCatalogItems';
 import { styles } from './indexStyles'; // Import new styles
 import { SearchFilters } from '../../src/database/modernDb'; // For search filters type
+import { printItemLabel, LabelData } from '../../src/utils/printLabel'; // Added for printing
+import SystemModal from '../../src/components/SystemModal'; // Added for notifications
 
 // Debounce utility (copied from search.tsx)
 const debounce = <F extends (...args: any[]) => any>(func: F, waitFor: number) => {
@@ -56,6 +60,12 @@ interface SearchResultsAreaProps {
 
 const SearchResultsArea = memo(({ initialSearchQuery }: SearchResultsAreaProps) => {
   const router = useRouter(); 
+  const swipeableRefs = useRef<Record<string, Swipeable | null>>({}); // To close other rows
+
+  // State for print notification (for SystemModal)
+  const [showPrintNotification, setShowPrintNotification] = useState(false);
+  const [printNotificationMessage, setPrintNotificationMessage] = useState('');
+  const [printNotificationType, setPrintNotificationType] = useState<'success' | 'error'>('success');
 
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>('');
   const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
@@ -162,32 +172,105 @@ const SearchResultsArea = memo(({ initialSearchQuery }: SearchResultsAreaProps) 
     router.push(`/item/${item.id}`);
   }, [router]);
 
-  const renderSearchResultItem = useCallback(({ item }: { item: SearchResultItem; index: number }) => {
+  const handleSwipePrint = useCallback(async (item: SearchResultItem) => {
+    logger.info('SearchResultsArea:handleSwipePrint', 'Print triggered for item', { itemId: item.id, name: item.name });
+    const labelData: LabelData = {
+      itemId: item.id,
+      itemName: item.name || 'Item Name',
+      price: item.price,
+      sku: item.sku,
+      barcode: item.barcode,
+    };
+
+    try {
+      const success = await printItemLabel(labelData);
+      if (success) {
+        setPrintNotificationMessage(`Label for "${item.name || 'Item'}" sent to printer.`);
+        setPrintNotificationType('success');
+      } else {
+        setPrintNotificationMessage('Could not send label to printer. Check connection.');
+        setPrintNotificationType('error');
+      }
+    } catch (error) {
+      logger.error('SearchResultsArea:handleSwipePrint', 'Error printing label', { error });
+      setPrintNotificationMessage('An unexpected error occurred during printing.');
+      setPrintNotificationType('error');
+    } finally {
+      setShowPrintNotification(true); 
+      setTimeout(() => setShowPrintNotification(false), 3000); 
+    }
+    swipeableRefs.current[item.id]?.close();
+  }, [printItemLabel, swipeableRefs, setPrintNotificationMessage, setPrintNotificationType, setShowPrintNotification]);
+
+  const renderLeftActions = useCallback((progress: Animated.AnimatedInterpolation<number>, dragX: Animated.AnimatedInterpolation<number>, item: SearchResultItem) => {
+    const SWIPE_BUTTON_WIDTH = 100; 
+    // const LIST_HORIZONTAL_PADDING = 16; // No longer needed here
+
+    const trans = progress.interpolate({
+      inputRange: [0, 1],
+      outputRange: [-SWIPE_BUTTON_WIDTH, 0], 
+      extrapolate: 'clamp',
+    });
+
+    return (
+      <TouchableOpacity 
+        onPress={() => { 
+          handleSwipePrint(item);
+        }}
+        // Apply width directly, margin hacks removed.
+        style={[styles.swipePrintActionLeft, { width: SWIPE_BUTTON_WIDTH }]} 
+      >
+        <Animated.View style={[
+          styles.swipePrintButtonContainer, 
+          { width: SWIPE_BUTTON_WIDTH, transform: [{ translateX: trans }] }
+        ]}>
+            <Ionicons name="print-outline" size={24} color="#fff" style={{ marginRight: 8 }} />
+            <Text style={styles.swipePrintActionText}>Print</Text>
+        </Animated.View>
+      </TouchableOpacity>
+    );
+  }, [handleSwipePrint, styles]);
+
+  const renderSearchResultItem = useCallback(({ item, index }: { item: SearchResultItem; index: number }) => {
     const formattedPrice = typeof item.price === 'number' 
       ? `$${item.price.toFixed(2)}` 
       : (item.price ? String(item.price) : 'N/A');
-    let matchIcon: keyof typeof Ionicons.glyphMap = 'document-text-outline';
-    if (item.matchType === 'sku') matchIcon = 'pricetag-outline';
-    if (item.matchType === 'barcode') matchIcon = 'barcode-outline';
-    if (item.matchType === 'category') matchIcon = 'folder-outline';
     return (
-      <TouchableOpacity style={styles.resultItem} onPress={() => handleResultItemPress(item)}>
-        <View style={styles.resultIconContainer}><Ionicons name={matchIcon} size={24} color="#888" /></View>
-        <View style={styles.resultDetails}>
-          <Text style={styles.resultName} numberOfLines={1}>{item.name ?? 'N/A'}</Text>
-          <View style={styles.resultMeta}>
-            {item.sku && <Text style={styles.resultSku}>SKU: {item.sku}</Text>}
-            {item.category && <Text style={styles.resultCategory}>{item.category}</Text>}
-            {item.barcode && <Text style={styles.resultBarcode}>UPC: {item.barcode}</Text>}
+      <Swipeable
+        ref={(ref) => { swipeableRefs.current[item.id] = ref; }}
+        renderLeftActions={(progress, dragX) => renderLeftActions(progress, dragX, item)} 
+        onSwipeableWillOpen={() => {
+          Object.values(swipeableRefs.current).forEach(ref => {
+            if (ref && ref !== swipeableRefs.current[item.id]) {
+              ref.close();
+            }
+          });
+        }}
+        friction={2}
+        leftThreshold={50} 
+        overshootFriction={8} 
+        enableTrackpadTwoFingerGesture
+      >
+        <TouchableOpacity style={styles.resultItem} onPress={() => handleResultItemPress(item)} activeOpacity={1}>
+          <View style={styles.resultNumberContainer}>
+            <Text style={styles.resultNumberText}>{index + 1}</Text>
           </View>
-        </View>
-        <View style={styles.resultPrice}>
-          <Text style={styles.priceText}>{formattedPrice}</Text>
-          <Ionicons name="chevron-forward" size={18} color="#ccc" />
-        </View>
-      </TouchableOpacity>
+          <View style={styles.resultDetails}>
+            <Text style={styles.resultName} numberOfLines={1}>{item.name ?? 'N/A'}</Text>
+            <View style={styles.resultMeta}>
+              {item.sku && <Text style={styles.resultSku}>SKU: {item.sku}</Text>}
+              {item.category && <Text style={styles.resultCategory}>{item.category}</Text>}
+              {item.barcode && <Text style={styles.resultBarcode}>UPC: {item.barcode}</Text>}
+            </View>
+          </View>
+          <View style={styles.resultPrice}>
+            <Text style={styles.priceText}>{formattedPrice}</Text>
+            <Ionicons name="chevron-forward" size={18} color="#ccc" />
+          </View>
+        </TouchableOpacity>
+      </Swipeable>
     );
-  }, [handleResultItemPress, styles]);
+  }, [handleResultItemPress, renderLeftActions, styles, swipeableRefs]);
 
   const renderEmptyState = useCallback(() => {
     if (catalogSearchError) {
@@ -288,6 +371,15 @@ const SearchResultsArea = memo(({ initialSearchQuery }: SearchResultsAreaProps) 
           onSelectResultCategory={handleSelectResultCategory}
         />
       )}
+      <SystemModal
+        visible={showPrintNotification}
+        onClose={() => setShowPrintNotification(false)}
+        message={printNotificationMessage}
+        type={printNotificationType}
+        position="top"
+        autoClose={true}
+        autoCloseTime={2500} // Slightly shorter time for quick feedback
+      />
     </View>
   );
 });

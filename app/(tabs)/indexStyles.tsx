@@ -12,7 +12,6 @@ export const styles = StyleSheet.create({
   },
   resultsContainer: {
     flexGrow: 1,
-    paddingHorizontal: 16,
   },
   // Uncommented and activated styles for the bottom search bar
   searchBarContainer: {
@@ -40,7 +39,7 @@ export const styles = StyleSheet.create({
     bottom: 5,
   },
   searchIcon: {
-    marginRight: 8,
+    marginRight: 4,
   },
   searchInput: {
     flex: 1,
@@ -78,15 +77,28 @@ export const styles = StyleSheet.create({
   resultItem: {
     flexDirection: 'row',
     paddingVertical: 12,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
     alignItems: 'center',
+    backgroundColor: '#fff',
   },
-  resultIconContainer: {
-    width: 40,
+  resultNumberContainer: {
+    width: 10,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 4,
   },
+  resultNumberText: {
+    fontSize: 12,
+    color: '#888',
+    fontWeight: '500',
+  },
+  // resultIconContainer: { // Commented out as it's replaced by resultNumberContainer
+  //   width: 40,
+  //   alignItems: 'center',
+  //   justifyContent: 'center',
+  // },
   resultDetails: {
     flex: 1,
     paddingHorizontal: 8,
@@ -406,5 +418,28 @@ export const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     textAlign: 'center',
-  }
+  },
+  // Styles for swipe-to-print action (LEFT swipe)
+  swipePrintActionLeft: {
+    justifyContent: 'center',
+    alignItems: 'flex-start', // Align button to the left end of the swipe area
+    // backgroundColor: 'pink', // For debugging reveal area
+    // width: 100, // Define a fixed width for the action button container
+  },
+  swipePrintButtonContainer: {
+    backgroundColor: lightTheme.colors.primary, 
+    paddingHorizontal: 20,
+    paddingVertical: 10, 
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: '100%', 
+    flexDirection: 'row',
+    // width: 100, // Ensure this matches the width used in animation if fixed
+  },
+  swipePrintActionText: {
+    color: '#fff',
+    fontWeight: '600',
+    marginLeft: 8,
+    fontSize: 14,
+  },
 }); 
