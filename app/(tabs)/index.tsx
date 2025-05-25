@@ -53,12 +53,10 @@ const debounce = <F extends (...args: any[]) => any>(func: F, waitFor: number) =
 // --- START: SearchResultsArea Component Definition ---
 interface SearchResultsAreaProps {
   initialSearchQuery: string;
-  // We need a way to access router for navigation from handleResultItemPress
-  // Passing router directly can be problematic for memoization if router instance changes.
-  // Alternatively, useRouter can be called inside if it's part of the same router context.
+  onPrintSuccessForChaining: () => void;
 }
 
-const SearchResultsArea = memo(({ initialSearchQuery }: SearchResultsAreaProps) => {
+const SearchResultsArea = memo(({ initialSearchQuery, onPrintSuccessForChaining }: SearchResultsAreaProps) => {
   const router = useRouter(); 
   const swipeableRefs = useRef<Record<string, Swipeable | null>>({}); // To close other rows
 
@@ -182,11 +180,13 @@ const SearchResultsArea = memo(({ initialSearchQuery }: SearchResultsAreaProps) 
       barcode: item.barcode,
     };
 
+    let printWasSuccessful = false;
     try {
       const success = await printItemLabel(labelData);
       if (success) {
         setPrintNotificationMessage(`Label for "${item.name || 'Item'}" sent to printer.`);
         setPrintNotificationType('success');
+        printWasSuccessful = true;
       } else {
         setPrintNotificationMessage('Could not send label to printer. Check connection.');
         setPrintNotificationType('error');
@@ -197,10 +197,13 @@ const SearchResultsArea = memo(({ initialSearchQuery }: SearchResultsAreaProps) 
       setPrintNotificationType('error');
     } finally {
       setShowPrintNotification(true); 
-      setTimeout(() => setShowPrintNotification(false), 3000); 
+      setTimeout(() => setShowPrintNotification(false), 3000);
+      swipeableRefs.current[item.id]?.close(); // Close swipeable row
+      if (printWasSuccessful) {
+        onPrintSuccessForChaining(); // Call the callback on successful print
+      }
     }
-    swipeableRefs.current[item.id]?.close();
-  }, [printItemLabel, swipeableRefs, setPrintNotificationMessage, setPrintNotificationType, setShowPrintNotification]);
+  }, [printItemLabel, swipeableRefs, setPrintNotificationMessage, setPrintNotificationType, setShowPrintNotification, onPrintSuccessForChaining]);
 
   const renderLeftActions = useCallback((progress: Animated.AnimatedInterpolation<number>, dragX: Animated.AnimatedInterpolation<number>, item: SearchResultItem) => {
     const SWIPE_BUTTON_WIDTH = 100; 
@@ -549,20 +552,16 @@ function RootLayoutNav() {
   const router = useRouter();
   const { isConnected } = useApi();
   
-  // Catalog items hook (from search.tsx, performSearch, isSearching, searchError are key)
   const { performSearch, isSearching: catalogIsSearching, searchError: catalogSearchError } = useCatalogItems();
 
-  // Zustand store hooks (some were already in index.tsx)
   const scanHistory = useAppStore((state) => state.scanHistory);
   const addScanHistoryItem = useAppStore((state) => state.addScanHistoryItem);
   const autoSearchOnEnter = useAppStore((state) => state.autoSearchOnEnter);
   const autoSearchOnTab = useAppStore((state) => state.autoSearchOnTab);
   
-  // State for search functionality (from search.tsx, adapted)
-  const [searchQuery, setSearchQuery] = useState<string>(''); // Primary input query
+  const [searchQuery, setSearchQuery] = useState<string>(''); 
   const searchInputRef = useRef<TextInput>(null);
 
-  // Focus management (targets searchInputRef)
   useEffect(() => {
     logger.info('Home', 'Home screen mounted, attempting to focus search input.');
     setTimeout(() => {
@@ -582,15 +581,23 @@ function RootLayoutNav() {
   
   const handleClearSearch = useCallback(() => {
     setSearchQuery('');
-    // Debounced query in SearchResultsArea will also clear via its useEffect dependency on initialSearchQuery
     searchInputRef.current?.focus();
   }, [setSearchQuery, searchInputRef]);
 
   const navigateToHistory = useCallback(() => {
     router.push('/(tabs)/scanHistory');
   }, [router]);
+
+  const handlePrintSuccessForChaining = useCallback(() => {
+    if (searchInputRef.current) {
+      searchInputRef.current.focus();
+      if (searchQuery.length > 0) {
+        searchInputRef.current.setSelection(0, searchQuery.length);
+      }
+      logger.info('RootLayoutNav', 'Search input focused and text selected for chain scanning.');
+    }
+  }, [searchInputRef, searchQuery]);
   
-  // KAV Offsets for BottomSearchBarComponent (can be defined here or inside BottomSearchBarComponent)
   const KAV_OFFSET_IOS = 0;
   const KAV_OFFSET_ANDROID = 0;
   
@@ -603,18 +610,18 @@ function RootLayoutNav() {
           message="Square Connection Status" 
         />
         
-      {/* Use Memoized ScanHistoryButtonComponent */}
       <ScanHistoryButtonComponent count={scanHistory.length} onNavigate={navigateToHistory} />
 
-      <SearchResultsArea initialSearchQuery={searchQuery} />
+      <SearchResultsArea 
+        initialSearchQuery={searchQuery} 
+        onPrintSuccessForChaining={handlePrintSuccessForChaining}
+      />
 
       <BottomSearchBarComponent 
         searchInputRef={searchInputRef} 
         searchQuery={searchQuery} 
         setSearchQuery={setSearchQuery} 
         onClearSearch={handleClearSearch} 
-        // Pass KAV_OFFSET_IOS and KAV_OFFSET_ANDROID if BottomSearchBarComponent needs them as props
-        // For now, assuming BottomSearchBarComponent defines its own or they are fixed as 0.
       />
     </SafeAreaView>
   );
@@ -641,18 +648,13 @@ interface BottomSearchBarProps {
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   onClearSearch: () => void;
-  // KAV_OFFSET_IOS?: number; // Optional props if needed
-  // KAV_OFFSET_ANDROID?: number;
 }
 const BottomSearchBarComponent = memo(({ 
   searchInputRef, 
   searchQuery, 
   setSearchQuery, 
   onClearSearch,
-  // KAV_OFFSET_IOS = 0, // Default values if props aren't passed
-  // KAV_OFFSET_ANDROID = 0
 }: BottomSearchBarProps) => {
-  // Define KAV offsets directly here if they are static for this component
   const KAV_OFFSET_IOS_internal = 0; 
   const KAV_OFFSET_ANDROID_internal = 0;
 
@@ -670,7 +672,6 @@ const BottomSearchBarComponent = memo(({
         <Text style={[styles.externalClearButtonText, searchQuery.length === 0 && styles.externalClearButtonTextDisabled]}>Clear</Text>
       </TouchableOpacity>
       <View style={styles.searchInputWrapper}>
-        {/* The search icon is now the first element inside searchInputWrapper */}
         <Ionicons name="search" size={22} color="#888" style={styles.searchIcon} />
         <TextInput
           ref={searchInputRef}
@@ -702,10 +703,6 @@ const ScanHistoryButtonComponent = memo(({ count, onNavigate }: ScanHistoryButto
   return (
     <View style={styles.historyButtonContainer}>
       <Link href="/(tabs)/scanHistory" asChild>
-        {/* We use TouchableOpacity directly for onPress, Link is for href */}
-        {/* To make Link work with onPress, we can pass the onPress to the TouchableOpacity */}
-        {/* Or, let Link handle navigation and don't use a separate onNavigate if Link is sufficient */}
-        {/* For simplicity with memoization, router.push via onNavigate is fine */}
         <TouchableOpacity style={styles.historyButton} onPress={onNavigate}>
           <Ionicons name="archive-outline" size={20} color={lightTheme.colors.primary} style={{marginRight: 8}} />
           <Text style={styles.historyButtonText}>View Scan History ({count})</Text>
