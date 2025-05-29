@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, memo } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { SQLiteProvider } from 'expo-sqlite';
 import * as modernDb from '../database/modernDb';
@@ -8,22 +8,23 @@ interface DatabaseProviderProps {
   children: React.ReactNode;
 }
 
-export function DatabaseProvider({ children }: DatabaseProviderProps) {
+const DatabaseProviderComponent: React.FC<DatabaseProviderProps> = ({ children }) => {
+  logger.info('DatabaseProviderComponent', 'COMPONENT FUNCTION BODY EXECUTING');
   const [isInitialized, setIsInitialized] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
   // Initialize the database
   useEffect(() => {
+    logger.info('DatabaseProviderComponent', 'EFFECT for initDatabase: MOUNTING / EFFECT TRIGGERED');
     async function init() {
       try {
-        logger.info('DatabaseProvider', 'Initializing database...');
+        logger.info('DatabaseProviderComponent', 'EFFECT: Calling modernDb.initDatabase()...');
         await modernDb.initDatabase();
         setIsInitialized(true);
-        logger.info('DatabaseProvider', 'Database initialized successfully');
-      } catch (err) {
-        const error = err instanceof Error ? err : new Error('Failed to initialize database');
-        logger.error('DatabaseProvider', 'Failed to initialize database', { error });
-        setError(error);
+        logger.info('DatabaseProviderComponent', 'EFFECT: Database initialized successfully, setIsInitialized(true)');
+      } catch (err: any) {
+        logger.error('DatabaseProviderComponent', 'EFFECT: Error initializing database:', err);
+        setError(err);
       }
     }
 
@@ -31,25 +32,17 @@ export function DatabaseProvider({ children }: DatabaseProviderProps) {
 
     // Close the database when the component unmounts
     return () => {
-      async function cleanup() {
-        try {
-          await modernDb.closeDatabase();
-          logger.info('DatabaseProvider', 'Database connection closed');
-        } catch (err) {
-          logger.error('DatabaseProvider', 'Failed to close database', { error: err });
-        }
-      }
-      
-      cleanup();
+      logger.info('DatabaseProviderComponent', 'EFFECT for initDatabase: UNMOUNTING');
     };
   }, []);
 
   // Show loading screen while initializing
   if (!isInitialized) {
+    logger.info('DatabaseProviderComponent', 'RENDER: Not initialized, showing loading indicator.');
     return (
-      <View style={styles.container}>
-        <ActivityIndicator size="large" color="#0000ff" />
-        <Text style={styles.text}>Initializing database...</Text>
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" />
+        <Text style={styles.loadingText}>Initializing Local Database...</Text>
       </View>
     );
   }
@@ -57,41 +50,54 @@ export function DatabaseProvider({ children }: DatabaseProviderProps) {
   // Show error screen if initialization failed
   if (error) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>Failed to initialize database</Text>
-        <Text style={styles.errorDetails}>{error.message}</Text>
+      <View style={styles.centered}>
+        <Text style={styles.errorText}>Error initializing database: {error.message}</Text>
       </View>
     );
   }
 
   // Provide the database context to all children
+  logger.info('DatabaseProviderComponent', 'RENDER: Initialized, rendering SQLiteProvider and children.');
   return (
-    <SQLiteProvider databaseName="joylabs.db" useSuspense={false}>
+    <SQLiteProvider databaseName="joylabs.db">
       {children}
     </SQLiteProvider>
   );
-}
+};
+
+export const DatabaseProvider = memo(DatabaseProviderComponent, (prevProps, nextProps) => {
+  const childrenChanged = prevProps.children !== nextProps.children;
+  logger.info('DatabaseProvider.memo', 'Comparing props for memoization', { 
+    childrenChanged: childrenChanged
+  });
+  // Default shallow comparison: return true if props are equal (no re-render)
+  // We want to log, then let default behavior proceed (which is shallow compare)
+  // Forcing a re-render for logging would be: return false;
+  // Forcing no re-render for logging would be: return true;
+  // To mimic default shallow, if childrenChanged is true, it should re-render (return false from comparison)
+  // If childrenChanged is false, it should not re-render (return true from comparison)
+  if (childrenChanged) {
+    logger.warn('DatabaseProvider.memo', 'Children prop has a new identity. Re-render will occur if other props also changed or if this is the only prop.');
+    return false; // Re-render if children changed
+  }
+  logger.info('DatabaseProvider.memo', 'Children prop identity is the same. No re-render based on children.');
+  return true; // Don't re-render if children are the same
+});
 
 const styles = StyleSheet.create({
-  container: {
+  centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
-  text: {
+  loadingText: {
     marginTop: 10,
     fontSize: 16,
   },
   errorText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#d32f2f',
-    marginBottom: 10,
-  },
-  errorDetails: {
-    fontSize: 14,
-    color: '#333',
-    textAlign: 'center',
+    marginTop: 10,
+    fontSize: 16,
+    color: 'red',
   },
 }); 

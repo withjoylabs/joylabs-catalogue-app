@@ -553,7 +553,7 @@ function RootLayoutNav() {
   const { isConnected } = useApi();
   
   const { performSearch, isSearching: catalogIsSearching, searchError: catalogSearchError } = useCatalogItems();
-
+  
   const scanHistory = useAppStore((state) => state.scanHistory);
   const addScanHistoryItem = useAppStore((state) => state.addScanHistoryItem);
   const autoSearchOnEnter = useAppStore((state) => state.autoSearchOnEnter);
@@ -561,7 +561,7 @@ function RootLayoutNav() {
   
   const [searchQuery, setSearchQuery] = useState<string>(''); 
   const searchInputRef = useRef<TextInput>(null);
-
+  
   useEffect(() => {
     logger.info('Home', 'Home screen mounted, attempting to focus search input.');
     setTimeout(() => {
@@ -572,7 +572,13 @@ function RootLayoutNav() {
   useFocusEffect(
     useCallback(() => {
       logger.info('Home::useFocusEffect', 'Screen focused, attempting to focus search input.');
-      searchInputRef.current?.focus();
+      if (searchInputRef.current) {
+        searchInputRef.current.focus();
+        if (searchQuery.length > 0) {
+          searchInputRef.current.setSelection(0, searchQuery.length);
+          logger.info('Home::useFocusEffect', 'Search input text selected.');
+        }
+      }
       return () => {
         logger.info('Home::useFocusEffect', 'Screen lost focus.');
       };

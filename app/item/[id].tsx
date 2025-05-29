@@ -481,7 +481,7 @@ export default function ItemDetails() {
     try {
       if (!item.name) {
         setError('Item name is required');
-        return;
+        return; 
       }
 
       setIsSaving(true);
@@ -523,17 +523,17 @@ export default function ItemDetails() {
         });
 
         // First, navigate back to close the modal
-        router.replace('/(tabs)');
+        router.back();
 
         // Wait a very short time for the modal to start closing
         await new Promise(resolve => setTimeout(resolve, 50));
 
         // Then show success notification
         setSuccessMessage(`Item ${!item.id ? 'created' : 'updated'} successfully`);
-        setShowSuccessNotification(true);
-      } else {
+        // setShowSuccessNotification(true); // Temporarily commented out for testing
+          } else {
         throw new Error('Failed to save item');
-      }
+        }
     } catch (error) {
       logger.error('ItemDetails', 'Error saving item', error);
       setError('Failed to save item. Please try again.');
@@ -699,13 +699,13 @@ export default function ItemDetails() {
             const defaultNewVariations = [{ name: null, sku: '', price: undefined, barcode: '' }];
             const variationsChanged = JSON.stringify(variations) !== JSON.stringify(defaultNewVariations);
             
-            calculatedIsEdited =
-                !!(item.name && item.name.trim()) ||
+       calculatedIsEdited =
+          !!(item.name && item.name.trim()) ||
                 !!(item.sku && item.sku.trim()) || // SKU at top level is likely not for new item, but for variations
                 item.price !== undefined || // Price at top level is likely not for new item
-                !!(item.description && item.description.trim()) ||
-                !!item.reporting_category_id ||
-                (item.taxIds && item.taxIds.length > 0) ||
+          !!(item.description && item.description.trim()) ||
+          !!item.reporting_category_id ||
+          (item.taxIds && item.taxIds.length > 0) ||
                 (item.modifierListIds && item.modifierListIds.length > 0) ||
                 variationsChanged; // Check if variations changed from default
         }
@@ -1006,8 +1006,8 @@ export default function ItemDetails() {
                            <ActivityIndicator size="small" color={lightTheme.colors.primary} />
                         ) : (
                           <>
-                            <Ionicons name="print-outline" size={18} color={lightTheme.colors.primary} style={styles.inlinePrintIcon} />
-                            <Text style={styles.inlinePrintButtonText}>Print</Text>
+                        <Ionicons name="print-outline" size={18} color={lightTheme.colors.primary} style={styles.inlinePrintIcon} />
+                        <Text style={styles.inlinePrintButtonText}>Print</Text>
                           </>
                         )}
                       </TouchableOpacity>
@@ -1134,7 +1134,7 @@ export default function ItemDetails() {
                           </View>
 
                           {/* Remove override button */}
-                          <TouchableOpacity
+                          <TouchableOpacity 
                             style={styles.removePriceOverrideButton}
                             onPress={() => removePriceOverride(index, overrideIndex)}
                             disabled={isSavingPending}
@@ -1278,7 +1278,7 @@ export default function ItemDetails() {
                 textAlignVertical="top"
               />
             </View>
-            
+
             {/* Delete Button - Only for existing items */}
             {!isNewItem && (
               <View style={styles.deleteButtonContainer}>

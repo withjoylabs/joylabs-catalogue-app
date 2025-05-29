@@ -55,11 +55,11 @@ export const useCatalogItems = () => {
   useEffect(() => {
     const map: Record<string, string> = {};
     if (categories && Array.isArray(categories)) {
-      categories.forEach(category => {
+    categories.forEach(category => {
         if (category && category.id && category.name) {
-            map[category.id] = category.name;
+      map[category.id] = category.name;
         }
-      });
+    });
     }
     categoryMapRef.current = map;
   }, [categories]);

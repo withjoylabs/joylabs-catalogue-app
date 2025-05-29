@@ -1,4 +1,4 @@
-import React, { useEffect, createContext, useContext, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, createContext, useContext, useState, useMemo, useCallback, memo } from 'react';
 import { useSquareAuth } from '../hooks/useSquareAuth';
 import logger from '../utils/logger';
 import { apiClientInstance } from '../api';
@@ -36,7 +36,8 @@ const ApiContext = createContext<ApiContextType>({
 
 export const useApi = () => useContext(ApiContext);
 
-export const ApiProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+// Original component function
+const ApiProviderComponent: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Track connection status changes to avoid excessive refreshes
   const [initialConnectionChecked, setInitialConnectionChecked] = useState(false);
   
@@ -214,7 +215,7 @@ export const ApiProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     authError, 
     connect, 
     disconnect, 
-    refreshData, 
+    refreshData,
     verifyConnection
   ]);
   
@@ -223,4 +224,7 @@ export const ApiProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       {children}
     </ApiContext.Provider>
   );
-}; 
+};
+
+// Export the memoized component
+export const ApiProvider = memo(ApiProviderComponent); 

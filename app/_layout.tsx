@@ -1,5 +1,5 @@
 import 'react-native-get-random-values';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Stack, SplashScreen, ErrorBoundary } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { 
@@ -65,11 +65,11 @@ const linking = {
   config: {
     screens: {
       '(tabs)': {
-        initialRouteName: 'index',
-        screens: {
-          index: '',
+    initialRouteName: 'index',
+    screens: {
+      index: '',
           search: 'search',
-          labels: 'labels',
+      labels: 'labels',
           profile: 'profile',
         }
       },
@@ -101,8 +101,13 @@ export default function RootLayout() {
 
   const colorScheme = useColorScheme();
   
-  const paperTheme = colorScheme === 'dark' ? MD3DarkTheme : MD3LightTheme;
+  const paperTheme = useMemo(() => {
+    logger.info('RootLayout', 'Recalculating paperTheme', { colorScheme });
+    return colorScheme === 'dark' ? MD3DarkTheme : MD3LightTheme;
+  }, [colorScheme]);
+
   const [loaded, fontError] = useFonts({ ...FontAwesome.font });
+  const [isAppReady, setIsAppReady] = useState(false);
   
   const { 
     showSuccessNotification, 
@@ -110,6 +115,10 @@ export default function RootLayout() {
     successMessage 
   } = useAppStore();
   
+  useEffect(() => {
+    logger.info('RootLayout', 'Color scheme changed', { colorScheme });
+  }, [colorScheme]);
+
   useEffect(() => {
     const startTime = Date.now();
     const { width, height } = Dimensions.get('window');
@@ -128,6 +137,8 @@ export default function RootLayout() {
   useEffect(() => {
     if (loaded || fontError) {
       SplashScreen.hideAsync();
+      setIsAppReady(true);
+      logger.info('RootLayout', 'Fonts loaded, app marked as ready.');
     }
   }, [loaded, fontError]);
 
@@ -175,10 +186,10 @@ export default function RootLayout() {
     Notifications.setNotificationHandler({
       handleNotification: async (notification): Promise<NotificationBehavior> => {
         logger.info('[Notifications]', 'Notification received while app running/foregrounded', notification.request.content);
-        return { 
+        return {
           shouldShowAlert: false, 
-          shouldPlaySound: false, 
-          shouldSetBadge: false,
+            shouldPlaySound: false,
+            shouldSetBadge: false,
         } as NotificationBehavior;
       },
       handleSuccess: (notificationId) => {
@@ -208,79 +219,82 @@ export default function RootLayout() {
     };
   }, []);
 
-  if (!loaded && !fontError) {
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator size="large" color="#000" />
-        <Text style={{ marginTop: 20 }}>Loading application...</Text>
-      </View>
-    );
-  }
-
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <PaperProvider theme={paperTheme}>
-        <DatabaseProvider>
-          <ApiProvider>
+    <GestureHandlerRootView key="gesture-handler-root" style={{ flex: 1 }}>
+      <PaperProvider key="paper-provider" theme={paperTheme}>
+        <DatabaseProvider key="database-provider">
+          <ApiProvider key="api-provider">
             <SafeAreaProvider>
-              <Stack
-                screenOptions={{
-                  animation: 'none',
-                }}
-              >
-                <Stack.Screen
+                <Stack
+                  screenOptions={{
+                    // animation: 'none', // Removing this to allow default animations
+                  }}
+                >
+                  <Stack.Screen
                   name="(tabs)"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="item/[id]" 
-                  options={{
+                  options={{ headerShown: false, freezeOnBlur: true }}
+                  />
+                  <Stack.Screen
+                    name="item/[id]"
+                    options={{
                     presentation: 'modal',
                     headerShown: false,
-                  }}
-                />
-                <Stack.Screen
-                  name="auth/success"
-                  options={{
-                    title: 'Authentication',
-                    headerShown: false,
-                  }}
-                />
-                <Stack.Screen
-                  name="debug"
-                  options={{
-                    title: 'Debug Logs',
-                    headerShown: true,
-                    presentation: 'modal',
-                  }}
-                />
+                    }}
+                  />
+                  <Stack.Screen
+                    name="auth/success"
+                    options={{
+                      title: 'Authentication',
+                      headerShown: false,
+                    }}
+                  />
+                  <Stack.Screen
+                    name="debug"
+                    options={{
+                      title: 'Debug Logs',
+                      headerShown: true,
+                      presentation: 'modal',
+                    }}
+                  />
                 <Stack.Screen name="catalogue" options={{ title: 'Catalogue', headerShown: true }}/>
                 <Stack.Screen name="modules" options={{ title: 'Modules', headerShown: true }}/>
                 <Stack.Screen name="labelDesigner" options={{ title: 'Label Designer', headerShown: true}}/>
                 <Stack.Screen name="labelSettings" options={{ title: 'Label Settings', headerShown: true}}/>
-              </Stack>
-              
-              <TouchableOpacity 
-                style={{ 
+                </Stack>
+                
+                <TouchableOpacity 
+                  style={{ 
                   position: 'absolute', top: Platform.OS === 'ios' ? 40 : 10, right: 10, 
                   width: 40, height: 40, opacity: debugModeActive ? 0.8 : 0,
                   zIndex: 9999, justifyContent: 'center', alignItems: 'center',
-                  backgroundColor: debugModeActive ? 'rgba(0,0,0,0.1)' : 'transparent',
-                  borderRadius: 20
-                }}
-                onPress={handleDebugTap}
-              >
-                {debugModeActive && (
-                  <Ionicons name="bug-outline" size={24} color="#E53935" />
-                )}
-              </TouchableOpacity>
-              
-              <StatusBar style="dark" />
+                    backgroundColor: debugModeActive ? 'rgba(0,0,0,0.1)' : 'transparent',
+                    borderRadius: 20
+                  }}
+                  onPress={handleDebugTap}
+                >
+                  {debugModeActive && (
+                    <Ionicons name="bug-outline" size={24} color="#E53935" />
+                  )}
+                </TouchableOpacity>
+                
+                <StatusBar style="dark" />
             </SafeAreaProvider>
           </ApiProvider>
         </DatabaseProvider>
       </PaperProvider>
       
+      {!isAppReady && (
+        <View style={{
+          position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+          justifyContent: 'center', alignItems: 'center',
+          backgroundColor: 'white',
+          zIndex: 10000
+        }}>
+          <ActivityIndicator size="large" color="#000" />
+          <Text style={{ marginTop: 20 }}>Loading application...</Text>
+        </View>
+      )}
+
       <SystemModal
         visible={showSuccessNotification}
         onClose={() => setShowSuccessNotification(false)}

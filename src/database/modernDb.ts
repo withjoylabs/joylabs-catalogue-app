@@ -1594,7 +1594,7 @@ export async function deleteCatalogObjectById(objectId: string): Promise<void> {
     // Re-throw the error to be handled by the caller (e.g., the sync process)
     throw error;
   }
-}
+} 
 
 export interface SearchFilters {
   name: boolean;
