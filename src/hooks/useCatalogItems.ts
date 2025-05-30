@@ -37,7 +37,8 @@ export const useCatalogItems = () => {
     setProductsLoading, 
     productError,
     setProductError,
-    categories
+    categories,
+    setLastUpdatedItem
   } = useAppStore();
   
   // Get the Square connection status from the API context
@@ -760,6 +761,9 @@ export const useCatalogItems = () => {
             };
             addScanHistoryItem(historyItem);
             logger.info('CatalogItems::updateProductDirect', 'Updated item in local state and DB after combined update', { id });
+            
+            setLastUpdatedItem(finalUpdatedItem);
+            
           } else {
             logger.warn('CatalogItems::updateProductDirect', 'Failed to transform item after combined update', { id });
             await refreshProducts(); // Fallback
@@ -782,7 +786,7 @@ export const useCatalogItems = () => {
     } finally {
       setProductsLoading(false);
     }
-  }, [setProductsLoading, setProductError, refreshProducts, isSquareConnected, setProducts, storeProducts, addScanHistoryItem]);
+  }, [setProductsLoading, setProductError, refreshProducts, isSquareConnected, setProducts, storeProducts, addScanHistoryItem, setLastUpdatedItem]);
 
   // --- DELETE --- 
   // Delete a product using direct Square API call

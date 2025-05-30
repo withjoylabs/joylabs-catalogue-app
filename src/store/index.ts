@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ScanHistoryItem } from '../types'; // Import ScanHistoryItem
 import { ConvertedItem } from '../types/api'; // Import ConvertedItem
+import logger from '../utils/logger'; // Import logger
 
 // Product type definition
 /*
@@ -84,6 +85,10 @@ interface AppState {
   setShowSuccessNotification: (show: boolean) => void;
   successMessage: string;
   setSuccessMessage: (message: string) => void;
+  
+  // Recently updated item state
+  lastUpdatedItem: ConvertedItem | null;
+  setLastUpdatedItem: (item: ConvertedItem | null) => void;
   
   // Actions
   setProducts: (products: ConvertedItem[]) => void;
@@ -174,6 +179,12 @@ export const useAppStore = create<AppState>()(
       setShowSuccessNotification: (show: boolean) => set({ showSuccessNotification: show }),
       successMessage: '',
       setSuccessMessage: (message: string) => set({ successMessage: message }),
+      
+      // Recently updated item
+      lastUpdatedItem: null,
+      setLastUpdatedItem: (item: ConvertedItem | null) => {
+        set({ lastUpdatedItem: item });
+      },
       
       // Products actions
       setProducts: (products: ConvertedItem[]) => set({ products }),
@@ -270,6 +281,7 @@ export const useAppStore = create<AppState>()(
               'labelLiveFieldMap',
               'showSuccessNotification',
               'successMessage',
+              // 'lastUpdatedItem' should NOT be persisted
             ].includes(key)
           )
         ),

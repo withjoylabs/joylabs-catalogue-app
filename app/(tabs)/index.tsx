@@ -60,6 +60,9 @@ const SearchResultsArea = memo(({ initialSearchQuery, onPrintSuccessForChaining 
   const router = useRouter(); 
   const swipeableRefs = useRef<Record<string, Swipeable | null>>({}); // To close other rows
 
+  // Get lastUpdatedItem from Zustand store
+  const { lastUpdatedItem, setLastUpdatedItem } = useAppStore();
+
   // State for print notification (for SystemModal)
   const [showPrintNotification, setShowPrintNotification] = useState(false);
   const [printNotificationMessage, setPrintNotificationMessage] = useState('');
@@ -84,6 +87,27 @@ const SearchResultsArea = memo(({ initialSearchQuery, onPrintSuccessForChaining 
   useEffect(() => {
     debouncedSetQuery(initialSearchQuery);
   }, [initialSearchQuery, debouncedSetQuery]);
+
+  // Effect to update search results if a relevant item was globally updated
+  useEffect(() => {
+    if (lastUpdatedItem) {
+      setSearchResults(prevResults => {
+        const newResults = prevResults.map(item => {
+          if (item.id === lastUpdatedItem.id) {
+            const updatedResultItem = {
+              ...lastUpdatedItem, 
+              matchType: item.matchType, 
+              matchContext: item.matchContext,
+            } as SearchResultItem;
+            return updatedResultItem;
+          }
+          return item;
+        });
+        return newResults;
+      });
+      setLastUpdatedItem(null); 
+    }
+  }, [lastUpdatedItem, setLastUpdatedItem]); // Dependencies are lastUpdatedItem and its setter
 
   useEffect(() => {
     const fetchCategoriesForFilter = async () => {
