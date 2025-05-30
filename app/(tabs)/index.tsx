@@ -599,14 +599,21 @@ function RootLayoutNav() {
       if (searchInputRef.current) {
         searchInputRef.current.focus();
         if (searchQuery.length > 0) {
-          searchInputRef.current.setSelection(0, searchQuery.length);
-          logger.info('Home::useFocusEffect', 'Search input text selected.');
+          setTimeout(() => {
+            if (searchInputRef.current) {
+              logger.info('Home::useFocusEffect', 'Inside setTimeout for setSelection. Current searchQuery:', { query: searchQuery });
+              searchInputRef.current.setSelection(0, searchQuery.length);
+              logger.info('Home::useFocusEffect', 'Search input text selected via setTimeout.');
+            }
+          }, 0);
+        } else {
+          logger.info('Home::useFocusEffect', 'Search query is empty, not selecting text.');
         }
       }
       return () => {
         logger.info('Home::useFocusEffect', 'Screen lost focus.');
       };
-    }, [])
+    }, [searchQuery])
   );
   
   const handleClearSearch = useCallback(() => {
