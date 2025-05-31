@@ -111,10 +111,10 @@ export default function ItemDetails() {
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingPending, startTransition] = useTransition();
   const [isPrinting, setIsPrinting] = useState(false);
-  const [isPrintingAndSaving, setIsPrintingAndSaving] = useState(false); // New loading state
   const [error, setError] = useState<string | null>(null);
   const [showVariationModal, setShowVariationModal] = useState(false); // State for variation selection modal
   const [printingVariationIndex, setPrintingVariationIndex] = useState<number | null>(null); // For inline print button loading state
+  const [isSavingAndPrinting, setIsSavingAndPrinting] = useState(false);
   
   // State for print notification
   const [showPrintNotification, setShowPrintNotification] = useState(false);
@@ -233,72 +233,6 @@ export default function ItemDetails() {
       setShowVariationModal(true);
     }
   }, [variations, initiatePrint, setShowVariationModal]);
-
-  const handlePrintAndSave = async () => {
-    setIsPrintingAndSaving(true);
-    logger.info('ItemDetails:handlePrintAndSave', 'Starting Print and Save process.');
-
-    // --- Step 1: Print ---
-    let printSuccess = false;
-    if (!variations || variations.length === 0) {
-      logger.info('ItemDetails:handlePrintAndSave', 'No variations, skipping print.');
-      printSuccess = true; // Consider it "success" for proceeding to save
-    } else if (variations.length === 1) {
-      logger.info('ItemDetails:handlePrintAndSave', 'Single variation, attempting direct print.');
-      // Re-implement part of initiatePrint logic here to control notifications better
-      // Or modify initiatePrint to return a status and not show its own modal for this flow
-      // For now, let's assume initiatePrint handles its notifications and we await its completion.
-      // A more robust solution might involve initiatePrint returning a promise that resolves to a boolean.
-      try {
-        await initiatePrint(0); // Assuming initiatePrint is now async and handles its own UI feedback
-        // Check a flag or a ref if initiatePrint cannot return success directly.
-        // This is a simplification; robust error handling from initiatePrint is needed.
-        // For now, we'll assume if no error is thrown, it's a "go" for saving.
-        printSuccess = true; 
-      } catch (printError) {
-        logger.error('ItemDetails:handlePrintAndSave', 'Error during direct print step.', { printError });
-        printSuccess = false; 
-        // Notification is handled by initiatePrint
-      }
-    } else {
-      logger.info('ItemDetails:handlePrintAndSave', 'Multiple variations, showing selection modal.');
-      // This part is tricky because setShowVariationModal is async UI.
-      // We need a way to know if the user selected something and it printed.
-      // This might require a change in how VariationPrintSelectionModal signals back.
-      // For now, let's prompt and if they cancel, we still save.
-      // Or, we make printing a prerequisite.
-      // Let's assume for now: if they have multiple variations, we ask them to print one,
-      // but we can't easily gate the save on that modal's outcome without a callback/promise.
-      // This is a UX challenge. Simplest for now: open modal, then save regardless of print outcome.
-      // A better way: handlePrintLabel could return a promise that resolves with print status.
-      
-      // Let's call handlePrintLabel which shows the modal
-      await handlePrintLabel(); // It handles its own notifications.
-      // We need to determine if print was successful or skipped.
-      // This is a simplification: we're assuming if it doesn't throw, we proceed.
-      // In a real scenario, handlePrintLabel might need to return a status or set a state.
-      printSuccess = true; // Assume user handles print, then we save.
-    }
-
-    // --- Step 2: Save (if print was "successful" or skipped) ---
-    if (printSuccess) {
-      logger.info('ItemDetails:handlePrintAndSave', 'Print step completed (or skipped), proceeding to save.');
-      try {
-        await handleSaveAction(); // handleSaveAction already handles its own notifications and loading states
-        logger.info('ItemDetails:handlePrintAndSave', 'Save action completed.');
-      } catch (saveError) {
-        logger.error('ItemDetails:handlePrintAndSave', 'Error during save step.', { saveError });
-        // handleSaveAction should be setting its own error UI.
-        // If not, we'd set a global error here.
-      }
-    } else {
-      logger.warn('ItemDetails:handlePrintAndSave', 'Print step was not successful, skipping save.');
-      // Notification for print failure is handled by initiatePrint/handlePrintLabel
-    }
-
-    setIsPrintingAndSaving(false);
-    logger.info('ItemDetails:handlePrintAndSave', 'Print and Save process finished.');
-  };
 
   // Define handlers before they are used
   const handleInputChange = (key: keyof ConvertedItem, value: string | number | undefined) => {
@@ -524,7 +458,7 @@ export default function ItemDetails() {
   const isEmpty = useCallback((): boolean => {
     return (
       !(item.name && item.name.trim()) && 
-      !(item.sku && item.sku.trim()) &&
+      !(item.sku && item.sku.trim()) && 
       item.price === undefined &&
       !(item.description && item.description.trim()) &&
       !item.reporting_category_id
@@ -544,68 +478,120 @@ export default function ItemDetails() {
     router.back(); // Dismiss modal
   }, [router, setShowCancelModal]);
 
-  const handleSaveAction = async () => {
-    try {
-      if (!item.name) {
-        setError('Item name is required');
-        return; 
+  const handleSaveAction = async (): Promise<boolean> => {
+    logger.info('ItemDetails:handleSaveAction', 'Save action initiated', { isNewItem, itemId: id });
+    Keyboard.dismiss();
+
+    if (!item.name || item.name.trim() === '') {
+      Alert.alert('Validation Error', 'Item name cannot be empty.');
+      return false;
+    }
+
+    // Ensure at least one variation exists and has a name if it's not the default "Regular"
+    if (variations.length === 0) {
+      Alert.alert('Validation Error', 'At least one item variation is required.');
+      return false;
+    }
+
+    for (const v of variations) {
+      if (!v.name || v.name.trim() === '') {
+        // Allow empty name if it's the only variation and SKU/barcode might be primary identifier
+        // Or if it's a multi-variation item where some might be distinguished by SKU/price alone
+        // For simplicity now, we'll allow it, but stricter validation could be added.
+        // However, if a variation is added beyond the first, it should ideally have a name.
+        // If there are multiple variations and one has an empty name, that could be an issue.
+        // Let's assume for now that if name is null/empty, other fields distinguish it.
       }
-
-      setIsSaving(true);
-      setError(null);
-
-      // Log the action
-      logger.info('ItemDetails', 'Starting save action', {
-        isNewItem: !item.id,
-        itemId: item.id,
-        itemName: item.name,
-        variationsCount: variations.length
-      });
-
-      let savedItemResponse;
-      if (!item.id) {
-        // Create new product
-        logger.info('ItemDetails', 'Creating new product', { itemName: item.name });
-        savedItemResponse = await createProduct({
-          ...item,
-          variations
-        });
-      } else {
-        // Update existing product
-        logger.info('ItemDetails', 'Updating existing product', { 
-          itemId: item.id,
-          itemName: item.name,
-          version: item.version
-        });
-        savedItemResponse = await updateProduct(item.id, {
-          ...item,
-          variations
-        });
+      // Validation for price: if not empty, must be valid number
+      if (v.price !== undefined && v.price !== null && (isNaN(v.price) || v.price < 0)) {
+        Alert.alert('Validation Error', `Invalid price for variation "${v.name || 'Unnamed'}. Price must be a positive number.`);
+        return false;
       }
+    }
 
-      if (savedItemResponse) {
-        logger.info('ItemDetails', 'Save successful', { 
-          itemId: savedItemResponse.id,
-          itemName: savedItemResponse.name
-        });
+    setIsSaving(true);
+    setError(null);
+    
+    const itemPayload: ConvertedItem = {
+        ...item, 
+      variations: variations, // Pass the local variations state
+    };
 
-        // First, navigate back to close the modal
-        router.back();
+    // Remove temporary client-side IDs from variations before sending to backend
+    itemPayload.variations = itemPayload.variations?.map(v => {
+      const { id: variationId, ...rest } = v;
+      if (variationId && variationId.startsWith('temp-')) {
+        return rest; // Send without ID if it's a new, temporary one
+      }
+      return v; // Send with ID if it's an existing one
+    });
+    
+    logger.debug('ItemDetails:handleSaveAction', 'Item payload for save:', itemPayload);
 
-        // Wait a very short time for the modal to start closing
-        await new Promise(resolve => setTimeout(resolve, 50));
-
-        // Then show success notification
-        setSuccessMessage(`Item ${!item.id ? 'created' : 'updated'} successfully`);
-        // setShowSuccessNotification(true); // Temporarily commented out for testing
+      try {
+      let savedItem;
+        if (isNewItem) {
+        logger.info('ItemDetails:handleSaveAction', 'Creating new item...');
+        savedItem = await createProduct(itemPayload);
+        } else { 
+        logger.info('ItemDetails:handleSaveAction', `Updating item with ID: ${id}`);
+        savedItem = await updateProduct(id!, itemPayload); // id will exist for existing items
+      }
+      
+      if (savedItem) {
+        logger.info('ItemDetails:handleSaveAction', 'Save successful', { savedItemId: savedItem.id });
+        
+        startTransition(() => {
+          setItem(savedItem);
+          setOriginalItem(savedItem);
+          setOptimisticItem(savedItem); // Keep if this is the intended pattern for your optimistic updates
+          setVariations(savedItem.variations || []);
+          setOptimisticVariations(savedItem.variations || []); // Keep if intended
+        setIsEdited(false);
+        
+          setSuccessMessage(isNewItem ? 'Item created successfully!' : 'Item updated successfully!');
+          setShowSuccessNotification(true);
+          
+          // Important: Navigate *after* setting success notification state
+          // Use replace to avoid multiple item modals in stack if creating new then editing
+          if (isNewItem && savedItem.id) {
+            router.replace({ pathname: '/item/[id]', params: { id: savedItem.id } });
           } else {
-        throw new Error('Failed to save item');
-        }
-    } catch (error) {
-      logger.error('ItemDetails', 'Error saving item', error);
-      setError('Failed to save item. Please try again.');
+            // For updates, if the modal should close, use router.back() here.
+            router.back(); // MODAL DISMISSAL FOR EXISTING ITEMS
+          }
+        });
+        return true; // Indicate success
+        } else {
+        logger.error('ItemDetails:handleSaveAction', 'Save failed. No saved item data returned.');
+        setError('Failed to save item. Please try again.');
+        Alert.alert('Error', 'Failed to save item. An unexpected error occurred.');
+        return false; // Indicate failure
+      }
+    } catch (err: any) {
+      logger.error('ItemDetails:handleSaveAction', 'Error saving item', { error: err });
+      setError(err.message || 'An unknown error occurred during save.');
+      Alert.alert('Save Error', err.message || 'An unexpected error occurred. Please try again.');
+      return false; // Indicate failure
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleSaveAndPrint = async () => {
+    setIsSavingAndPrinting(true);
+    const saveSuccess = await handleSaveAction();
+    if (saveSuccess) {
+      // Adding a small delay to allow the success notification to be seen briefly if it's very quick
+      // and also to ensure any state updates from save are processed before print dialog.
+      setTimeout(async () => {
+        await handlePrintLabel();
+        setIsSavingAndPrinting(false);
+      }, 500); 
+    } else {
+      setIsSavingAndPrinting(false);
+      // Optionally, show an alert that printing was skipped due to save failure
+      // Alert.alert("Print Skipped", "Item could not be saved, so printing was skipped.");
     }
   };
   
@@ -966,51 +952,80 @@ export default function ItemDetails() {
     }
   };
   
-  // Update header buttons dynamically
+  // Effect to set header buttons and options
   useEffect(() => {
     navigation.setOptions({
-      headerLeft: () => (
-        <TouchableOpacity onPress={handleCancel} style={styles.headerButton}>
-          <Ionicons name="close-outline" size={28} color={lightTheme.colors.primary} />
-        </TouchableOpacity>
-      ),
-      headerRight: () => (
-        <View style={styles.headerRightContainer}>
-          {/* Print Button */}
-          <TouchableOpacity 
-            onPress={handlePrintLabel} 
-            style={[styles.headerButton, styles.headerButtonWithBorder]} 
-            disabled={isPrinting || isSaving || isPrintingAndSaving || isLoading || isNewItem}
-          >
-            <Ionicons name="print-outline" size={24} color={(isPrinting || isSaving || isPrintingAndSaving || isLoading || isNewItem) ? lightTheme.colors.disabled : lightTheme.colors.primary} />
-          </TouchableOpacity>
-          
-          {/* Save Button */}
-          <TouchableOpacity 
-            onPress={handleSaveAction} 
-            style={[styles.headerButton, styles.headerButtonWithBorder]} 
-            disabled={isSaving || isPrinting || isPrintingAndSaving || isLoading || !isEdited}
-          >
-            <Ionicons name="save-outline" size={24} color={(isSaving || isPrinting || isPrintingAndSaving || isLoading || !isEdited) ? lightTheme.colors.disabled : lightTheme.colors.primary} />
-          </TouchableOpacity>
-
-          {/* Print and Save Button */}
-          <TouchableOpacity 
-            onPress={handlePrintAndSave} 
-            style={styles.headerButton} 
-            disabled={isPrintingAndSaving || isPrinting || isSaving || isLoading || !isEdited || isNewItem}
-          >
-            <Ionicons name="document-text-outline" size={24} color={(isPrintingAndSaving || isPrinting || isSaving || isLoading || !isEdited || isNewItem) ? lightTheme.colors.disabled : lightTheme.colors.primary} />
-          </TouchableOpacity>
-
-          {(isSaving || isLoading || isPrinting || isPrintingAndSaving) && (
-            <ActivityIndicator size="small" color={lightTheme.colors.primary} style={styles.headerActivityIndicator} />
+      headerTitle: () => (
+        <View style={[styles.customHeaderTitleWrapper, { alignItems: 'center' }]}> 
+          <Text style={styles.customHeaderTitle}>
+            {isNewItem ? 'Add New Item' : (item?.name || 'Edit Item')}
+          </Text>
+          {item?.sku && (
+            <Text style={[styles.customHeaderTitle, { fontSize: 12, marginTop: 2, color: lightTheme.colors.border }]}>{`SKU: ${item.sku}`}</Text>
           )}
         </View>
       ),
-      headerTitle: isNewItem ? 'Add New Item' : (item?.name || 'Edit Item'),
+      headerRight: () => (
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 10 }}>
+          <TouchableOpacity 
+            onPress={handlePrintLabel} 
+            disabled={isPrinting || isSaving || isSavingAndPrinting} 
+            style={[styles.customHeaderButton, { marginRight: 10, paddingVertical: 5, paddingHorizontal: 8, opacity: (isPrinting || isSaving || isSavingAndPrinting) ? 0.5 : 1}] }
+          >
+            {isPrinting && !isSavingAndPrinting ? (
+                <ActivityIndicator size="small" color={lightTheme.colors.primary} />
+            ) : (
+                <Ionicons name="print-outline" size={24} color={lightTheme.colors.primary} />
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={handleSaveAction} 
+            disabled={isSaving || isPrinting || isSavingAndPrinting} 
+            style={[styles.customHeaderButton, { marginRight: 10, paddingVertical: 5, paddingHorizontal: 8, opacity: (isSaving || isPrinting || isSavingAndPrinting) ? 0.5 : 1} ]}
+          >
+            {isSaving && !isSavingAndPrinting ? (
+                <ActivityIndicator size="small" color={lightTheme.colors.primary} />
+            ) : (
+                <Ionicons name="save-outline" size={24} color={lightTheme.colors.primary} />
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={handleSaveAndPrint} 
+            disabled={isSavingAndPrinting || isSaving || isPrinting} 
+            style={[styles.customHeaderButton, { paddingVertical: 5, paddingHorizontal: 8, opacity: (isSavingAndPrinting || isSaving || isPrinting) ? 0.5 : 1} ]}
+          >
+            {isSavingAndPrinting ? (
+                 <ActivityIndicator size="small" color={lightTheme.colors.primary} />
+            ) : (
+                <Ionicons name="document-text-outline" size={24} color={lightTheme.colors.primary} />
+            )}
+          </TouchableOpacity>
+        </View>
+      ),
+      headerLeft: () => (
+        <TouchableOpacity
+          style={styles.customHeaderButton}
+          onPress={handleCancel}
+          disabled={isSavingPending} // Disable during save
+        >
+          <Text style={[styles.customHeaderButtonText, isSavingPending && styles.disabledText]}>Cancel</Text>
+        </TouchableOpacity>
+      ),
     });
-  }, [navigation, handleCancel, handlePrintLabel, handleSaveAction, handlePrintAndSave, isSaving, isLoading, isNewItem, item, isPrinting, isPrintingAndSaving, isEdited]);
+  }, [
+    navigation, 
+    isEdited, 
+    isSaving, 
+    isPrinting,
+    isSavingAndPrinting, 
+    handleSaveAction, 
+    handleCancel,
+    handlePrintLabel,
+    handleSaveAndPrint,
+    isNewItem, 
+    item, 
+    originalItem, 
+  ]);
   
   // If loading, show spinner
   if (isLoading) {
@@ -1029,50 +1044,6 @@ export default function ItemDetails() {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
-
-      {/* Custom Modal Header */}
-      <View style={styles.customHeaderContainer}>
-        <View style={styles.customHeaderLeftActions}> 
-          <TouchableOpacity
-            style={styles.customHeaderButton}
-            onPress={handleCancel}
-            disabled={isSavingPending} // Disable during save
-          >
-            <Text style={[styles.customHeaderButtonText, isSavingPending && styles.disabledText]}>Cancel</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.customHeaderTitleWrapper}> 
-          <Text style={styles.customHeaderTitle}>{isNewItem ? 'Add New Item' : 'Edit Item'}</Text>
-        </View>
-
-        <View style={styles.customHeaderRightActions}>
-           {!isNewItem && (
-            <TouchableOpacity
-              style={styles.customHeaderButton}
-              onPress={handlePrintLabel} // Corrected: was handlePrintLabel not handleSaveAction
-              disabled={isSavingPending || isPrinting}
-            >
-              {(isPrinting && printingVariationIndex === null) ? ( // General printing state for header
-                <ActivityIndicator size="small" color={lightTheme.colors.primary} />
-              ) : (
-                <Ionicons name="print-outline" size={24} color={lightTheme.colors.primary} />
-              )}
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity
-            style={[styles.customHeaderButton, styles.customHeaderSaveButton]}
-            onPress={handleSaveAction}
-            disabled={isSavingPending || isPrinting} // Disable during print as well
-          >
-            {isSavingPending ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Text style={[styles.customHeaderButtonText, styles.customHeaderSaveButtonText]}>Save</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      </View>
 
       {/* Error handling: Render error view if error exists */} 
       {error && !isNewItem && ( // Only show full error screen if not new item and error occurs
@@ -1410,6 +1381,42 @@ export default function ItemDetails() {
             <View style={{ height: Platform.OS === 'ios' ? 80 : 100 }} /> 
           </ScrollView>
 
+          {/* Fixed Footer Button Container */}
+          <View style={styles.footerContainer}>
+            <TouchableOpacity
+              style={[styles.footerButton, styles.footerButtonClose]}
+              onPress={handleCancel}
+              disabled={isSaving || isPrinting || isSavingAndPrinting}
+            >
+              <Ionicons name="close-outline" size={22} color={lightTheme.colors.text} style={styles.footerButtonIcon} />
+              <Text style={styles.footerButtonText}>Close</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.footerButton, styles.footerButtonPrint]}
+              onPress={handlePrintLabel}
+              disabled={isPrinting || isSaving || isSavingAndPrinting}
+            >
+              <Ionicons name="print-outline" size={22} color={lightTheme.colors.primary} style={styles.footerButtonIcon} />
+              <Text style={[styles.footerButtonText, { color: lightTheme.colors.primary }]}>Print</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.footerButton, styles.footerButtonSave]}
+              onPress={handleSaveAction}
+              disabled={isSaving || isPrinting || isSavingAndPrinting || !isEdited}
+            >
+              <Ionicons name="save-outline" size={22} color={isEdited ? lightTheme.colors.primary : lightTheme.colors.mediumGray} style={styles.footerButtonIcon} />
+              <Text style={[styles.footerButtonText, { color: isEdited ? lightTheme.colors.primary : lightTheme.colors.mediumGray }]}>Save</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.footerButton, styles.footerButtonSaveAndPrint]}
+              onPress={handleSaveAndPrint}
+              disabled={isSavingAndPrinting || isSaving || isPrinting || !isEdited}
+            >
+              <Ionicons name="document-text-outline" size={22} color={isEdited ? lightTheme.colors.primary : lightTheme.colors.mediumGray} style={styles.footerButtonIcon} />
+              <Text style={[styles.footerButtonText, { color: isEdited ? lightTheme.colors.primary : lightTheme.colors.mediumGray }]}>Save & Print</Text>
+            </TouchableOpacity>
+          </View>
+
           {/* Category Selection Modal - Replaced with component */}
           <CategorySelectionModal
             visible={showCategoryModal}
@@ -1425,30 +1432,15 @@ export default function ItemDetails() {
           {/* --- Variation Selection Modal - Replaced with Component --- */}
           <VariationPrintSelectionModal
             visible={showVariationModal}
-            variations={variations.map((v, idx) => ({
-              id: v.id || `temp-${idx}`,
-              name: v.name || item?.name || `Variation ${idx + 1}`,
-              sku: v.sku,
-              price: v.price,
-              barcode: v.barcode,
-              locationOverrides: v.locationOverrides
-            }))}
-            onSelectVariation={(selectedIndex: number) => {
-              if (selectedIndex >= 0 && selectedIndex < variations.length) {
-                initiatePrint(selectedIndex);
-              }
-              setShowVariationModal(false);
+            onClose={() => setShowVariationModal(false)}
+            variations={variations} 
+            onSelectVariation={(index) => {
+              setPrintingVariationIndex(index); // Set which variation is being printed
+              initiatePrint(index); 
             }}
-            onClose={() => setShowVariationModal(false)} 
           />
 
-          <PrintNotification
-            visible={showPrintNotification}
-            message={printNotificationMessage}
-            type={printNotificationType}
-            onClose={() => setShowPrintNotification(false)}
-          />
-
+          {/* Print Notification Modal - Replaced with SystemModal */}
           <SystemModal
             visible={showPrintNotification}
             onClose={() => setShowPrintNotification(false)}

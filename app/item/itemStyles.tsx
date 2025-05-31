@@ -1,4 +1,4 @@
-import { StyleSheet } from 'react-native';
+import { StyleSheet, Platform } from 'react-native';
 import { lightTheme } from '../../src/themes';
 
 // Define interface for the styles
@@ -68,6 +68,8 @@ interface ItemStyles {
   customHeaderRightActions: any;
   customHeaderSaveButton: any;
   customHeaderSaveButtonText: any;
+  customHeaderTitleContainer: any;
+  customHeaderSubtitle: any;
 
   // Price Overrides Styles
   priceOverridesContainer: any;
@@ -404,30 +406,38 @@ export const styles = StyleSheet.create({
   customHeaderContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingTop: 12, // Adjust as needed for status bar height
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: lightTheme.colors.border,
-    backgroundColor: lightTheme.colors.card, // Or background
+    width: '100%',
+    paddingHorizontal: 0,
+    height: Platform.OS === 'ios' ? 44 : 56,
   },
   customHeaderLeftActions: {
-    // e.g., minWidth: 60, to give some space for the Cancel button
     justifyContent: 'flex-start',
   },
   customHeaderTitleWrapper: {
-    flex: 1, // Allows title to take up remaining space
+    flex: 1,
     justifyContent: 'center',
-    alignItems: 'center', // Centers title text horizontally
+    alignItems: 'center',
+  },
+  customHeaderTitleContainer: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
   },
   customHeaderTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '600',
     color: lightTheme.colors.text,
-    textAlign: 'center', // Ensures text itself is centered if it wraps
+    textAlign: 'center',
   },
-  customHeaderButton: { // Style for individual header buttons (Cancel, Print, Save text container)
-    paddingHorizontal: 8, // Reduced from 10 for tighter fit if needed
+  customHeaderSubtitle: {
+    fontSize: 12,
+    color: lightTheme.colors.border,
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  customHeaderButton: {
+    paddingHorizontal: 10,
     paddingVertical: 5,
   },
   customHeaderButtonText: { 
@@ -439,14 +449,13 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    // e.g., minWidth: 60, // To balance with left actions
   },
   customHeaderSaveButton: { 
-    marginLeft: 10, // Space between Print icon and Save button
+    marginLeft: 10,
   },
   customHeaderSaveButtonText: { 
     fontWeight: '600',
-    fontSize: 17, // Match cancel button text
+    fontSize: 17,
     color: lightTheme.colors.primary, 
   },
 

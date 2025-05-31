@@ -238,7 +238,6 @@ export default function RootLayout() {
                     name="item/[id]"
                     options={{
                     presentation: 'modal',
-                    headerShown: false,
                     }}
                   />
                   <Stack.Screen

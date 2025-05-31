@@ -1,4 +1,4 @@
-import { StyleSheet } from 'react-native';
+import { StyleSheet, Platform } from 'react-native';
 import { lightTheme } from '../../src/themes';
 
 // Define interface for the styles
@@ -105,6 +105,16 @@ interface ItemStyles {
   modalButtonText: any;
   modalButtonTextPrimary: any;
   modalButtonTextSecondary: any;
+
+  // Fixed Footer Styles
+  footerContainer: any;
+  footerButton: any;
+  footerButtonClose: any;
+  footerButtonPrint: any;
+  footerButtonSave: any;
+  footerButtonSaveAndPrint: any;
+  footerButtonIcon: any;
+  footerButtonText: any;
 }
 
 // Export the styles with type safety
@@ -118,7 +128,7 @@ export const styles = StyleSheet.create({
     padding: 16,
   },
   scrollContentContainer: {
-    paddingBottom: 100, 
+    paddingBottom: 60, // Default, will be adjusted if footer is taller
   },
   fieldContainer: {
     marginBottom: 20,
@@ -540,8 +550,9 @@ export const styles = StyleSheet.create({
   priceOverrideRow: {},
 
   // Delete Button Container
-  deleteButtonContainer: { 
-    marginTop: 20,
+  deleteButtonContainer: {
+    marginTop: 20, // Added margin for spacing before a potential fixed footer
+    marginBottom: 20, // Ensure space if this is the last scrollable item
   },
 
   // Modal Styles (for cancel confirmation)
@@ -602,6 +613,50 @@ export const styles = StyleSheet.create({
     color: 'white',
   },
   modalButtonTextSecondary: {
-    color: '#333', 
+    color: lightTheme.colors.text,
+  },
+
+  // Fixed Footer Styles
+  footerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingVertical: Platform.OS === 'ios' ? 10 : 10,
+    paddingHorizontal: 10,
+    backgroundColor: lightTheme.colors.background,
+    borderTopWidth: 1,
+    borderTopColor: lightTheme.colors.border,
+    // Position fixed at the bottom - handled by placing it outside ScrollView
+  },
+  footerButton: {
+    flex: 1, // Distribute space among buttons
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 5,
+    borderRadius: 5,
+    marginHorizontal: 4, // Add some horizontal spacing between buttons
+  },
+  footerButtonClose: {
+    // specific styles for close if needed
+  },
+  footerButtonPrint: {
+    // specific styles for print if needed
+  },
+  footerButtonSave: {
+    // specific styles for save if needed
+  },
+  footerButtonSaveAndPrint: {
+    // specific styles for save & print if needed
+  },
+  footerButtonIcon: {
+    marginBottom: 4,
+  },
+  footerButtonText: {
+    fontSize: 12,
+    fontWeight: '500',
+    textAlign: 'center',
+    color: lightTheme.colors.text, // Default text color
   },
 }) as unknown as ItemStyles; // Ensures stricter type checking by TypeScript
