@@ -551,6 +551,8 @@ export const useCatalogItems = () => {
             };
             addScanHistoryItem(historyItem);
             logger.info('CatalogItems::createProductDirect', 'Added newly created item to local state and DB', { newId });
+            
+            setLastUpdatedItem(createdItem);
           } else {
             logger.warn('CatalogItems::createProductDirect', 'Failed to transform newly created item', { newId });
             // Fallback to full refresh if transformation fails?
@@ -575,7 +577,7 @@ export const useCatalogItems = () => {
     } finally {
       setProductsLoading(false);
     }
-  }, [setProductsLoading, setProductError, refreshProducts, isSquareConnected, setProducts, storeProducts, addScanHistoryItem]);
+  }, [setProductsLoading, setProductError, refreshProducts, isSquareConnected, setProducts, storeProducts, addScanHistoryItem, setLastUpdatedItem]);
 
   // --- UPDATE --- 
   // Update an existing product using direct Square API call
