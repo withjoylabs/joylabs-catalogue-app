@@ -58,12 +58,10 @@ interface SearchResultsAreaProps {
 
 const SearchResultsArea = memo(({ initialSearchQuery, onPrintSuccessForChaining }: SearchResultsAreaProps) => {
   const router = useRouter(); 
-  const swipeableRefs = useRef<Record<string, Swipeable | null>>({}); // To close other rows
+  const swipeableRefs = useRef<Record<string, Swipeable | null>>({});
 
-  // Get lastUpdatedItem from Zustand store
   const { lastUpdatedItem, setLastUpdatedItem } = useAppStore();
 
-  // State for print notification (for SystemModal)
   const [showPrintNotification, setShowPrintNotification] = useState(false);
   const [printNotificationMessage, setPrintNotificationMessage] = useState('');
   const [printNotificationType, setPrintNotificationType] = useState<'success' | 'error'>('success');
@@ -79,7 +77,6 @@ const SearchResultsArea = memo(({ initialSearchQuery, onPrintSuccessForChaining 
   const [sortOrder, setSortOrder] = useState<'default' | 'az' | 'za' | 'price_asc' | 'price_desc'>('default');
   const [selectedResultCategoryId, setSelectedResultCategoryId] = useState<string | null>(null);
   const [availableResultCategories, setAvailableResultCategories] = useState<Array<{ id: string; name: string }>>([]);
-  const [currentRawResults, setCurrentRawResults] = useState<SearchResultItem[]>([]); 
 
   const { performSearch, isSearching: catalogIsSearching, searchError: catalogSearchError } = useCatalogItems();
   const debouncedSetQuery = useCallback(debounce(setDebouncedSearchQuery, 300), []); 
@@ -88,26 +85,53 @@ const SearchResultsArea = memo(({ initialSearchQuery, onPrintSuccessForChaining 
     debouncedSetQuery(initialSearchQuery);
   }, [initialSearchQuery, debouncedSetQuery]);
 
-  // Effect to update search results if a relevant item was globally updated
+  // Extracted search logic into a useCallback
+  const executeSearch = useCallback(async () => {
+    if (debouncedSearchQuery.trim() === '') {
+      setSearchResults([]);
+      return;
+    }
+    
+    logger.info('SearchResultsArea', 'Executing search for query:', { query: debouncedSearchQuery });
+    const rawResults = await performSearch(debouncedSearchQuery, searchFilters);
+    
+    let processedResults = [...rawResults];
+
+    if (selectedResultCategoryId) {
+      processedResults = processedResults.filter(item => item.categoryId === selectedResultCategoryId);
+    }
+
+    switch (sortOrder) {
+      case 'az':
+        processedResults.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
+        break;
+      case 'za':
+        processedResults.sort((a, b) => (b.name ?? '').localeCompare(a.name ?? ''));
+        break;
+      case 'price_asc':
+        processedResults.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
+        break;
+      case 'price_desc':
+        processedResults.sort((a, b) => (b.price ?? -Infinity) - (a.price ?? -Infinity));
+        break;
+    }
+    setSearchResults(processedResults);
+    logger.info('SearchResultsArea', 'Search executed, results set.', { count: processedResults.length });
+  }, [debouncedSearchQuery, searchFilters, performSearch, sortOrder, selectedResultCategoryId, setSearchResults]);
+
+  // useEffect to run search when query/filters/sort change
+  useEffect(() => {
+    executeSearch();
+  }, [executeSearch]); // Depends on the memoized executeSearch
+
+  // Effect to update/refresh search results if a relevant item was globally updated or created
   useEffect(() => {
     if (lastUpdatedItem) {
-      setSearchResults(prevResults => {
-        const newResults = prevResults.map(item => {
-          if (item.id === lastUpdatedItem.id) {
-            const updatedResultItem = {
-              ...lastUpdatedItem, 
-              matchType: item.matchType, 
-              matchContext: item.matchContext,
-            } as SearchResultItem;
-            return updatedResultItem;
-          }
-          return item;
-        });
-        return newResults;
-      });
+      logger.info('SearchResultsArea', 'lastUpdatedItem detected, re-executing search.', { itemId: lastUpdatedItem.id });
+      executeSearch(); 
       setLastUpdatedItem(null); 
     }
-  }, [lastUpdatedItem, setLastUpdatedItem]); // Dependencies are lastUpdatedItem and its setter
+  }, [lastUpdatedItem, setLastUpdatedItem, executeSearch]);
 
   useEffect(() => {
     const fetchCategoriesForFilter = async () => {
@@ -124,42 +148,6 @@ const SearchResultsArea = memo(({ initialSearchQuery, onPrintSuccessForChaining 
     };
     fetchCategoriesForFilter();
   }, []);
-
-  useEffect(() => {
-    const executeSearch = async () => {
-      if (debouncedSearchQuery.trim() === '') {
-        setSearchResults([]);
-        setCurrentRawResults([]);
-        return;
-      }
-      
-      const rawResults = await performSearch(debouncedSearchQuery, searchFilters);
-      setCurrentRawResults(rawResults); 
-      
-      let processedResults = [...rawResults];
-
-      if (selectedResultCategoryId) {
-        processedResults = processedResults.filter(item => item.categoryId === selectedResultCategoryId);
-      }
-
-      switch (sortOrder) {
-        case 'az':
-          processedResults.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
-          break;
-        case 'za':
-          processedResults.sort((a, b) => (b.name ?? '').localeCompare(a.name ?? ''));
-          break;
-        case 'price_asc':
-          processedResults.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
-          break;
-        case 'price_desc':
-          processedResults.sort((a, b) => (b.price ?? -Infinity) - (a.price ?? -Infinity));
-          break;
-      }
-      setSearchResults(processedResults);
-    };
-    executeSearch();
-  }, [debouncedSearchQuery, searchFilters, performSearch, sortOrder, selectedResultCategoryId ]);
 
   const toggleFilter = useCallback((toggledFilter: keyof Omit<SearchFilters, 'category'>) => {
     setSearchFilters(currentFilters => {
@@ -600,20 +588,20 @@ function RootLayoutNav() {
         searchInputRef.current.focus();
         if (searchQuery.length > 0) {
           setTimeout(() => {
-            if (searchInputRef.current) {
+            if (searchInputRef.current) { 
               logger.info('Home::useFocusEffect', 'Inside setTimeout for setSelection. Current searchQuery:', { query: searchQuery });
               searchInputRef.current.setSelection(0, searchQuery.length);
               logger.info('Home::useFocusEffect', 'Search input text selected via setTimeout.');
             }
           }, 0);
-        } else {
+      } else {
           logger.info('Home::useFocusEffect', 'Search query is empty, not selecting text.');
         }
       }
       return () => {
         logger.info('Home::useFocusEffect', 'Screen lost focus.');
       };
-    }, [searchQuery])
+    }, [])
   );
   
   const handleClearSearch = useCallback(() => {

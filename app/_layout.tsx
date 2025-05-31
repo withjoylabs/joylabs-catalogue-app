@@ -118,7 +118,7 @@ export default function RootLayout() {
   useEffect(() => {
     logger.info('RootLayout', 'Color scheme changed', { colorScheme });
   }, [colorScheme]);
-
+    
   useEffect(() => {
     const startTime = Date.now();
     const { width, height } = Dimensions.get('window');

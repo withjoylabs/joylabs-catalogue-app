@@ -224,7 +224,7 @@ const ApiProviderComponent: React.FC<{ children: React.ReactNode }> = ({ childre
       {children}
     </ApiContext.Provider>
   );
-};
+}; 
 
 // Export the memoized component
 export const ApiProvider = memo(ApiProviderComponent); 
