@@ -583,25 +583,50 @@ function RootLayoutNav() {
   
   useFocusEffect(
     useCallback(() => {
-      logger.info('Home::useFocusEffect', 'Screen focused, attempting to focus search input.');
-      if (searchInputRef.current) {
-        searchInputRef.current.focus();
+      logger.info('Home::useFocusEffect', 'Screen focused.');
+      const input = searchInputRef.current;
+
+      if (input) {
+        logger.info('Home::useFocusEffect', 'Input ref found. Current searchQuery:', { query: searchQuery });
+        input.focus();
+        logger.info('Home::useFocusEffect', 'Focus called on input.');
+
         if (searchQuery.length > 0) {
-          setTimeout(() => {
-            if (searchInputRef.current) { 
-              logger.info('Home::useFocusEffect', 'Inside setTimeout for setSelection. Current searchQuery:', { query: searchQuery });
-              searchInputRef.current.setSelection(0, searchQuery.length);
-              logger.info('Home::useFocusEffect', 'Search input text selected via setTimeout.');
+          const selectionTimeoutId = setTimeout(() => {
+            // Re-check input ref inside timeout, as component might have unmounted/re-rendered
+            const currentInput = searchInputRef.current;
+            if (currentInput && typeof currentInput.isFocused === 'function' && currentInput.isFocused()) {
+              logger.info('Home::useFocusEffect', 'Inside selection timeout. Input is focused. Attempting to select text:', { query: searchQuery });
+              currentInput.setSelection(0, searchQuery.length);
+              logger.info('Home::useFocusEffect', 'setSelection called.');
+            } else if (currentInput) {
+              logger.warn('Home::useFocusEffect', 'Inside selection timeout. Input exists but is NOT focused. Skipping selection.');
+            } else {
+              logger.warn('Home::useFocusEffect', 'Inside selection timeout. Input ref became null. Skipping selection.');
             }
-          }, 0);
-      } else {
-          logger.info('Home::useFocusEffect', 'Search query is empty, not selecting text.');
+          }, 250); // Test with a more significant delay
+
+          return () => {
+            clearTimeout(selectionTimeoutId);
+            logger.info('Home::useFocusEffect', 'Focus effect cleanup: cleared selection timeout.');
+          };
+        } else {
+          logger.info('Home::useFocusEffect', 'Search query is empty, not setting up selection timeout.');
+          // If query is empty, but input is focused, ensure no selection is attempted that might error.
+          // Or ensure cursor is at the start.
+           if (searchInputRef.current && typeof searchInputRef.current.setSelection === 'function') {
+            // searchInputRef.current.setSelection(0, 0); // Optionally force cursor to start
+          }
         }
+      } else {
+        logger.warn('Home::useFocusEffect', 'Input ref is null on focus attempt.');
       }
+
       return () => {
-        logger.info('Home::useFocusEffect', 'Screen lost focus.');
+        // General cleanup for the focus effect itself, if any (other than timeout)
+        logger.info('Home::useFocusEffect', 'Focus effect cleanup (main).');
       };
-    }, [])
+    }, [searchQuery]) // searchQuery is a crucial dependency
   );
   
   const handleClearSearch = useCallback(() => {
