@@ -17,7 +17,8 @@ import {
   Animated, // For swipe action
   Alert, // Added for print feedback
 } from 'react-native';
-import { useRouter, useFocusEffect, Link } from 'expo-router';
+import { useRouter, useFocusEffect, Link, useNavigation } from 'expo-router';
+import { useIsFocused } from '@react-navigation/native';
 import { Swipeable } from 'react-native-gesture-handler'; // Added for swipe actions
 import ConnectionStatusBar from '../../src/components/ConnectionStatusBar';
 import { ConvertedItem, SearchResultItem } from '../../src/types/api';
@@ -563,6 +564,8 @@ export default function App() {
 function RootLayoutNav() {
   const router = useRouter();
   const { isConnected } = useApi();
+  const isFocused = useIsFocused(); // Get focused state
+  const prevIsFocusedRef = useRef<boolean>(false); // Ref to store previous focused state
   
   const { performSearch, isSearching: catalogIsSearching, searchError: catalogSearchError } = useCatalogItems();
   
@@ -574,60 +577,51 @@ function RootLayoutNav() {
   const [searchQuery, setSearchQuery] = useState<string>(''); 
   const searchInputRef = useRef<TextInput>(null);
   
-  useEffect(() => {
-    logger.info('Home', 'Home screen mounted, attempting to focus search input.');
-    setTimeout(() => {
-      searchInputRef.current?.focus();
-    }, 300); 
-  }, []);
-  
+  // Effect to focus input when screen is focused
   useFocusEffect(
     useCallback(() => {
-      logger.info('Home::useFocusEffect', 'Screen focused.');
-      const input = searchInputRef.current;
-
-      if (input) {
-        logger.info('Home::useFocusEffect', 'Input ref found. Current searchQuery:', { query: searchQuery });
-        input.focus();
-        logger.info('Home::useFocusEffect', 'Focus called on input.');
-
-        if (searchQuery.length > 0) {
-          const selectionTimeoutId = setTimeout(() => {
-            // Re-check input ref inside timeout, as component might have unmounted/re-rendered
-            const currentInput = searchInputRef.current;
-            if (currentInput && typeof currentInput.isFocused === 'function' && currentInput.isFocused()) {
-              logger.info('Home::useFocusEffect', 'Inside selection timeout. Input is focused. Attempting to select text:', { query: searchQuery });
-              currentInput.setSelection(0, searchQuery.length);
-              logger.info('Home::useFocusEffect', 'setSelection called.');
-            } else if (currentInput) {
-              logger.warn('Home::useFocusEffect', 'Inside selection timeout. Input exists but is NOT focused. Skipping selection.');
-            } else {
-              logger.warn('Home::useFocusEffect', 'Inside selection timeout. Input ref became null. Skipping selection.');
-            }
-          }, 250); // Test with a more significant delay
-
-          return () => {
-            clearTimeout(selectionTimeoutId);
-            logger.info('Home::useFocusEffect', 'Focus effect cleanup: cleared selection timeout.');
-          };
-        } else {
-          logger.info('Home::useFocusEffect', 'Search query is empty, not setting up selection timeout.');
-          // If query is empty, but input is focused, ensure no selection is attempted that might error.
-          // Or ensure cursor is at the start.
-           if (searchInputRef.current && typeof searchInputRef.current.setSelection === 'function') {
-            // searchInputRef.current.setSelection(0, 0); // Optionally force cursor to start
-          }
-        }
-      } else {
-        logger.warn('Home::useFocusEffect', 'Input ref is null on focus attempt.');
+      logger.info('Home::useFocusEffect', 'Screen gained focus. Focusing input.');
+      if (searchInputRef.current) {
+        searchInputRef.current.focus();
       }
-
+      // No selectionAttemptedForThisFocusRef reset here, handled by prevIsFocusedRef logic
       return () => {
-        // General cleanup for the focus effect itself, if any (other than timeout)
-        logger.info('Home::useFocusEffect', 'Focus effect cleanup (main).');
+        logger.info('Home::useFocusEffect', 'Screen lost focus.');
       };
-    }, [searchQuery]) // searchQuery is a crucial dependency
+    }, []) // No dependencies, runs on focus/blur
   );
+
+  // Effect to handle text selection on focus change
+  useEffect(() => {
+    logger.debug('Home::useEffect[isFocused, searchQuery, prevIsFocusedRef]', 'Checking selection conditions', { 
+      isFocused, 
+      prevIsFocused: prevIsFocusedRef.current,
+      queryLength: searchQuery.length, 
+    });
+
+    // Condition: Screen just became focused (isFocused=true, prevIsFocused=false) AND there's text
+    if (isFocused && !prevIsFocusedRef.current && searchQuery.length > 0) {
+      logger.info('Home::useEffect[isFocused, searchQuery]', 'Conditions met for text selection (just focused). Query:', { query: searchQuery });
+      const HIGHTLIGHT_DELAY = 100; // Slightly increased delay for stability
+      const selectionTimeoutId = setTimeout(() => {
+        if (searchInputRef.current && isFocused) { // Re-check isFocused and ref
+          logger.info('Home::useEffect[isFocused, searchQuery]', 'Performing text selection.');
+          searchInputRef.current.setSelection(0, searchQuery.length);
+        } else {
+          logger.warn('Home::useEffect[isFocused, searchQuery]', 'Skipping selection - input/screen no longer focused or ref missing.');
+        }
+      }, HIGHTLIGHT_DELAY);
+
+      // Cleanup for the timeout
+      return () => {
+        clearTimeout(selectionTimeoutId);
+      };
+    }
+    
+    // Update prevIsFocusedRef at the end of every run of this effect
+    prevIsFocusedRef.current = isFocused;
+
+  }, [isFocused, searchQuery]); // Re-run when focus state or search query changes
   
   const handleClearSearch = useCallback(() => {
     setSearchQuery('');
