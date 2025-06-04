@@ -22,18 +22,12 @@ interface ItemStyles {
   currencySymbol: any;
   priceInput: any;
   helperText: any;
-  uploadButton: any;
-  uploadButtonText: any;
   selectorButton: any;
   selectorText: any;
   placeholderText: any;
   checkboxContainer: any;
   checkboxIcon: any;
   checkboxLabel: any;
-  headerButton: any; // General header button, if used elsewhere
-  headerButtonText: any; // General header button text
-  disabledText: any;
-  bottomButtonsContainer: any;
   deleteButton: any;
   deleteButtonText: any;
   recentCategoriesContainer: any;
@@ -58,17 +52,6 @@ interface ItemStyles {
   noItemsText: any;
   highlightedText: any;
   
-  // Custom Modal Header Styles
-  customHeaderContainer: any;
-  customHeaderLeftActions: any;
-  customHeaderTitleWrapper: any;
-  customHeaderTitle: any;
-  customHeaderButton: any; // Specifically for modal header buttons
-  customHeaderButtonText: any; // Specifically for modal header button text
-  customHeaderRightActions: any;
-  customHeaderSaveButton: any;
-  customHeaderSaveButtonText: any;
-
   // Price Overrides Styles
   priceOverridesContainer: any;
   priceOverrideHeader: any;
@@ -84,13 +67,6 @@ interface ItemStyles {
   noLocationsText: any;
   removePriceOverrideButton: any;
   
-  // Legacy/Unused (can be removed if definitely not needed)
-  locationSelectorContainer: any; 
-  locationSelector: any;
-  locationSelectorText: any;
-  removeOverrideButton: any; 
-  priceOverrideRow: any;
-
   // Delete Button Container
   deleteButtonContainer: any;
 
@@ -221,21 +197,6 @@ export const styles = StyleSheet.create({
     color: '#777',
     marginTop: 4,
   },
-  uploadButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: lightTheme.colors.primary,
-    borderRadius: 5,
-    padding: 10,
-    marginTop: 10,
-  },
-  uploadButtonText: {
-    color: lightTheme.colors.primary,
-    fontSize: 16,
-    marginLeft: 8,
-  },
   selectorButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -264,24 +225,6 @@ export const styles = StyleSheet.create({
   checkboxLabel: {
     fontSize: 16,
     color: '#333',
-  },
-  headerButton: { // General, if used elsewhere
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  headerButtonText: { // General, if used elsewhere
-    fontSize: 16,
-    color: lightTheme.colors.primary,
-    fontWeight: '500',
-  },
-  disabledText: {
-    opacity: 0.5,
-  },
-  bottomButtonsContainer: {
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-    backgroundColor: 'white',
   },
   deleteButton: {
     flexDirection: 'row',
@@ -410,56 +353,6 @@ export const styles = StyleSheet.create({
     color: 'white',
   },
   
-  // Custom Modal Header Styles
-  customHeaderContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingTop: 12, // Adjust as needed for status bar height
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: lightTheme.colors.border,
-    backgroundColor: lightTheme.colors.card, // Or background
-  },
-  customHeaderLeftActions: {
-    // e.g., minWidth: 60, to give some space for the Cancel button
-    justifyContent: 'flex-start',
-  },
-  customHeaderTitleWrapper: {
-    flex: 1, // Allows title to take up remaining space
-    justifyContent: 'center',
-    alignItems: 'center', // Centers title text horizontally
-  },
-  customHeaderTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: lightTheme.colors.text,
-    textAlign: 'center', // Ensures text itself is centered if it wraps
-  },
-  customHeaderButton: { // Style for individual header buttons (Cancel, Print, Save text container)
-    paddingHorizontal: 8, // Reduced from 10 for tighter fit if needed
-    paddingVertical: 5,
-  },
-  customHeaderButtonText: { 
-    fontSize: 17,
-    color: lightTheme.colors.primary,
-    fontWeight: '500',
-  },
-  customHeaderRightActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    // e.g., minWidth: 60, // To balance with left actions
-  },
-  customHeaderSaveButton: { 
-    marginLeft: 10, // Space between Print icon and Save button
-  },
-  customHeaderSaveButtonText: { 
-    fontWeight: '600',
-    fontSize: 17, // Match cancel button text
-    color: lightTheme.colors.primary, 
-  },
-
   // Price Overrides Styles
   priceOverridesContainer: { 
     marginTop: 10,
@@ -542,13 +435,6 @@ export const styles = StyleSheet.create({
     padding: 5, 
   },
   
-  // Legacy/Unused (can be removed if not needed after verification)
-  locationSelectorContainer: {}, 
-  locationSelector: {},
-  locationSelectorText: {},
-  removeOverrideButton: {}, 
-  priceOverrideRow: {},
-
   // Delete Button Container
   deleteButtonContainer: {
     marginTop: 20, // Added margin for spacing before a potential fixed footer

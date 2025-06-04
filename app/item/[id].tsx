@@ -34,10 +34,15 @@ import logger from '../../src/utils/logger';
 import { printItemLabel, LabelData, getLabelPrinterStatus } from '../../src/utils/printLabel';
 import { styles } from './itemStyles';
 import CategorySelectionModal, { CategoryPickerItemType as ModalCategoryPickerItem } from '../../src/components/modals/CategorySelectionModal';
-import VariationPrintSelectionModal from '../../src/components/modals/VariationPrintSelectionModal';
 import PrintNotification from '../../src/components/modals/PrintNotification';
 import apiClient from '../../src/api';
 import SystemModal from '../../src/components/SystemModal';
+import {
+  Menu,
+  MenuOptions,
+  MenuOption,
+  MenuTrigger,
+} from 'react-native-popup-menu';
 
 // Define type for Tax and Modifier List Pickers
 type TaxPickerItem = { id: string; name: string; percentage: string | null };
@@ -112,7 +117,6 @@ export default function ItemDetails() {
   const [isSavingPending, startTransition] = useTransition();
   const [isPrinting, setIsPrinting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showVariationModal, setShowVariationModal] = useState(false); // State for variation selection modal
   const [printingVariationIndex, setPrintingVariationIndex] = useState<number | null>(null); // For inline print button loading state
   const [isSavingAndPrinting, setIsSavingAndPrinting] = useState(false);
   
@@ -197,8 +201,9 @@ export default function ItemDetails() {
       variationId: variationToPrint.id
     });
     
+    setPrintingVariationIndex(variationIndex); // For inline print button loading state
+    setIsPrinting(true); 
     try {
-      setIsPrinting(true); 
       const success = await printItemLabel(labelData);
       if (success) {
         setPrintNotificationMessage(`Label for "${variationToPrint.name || item.name || 'Item'}" sent to printer.`);
@@ -215,24 +220,31 @@ export default function ItemDetails() {
       setIsPrinting(false);
       setShowPrintNotification(true);
       setTimeout(() => setShowPrintNotification(false), 3000);
+      setPrintingVariationIndex(null);
     }
 
   }, [item, variations, setIsPrinting, setPrintNotificationMessage, setPrintNotificationType, setShowPrintNotification]);
 
   // Updated header print button handler
-  const handlePrintLabel = useCallback(async () => {
-    if (!variations || variations.length === 0) {
-      Alert.alert('Error', 'No variations available to print.');
+  const handleHeaderPrint = useCallback(() => {
+    if (isNewItem || !variations || variations.length === 0) {
+      Alert.alert('Cannot Print', isNewItem ? 'Please save the item before printing.' : 'No variations available to print.');
       return;
     }
     if (variations.length === 1) {
-      logger.info('ItemDetails:handlePrintLabel', 'Single variation found, printing directly.');
+      logger.info('ItemDetails:handleHeaderPrint', 'Single variation, printing directly.');
       initiatePrint(0);
     } else {
-      logger.info('ItemDetails:handlePrintLabel', 'Multiple variations found, showing modal.');
-      setShowVariationModal(true);
+      // For multiple variations, the Menu component in headerRight will handle selection.
+      // This function is called if the trigger itself is pressed, 
+      // but the menu should open automatically. We might not need specific logic here
+      // if the MenuTrigger itself handles opening.
+      // If direct invocation is needed (e.g. if Menu doesn't open automatically on trigger press),
+      // we would need a ref to the menu and call menuRef.current.open().
+      // For now, assume MenuTrigger handles it.
+      logger.info('ItemDetails:handleHeaderPrint', 'Multiple variations, menu should open.');
     }
-  }, [variations, initiatePrint, setShowVariationModal]);
+  }, [variations, isNewItem, initiatePrint]);
 
   // Define handlers before they are used
   const handleInputChange = (key: keyof ConvertedItem, value: string | number | undefined) => {
@@ -585,7 +597,7 @@ export default function ItemDetails() {
       // Adding a small delay to allow the success notification to be seen briefly if it's very quick
       // and also to ensure any state updates from save are processed before print dialog.
       setTimeout(async () => {
-        await handlePrintLabel();
+        await handleHeaderPrint();
         setIsSavingAndPrinting(false);
       }, 500); 
     } else {
@@ -954,78 +966,121 @@ export default function ItemDetails() {
   
   // Effect to set header buttons and options
   useEffect(() => {
+    const screenTitle = isNewItem ? 'New Item' : (item?.name || 'Edit Item');
     navigation.setOptions({
-      headerTitle: () => (
-        <View style={[styles.customHeaderTitleWrapper, { alignItems: 'center' }]}> 
-          <Text style={styles.customHeaderTitle}>
-            {isNewItem ? 'Add New Item' : (item?.name || 'Edit Item')}
-          </Text>
-          {item?.sku && (
-            <Text style={[styles.customHeaderTitle, { fontSize: 12, marginTop: 2, color: lightTheme.colors.border }]}>{`SKU: ${item.sku}`}</Text>
-          )}
-        </View>
-      ),
-      headerRight: () => (
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 10 }}>
-          <TouchableOpacity 
-            onPress={handlePrintLabel} 
-            disabled={isPrinting || isSaving || isSavingAndPrinting} 
-            style={[styles.customHeaderButton, { marginRight: 10, paddingVertical: 5, paddingHorizontal: 8, opacity: (isPrinting || isSaving || isSavingAndPrinting) ? 0.5 : 1}] }
-          >
-            {isPrinting && !isSavingAndPrinting ? (
-                <ActivityIndicator size="small" color={lightTheme.colors.primary} />
-            ) : (
-                <Ionicons name="print-outline" size={24} color={lightTheme.colors.primary} />
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity 
-            onPress={handleSaveAction} 
-            disabled={isSaving || isPrinting || isSavingAndPrinting} 
-            style={[styles.customHeaderButton, { marginRight: 10, paddingVertical: 5, paddingHorizontal: 8, opacity: (isSaving || isPrinting || isSavingAndPrinting) ? 0.5 : 1} ]}
-          >
-            {isSaving && !isSavingAndPrinting ? (
-                <ActivityIndicator size="small" color={lightTheme.colors.primary} />
-            ) : (
-                <Ionicons name="save-outline" size={24} color={lightTheme.colors.primary} />
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity 
-            onPress={handleSaveAndPrint} 
-            disabled={isSavingAndPrinting || isSaving || isPrinting} 
-            style={[styles.customHeaderButton, { paddingVertical: 5, paddingHorizontal: 8, opacity: (isSavingAndPrinting || isSaving || isPrinting) ? 0.5 : 1} ]}
-          >
-            {isSavingAndPrinting ? (
-                 <ActivityIndicator size="small" color={lightTheme.colors.primary} />
-            ) : (
-                <Ionicons name="document-text-outline" size={24} color={lightTheme.colors.primary} />
-            )}
-          </TouchableOpacity>
-        </View>
-      ),
+      headerShown: true,
+      title: screenTitle,
       headerLeft: () => (
-        <TouchableOpacity
-          style={styles.customHeaderButton}
-          onPress={handleCancel}
-          disabled={isSavingPending} // Disable during save
-        >
-          <Text style={[styles.customHeaderButtonText, isSavingPending && styles.disabledText]}>Cancel</Text>
+        <TouchableOpacity onPress={() => {
+          if (isEdited) {
+            setShowCancelModal(true);
+          } else {
+            router.back();
+          }
+        }} style={{ marginLeft: Platform.OS === 'ios' ? 10 : 0, padding: 10 }}>
+          <Ionicons name="close" size={28} color={lightTheme.colors.primary} />
         </TouchableOpacity>
       ),
+      headerRight: () => {
+        if (isSaving && !isSavingAndPrinting) {
+          return <ActivityIndicator size="small" color={lightTheme.colors.primary} style={{ marginRight: Platform.OS === 'ios' ? 15 : 20 }} />;
+        }
+
+        const headerButtonTouchableStyle = { padding: 10, marginLeft: Platform.OS === 'ios' ? 8 : 10 }; 
+        const printIconDisabledColor = lightTheme.colors.border;
+        const printIconEnabledColor = lightTheme.colors.primary;
+        const isPrintActionBusy = isPrinting || isSaving || isSavingAndPrinting;
+
+        let printElement;
+        if (isNewItem || !variations || variations.length === 0) {
+          printElement = (
+            <TouchableOpacity disabled={true} style={headerButtonTouchableStyle}>
+              <Ionicons name="print-outline" size={26} color={printIconDisabledColor} />
+            </TouchableOpacity>
+          );
+        } else if (variations.length === 1) {
+          printElement = (
+            <TouchableOpacity
+              onPress={handleHeaderPrint}
+              disabled={isPrintActionBusy}
+              style={headerButtonTouchableStyle}
+            >
+              {(isPrinting && !isSavingAndPrinting) ? (
+                <ActivityIndicator size="small" color={printIconEnabledColor} />
+              ) : (
+                <Ionicons name="print-outline" size={26} color={isPrintActionBusy ? printIconDisabledColor : printIconEnabledColor} />
+              )}
+            </TouchableOpacity>
+          );
+        } else { // Multiple variations
+          printElement = (
+            <Menu>
+              <MenuTrigger customStyles={{ triggerTouchable: headerButtonTouchableStyle }} disabled={isPrintActionBusy}>
+                <Ionicons name="print-outline" size={26} color={isPrintActionBusy ? printIconDisabledColor : printIconEnabledColor} />
+              </MenuTrigger>
+              <MenuOptions customStyles={{
+                  optionsContainer: {
+                    paddingVertical: 5,
+                    borderRadius: 8,
+                    backgroundColor: lightTheme.colors.card,
+                    maxHeight: 300,
+                    elevation: 3, 
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.15,
+                    shadowRadius: 5,
+                  }
+                }}>
+                <Text style={popupMenuStyles.menuTitle}>Select Variation to Print</Text>
+                {variations.map((varItem, index) => (
+                  <MenuOption key={varItem.id || index} onSelect={() => initiatePrint(index)} customStyles={{ optionWrapper: popupMenuStyles.optionWrapper }}>
+                    <View style={popupMenuStyles.optionContent}>
+                      <Text style={popupMenuStyles.optionName} numberOfLines={1}>{varItem.name || `Variation ${index + 1}`}</Text>
+                      <View style={popupMenuStyles.optionMetaRow}>
+                        {varItem.sku && <Text style={popupMenuStyles.optionMeta} numberOfLines={1}>SKU: {varItem.sku}</Text>}
+                        {varItem.price !== undefined && (
+                          <Text style={[popupMenuStyles.optionMeta, varItem.sku && { marginLeft: 8 }]} numberOfLines={1}>
+                            Price: ${varItem.price.toFixed(2)}
+                          </Text>
+                        )}
+                      </View>
+                      {varItem.barcode && <Text style={popupMenuStyles.optionMetaFullWidth} numberOfLines={1}>UPC: {varItem.barcode}</Text>}
+                    </View>
+                  </MenuOption>
+                ))}
+              </MenuOptions>
+            </Menu>
+          );
+        }
+
+        const canPerformActions = isEdited && !isSaving && !isPrinting && !isSavingAndPrinting;
+
+        return (
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: Platform.OS === 'ios' ? 5 : 15 }}>
+            {printElement}
+            <TouchableOpacity
+              onPress={handleSaveAction}
+              disabled={isSaving || isPrinting || isSavingAndPrinting || !isEdited}
+              style={headerButtonTouchableStyle}
+            >
+              <Ionicons name="save-outline" size={26} color={canPerformActions ? lightTheme.colors.primary : lightTheme.colors.border} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleSaveAndPrint}
+              disabled={isSavingAndPrinting || isSaving || isPrinting || !isEdited}
+              style={headerButtonTouchableStyle}
+            >
+              {isSavingAndPrinting ? (
+                <ActivityIndicator size="small" color={lightTheme.colors.primary} />
+              ) : (
+                <Ionicons name="document-text-outline" size={26} color={canPerformActions ? lightTheme.colors.primary : lightTheme.colors.border} />
+              )}
+            </TouchableOpacity>
+          </View>
+        );
+      },
     });
-  }, [
-    navigation, 
-    isEdited, 
-    isSaving, 
-    isPrinting,
-    isSavingAndPrinting, 
-    handleSaveAction, 
-    handleCancel,
-    handlePrintLabel,
-    handleSaveAndPrint,
-    isNewItem, 
-    item, 
-    originalItem, 
-  ]);
+  }, [navigation, isNewItem, item?.name, variations, isEdited, router, handleHeaderPrint, isSaving, isPrinting, isSavingAndPrinting, handleSaveAction, handleSaveAndPrint, handleCancel]);
   
   // If loading, show spinner
   if (isLoading) {
@@ -1393,7 +1448,7 @@ export default function ItemDetails() {
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.footerButton, styles.footerButtonPrint]}
-              onPress={handlePrintLabel}
+              onPress={handleHeaderPrint}
               disabled={isPrinting || isSaving || isSavingAndPrinting}
             >
               <Ionicons name="print-outline" size={22} color={lightTheme.colors.primary} style={styles.footerButtonIcon} />
@@ -1404,16 +1459,16 @@ export default function ItemDetails() {
               onPress={handleSaveAction}
               disabled={isSaving || isPrinting || isSavingAndPrinting || !isEdited}
             >
-              <Ionicons name="save-outline" size={22} color={isEdited ? lightTheme.colors.primary : lightTheme.colors.mediumGray} style={styles.footerButtonIcon} />
-              <Text style={[styles.footerButtonText, { color: isEdited ? lightTheme.colors.primary : lightTheme.colors.mediumGray }]}>Save</Text>
+              <Ionicons name="save-outline" size={22} color={isEdited ? lightTheme.colors.primary : lightTheme.colors.border} style={styles.footerButtonIcon} />
+              <Text style={[styles.footerButtonText, { color: isEdited ? lightTheme.colors.primary : lightTheme.colors.border }]}>Save</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.footerButton, styles.footerButtonSaveAndPrint]}
               onPress={handleSaveAndPrint}
               disabled={isSavingAndPrinting || isSaving || isPrinting || !isEdited}
             >
-              <Ionicons name="document-text-outline" size={22} color={isEdited ? lightTheme.colors.primary : lightTheme.colors.mediumGray} style={styles.footerButtonIcon} />
-              <Text style={[styles.footerButtonText, { color: isEdited ? lightTheme.colors.primary : lightTheme.colors.mediumGray }]}>Save & Print</Text>
+              <Ionicons name="document-text-outline" size={22} color={isEdited ? lightTheme.colors.primary : lightTheme.colors.border} style={styles.footerButtonIcon} />
+              <Text style={[styles.footerButtonText, { color: isEdited ? lightTheme.colors.primary : lightTheme.colors.border }]}>Save & Print</Text>
             </TouchableOpacity>
           </View>
 
@@ -1427,17 +1482,6 @@ export default function ItemDetails() {
             }}
             categorySearch={categorySearch}
             setCategorySearch={setCategorySearch}
-          />
-
-          {/* --- Variation Selection Modal - Replaced with Component --- */}
-          <VariationPrintSelectionModal
-            visible={showVariationModal}
-            onClose={() => setShowVariationModal(false)}
-            variations={variations} 
-            onSelectVariation={(index) => {
-              setPrintingVariationIndex(index); // Set which variation is being printed
-              initiatePrint(index); 
-            }}
           />
 
           {/* Print Notification Modal - Replaced with SystemModal */}
@@ -1494,3 +1538,47 @@ export default function ItemDetails() {
     </SafeAreaView>
   );
 }
+
+// Styles for the popup menu
+const popupMenuStyles = StyleSheet.create({
+  menuTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: lightTheme.colors.border,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: lightTheme.colors.border,
+    marginBottom: 4,
+  },
+  optionWrapper: {
+    paddingVertical: 0, 
+    paddingHorizontal: 0,
+  },
+  optionContent: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  optionName: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: lightTheme.colors.text,
+    marginBottom: 3,
+  },
+  optionMetaRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  optionMeta: {
+    fontSize: 12,
+    color: lightTheme.colors.border,
+  },
+  optionMetaFullWidth: {
+    fontSize: 12,
+    color: lightTheme.colors.border,
+    marginTop: 1, 
+  }
+});
