@@ -20,6 +20,7 @@ import {
   SafeAreaView
 } from 'react-native';
 import { useRouter, useLocalSearchParams, Stack, useNavigation } from 'expo-router';
+import { usePreventRemove } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 // import { useCategories } from '../../src/hooks'; // Commented out
@@ -82,6 +83,7 @@ export default function ItemDetails() {
   const { id, ...params } = useLocalSearchParams<{ id: string, name?: string, sku?: string, barcode?: string }>();
   const navigation = useNavigation();
   const isNewItem = id === 'new';
+  const isProgrammaticNavigation = useRef(false);
   
   // Hooks for categories and items
   // const { // Commented out
@@ -151,7 +153,7 @@ export default function ItemDetails() {
     title: string;
     actions: Array<{ label: string; onPress: () => void; isDestructive?: boolean }>;
   } | null>(null);
-
+  
   // --- Printing Logic --- 
 
   // Original initiatePrint for inline variation print buttons (takes index)
@@ -184,7 +186,7 @@ export default function ItemDetails() {
     });
     
     setPrintingVariationIndex(variationIndex); 
-    setIsPrinting(true); 
+      setIsPrinting(true); 
     try {
       const success = await printItemLabel(labelData);
       if (success) {
@@ -251,7 +253,7 @@ export default function ItemDetails() {
         setPrintNotificationMessage(message);
         setPrintNotificationType('success');
         printSuccess = true;
-      } else {
+    } else {
         setPrintNotificationMessage('Print failed. Check printer connection.');
         setPrintNotificationType('error');
       }
@@ -499,29 +501,8 @@ export default function ItemDetails() {
   }, [item]); // Depends on item state
 
   const handleFooterCancel = useCallback(() => {
-    if (isEdited && !isEmpty()) {
-        setModalContent({
-            title: 'Unsaved Changes',
-            actions: [
-                {
-                    label: 'Discard Changes',
-                    onPress: () => {
-                        setIsActionModalVisible(false);
-                        router.back();
-                    },
-                    isDestructive: true,
-                },
-                {
-                    label: 'Keep Editing',
-                    onPress: () => setIsActionModalVisible(false),
-                },
-            ],
-        });
-        setIsActionModalVisible(true);
-    } else {
-        router.back();
-    }
-  }, [isEdited, isEmpty, router]);
+    router.back();
+  }, [router]);
 
 
   const handleSaveSuccessNavigation = (savedItem: ConvertedItem | null) => {
@@ -582,7 +563,7 @@ export default function ItemDetails() {
       if (isNewItem) {
         logger.info('ItemDetails:handleSaveAction', 'Creating new item...');
         savedItem = await createProduct(itemPayload);
-      } else { 
+      } else {
         logger.info('ItemDetails:handleSaveAction', `Updating item with ID: ${id}`);
         savedItem = await updateProduct(id!, itemPayload);
       }
@@ -635,6 +616,7 @@ export default function ItemDetails() {
 
                 // Step 4: If saving is successful, signal exit and navigate away.
                 if (savedItem) {
+                    isProgrammaticNavigation.current = true;
                     handleSaveSuccessNavigation(savedItem);
                 }
             }
@@ -662,7 +644,7 @@ export default function ItemDetails() {
           label: `${variation.name || item?.name || 'Item'} (${variation.price !== undefined ? '$' + variation.price.toFixed(2) : 'Variable Price'})`,
           variation: variation,
         });
-      } else {
+          } else {
         // Has overrides, list each one
         variation.locationOverrides.forEach(override => {
           const locationName = availableLocations.find(loc => loc.id === override.locationId)?.name || override.locationId || 'Unknown Location';
@@ -903,10 +885,10 @@ export default function ItemDetails() {
       const variationsChanged = !areVariationsEqual(variations, defaultNewVariations);
       
       const calculatedIsEdited =
-        !!(item.name && item.name.trim()) ||
-        !!(item.description && item.description.trim()) ||
-        !!item.reporting_category_id ||
-        (item.taxIds && item.taxIds.length > 0) ||
+          !!(item.name && item.name.trim()) ||
+          !!(item.description && item.description.trim()) ||
+          !!item.reporting_category_id ||
+          (item.taxIds && item.taxIds.length > 0) ||
         (item.modifierListIds && item.modifierListIds.length > 0) ||
         variationsChanged;
       setIsEdited(calculatedIsEdited);
@@ -917,12 +899,12 @@ export default function ItemDetails() {
       const variationsChanged = !areVariationsEqual(originalItem.variations, variations);
 
       const calculatedIsEdited =
-        originalItem.name !== item.name ||
-        originalItem.sku !== item.sku ||
-        originalItem.price !== item.price ||
-        originalItem.description !== item.description ||
-        originalItem.reporting_category_id !== item.reporting_category_id ||
-        taxIdsChanged ||
+          originalItem.name !== item.name ||
+          originalItem.sku !== item.sku ||
+          originalItem.price !== item.price ||
+          originalItem.description !== item.description ||
+          originalItem.reporting_category_id !== item.reporting_category_id ||
+          taxIdsChanged ||
         modifierIdsChanged ||
         variationsChanged;
       setIsEdited(calculatedIsEdited);
@@ -1045,6 +1027,7 @@ export default function ItemDetails() {
             try {
               await deleteProduct(item.id as string); // Ensure item.id is passed as string
               Alert.alert('Success', 'Item deleted successfully');
+              isProgrammaticNavigation.current = true;
               router.back(); // Dismiss modal on delete
             } catch (error: any) {
               console.error('Error deleting item:', error);
@@ -1089,6 +1072,9 @@ export default function ItemDetails() {
         logger.info('ItemDetails', 'Save triggered via bottom tab bar (modal context)', { isNewItem, isEdited });
         const triggerSave = async () => {
             const savedItem = await handleSaveAction();
+            if (savedItem) {
+                isProgrammaticNavigation.current = true;
+            }
             handleSaveSuccessNavigation(savedItem);
         };
         triggerSave();
@@ -1105,6 +1091,7 @@ export default function ItemDetails() {
       headerShown: true,
       title: screenTitle,
       headerLeft: () => null,
+      headerBackButtonMenuEnabled: false,
       headerRight: () => {
         // Remove all header right buttons for print/save actions
         // If any other headerRight items were needed, they'd go here.
@@ -1118,6 +1105,36 @@ export default function ItemDetails() {
       },
     });
   }, [navigation, isNewItem, item?.name, isEdited, router]);
+  
+  // NEW: Effect to handle unsaved changes before leaving the screen
+  usePreventRemove(
+    isEdited && !isProgrammaticNavigation.current,
+    ({ data }) => {
+      // Prevent default behavior is implicit with this hook.
+
+      // Show a confirmation modal
+      setModalContent({
+        title: 'Unsaved Changes',
+        actions: [
+          {
+            label: 'Discard Changes',
+            onPress: () => {
+              setIsActionModalVisible(false);
+              // Set the flag to true to allow navigation and then dispatch the action
+              isProgrammaticNavigation.current = true;
+              navigation.dispatch(data.action);
+            },
+            isDestructive: true,
+          },
+          {
+            label: 'Keep Editing',
+            onPress: () => setIsActionModalVisible(false),
+          },
+        ],
+      });
+      setIsActionModalVisible(true);
+    }
+  );
   
   // If loading, show spinner
   if (isLoading) {
@@ -1506,6 +1523,9 @@ export default function ItemDetails() {
                 style={[styles.footerButton, styles.footerButtonSave, { flex: 1 }]}
                 onPress={async () => {
                   const savedItem = await handleSaveAction();
+                  if (savedItem) {
+                      isProgrammaticNavigation.current = true;
+                  }
                   handleSaveSuccessNavigation(savedItem);
                 }}
                 disabled={isSaving || isPrinting || isSavingAndPrinting || !isEdited} 
