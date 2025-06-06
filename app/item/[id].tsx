@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback, useTransition, useOptimistic } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { 
   View, 
   Text, 
@@ -32,17 +32,9 @@ import { getRecentCategoryIds, addRecentCategoryId } from '../../src/utils/recen
 import { useAppStore } from '../../src/store';
 import logger from '../../src/utils/logger';
 import { printItemLabel, LabelData, getLabelPrinterStatus } from '../../src/utils/printLabel';
-import { styles } from './itemStyles';
+import { styles } from './_itemStyles';
 import CategorySelectionModal, { CategoryPickerItemType as ModalCategoryPickerItem } from '../../src/components/modals/CategorySelectionModal';
-import PrintNotification from '../../src/components/modals/PrintNotification';
-import apiClient from '../../src/api';
 import SystemModal from '../../src/components/SystemModal';
-import {
-  Menu,
-  MenuOptions,
-  MenuOption,
-  MenuTrigger,
-} from 'react-native-popup-menu';
 
 // Define type for Tax and Modifier List Pickers
 type TaxPickerItem = { id: string; name: string; percentage: string | null };
@@ -68,6 +60,13 @@ const EMPTY_ITEM: ConvertedItem = {
   variations: [] // Initialize empty variations array
 };
 
+// Define a type for Location Overrides
+export interface LocationOverrideType {
+  locationId: string;
+  locationName?: string;
+  price?: number;
+}
+
 // Define a type for variations
 export interface ItemVariation {
   id?: string;
@@ -76,11 +75,7 @@ export interface ItemVariation {
   sku: string | null;
   price?: number;
   barcode?: string;
-  locationOverrides?: Array<{
-    locationId: string;
-    locationName?: string;
-    price?: number;
-  }>;
+  locationOverrides?: Array<LocationOverrideType>; // Use defined type
 }
 
 export default function ItemDetails() {
@@ -108,13 +103,9 @@ export default function ItemDetails() {
   // State for the current item
   const [item, setItem] = useState<ConvertedItem>(EMPTY_ITEM);
   const [originalItem, setOriginalItem] = useState<ConvertedItem | null>(null);
-  const [optimisticItem, setOptimisticItem] = useOptimistic(item, 
-    (currentItem: ConvertedItem, updatedValues: Partial<ConvertedItem>) => ({ ...currentItem, ...updatedValues })
-  );
   const [isEdited, setIsEdited] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [isSavingPending, startTransition] = useTransition();
   const [isPrinting, setIsPrinting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [printingVariationIndex, setPrintingVariationIndex] = useState<number | null>(null); // For inline print button loading state
@@ -132,9 +123,6 @@ export default function ItemDetails() {
     price: undefined,
     barcode: ''
   }]);
-  const [optimisticVariations, setOptimisticVariations] = useOptimistic(variations, 
-    (currentVariations: ItemVariation[], newVariations: ItemVariation[]) => newVariations
-  );
   
   // State for category list and modal
   const [availableCategories, setAvailableCategories] = useState<ModalCategoryPickerItem[]>([]);
@@ -142,15 +130,11 @@ export default function ItemDetails() {
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [categorySearch, setCategorySearch] = useState('');
   
-  // Confirmation modal state
-  const [showCancelModal, setShowCancelModal] = useState(false);
-  
   // State for recent categories
   const [recentCategories, setRecentCategories] = useState<ModalCategoryPickerItem[]>([]);
   
   // State for Taxes
   const [availableTaxes, setAvailableTaxes] = useState<TaxPickerItem[]>([]);
-  const [showTaxModal, setShowTaxModal] = useState(false);
   const [allTaxesSelected, setAllTaxesSelected] = useState(false);
 
   // State for Modifiers
@@ -162,17 +146,16 @@ export default function ItemDetails() {
   const itemSaveTriggeredAt = useAppStore((state: any) => state.itemSaveTriggeredAt);
   const lastProcessedSaveTrigger = useRef<number | null>(null);
   
-  // Get notification state from store
-  const { 
-    setShowSuccessNotification, 
-    setSuccessMessage,
-    showSuccessNotification,
-    successMessage 
-  } = useAppStore();
-  
+  // State for our new action modal
+  const [isActionModalVisible, setIsActionModalVisible] = useState(false);
+  const [modalContent, setModalContent] = useState<{
+    title: string;
+    actions: Array<{ label: string; onPress: () => void; isDestructive?: boolean }>;
+  } | null>(null);
+
   // --- Printing Logic --- 
 
-  // Helper function to construct LabelData and call the print utility
+  // Original initiatePrint for inline variation print buttons (takes index)
   const initiatePrint = useCallback(async (variationIndex: number) => {
     if (!item || !variations || variationIndex < 0 || variationIndex >= variations.length) {
       logger.warn('ItemDetails:initiatePrint', 'Invalid data for printing', { itemId: item?.id, variationIndex });
@@ -195,13 +178,13 @@ export default function ItemDetails() {
       barcode: variationToPrint.barcode,
     };
 
-    logger.info('ItemDetails:initiatePrint', 'Initiating print for variation', { 
+    logger.info('ItemDetails:initiatePrint', 'Initiating print for variation (inline button)', { 
       itemId: item.id, 
       variationIndex, 
       variationId: variationToPrint.id
     });
     
-    setPrintingVariationIndex(variationIndex); // For inline print button loading state
+    setPrintingVariationIndex(variationIndex); 
     setIsPrinting(true); 
     try {
       const success = await printItemLabel(labelData);
@@ -213,7 +196,7 @@ export default function ItemDetails() {
         setPrintNotificationType('error');
       }
     } catch (error) {
-      logger.error('ItemDetails:initiatePrint', 'Error during print', { error });
+      logger.error('ItemDetails:initiatePrint', 'Error during print (inline button)', { error });
       setPrintNotificationMessage('An unexpected error occurred during print.');
       setPrintNotificationType('error');
     } finally {
@@ -222,29 +205,68 @@ export default function ItemDetails() {
       setTimeout(() => setShowPrintNotification(false), 3000);
       setPrintingVariationIndex(null);
     }
-
   }, [item, variations, setIsPrinting, setPrintNotificationMessage, setPrintNotificationType, setShowPrintNotification]);
 
-  // Updated header print button handler
-  const handleHeaderPrint = useCallback(() => {
-    if (isNewItem || !variations || variations.length === 0) {
-      Alert.alert('Cannot Print', isNewItem ? 'Please save the item before printing.' : 'No variations available to print.');
-      return;
+  // New function to execute print action, potentially with price override (used by footer/popover)
+  const executePrintAction = useCallback(async (variationToPrint: ItemVariation, priceOverride?: LocationOverrideType, options?: { manageState?: boolean }): Promise<boolean> => {
+    const manageState = options?.manageState ?? true;
+
+    if (!item) {
+      logger.warn('ItemDetails:executePrintAction', 'Item data not available for printing');
+      setPrintNotificationMessage('Item data not available.');
+      setPrintNotificationType('error');
+      setShowPrintNotification(true);
+      setTimeout(() => setShowPrintNotification(false), 3000);
+      return false;
     }
-    if (variations.length === 1) {
-      logger.info('ItemDetails:handleHeaderPrint', 'Single variation, printing directly.');
-      initiatePrint(0);
-    } else {
-      // For multiple variations, the Menu component in headerRight will handle selection.
-      // This function is called if the trigger itself is pressed, 
-      // but the menu should open automatically. We might not need specific logic here
-      // if the MenuTrigger itself handles opening.
-      // If direct invocation is needed (e.g. if Menu doesn't open automatically on trigger press),
-      // we would need a ref to the menu and call menuRef.current.open().
-      // For now, assume MenuTrigger handles it.
-      logger.info('ItemDetails:handleHeaderPrint', 'Multiple variations, menu should open.');
+
+    const finalPrice = priceOverride ? priceOverride.price : variationToPrint.price;
+
+    const labelData: LabelData = {
+      itemId: item.id,
+      itemName: item.name || 'Item Name',
+      variationId: variationToPrint.id,
+      variationName: variationToPrint.name === null ? undefined : variationToPrint.name,
+      price: finalPrice,
+      sku: variationToPrint.sku,
+      barcode: variationToPrint.barcode,
+    };
+
+    logger.info('ItemDetails:executePrintAction', 'Initiating print (footer/popover)', { 
+      itemId: item.id, 
+      variationId: variationToPrint.id,
+      hasPriceOverride: !!priceOverride 
+    });
+    
+    // General printing state, not tied to a specific variation index for popover
+    if (manageState) setIsPrinting(true);
+    let printSuccess = false;
+    try {
+      const success = await printItemLabel(labelData);
+      if (success) {
+        const displayName = variationToPrint.name || item.name || 'Item';
+        const locationName = priceOverride ? availableLocations.find(loc => loc.id === priceOverride.locationId)?.name : null;
+        const message = locationName 
+          ? `Label for "${displayName}" (${locationName}) sent to printer.`
+          : `Label for "${displayName}" sent to printer.`;
+        setPrintNotificationMessage(message);
+        setPrintNotificationType('success');
+        printSuccess = true;
+      } else {
+        setPrintNotificationMessage('Print failed. Check printer connection.');
+        setPrintNotificationType('error');
+      }
+    } catch (error) {
+      logger.error('ItemDetails:executePrintAction', 'Error during print (footer/popover)', { error });
+      setPrintNotificationMessage('An unexpected error occurred during print.');
+      setPrintNotificationType('error');
+    } finally {
+      if (manageState) setIsPrinting(false);
+      setShowPrintNotification(true);
+      setTimeout(() => setShowPrintNotification(false), 3000);
     }
-  }, [variations, isNewItem, initiatePrint]);
+    return printSuccess;
+  }, [item, availableLocations, setIsPrinting, setPrintNotificationMessage, setPrintNotificationType, setShowPrintNotification]);
 
   // Define handlers before they are used
   const handleInputChange = (key: keyof ConvertedItem, value: string | number | undefined) => {
@@ -477,134 +499,221 @@ export default function ItemDetails() {
     );
   }, [item]); // Depends on item state
 
-  const handleCancel = useCallback(() => {
+  const handleFooterCancel = useCallback(() => {
     if (isEdited && !isEmpty()) {
-      setShowCancelModal(true);
+        setModalContent({
+            title: 'Unsaved Changes',
+            actions: [
+                {
+                    label: 'Discard Changes',
+                    onPress: () => {
+                        setIsActionModalVisible(false);
+                        router.back();
+                    },
+                    isDestructive: true,
+                },
+                {
+                    label: 'Keep Editing',
+                    onPress: () => setIsActionModalVisible(false),
+                },
+            ],
+        });
+        setIsActionModalVisible(true);
     } else {
-      router.back(); // Dismiss modal
+        router.back();
     }
-  }, [isEdited, isEmpty, router, setShowCancelModal]);
+  }, [isEdited, isEmpty, router]);
 
-  const handleConfirmCancel = useCallback(() => {
-    setShowCancelModal(false);
-    router.back(); // Dismiss modal
-  }, [router, setShowCancelModal]);
 
-  const handleSaveAction = async (): Promise<boolean> => {
-    logger.info('ItemDetails:handleSaveAction', 'Save action initiated', { isNewItem, itemId: id });
+  const handleSaveSuccessNavigation = (savedItem: ConvertedItem | null) => {
+    if (savedItem) {
+      if (isNewItem && savedItem.id) {
+        // For new items, replace the route to avoid navigating back to a blank "new" screen.
+        router.replace({ pathname: '/item/[id]', params: { id: savedItem.id } });
+      } else if (!isNewItem) {
+        // For existing items, simply navigate back.
+        router.back();
+      }
+    }
+  };
+
+  const handleSaveAction = async (options?: { manageState?: boolean }): Promise<ConvertedItem | null> => {
+    const manageState = options?.manageState ?? true;
+
+    logger.info('ItemDetails:handleSaveAction', 'Save action initiated', { isNewItem, itemId: id, manageState });
     Keyboard.dismiss();
 
     if (!item.name || item.name.trim() === '') {
       Alert.alert('Validation Error', 'Item name cannot be empty.');
-      return false;
+      return null;
     }
 
-    // Ensure at least one variation exists and has a name if it's not the default "Regular"
     if (variations.length === 0) {
       Alert.alert('Validation Error', 'At least one item variation is required.');
-      return false;
+      return null;
     }
 
     for (const v of variations) {
-      if (!v.name || v.name.trim() === '') {
-        // Allow empty name if it's the only variation and SKU/barcode might be primary identifier
-        // Or if it's a multi-variation item where some might be distinguished by SKU/price alone
-        // For simplicity now, we'll allow it, but stricter validation could be added.
-        // However, if a variation is added beyond the first, it should ideally have a name.
-        // If there are multiple variations and one has an empty name, that could be an issue.
-        // Let's assume for now that if name is null/empty, other fields distinguish it.
-      }
-      // Validation for price: if not empty, must be valid number
       if (v.price !== undefined && v.price !== null && (isNaN(v.price) || v.price < 0)) {
         Alert.alert('Validation Error', `Invalid price for variation "${v.name || 'Unnamed'}. Price must be a positive number.`);
-        return false;
+        return null;
       }
     }
 
-    setIsSaving(true);
+    if (manageState) setIsSaving(true);
     setError(null);
     
     const itemPayload: ConvertedItem = {
         ...item, 
-      variations: variations, // Pass the local variations state
+      variations: variations,
     };
 
-    // Remove temporary client-side IDs from variations before sending to backend
     itemPayload.variations = itemPayload.variations?.map(v => {
       const { id: variationId, ...rest } = v;
       if (variationId && variationId.startsWith('temp-')) {
-        return rest; // Send without ID if it's a new, temporary one
+        return rest;
       }
-      return v; // Send with ID if it's an existing one
+      return v;
     });
     
     logger.debug('ItemDetails:handleSaveAction', 'Item payload for save:', itemPayload);
 
-      try {
+    try {
       let savedItem;
-        if (isNewItem) {
+      if (isNewItem) {
         logger.info('ItemDetails:handleSaveAction', 'Creating new item...');
         savedItem = await createProduct(itemPayload);
-        } else { 
+      } else { 
         logger.info('ItemDetails:handleSaveAction', `Updating item with ID: ${id}`);
-        savedItem = await updateProduct(id!, itemPayload); // id will exist for existing items
+        savedItem = await updateProduct(id!, itemPayload);
       }
       
       if (savedItem) {
         logger.info('ItemDetails:handleSaveAction', 'Save successful', { savedItemId: savedItem.id });
-        
-        startTransition(() => {
-          setItem(savedItem);
-          setOriginalItem(savedItem);
-          setOptimisticItem(savedItem); // Keep if this is the intended pattern for your optimistic updates
-          setVariations(savedItem.variations || []);
-          setOptimisticVariations(savedItem.variations || []); // Keep if intended
-        setIsEdited(false);
-        
-          setSuccessMessage(isNewItem ? 'Item created successfully!' : 'Item updated successfully!');
-          setShowSuccessNotification(true);
-          
-          // Important: Navigate *after* setting success notification state
-          // Use replace to avoid multiple item modals in stack if creating new then editing
-          if (isNewItem && savedItem.id) {
-            router.replace({ pathname: '/item/[id]', params: { id: savedItem.id } });
-          } else {
-            // For updates, if the modal should close, use router.back() here.
-            router.back(); // MODAL DISMISSAL FOR EXISTING ITEMS
-          }
-        });
-        return true; // Indicate success
-        } else {
+        return savedItem;
+      } else {
         logger.error('ItemDetails:handleSaveAction', 'Save failed. No saved item data returned.');
         setError('Failed to save item. Please try again.');
         Alert.alert('Error', 'Failed to save item. An unexpected error occurred.');
-        return false; // Indicate failure
+        return null;
       }
     } catch (err: any) {
       logger.error('ItemDetails:handleSaveAction', 'Error saving item', { error: err });
       setError(err.message || 'An unknown error occurred during save.');
       Alert.alert('Save Error', err.message || 'An unexpected error occurred. Please try again.');
-      return false; // Indicate failure
+      return null;
     } finally {
-      setIsSaving(false);
+      if (manageState) setIsSaving(false);
     }
   };
 
-  const handleSaveAndPrint = async () => {
-    setIsSavingAndPrinting(true);
-    const saveSuccess = await handleSaveAction();
-    if (saveSuccess) {
-      // Adding a small delay to allow the success notification to be seen briefly if it's very quick
-      // and also to ensure any state updates from save are processed before print dialog.
-      setTimeout(async () => {
-        await handleHeaderPrint();
-        setIsSavingAndPrinting(false);
-      }, 500); 
-    } else {
-      setIsSavingAndPrinting(false);
-      // Optionally, show an alert that printing was skipped due to save failure
-      // Alert.alert("Print Skipped", "Item could not be saved, so printing was skipped.");
+  const handleActionSelect = async (action: 'print' | 'save_and_print', selectedVariation: ItemVariation, selectedOverride?: LocationOverrideType) => {
+    // For a simple print action, manage its own state.
+    if (action === 'print') {
+        setIsPrinting(true);
+        try {
+            await executePrintAction(selectedVariation, selectedOverride); 
+        } catch (e) {
+            logger.error('ItemDetails:handleActionSelect', 'Error during print action', { error: e });
+            Alert.alert("Error", "An unexpected error occurred during the print action.");
+        } finally {
+            setIsPrinting(false);
+        }
+        return;
     }
+
+    // For the combined "Save & Print" action, orchestrate the state here.
+    if (action === 'save_and_print') {
+        setIsSavingAndPrinting(true);
+        try {
+            // Step 1: Print the item first with the current (unsaved) data from the form.
+            const printSuccess = await executePrintAction(selectedVariation, selectedOverride, { manageState: false });
+            
+            // Step 2: If printing is successful, proceed to save the item.
+            if (printSuccess) {
+                // Step 3: Save the item. Let it manage its own state flags, but prevent it from updating the local UI state.
+                const savedItem = await handleSaveAction({ manageState: false });
+
+                // Step 4: If saving is successful, signal exit and navigate away.
+                if (savedItem) {
+                    handleSaveSuccessNavigation(savedItem);
+                }
+            }
+        } catch (e) {
+            logger.error('ItemDetails:handleActionSelect', 'Error during save_and_print action', { error: e });
+            Alert.alert("Error", "An unexpected error occurred while processing the save and print action.");
+        } finally {
+            // Step 5: Always turn off the loading indicator.
+            setIsSavingAndPrinting(false);
+        }
+    }
+  };
+
+  // Helper to generate items for the print options menu
+  const getPrintMenuItems = useCallback(() => {
+    const menuItems: Array<{ label: string; variation: ItemVariation; override?: LocationOverrideType }> = [];
+    if (!variations || variations.length === 0) {
+      return menuItems;
+    }
+
+    variations.forEach(variation => {
+      if (!variation.locationOverrides || variation.locationOverrides.length === 0) {
+        // No overrides, just the base variation
+        menuItems.push({
+          label: `${variation.name || item?.name || 'Item'} (${variation.price !== undefined ? '$' + variation.price.toFixed(2) : 'Variable Price'})`,
+          variation: variation,
+        });
+      } else {
+        // Has overrides, list each one
+        variation.locationOverrides.forEach(override => {
+          const locationName = availableLocations.find(loc => loc.id === override.locationId)?.name || override.locationId || 'Unknown Location';
+          menuItems.push({
+            label: `${variation.name || item?.name || 'Item'} - ${locationName} ($${override.price !== undefined ? override.price.toFixed(2) : 'N/A'})`,
+            variation: variation,
+            override: override,
+          });
+        });
+        // Optionally, also list the base price of the variation if it has overrides and a defined price
+        if (variation.price !== undefined) {
+          menuItems.push({
+             label: `${variation.name || item?.name || 'Item'} - Standard Price ($${variation.price.toFixed(2)})`,
+             variation: variation,
+           });
+        }
+      }
+    });
+    return menuItems.sort((a,b) => a.label.localeCompare(b.label)); // Sort for consistent order
+  }, [variations, item?.name, availableLocations]);
+
+  // Handler to open the modal for Print or Save & Print
+  const openActionModal = (action: 'print' | 'save_and_print') => {
+    const printItems = getPrintMenuItems();
+    if (printItems.length === 0) {
+      Alert.alert("Cannot Print", "No printable variations or options found for this item.");
+      return;
+    }
+
+    const isTrulySingleOption = printItems.length === 1 && variations.length === 1 &&
+                               (!variations[0].locationOverrides || variations[0].locationOverrides.length === 0);
+
+    // If there's only one, non-override option, perform the action directly
+    if (isTrulySingleOption) {
+        handleActionSelect(action, printItems[0].variation, printItems[0].override);
+        return;
+    }
+
+    // Otherwise, show the modal with all options
+    setModalContent({
+        title: action === 'print' ? 'Select Option to Print' : 'Select Option to Save & Print',
+        actions: printItems.map(menuItem => ({
+            label: menuItem.label,
+            onPress: () => {
+                setIsActionModalVisible(false);
+                handleActionSelect(action, menuItem.variation, menuItem.override);
+            }
+        })),
+    });
+    setIsActionModalVisible(true);
   };
   
   // Fetch the item data, categories, taxes, and modifiers on component mount
@@ -748,53 +857,87 @@ export default function ItemDetails() {
   
   // Check if item has been edited and update 'all taxes selected' status
   useEffect(() => {
-    // 1. Calculate 'all taxes selected' state
-    let areAllSelected = false;
-    if (item && availableTaxes && availableTaxes.length > 0) {
-        const currentTaxIdsSet = new Set(item.taxIds || []);
-        areAllSelected = availableTaxes.every(tax => currentTaxIdsSet.has(tax.id));
-    }
-    setAllTaxesSelected(areAllSelected);
+    // This effect is now only for calculating the 'isEdited' state.
+    // The logic for 'setAllTaxesSelected' has been moved to its own effect for performance.
 
-    // 2. Calculate 'isEdited' state
-    let calculatedIsEdited = false; 
+    const areArraysEqual = (a: string[] = [], b: string[] = []) => {
+      if (a.length !== b.length) return false;
+      const sortedA = [...a].sort();
+      const sortedB = [...b].sort();
+      return sortedA.every((val, index) => val === sortedB[index]);
+    };
+
+    const areVariationsEqual = (varsA: ItemVariation[] = [], varsB: ItemVariation[] = []) => {
+      if (varsA.length !== varsB.length) return false;
+      const sortById = (a: ItemVariation, b: ItemVariation) => (a.id || '').localeCompare(b.id || '');
+      const sortedA = [...varsA].sort(sortById);
+      const sortedB = [...varsB].sort(sortById);
+
+      for (let i = 0; i < sortedA.length; i++) {
+        const varA = sortedA[i];
+        const varB = sortedB[i];
+        if (varA.name !== varB.name || varA.sku !== varB.sku || varA.price !== varB.price || varA.barcode !== varB.barcode) {
+          return false;
+        }
+
+        const overridesA = varA.locationOverrides || [];
+        const overridesB = varB.locationOverrides || [];
+        if (overridesA.length !== overridesB.length) return false;
+        
+        if (overridesA.length > 0) {
+          const sortByLocationId = (a: LocationOverrideType, b: LocationOverrideType) => (a.locationId || '').localeCompare(b.locationId || '');
+          const sortedOverridesA = [...overridesA].sort(sortByLocationId);
+          const sortedOverridesB = [...overridesB].sort(sortByLocationId);
+
+          for (let j = 0; j < sortedOverridesA.length; j++) {
+            if (sortedOverridesA[j].locationId !== sortedOverridesB[j].locationId || sortedOverridesA[j].price !== sortedOverridesB[j].price) {
+              return false;
+            }
+          }
+        }
+      }
+      return true;
+    };
 
     if (isNewItem) {
-        if (item) { // Ensure item is not null
-            const defaultNewVariations = [{ name: null, sku: '', price: undefined, barcode: '' }];
-            const variationsChanged = JSON.stringify(variations) !== JSON.stringify(defaultNewVariations);
-            
-       calculatedIsEdited =
-          !!(item.name && item.name.trim()) ||
-                !!(item.sku && item.sku.trim()) || // SKU at top level is likely not for new item, but for variations
-                item.price !== undefined || // Price at top level is likely not for new item
-          !!(item.description && item.description.trim()) ||
-          !!item.reporting_category_id ||
-          (item.taxIds && item.taxIds.length > 0) ||
-                (item.modifierListIds && item.modifierListIds.length > 0) ||
-                variationsChanged; // Check if variations changed from default
-        }
+      const defaultNewVariations = [{ name: null, sku: '', price: undefined, barcode: '' }];
+      const variationsChanged = !areVariationsEqual(variations, defaultNewVariations);
+      
+      const calculatedIsEdited =
+        !!(item.name && item.name.trim()) ||
+        !!(item.description && item.description.trim()) ||
+        !!item.reporting_category_id ||
+        (item.taxIds && item.taxIds.length > 0) ||
+        (item.modifierListIds && item.modifierListIds.length > 0) ||
+        variationsChanged;
+      setIsEdited(calculatedIsEdited);
+
     } else if (item && originalItem) {
-        const taxIdsChanged = JSON.stringify(originalItem.taxIds?.sort() || []) !== JSON.stringify(item.taxIds?.sort() || []);
-        const modifierIdsChanged = JSON.stringify(originalItem.modifierListIds?.sort() || []) !== JSON.stringify(item.modifierListIds?.sort() || []);
-        const variationsChanged = JSON.stringify(originalItem.variations?.map(v => ({...(v as ItemVariation), locationOverrides: (v as ItemVariation).locationOverrides?.slice().sort((a: {locationId: string},b: {locationId: string}) => a.locationId.localeCompare(b.locationId))})).sort((a: ItemVariation,b: ItemVariation) => (a.id || '').localeCompare(b.id || '')) || []) !== 
-                                JSON.stringify(variations?.map(v => ({...(v as ItemVariation), locationOverrides: (v as ItemVariation).locationOverrides?.slice().sort((a: {locationId: string},b: {locationId: string}) => a.locationId.localeCompare(b.locationId))})).sort((a: ItemVariation,b: ItemVariation) => (a.id || '').localeCompare(b.id || '')) || []);
+      const taxIdsChanged = !areArraysEqual(originalItem.taxIds, item.taxIds);
+      const modifierIdsChanged = !areArraysEqual(originalItem.modifierListIds, item.modifierListIds);
+      const variationsChanged = !areVariationsEqual(originalItem.variations, variations);
 
-
-        calculatedIsEdited =
-          originalItem.name !== item.name ||
-          originalItem.sku !== item.sku ||
-          originalItem.price !== item.price ||
-          originalItem.description !== item.description ||
-          originalItem.reporting_category_id !== item.reporting_category_id ||
-          taxIdsChanged ||
-          modifierIdsChanged ||
-          variationsChanged; // Include variations in edit check
+      const calculatedIsEdited =
+        originalItem.name !== item.name ||
+        originalItem.sku !== item.sku ||
+        originalItem.price !== item.price ||
+        originalItem.description !== item.description ||
+        originalItem.reporting_category_id !== item.reporting_category_id ||
+        taxIdsChanged ||
+        modifierIdsChanged ||
+        variationsChanged;
+      setIsEdited(calculatedIsEdited);
     }
-    
-    setIsEdited(calculatedIsEdited);
+  }, [item, originalItem, variations, isNewItem]);
 
-  }, [item, originalItem, variations, isNewItem, availableTaxes]); // Added variations to dependencies
+  // This effect now ONLY handles the state of the "select all taxes" button.
+  useEffect(() => {
+    if (item && availableTaxes && availableTaxes.length > 0) {
+      const currentTaxIdsSet = new Set(item.taxIds || []);
+      const areAllSelected = availableTaxes.every(tax => currentTaxIdsSet.has(tax.id));
+      setAllTaxesSelected(areAllSelected);
+    }
+  }, [item.taxIds, availableTaxes]);
   
   // Update a field in the item state
   const updateItem = (key: keyof ConvertedItem, value: any) => {
@@ -943,26 +1086,16 @@ export default function ItemDetails() {
       lastProcessedSaveTrigger.current = itemSaveTriggeredAt;
       if (isEdited) { // Only save if there are actual changes
         logger.info('ItemDetails', 'Save triggered via bottom tab bar (modal context)', { isNewItem, isEdited });
-        handleSaveAction();
+        const triggerSave = async () => {
+            const savedItem = await handleSaveAction();
+            handleSaveSuccessNavigation(savedItem);
+        };
+        triggerSave();
       } else {
         logger.info('ItemDetails', 'Save trigger via bottom tab bar ignored - no changes (modal context)', { isNewItem, isEdited });
       }
     }
-  }, [itemSaveTriggeredAt, isEdited, handleSaveAction, isNewItem]);
-  
-  // Function to fetch location data
-  const fetchLocations = async (): Promise<Array<{id: string, name: string}>> => {
-    try {
-      logger.info('ItemDetails:fetchLocations', 'Fetching locations from database');
-      const locations = await getAllLocations();
-      
-      logger.info('ItemDetails:fetchLocations', `Retrieved ${locations.length} locations`);
-      return locations;
-    } catch (error) {
-      logger.error('ItemDetails:fetchLocations', 'Failed to fetch locations', { error });
-      return [];
-    }
-  };
+  }, [itemSaveTriggeredAt, isEdited, handleSaveAction, isNewItem, router]);
   
   // Effect to set header buttons and options
   useEffect(() => {
@@ -970,117 +1103,20 @@ export default function ItemDetails() {
     navigation.setOptions({
       headerShown: true,
       title: screenTitle,
-      headerLeft: () => (
-        <TouchableOpacity onPress={() => {
-          if (isEdited) {
-            setShowCancelModal(true);
-          } else {
-            router.back();
-          }
-        }} style={{ marginLeft: Platform.OS === 'ios' ? 10 : 0, padding: 10 }}>
-          <Ionicons name="close" size={28} color={lightTheme.colors.primary} />
-        </TouchableOpacity>
-      ),
+      headerLeft: () => null,
       headerRight: () => {
-        if (isSaving && !isSavingAndPrinting) {
-          return <ActivityIndicator size="small" color={lightTheme.colors.primary} style={{ marginRight: Platform.OS === 'ios' ? 15 : 20 }} />;
-        }
-
-        const headerButtonTouchableStyle = { padding: 10, marginLeft: Platform.OS === 'ios' ? 8 : 10 }; 
-        const printIconDisabledColor = lightTheme.colors.border;
-        const printIconEnabledColor = lightTheme.colors.primary;
-        const isPrintActionBusy = isPrinting || isSaving || isSavingAndPrinting;
-
-        let printElement;
-        if (isNewItem || !variations || variations.length === 0) {
-          printElement = (
-            <TouchableOpacity disabled={true} style={headerButtonTouchableStyle}>
-              <Ionicons name="print-outline" size={26} color={printIconDisabledColor} />
-            </TouchableOpacity>
-          );
-        } else if (variations.length === 1) {
-          printElement = (
-            <TouchableOpacity
-              onPress={handleHeaderPrint}
-              disabled={isPrintActionBusy}
-              style={headerButtonTouchableStyle}
-            >
-              {(isPrinting && !isSavingAndPrinting) ? (
-                <ActivityIndicator size="small" color={printIconEnabledColor} />
-              ) : (
-                <Ionicons name="print-outline" size={26} color={isPrintActionBusy ? printIconDisabledColor : printIconEnabledColor} />
-              )}
-            </TouchableOpacity>
-          );
-        } else { // Multiple variations
-          printElement = (
-            <Menu>
-              <MenuTrigger customStyles={{ triggerTouchable: headerButtonTouchableStyle }} disabled={isPrintActionBusy}>
-                <Ionicons name="print-outline" size={26} color={isPrintActionBusy ? printIconDisabledColor : printIconEnabledColor} />
-              </MenuTrigger>
-              <MenuOptions customStyles={{
-                  optionsContainer: {
-                    paddingVertical: 5,
-                    borderRadius: 8,
-                    backgroundColor: lightTheme.colors.card,
-                    maxHeight: 300,
-                    elevation: 3, 
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 2 },
-                    shadowOpacity: 0.15,
-                    shadowRadius: 5,
-                  }
-                }}>
-                <Text style={popupMenuStyles.menuTitle}>Select Variation to Print</Text>
-                {variations.map((varItem, index) => (
-                  <MenuOption key={varItem.id || index} onSelect={() => initiatePrint(index)} customStyles={{ optionWrapper: popupMenuStyles.optionWrapper }}>
-                    <View style={popupMenuStyles.optionContent}>
-                      <Text style={popupMenuStyles.optionName} numberOfLines={1}>{varItem.name || `Variation ${index + 1}`}</Text>
-                      <View style={popupMenuStyles.optionMetaRow}>
-                        {varItem.sku && <Text style={popupMenuStyles.optionMeta} numberOfLines={1}>SKU: {varItem.sku}</Text>}
-                        {varItem.price !== undefined && (
-                          <Text style={[popupMenuStyles.optionMeta, varItem.sku && { marginLeft: 8 }]} numberOfLines={1}>
-                            Price: ${varItem.price.toFixed(2)}
-                          </Text>
-                        )}
-                      </View>
-                      {varItem.barcode && <Text style={popupMenuStyles.optionMetaFullWidth} numberOfLines={1}>UPC: {varItem.barcode}</Text>}
-                    </View>
-                  </MenuOption>
-                ))}
-              </MenuOptions>
-            </Menu>
-          );
-        }
-
-        const canPerformActions = isEdited && !isSaving && !isPrinting && !isSavingAndPrinting;
-
-        return (
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: Platform.OS === 'ios' ? 5 : 15 }}>
-            {printElement}
-            <TouchableOpacity
-              onPress={handleSaveAction}
-              disabled={isSaving || isPrinting || isSavingAndPrinting || !isEdited}
-              style={headerButtonTouchableStyle}
-            >
-              <Ionicons name="save-outline" size={26} color={canPerformActions ? lightTheme.colors.primary : lightTheme.colors.border} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handleSaveAndPrint}
-              disabled={isSavingAndPrinting || isSaving || isPrinting || !isEdited}
-              style={headerButtonTouchableStyle}
-            >
-              {isSavingAndPrinting ? (
-                <ActivityIndicator size="small" color={lightTheme.colors.primary} />
-              ) : (
-                <Ionicons name="document-text-outline" size={26} color={canPerformActions ? lightTheme.colors.primary : lightTheme.colors.border} />
-              )}
-            </TouchableOpacity>
-          </View>
-        );
+        // Remove all header right buttons for print/save actions
+        // If any other headerRight items were needed, they'd go here.
+        // For now, returning null to remove them all.
+        // An activity indicator for global save triggered by other means might still be useful here,
+        // but for direct save/print buttons, loading is handled on the footer buttons.
+        // if (isSaving) { // General saving indicator could remain if desired
+        //   return <ActivityIndicator size="small" color={lightTheme.colors.primary} style={{ marginRight: Platform.OS === 'ios' ? 15 : 20 }} />;
+        // }
+        return null; 
       },
     });
-  }, [navigation, isNewItem, item?.name, variations, isEdited, router, handleHeaderPrint, isSaving, isPrinting, isSavingAndPrinting, handleSaveAction, handleSaveAndPrint, handleCancel]);
+  }, [navigation, isNewItem, item?.name, isEdited, router]);
   
   // If loading, show spinner
   if (isLoading) {
@@ -1101,7 +1137,7 @@ export default function ItemDetails() {
       <StatusBar style="dark" />
 
       {/* Error handling: Render error view if error exists */} 
-      {error && !isNewItem && ( // Only show full error screen if not new item and error occurs
+        {error && !isNewItem && ( // Only show full error screen if not new item and error occurs
         <View style={styles.errorContainer}> 
           <Ionicons name="alert-circle-outline" size={48} color="red" />
           <Text style={styles.errorText}>{error}</Text>
@@ -1111,10 +1147,10 @@ export default function ItemDetails() {
         </View>
       )}
 
-      {/* Main Content: Render ScrollView and Modal if NO error OR if it's a new item (allows form filling even if some dropdown data failed) */} 
-      {(!error || isNewItem) && (
+        {/* Main Content: Render ScrollView and Modal if NO error OR if it's a new item (allows form filling even if some dropdown data failed) */} 
+        {(!error || isNewItem) && (
         <>
-          <ScrollView style={styles.content} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scrollContentContainer}>
+            <ScrollView style={styles.content} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scrollContentContainer}>
             {/* Item Name */}
             <View style={styles.fieldContainer}>
               <Text style={styles.label}>Item Name</Text>
@@ -1138,23 +1174,23 @@ export default function ItemDetails() {
                     <View style={styles.variationHeaderButtons}>
                       <TouchableOpacity
                         style={styles.inlinePrintButton}
-                        onPress={() => initiatePrint(index)} // Direct call to initiatePrint with index
-                        disabled={isPrinting} // Disable if any print is ongoing
+                          onPress={() => initiatePrint(index)} // Direct call to initiatePrint with index
+                          disabled={isPrinting} // Disable if any print is ongoing
                       >
-                        {isPrinting && printingVariationIndex === index ? (
-                           <ActivityIndicator size="small" color={lightTheme.colors.primary} />
-                        ) : (
-                          <>
+                          {isPrinting && printingVariationIndex === index ? (
+                            <ActivityIndicator size="small" color={lightTheme.colors.primary} />
+                          ) : (
+                            <>
                         <Ionicons name="print-outline" size={18} color={lightTheme.colors.primary} style={styles.inlinePrintIcon} />
                         <Text style={styles.inlinePrintButtonText}>Print</Text>
-                          </>
-                        )}
+                            </>
+                          )}
                       </TouchableOpacity>
                     {variations.length > 1 && (
                       <TouchableOpacity 
                         onPress={() => removeVariation(index)}
                         style={styles.removeVariationButton}
-                         disabled={isSavingPending} // Disable during save
+                          disabled={isSaving || isSavingAndPrinting} // Disable during save
                       >
                         <Ionicons name="close-circle" size={22} color="#ff3b30" />
                       </TouchableOpacity>
@@ -1183,7 +1219,7 @@ export default function ItemDetails() {
                       onChangeText={(value) => handleVariationChange(index, 'sku', value)}
                       placeholder="Enter SKU (optional)"
                       placeholderTextColor="#999"
-                      autoCapitalize="characters" // Keep autoCapitalize for SKU
+                        autoCapitalize="characters" // Keep autoCapitalize for SKU
                     />
                   </View>
 
@@ -1217,21 +1253,21 @@ export default function ItemDetails() {
                         alignItems: 'center',
                       }}>
                         <TouchableOpacity 
-                          style={styles.addPriceOverrideButton} // Use style from styles.ts
+                            style={styles.addPriceOverrideButton} // Use style from styles.ts
                           onPress={() => addPriceOverride(index)}
-                          disabled={availableLocations.length === 0 || isSavingPending} // Disable during save
+                            disabled={availableLocations.length === 0 || isSaving || isSavingAndPrinting} // Disable during save
                         >
-                          <Text style={styles.addPriceOverrideButtonText}>Add Price Override</Text>
+                            <Text style={styles.addPriceOverrideButtonText}>Add Price Override</Text>
                         </TouchableOpacity>
                       </View>
 
                       {/* Render existing price overrides */}
                       {variation.locationOverrides && variation.locationOverrides.map((override, overrideIndex) => (
-                        <View key={`override-${index}-${overrideIndex}`} style={styles.priceOverrideItemContainer}>
-                          <View style={styles.priceOverrideInputWrapper}>
+                          <View key={`override-${index}-${overrideIndex}`} style={styles.priceOverrideItemContainer}>
+                            <View style={styles.priceOverrideInputWrapper}>
                             <Text style={styles.currencySymbol}>$</Text>
                             <TextInput
-                              style={styles.priceOverrideInput}
+                                style={styles.priceOverrideInput}
                               value={override.price !== undefined ? override.price.toFixed(2) : ''}
                               onChangeText={(value) => updatePriceOverride(index, overrideIndex, 'price', value)}
                               placeholder="Price"
@@ -1241,10 +1277,10 @@ export default function ItemDetails() {
                           </View>
 
                           {/* Location selector */}
-                          <View style={styles.priceOverrideLocationSelectorWrapper}>
+                            <View style={styles.priceOverrideLocationSelectorWrapper}>
                             {availableLocations.length > 0 ? (
                               <TouchableOpacity 
-                                style={styles.priceOverrideLocationButton}
+                                  style={styles.priceOverrideLocationButton}
                                 onPress={() => {
                                   Alert.alert(
                                     "Select Location",
@@ -1258,25 +1294,25 @@ export default function ItemDetails() {
                                 }}
                               >
                                 <Text style={[
-                                  styles.priceOverrideLocationText,
-                                  !override.locationId && styles.priceOverrideLocationPlaceholder
+                                    styles.priceOverrideLocationText,
+                                    !override.locationId && styles.priceOverrideLocationPlaceholder
                                 ]}>
                                   {override.locationId ? 
-                                    (override.locationName || availableLocations.find(loc => loc.id === override.locationId)?.name || 'Select Location') :
+                                      (override.locationName || availableLocations.find(loc => loc.id === override.locationId)?.name || 'Select Location') :
                                     'Select Location'}
                                 </Text>
                                 <Ionicons name="chevron-down" size={16} color="#666" />
                               </TouchableOpacity>
                             ) : (
-                              <Text style={styles.noLocationsText}>No locations</Text>
+                                <Text style={styles.noLocationsText}>No locations</Text>
                             )}
                           </View>
 
                           {/* Remove override button */}
                           <TouchableOpacity 
-                            style={styles.removePriceOverrideButton}
+                              style={styles.removePriceOverrideButton}
                             onPress={() => removePriceOverride(index, overrideIndex)}
-                            disabled={isSavingPending}
+                              disabled={isSaving || isSavingAndPrinting}
                           >
                             <Ionicons name="close-circle" size={18} color="#ff3b30" />
                           </TouchableOpacity>
@@ -1294,7 +1330,7 @@ export default function ItemDetails() {
                       onChangeText={(value) => handleVariationChange(index, 'barcode', value)}
                       placeholder="Enter UPC or scan barcode"
                       placeholderTextColor="#999"
-                      keyboardType="numeric" // Barcodes can be numeric
+                        keyboardType="numeric" // Barcodes can be numeric
                     />
                   </View>
                 </View>
@@ -1303,7 +1339,7 @@ export default function ItemDetails() {
               <TouchableOpacity 
                 style={styles.addVariationButton}
                 onPress={addVariation}
-                disabled={isSavingPending} // Disable during save
+                  disabled={isSaving || isSavingAndPrinting} // Disable during save
               >
                 <Ionicons name="add-circle-outline" size={20} color={lightTheme.colors.primary} />
                 <Text style={styles.addVariationText}>Add Variation</Text>
@@ -1313,7 +1349,7 @@ export default function ItemDetails() {
             {/* Reporting Category */}
             <View style={styles.fieldContainer}>
               <Text style={styles.label}>Reporting Category</Text>
-              <TouchableOpacity style={styles.selectorButton} onPress={() => setShowCategoryModal(true)} disabled={isSavingPending}>
+                <TouchableOpacity style={styles.selectorButton} onPress={() => setShowCategoryModal(true)} disabled={isSaving || isSavingAndPrinting}>
                 <Text style={styles.selectorText}>{selectedCategoryName}</Text>
                 <Ionicons name="chevron-down" size={20} color="#666" />
               </TouchableOpacity>
@@ -1324,12 +1360,12 @@ export default function ItemDetails() {
                   <>
                     <Text style={styles.recentLabel}>Recent:</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                      {recentCategories.map((cat) => (
+                        {recentCategories.map((cat) => (
                         <TouchableOpacity
                           key={cat.id}
                           style={styles.recentCategoryChip}
                           onPress={() => handleSelectCategory(cat.id)}
-                          disabled={isSavingPending}
+                            disabled={isSaving || isSavingAndPrinting}
                         >
                           <Text style={styles.recentCategoryChipText}>{cat.name}</Text>
                         </TouchableOpacity>
@@ -1347,7 +1383,7 @@ export default function ItemDetails() {
                 <TouchableOpacity 
                   style={[styles.selectAllButton, allTaxesSelected && styles.selectAllButtonSelected]}
                   onPress={handleSelectAllTaxes}
-                  disabled={isSavingPending} // Disable during save
+                    disabled={isSaving || isSavingAndPrinting} // Disable during save
                 >
                   <Text style={[styles.selectAllButtonText, allTaxesSelected && styles.selectAllButtonTextSelected]}>
                     {allTaxesSelected ? 'Deselect All' : 'Select All'}
@@ -1355,13 +1391,13 @@ export default function ItemDetails() {
                 </TouchableOpacity>
               </View>
               {availableTaxes.length > 0 ? (
-                availableTaxes.map((tax) => (
+                  availableTaxes.map((tax) => (
                   <TouchableOpacity
                     key={tax.id}
                     style={styles.checkboxContainer}
                     onPress={() => handleTaxSelection(tax.id)}
                     activeOpacity={0.7}
-                    disabled={isSavingPending} // Disable during save
+                      disabled={isSaving || isSavingAndPrinting} // Disable during save
                   >
                     <Ionicons
                       name={item.taxIds?.includes(tax.id) ? 'checkbox' : 'square-outline'}
@@ -1381,13 +1417,13 @@ export default function ItemDetails() {
             <View style={styles.fieldContainer}>
               <Text style={styles.label}>Modifiers</Text>
               {availableModifierLists.length > 0 ? (
-                availableModifierLists.map((modifier) => (
+                  availableModifierLists.map((modifier) => (
                   <TouchableOpacity
                     key={modifier.id}
                     style={styles.checkboxContainer}
-                    onPress={() => handleModifierSelection(modifier.id)}
+                      onPress={() => handleModifierSelection(modifier.id)}
                     activeOpacity={0.7}
-                    disabled={isSavingPending} // Disable during save
+                      disabled={isSaving || isSavingAndPrinting} // Disable during save
                   >
                     <Ionicons
                       name={item.modifierListIds?.includes(modifier.id) ? 'checkbox' : 'square-outline'}
@@ -1409,68 +1445,117 @@ export default function ItemDetails() {
               <TextInput
                 style={[styles.input, styles.textArea]}
                 value={item.description || ''}
-                onChangeText={(text) => updateItem('description', text)}
+                  onChangeText={(text) => updateItem('description', text)}
                 placeholder="Enter item description (optional)"
                 placeholderTextColor="#999"
                 multiline
                 numberOfLines={4}
-                textAlignVertical="top"
+                  textAlignVertical="top"
               />
             </View>
 
-            {/* Delete Button - Only for existing items */}
-            {!isNewItem && (
-              <View style={styles.deleteButtonContainer}>
-                <TouchableOpacity
-                  style={styles.deleteButton}
-                  onPress={handleDelete}
-                  disabled={isSavingPending} // Disable during save
-                >
-                  <Ionicons name="trash-outline" size={20} color={styles.deleteButtonText.color} />
-                  <Text style={styles.deleteButtonText}>Delete Item</Text>
-                </TouchableOpacity>
-              </View>
-            )}
+              {/* Delete Button - Only for existing items */}
+              {!isNewItem && (
+                <View style={styles.deleteButtonContainer}>
+                  <TouchableOpacity
+                    style={styles.deleteButton}
+                    onPress={handleDelete}
+                    disabled={isSaving || isSavingAndPrinting} // Disable during save
+                  >
+                    <Ionicons name="trash-outline" size={20} color={styles.deleteButtonText.color} />
+                    <Text style={styles.deleteButtonText}>Delete Item</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
 
-            {/* Spacer to push delete button to the bottom / general spacing */}
-            <View style={{ height: Platform.OS === 'ios' ? 80 : 100 }} /> 
+              {/* Spacer to push delete button to the bottom / general spacing */}
+              <View style={{ height: Platform.OS === 'ios' ? 80 : 100 }} /> 
           </ScrollView>
 
-          {/* Fixed Footer Button Container */}
-          <View style={styles.footerContainer}>
-            <TouchableOpacity
-              style={[styles.footerButton, styles.footerButtonClose]}
-              onPress={handleCancel}
-              disabled={isSaving || isPrinting || isSavingAndPrinting}
-            >
-              <Ionicons name="close-outline" size={22} color={lightTheme.colors.text} style={styles.footerButtonIcon} />
-              <Text style={styles.footerButtonText}>Close</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.footerButton, styles.footerButtonPrint]}
-              onPress={handleHeaderPrint}
-              disabled={isPrinting || isSaving || isSavingAndPrinting}
-            >
-              <Ionicons name="print-outline" size={22} color={lightTheme.colors.primary} style={styles.footerButtonIcon} />
-              <Text style={[styles.footerButtonText, { color: lightTheme.colors.primary }]}>Print</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.footerButton, styles.footerButtonSave]}
-              onPress={handleSaveAction}
-              disabled={isSaving || isPrinting || isSavingAndPrinting || !isEdited}
-            >
-              <Ionicons name="save-outline" size={22} color={isEdited ? lightTheme.colors.primary : lightTheme.colors.border} style={styles.footerButtonIcon} />
-              <Text style={[styles.footerButtonText, { color: isEdited ? lightTheme.colors.primary : lightTheme.colors.border }]}>Save</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.footerButton, styles.footerButtonSaveAndPrint]}
-              onPress={handleSaveAndPrint}
-              disabled={isSavingAndPrinting || isSaving || isPrinting || !isEdited}
-            >
-              <Ionicons name="document-text-outline" size={22} color={isEdited ? lightTheme.colors.primary : lightTheme.colors.border} style={styles.footerButtonIcon} />
-              <Text style={[styles.footerButtonText, { color: isEdited ? lightTheme.colors.primary : lightTheme.colors.border }]}>Save & Print</Text>
-            </TouchableOpacity>
-          </View>
+            {/* Fixed Footer Button Container */}
+            <View style={styles.footerContainer}>
+              {/* Close Button */}
+              <TouchableOpacity
+                style={[styles.footerButton, styles.footerButtonClose, { flex: 1, justifyContent: 'center', alignItems: 'center' }]}
+                onPress={handleFooterCancel}
+                disabled={isSaving || isPrinting || isSavingAndPrinting}
+              >
+                <Ionicons name="close-outline" size={22} color={lightTheme.colors.text} style={styles.footerButtonIcon} />
+                <Text style={styles.footerButtonText}>Close</Text>
+              </TouchableOpacity>
+
+              {/* Print Button */}
+              <TouchableOpacity
+                style={[styles.footerButton, { flex: 1, justifyContent: 'center', alignItems: 'center' }]}
+                onPress={() => openActionModal('print')}
+                disabled={isPrinting || isSaving || isSavingAndPrinting}
+              >
+                {(isPrinting && !isSavingAndPrinting) ? (
+                  <ActivityIndicator size="small" color={lightTheme.colors.primary} />
+                ) : (
+                  <>
+                    <Ionicons name="print-outline" size={22} color={lightTheme.colors.primary} style={styles.footerButtonIcon} />
+                    <Text style={[styles.footerButtonText, { color: lightTheme.colors.primary }]}>Print</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              {/* Save Button */}
+              <TouchableOpacity
+                style={[styles.footerButton, styles.footerButtonSave, { flex: 1 }]}
+                onPress={async () => {
+                  const savedItem = await handleSaveAction();
+                  handleSaveSuccessNavigation(savedItem);
+                }}
+                disabled={isSaving || isPrinting || isSavingAndPrinting || !isEdited} 
+              >
+                {(isSaving && !isPrinting && !isSavingAndPrinting) ? (
+                  <ActivityIndicator 
+                    size="small" 
+                    color={(isEdited ? lightTheme.colors.primary : lightTheme.colors.border)} 
+                    style={styles.footerButtonIcon} 
+                  />
+                ) : (
+                  <Ionicons 
+                    name="save-outline" 
+                    size={22} 
+                    color={(isEdited ? lightTheme.colors.primary : lightTheme.colors.border)} 
+                    style={styles.footerButtonIcon} 
+                  />
+                )}
+                <Text style={[
+                  styles.footerButtonText, 
+                  { color: (isEdited ? lightTheme.colors.primary : lightTheme.colors.border) } 
+                ]}>Save</Text>
+              </TouchableOpacity>
+
+              {/* Save & Print Button */}
+              <TouchableOpacity
+                style={[styles.footerButton, { flex: 1, justifyContent: 'center', alignItems: 'center' }]}
+                onPress={() => openActionModal('save_and_print')}
+                disabled={isSavingAndPrinting || isSaving || isPrinting || !isEdited}
+              >
+                {isSavingAndPrinting ? (
+                  <ActivityIndicator 
+                    size="small" 
+                    color={(isEdited ? lightTheme.colors.primary : lightTheme.colors.border)}
+                  />
+                ) : (
+                  <>
+                    <Ionicons 
+                      name="document-text-outline" 
+                      size={22} 
+                      color={(isEdited ? lightTheme.colors.primary : lightTheme.colors.border)} 
+                      style={styles.footerButtonIcon} 
+                    />
+                    <Text style={[
+                      styles.footerButtonText, 
+                      { color: (isEdited ? lightTheme.colors.primary : lightTheme.colors.border) }
+                    ]}>Save & Print</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
 
           {/* Category Selection Modal - Replaced with component */}
           <CategorySelectionModal
@@ -1478,107 +1563,120 @@ export default function ItemDetails() {
             onClose={() => setShowCategoryModal(false)}
             filteredCategories={filteredCategories}
             onSelectCategory={(categoryId) => {
-              handleSelectCategory(categoryId);
+                handleSelectCategory(categoryId);
             }}
             categorySearch={categorySearch}
             setCategorySearch={setCategorySearch}
-          />
+            />
 
-          {/* Print Notification Modal - Replaced with SystemModal */}
-          <SystemModal
+            {/* Print Notification Modal - Replaced with SystemModal */}
+            <SystemModal
             visible={showPrintNotification}
-            onClose={() => setShowPrintNotification(false)}
+              onClose={() => setShowPrintNotification(false)}
             message={printNotificationMessage}
             type={printNotificationType}
-            position="top"
-            autoClose={true}
-            autoCloseTime={2000}
-          />
-
-          {/* Success Notification */}
-          <SystemModal
-            visible={showSuccessNotification}
-            onClose={() => setShowSuccessNotification(false)}
-            message={successMessage}
-            type="success"
-            position="top"
-            autoClose={true}
-            autoCloseTime={2000}
-          />
-
-          {/* Cancel Confirmation Modal */}
-          <Modal
-            animationType="fade"
-            transparent={true}
-            visible={showCancelModal}
-            onRequestClose={() => setShowCancelModal(false)}
-          >
-            <View style={styles.centeredView}>
-              <View style={styles.modalView}>
-                <Text style={styles.modalText}>You have unsaved changes. Are you sure you want to discard them?</Text>
-                <View style={styles.modalButtonsContainer}>
-                  <TouchableOpacity
-                    style={[styles.modalButton, styles.modalButtonSecondary]}
-                    onPress={() => setShowCancelModal(false)}
-                  >
-                    <Text style={[styles.modalButtonText, styles.modalButtonTextSecondary]}>Keep Editing</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.modalButton, styles.modalButtonPrimary]}
-                    onPress={handleConfirmCancel} // This will call router.back()
-                  >
-                    <Text style={[styles.modalButtonText, styles.modalButtonTextPrimary]}>Discard</Text>
-                  </TouchableOpacity>
+              position="top"
+              autoClose={true}
+              autoCloseTime={2000}
+            />
+            
+            {/* ACTION MODAL */}
+            <Modal
+              animationType="slide"
+              transparent={true}
+              visible={isActionModalVisible}
+              onRequestClose={() => setIsActionModalVisible(false)}
+            >
+              <TouchableWithoutFeedback onPress={() => setIsActionModalVisible(false)}>
+                <View style={modalStyles.modalOverlay}>
+                  <TouchableWithoutFeedback>
+                    <View style={modalStyles.modalContentContainer}>
+                      {modalContent && (
+                        <>
+                          <Text style={modalStyles.modalTitle}>{modalContent.title}</Text>
+                          <ScrollView>
+                            {modalContent.actions.map((action, index) => (
+                              <TouchableOpacity
+                                key={index}
+                                style={modalStyles.modalButton}
+                                onPress={action.onPress}
+                              >
+                                <Text style={[
+                                  modalStyles.modalButtonText,
+                                  action.isDestructive && modalStyles.modalButtonDestructiveText
+                                ]}>
+                                  {action.label}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </ScrollView>
+                        </>
+                      )}
+                      <TouchableOpacity
+                        style={[modalStyles.modalButton, modalStyles.modalCancelButton]}
+                        onPress={() => setIsActionModalVisible(false)}
+                      >
+                        <Text style={modalStyles.modalCancelButtonText}>Cancel</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </TouchableWithoutFeedback>
                 </View>
-              </View>
-            </View>
-          </Modal>
+              </TouchableWithoutFeedback>
+            </Modal>
         </>
       )}
     </SafeAreaView>
   );
 }
 
-// Styles for the popup menu
-const popupMenuStyles = StyleSheet.create({
-  menuTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: lightTheme.colors.border,
-    paddingHorizontal: 12,
-    paddingTop: 8,
-    paddingBottom: 4,
-    borderBottomWidth: 1,
-    borderBottomColor: lightTheme.colors.border,
-    marginBottom: 4,
-  },
-  optionWrapper: {
-    paddingVertical: 0, 
-    paddingHorizontal: 0,
-  },
-  optionContent: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  optionName: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: lightTheme.colors.text,
-    marginBottom: 3,
-  },
-  optionMetaRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
+const modalStyles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'transparent',
     alignItems: 'center',
-    marginBottom: 2,
+    //backgroundColor: 'rgba(255, 0, 0, 0.2)', // temporary
   },
-  optionMeta: {
-    fontSize: 12,
-    color: lightTheme.colors.border,
+  modalContentContainer: {
+    backgroundColor: lightTheme.colors.background,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 10, // For bottom safe area
+    maxHeight: '40%',
+    width: '60%',
+    //backgroundColor: 'rgba(0, 0, 255, 0.2)', // temporary
   },
-  optionMetaFullWidth: {
-    fontSize: 12,
-    color: lightTheme.colors.border,
-    marginTop: 1, 
-  }
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: lightTheme.colors.text,
+    textAlign: 'center',
+    marginBottom: 15,
+  },
+  modalButton: {
+    backgroundColor: lightTheme.colors.card,
+    borderRadius: 14,
+    paddingVertical: 16,
+    marginBottom: 10,
+    alignItems: 'center',
+    //backgroundColor: 'rgba(0, 255, 0, 0.4)', // temporary
+  },
+  modalButtonText: {
+    fontSize: 17,
+    fontWeight: '500',
+    color: lightTheme.colors.primary,
+  },
+  modalButtonDestructiveText: {
+    color: '#FF3B30',
+  },
+  modalCancelButton: {
+    backgroundColor: '#FF3B30',
+  },
+  modalCancelButtonText: {
+    fontSize: 17,
+    fontWeight: '500',
+    color: '#FFFFFF', // white text
+  },
 });
