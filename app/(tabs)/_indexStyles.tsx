@@ -182,6 +182,8 @@ export const styles = StyleSheet.create({
     alignItems: 'center', // Align filter buttons nicely in their group
   },
   filterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 16,
@@ -308,8 +310,8 @@ export const styles = StyleSheet.create({
 
   // NEW Styles for inline category filter button
   categoryFilterButtonInline: {
-    // Inherits from filterButton, specific overrides can go here if needed
-    // e.g., if it needs different margin than other filter buttons
+    flexDirection: 'row',
+    alignItems: 'center',
   },
 
   // Styles for Category Modal

@@ -38,7 +38,9 @@ export const useCatalogItems = () => {
     productError,
     setProductError,
     categories,
-    setLastUpdatedItem
+    setLastUpdatedItem,
+    scanHistory,
+    removeScanHistoryItem
   } = useAppStore();
   
   // Get the Square connection status from the API context
@@ -791,45 +793,61 @@ export const useCatalogItems = () => {
   }, [setProductsLoading, setProductError, refreshProducts, isSquareConnected, setProducts, storeProducts, addScanHistoryItem, setLastUpdatedItem]);
 
   // --- DELETE --- 
-  // Delete a product using direct Square API call
+  // Delete an item by ID
   const deleteProduct = useCallback(async (id: string) => {
     if (!isSquareConnected) {
       console.error('Cannot delete product - no Square connection');
       throw new Error('Not connected to Square');
     }
-    setProductsLoading(true);
-    try {
-      logger.debug('CatalogItems::deleteProductDirect', 'Calling directSquareApi.deleteCatalogObject', { id });
 
-      // Call the direct Square API
+    try {
+      // 1. Call the direct Square API to delete the item
+      logger.debug('CatalogItems::deleteProductDirect', 'Calling directSquareApi.deleteCatalogObject', { id });
       const response = await directSquareApi.deleteCatalogObject(id);
       
       if (!response.success) {
-         logger.error('CatalogItems::deleteProductDirect', 'Direct Square delete failed', { responseError: response.error });
-        throw response.error || new Error('Failed to delete product via direct Square API');
+        logger.error('CatalogItems::deleteProductDirect', 'Direct Square delete failed', { id, responseError: response.error });
+        throw response.error || new Error('Failed to delete item via direct Square API');
+      }
+      
+      logger.info('CatalogItems::deleteProductDirect', 'Direct Square delete successful', { deletedId: id });
+
+      // 2. If API call is successful, update the local database
+      try {
+        const db = await getDatabase();
+        // Mark the item as deleted
+        await db.runAsync('UPDATE catalog_items SET is_deleted = 1, updated_at = ? WHERE id = ?', [new Date().toISOString(), id]);
+        // Also mark all its variations as deleted
+        await db.runAsync('UPDATE item_variations SET is_deleted = 1, updated_at = ? WHERE item_id = ?', [new Date().toISOString(), id]);
+        
+        logger.info('CatalogItems::deleteProduct', 'Successfully marked item and its variations as deleted in local DB', { id });
+      } catch (dbError) {
+        logger.error('CatalogItems::deleteProduct', 'Error updating local DB after delete', { id, error: dbError });
+        // Log the error but let the UI update proceed, as the remote delete was successful.
       }
 
-      logger.info('CatalogItems::deleteProductDirect', 'Direct Square delete successful', { deletedIds: response.data?.deleted_object_ids });
-
-      // Update local state immediately by filtering the current storeProducts
-      // This avoids the function argument type issue with setProducts
-      const updatedProducts = storeProducts.filter((product: ConvertedItem) => product.id !== id);
-      setProducts(updatedProducts);
+      // 3. Update the Zustand state to remove the item from the UI
+      setProducts(storeProducts.filter(p => p.id !== id));
       
-      // TODO: Optionally trigger a smaller refresh or update local DB directly
+      // 4. Remove the item from scan history
+      const historyItemsToRemove = scanHistory.filter(item => item.id === id);
+      historyItemsToRemove.forEach(item => removeScanHistoryItem(item.scanId));
+      logger.info('CatalogItems::deleteProduct', 'Removed item from scan history', { count: historyItemsToRemove.length });
+      
+      // 5. Signal to the rest of the app that an item was deleted to trigger refreshes
+      setLastUpdatedItem({ id: id, isDeleted: true } as any);
 
-      return response.data; // Return Square's response data (deleted_object_ids, etc.)
+      logger.info('CatalogItems::deleteProduct', 'Successfully deleted item and updated state', { id });
+      return true; // Indicate success
 
     } catch (error: unknown) {
-      logger.error('CatalogItems::deleteProductDirect', 'Error deleting product directly', { id, error });
-      setProductError(error instanceof Error ? error.message : 'Failed to delete product');
-      throw error;
-    } finally {
-      setProductsLoading(false);
+      logger.error('CatalogItems::deleteProduct', 'Error during delete process', { id, error });
+      throw error; // Re-throw to be caught by the UI
     }
-  }, [setProductsLoading, setProductError, setProducts, isSquareConnected, storeProducts]);
+  }, [isSquareConnected, storeProducts, setProducts, directSquareApi, scanHistory, removeScanHistoryItem, setLastUpdatedItem]);
 
   const [isSearching, setIsSearching] = useState<boolean>(false);
+  const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
   const [searchError, setSearchError] = useState<string | null>(null);
 
   // Helper function to transform raw DB search results to SearchResultItem

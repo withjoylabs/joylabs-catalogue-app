@@ -1,6 +1,7 @@
+import React from 'react';
 import 'react-native-get-random-values';
-import { useEffect, useState, useMemo } from 'react';
-import { Stack, SplashScreen, ErrorBoundary } from 'expo-router';
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import { Stack, SplashScreen, ErrorBoundary, useRouter } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { 
   Platform, 
@@ -11,6 +12,7 @@ import {
   ActivityIndicator, 
   Linking,
   useColorScheme,
+  LogBox,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
@@ -27,7 +29,11 @@ import type { NotificationBehavior } from 'expo-notifications';
 import { CatalogSyncService } from '../src/database/catalogSync';
 import { PaperProvider, MD3DarkTheme, MD3LightTheme } from 'react-native-paper';
 import { useAppStore } from '../src/store';
-import SystemModal from '../src/components/SystemModal';
+import { ActionSheetProvider } from '@expo/react-native-action-sheet';
+import { MenuProvider } from 'react-native-popup-menu';
+import * as SystemUI from 'expo-system-ui';
+import { lightTheme } from '../src/themes';
+import GlobalSuccessModal from '../src/components/GlobalSuccessModal';
 
 const BACKGROUND_NOTIFICATION_TASK = 'CATALOG_SYNC_TASK';
 
@@ -86,18 +92,16 @@ const linking = {
 
 SplashScreen.preventAutoHideAsync();
 
+LogBox.ignoreLogs([
+  'Warning: Encountered two children with the same key',
+  'Key \" allthedata\" already exists in ' // specific key causing issues
+]);
+
 export default function RootLayout() {
   const [debugTapCount, setDebugTapCount] = useState(0);
   const [debugModeActive, setDebugModeActive] = useState(false);
   const [debugTapTimeout, setDebugTapTimeout] = useState<NodeJS.Timeout | null>(null);
   const [responseListenerSubscription, setResponseListenerSubscription] = useState<Notifications.Subscription | null>(null);
-  const [notificationBehavior, setNotificationBehavior] = useState<NotificationBehavior>({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true
-  });
 
   const colorScheme = useColorScheme();
   
@@ -108,12 +112,6 @@ export default function RootLayout() {
 
   const [loaded, fontError] = useFonts({ ...FontAwesome.font });
   const [isAppReady, setIsAppReady] = useState(false);
-  
-  const { 
-    showSuccessNotification, 
-    setShowSuccessNotification,
-    successMessage 
-  } = useAppStore();
   
   useEffect(() => {
     logger.info('RootLayout', 'Color scheme changed', { colorScheme });
@@ -219,91 +217,68 @@ export default function RootLayout() {
     };
   }, []);
 
+  useEffect(() => {
+    if (loaded || fontError) {
+      SplashScreen.hideAsync();
+    }
+  }, [loaded, fontError]);
+
+  useEffect(() => {
+    // Set the background color for the navigation bar or other system UI elements
+    SystemUI.setBackgroundColorAsync(lightTheme.colors.background).catch((err: any) => {
+      console.warn('Failed to set system UI background color:', err);
+    });
+  }, []);
+
+  if (!loaded && !fontError) {
+    return null;
+  }
+
   return (
-    <GestureHandlerRootView key="gesture-handler-root" style={{ flex: 1 }}>
-      <PaperProvider key="paper-provider" theme={paperTheme}>
-        <DatabaseProvider key="database-provider">
-          <ApiProvider key="api-provider">
+    <MenuProvider>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <PaperProvider theme={paperTheme}>
+          <ApiProvider>
             <SafeAreaProvider>
-                <Stack
-                  screenOptions={{
-                    // animation: 'none', // Removing this to allow default animations
-                  }}
-                >
-                  <Stack.Screen
-                  name="(tabs)"
-                  options={{ headerShown: false, freezeOnBlur: true }}
-                  />
-                  <Stack.Screen
-                    name="item/[id]"
-                    options={{
-                    presentation: 'modal',
-                    }}
-                  />
-                  <Stack.Screen
-                    name="auth/success"
-                    options={{
-                      title: 'Authentication',
-                      headerShown: false,
-                    }}
-                  />
-                  <Stack.Screen
-                    name="debug"
-                    options={{
-                      title: 'Debug Logs',
-                      headerShown: true,
-                      presentation: 'modal',
-                    }}
-                  />
-                <Stack.Screen name="catalogue" options={{ title: 'Catalogue', headerShown: true }}/>
-                <Stack.Screen name="modules" options={{ title: 'Modules', headerShown: true }}/>
-                <Stack.Screen name="labelDesigner" options={{ title: 'Label Designer', headerShown: true}}/>
-                <Stack.Screen name="labelSettings" options={{ title: 'Label Settings', headerShown: true}}/>
-                </Stack>
-                
-                <TouchableOpacity 
-                  style={{ 
-                  position: 'absolute', top: Platform.OS === 'ios' ? 40 : 10, right: 10, 
-                  width: 40, height: 40, opacity: debugModeActive ? 0.8 : 0,
-                  zIndex: 9999, justifyContent: 'center', alignItems: 'center',
-                    backgroundColor: debugModeActive ? 'rgba(0,0,0,0.1)' : 'transparent',
-                    borderRadius: 20
-                  }}
-                  onPress={handleDebugTap}
-                >
+              <ActionSheetProvider>
+                <React.Fragment>
+                  <DatabaseProvider>
+                    {isAppReady ? (
+                      <Stack
+                        screenOptions={{
+                          headerShown: false,
+                          gestureEnabled: true,
+                        }}
+                      >
+                        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                        <Stack.Screen name="item/[id]" options={{ presentation: 'modal', headerShown: false }} />
+                        <Stack.Screen name="auth/success" />
+                        <Stack.Screen name="debug" />
+                        <Stack.Screen name="labelDesigner" />
+                        <Stack.Screen name="labelSettings" />
+                        <Stack.Screen name="catalogue" />
+                        <Stack.Screen name="modules" />
+                      </Stack>
+                    ) : (
+                      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: paperTheme.colors.background }}>
+                        <ActivityIndicator size="large" color={paperTheme.colors.primary} />
+                      </View>
+                    )}
+                  </DatabaseProvider>
+                  <GlobalSuccessModal />
+                  <TouchableOpacity onPress={handleDebugTap} style={{ position: 'absolute', bottom: 0, left: 0, width: 50, height: 50, opacity: 0.05 }} />
                   {debugModeActive && (
-                    <Ionicons name="bug-outline" size={24} color="#E53935" />
+                    <View style={{ position: 'absolute', bottom: 10, right: 10, padding: 10, backgroundColor: 'rgba(0,0,0,0.7)', borderRadius: 5 }}>
+                      <Text style={{ color: 'white' }}>Debug Mode Active</Text>
+                    </View>
                   )}
-                </TouchableOpacity>
-                
-                <StatusBar style="dark" />
+                </React.Fragment>
+              </ActionSheetProvider>
             </SafeAreaProvider>
           </ApiProvider>
-        </DatabaseProvider>
-      </PaperProvider>
-      
-      {!isAppReady && (
-        <View style={{
-          position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-          justifyContent: 'center', alignItems: 'center',
-          backgroundColor: 'white',
-          zIndex: 10000
-        }}>
-          <ActivityIndicator size="large" color="#000" />
-          <Text style={{ marginTop: 20 }}>Loading application...</Text>
-        </View>
-      )}
-
-      <SystemModal
-        visible={showSuccessNotification}
-        onClose={() => setShowSuccessNotification(false)}
-        message={successMessage}
-        type="success"
-        position="top"
-        autoClose={true}
-        autoCloseTime={3000}
-      />
-    </GestureHandlerRootView>
+        </PaperProvider>
+      </GestureHandlerRootView>
+    </MenuProvider>
   );
 }
 

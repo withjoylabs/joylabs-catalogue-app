@@ -17,7 +17,7 @@ import { lightTheme } from '../../src/themes';
 import ConnectionStatusBar from '../../src/components/ConnectionStatusBar';
 import { useApi } from '../../src/providers/ApiProvider';
 import { ConvertedItem } from '../../src/types/api';
-import { styles } from './searchStyles';
+import { styles } from './_searchStyles';
 import { useCatalogItems } from '../../src/hooks/useCatalogItems';
 import { SearchFilters } from '../../src/database/modernDb';
 

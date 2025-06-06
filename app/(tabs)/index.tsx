@@ -33,7 +33,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { lightTheme } from '../../src/themes';
 import * as modernDb from '../../src/database/modernDb';
 import { useCatalogItems } from '../../src/hooks/useCatalogItems';
-import { styles } from './indexStyles'; // Import new styles
+import { styles } from './_indexStyles'; // Updated import
 import { SearchFilters } from '../../src/database/modernDb'; // For search filters type
 import { printItemLabel, LabelData } from '../../src/utils/printLabel'; // Added for printing
 import SystemModal from '../../src/components/SystemModal'; // Added for notifications
@@ -80,7 +80,7 @@ const SearchResultsArea = memo(({ initialSearchQuery, onPrintSuccessForChaining 
   const [availableResultCategories, setAvailableResultCategories] = useState<Array<{ id: string; name: string }>>([]);
 
   const { performSearch, isSearching: catalogIsSearching, searchError: catalogSearchError } = useCatalogItems();
-  const debouncedSetQuery = useCallback(debounce(setDebouncedSearchQuery, 300), []); 
+  const debouncedSetQuery = useCallback(debounce(setDebouncedSearchQuery, 500), []);
 
   useEffect(() => {
     debouncedSetQuery(initialSearchQuery);
@@ -454,7 +454,7 @@ const FilterAndSortControls = memo(({
           <TouchableOpacity style={[styles.filterButton, searchFilters.sku && styles.filterButtonActive]} onPress={() => onToggleFilter('sku')}><Text style={[styles.filterButtonText, searchFilters.sku && styles.filterButtonTextActive]}>SKU</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.filterButton, searchFilters.barcode && styles.filterButtonActive]} onPress={() => onToggleFilter('barcode')}><Text style={[styles.filterButtonText, searchFilters.barcode && styles.filterButtonTextActive]}>UPC</Text></TouchableOpacity>
           <TouchableOpacity 
-            style={[styles.filterButton, selectedResultCategoryId && styles.filterButtonActive, styles.categoryFilterButtonInline]} 
+            style={[styles.filterButton, selectedResultCategoryId && styles.filterButtonActive, { flexDirection: 'row', alignItems: 'center' }]} 
             onPress={() => setCategoryModalVisible(true)}
           >
             <Ionicons name="filter-outline" size={14} color={selectedResultCategoryId ? '#FFFFFF' : lightTheme.colors.text} style={{ marginRight: 3 }} />
@@ -564,70 +564,56 @@ export default function App() {
 function RootLayoutNav() {
   const router = useRouter();
   const { isConnected } = useApi();
-  const isFocused = useIsFocused(); // Get focused state
-  const prevIsFocusedRef = useRef<boolean>(false); // Ref to store previous focused state
-  
-  const { performSearch, isSearching: catalogIsSearching, searchError: catalogSearchError } = useCatalogItems();
-  
+  const isFocused = useIsFocused();
+  const searchInputRef = useRef<TextInput>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isScanSearch, setIsScanSearch] = useState(false);
+
+  // Auto-focus and select text in search bar on screen focus
+  useFocusEffect(
+    useCallback(() => {
+      const focusTimeout = setTimeout(() => {
+        searchInputRef.current?.focus();
+        if (isScanSearch && searchQuery.length > 0) {
+          searchInputRef.current?.setSelection(0, searchQuery.length);
+          setIsScanSearch(false); // Reset the flag after selection
+        }
+      }, 500);
+
+      return () => {
+        clearTimeout(focusTimeout);
+      };
+    }, [isScanSearch, searchQuery])
+  );
+
+  const handleClearSearch = useCallback(() => {
+    setSearchQuery('');
+    setIsScanSearch(false);
+    searchInputRef.current?.focus();
+  }, []);
+
+  const handleBarcodeScanned = useCallback((data: { [key: string]: any }) => {
+    const barcode = data.data;
+    if (typeof barcode === 'string' && barcode.length > 0) {
+      logger.info('Barcode scanned', barcode);
+      setSearchQuery(barcode);
+      setIsScanSearch(true); // Flag this as a scan-initiated search
+    }
+  }, []);
+
+  const handlePrintAndClear = useCallback(() => {
+    setSearchQuery('');
+    setIsScanSearch(false);
+    setTimeout(() => {
+      searchInputRef.current?.focus();
+    }, 100);
+  }, []);
+
   const scanHistory = useAppStore((state) => state.scanHistory);
   const addScanHistoryItem = useAppStore((state) => state.addScanHistoryItem);
   const autoSearchOnEnter = useAppStore((state) => state.autoSearchOnEnter);
   const autoSearchOnTab = useAppStore((state) => state.autoSearchOnTab);
   
-  const [searchQuery, setSearchQuery] = useState<string>(''); 
-  const searchInputRef = useRef<TextInput>(null);
-  
-  // Effect to focus input when screen is focused
-  useFocusEffect(
-    useCallback(() => {
-      logger.info('Home::useFocusEffect', 'Screen gained focus. Focusing input.');
-      if (searchInputRef.current) {
-        searchInputRef.current.focus();
-      }
-      // No selectionAttemptedForThisFocusRef reset here, handled by prevIsFocusedRef logic
-      return () => {
-        logger.info('Home::useFocusEffect', 'Screen lost focus.');
-      };
-    }, []) // No dependencies, runs on focus/blur
-  );
-
-  // Effect to handle text selection on focus change
-  useEffect(() => {
-    logger.debug('Home::useEffect[isFocused, searchQuery, prevIsFocusedRef]', 'Checking selection conditions', { 
-      isFocused, 
-      prevIsFocused: prevIsFocusedRef.current,
-      queryLength: searchQuery.length, 
-    });
-
-    // Condition: Screen just became focused (isFocused=true, prevIsFocused=false) AND there's text
-    if (isFocused && !prevIsFocusedRef.current && searchQuery.length > 0) {
-      logger.info('Home::useEffect[isFocused, searchQuery]', 'Conditions met for text selection (just focused). Query:', { query: searchQuery });
-      const HIGHTLIGHT_DELAY = 100; // Slightly increased delay for stability
-      const selectionTimeoutId = setTimeout(() => {
-        if (searchInputRef.current && isFocused) { // Re-check isFocused and ref
-          logger.info('Home::useEffect[isFocused, searchQuery]', 'Performing text selection.');
-          searchInputRef.current.setSelection(0, searchQuery.length);
-        } else {
-          logger.warn('Home::useEffect[isFocused, searchQuery]', 'Skipping selection - input/screen no longer focused or ref missing.');
-        }
-      }, HIGHTLIGHT_DELAY);
-
-      // Cleanup for the timeout
-      return () => {
-        clearTimeout(selectionTimeoutId);
-      };
-    }
-    
-    // Update prevIsFocusedRef at the end of every run of this effect
-    prevIsFocusedRef.current = isFocused;
-
-  }, [isFocused, searchQuery]); // Re-run when focus state or search query changes
-  
-  const handleClearSearch = useCallback(() => {
-    setSearchQuery('');
-    searchInputRef.current?.focus();
-  }, [setSearchQuery, searchInputRef]);
-
   const navigateToHistory = useCallback(() => {
     router.push('/(tabs)/scanHistory');
   }, [router]);
@@ -658,7 +644,7 @@ function RootLayoutNav() {
 
       <SearchResultsArea 
         initialSearchQuery={searchQuery} 
-        onPrintSuccessForChaining={handlePrintSuccessForChaining}
+        onPrintSuccessForChaining={handlePrintAndClear}
       />
 
       <BottomSearchBarComponent 
@@ -720,13 +706,14 @@ const BottomSearchBarComponent = memo(({
         <TextInput
           ref={searchInputRef}
           style={styles.searchInput}
-          placeholder="Scan or Search items..."
+          placeholder="Scan barcode or search items..."
           placeholderTextColor="#999"
           value={searchQuery}
           onChangeText={setSearchQuery}
           autoCapitalize="none"
           autoCorrect={false}
           returnKeyType="search"
+          blurOnSubmit={false}
         />
         {searchQuery.length > 0 && (
           <TouchableOpacity style={styles.clearButton} onPress={onClearSearch}>

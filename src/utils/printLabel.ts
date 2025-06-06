@@ -141,25 +141,42 @@ export const printItemLabel = async (labelData: LabelData): Promise<boolean> => 
     
     logger.info('PrintLabel', 'Sending print request', { url });
 
-    // Make the HTTP request
-    const response = await fetch(url, {
-      method: 'GET',
-    });
-    
-    if (response.ok) {
-      logger.info('PrintLabel', 'Print request successful');
-      return true;
-    } else {
-      const errorText = await response.text();
-      logger.warn('PrintLabel', 'Print request failed', { 
-        status: response.status, 
-        statusText: response.statusText,
-        errorText 
+    // Set up a timeout controller
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5-second timeout
+
+    try {
+      // Make the HTTP request
+      const response = await fetch(url, {
+        method: 'GET',
+        signal: controller.signal, // Pass the signal to the fetch request
       });
+      
+      clearTimeout(timeoutId); // Clear the timeout if the request completes in time
+
+      if (response.ok) {
+        logger.info('PrintLabel', 'Print request successful');
+        return true;
+      } else {
+        const errorText = await response.text();
+        logger.warn('PrintLabel', 'Print request failed', { 
+          status: response.status, 
+          statusText: response.statusText,
+          errorText 
+        });
+        return false;
+      }
+    } catch (error: any) {
+      clearTimeout(timeoutId); // Also clear timeout on other errors
+      if (error.name === 'AbortError') {
+        logger.warn('PrintLabel', 'Print request timed out after 5 seconds');
+      } else {
+        logger.error('PrintLabel', 'Error sending print request', { error });
+      }
       return false;
     }
   } catch (error) {
-    logger.error('PrintLabel', 'Error sending print request', { error });
+    logger.error('PrintLabel', 'Error preparing print request', { error });
     return false;
   }
 }; 

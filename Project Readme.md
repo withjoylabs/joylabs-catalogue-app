@@ -1,0 +1,410 @@
+# JoyLabs Frontend Development Guide
+
+IMPORTANT: DO NOT RUN/TEST THE APP FOR ME. ALSO DO NOT UPLOAD OR COMMIT ANYTHING TO GITHUB UNLESS I SPECIFICALLY ASK YOU TO.
+
+This guide provides instructions and rules for developing the JoyLabs frontend application, focusing on integration with the JoyLabs backend API (v3).
+
+## Table of Contents
+- [Backend Integration Rules](#backend-integration-rules)
+- [API Architecture & Catalog Operations](#api-architecture--catalog-operations)
+- [Authentication Flow](#authentication-flow)
+- [Data Management](#data-management)
+- [Square Integration Details](#square-integration-details)
+- [Development Notes](#development-notes)
+- [App Navigation Guide](#joylabs-app-navigation-guide)
+- [Square Case Usage (camelCase vs snake_case)](#squares-usage-of-camelcase-vs-snake_case)
+- [Expo Router Layout Rules](#expo-router-layout-rules)
+- [Codebase Overview](#codebase-overview)
+- [app/item/[id].tsx](#app-item-id-tsx)
+- [src/hooks/useCatalogItems.ts](#src-hooks-usecatalogitemsts)
+- [src/api/index.ts](#src-apiindexts)
+- [src/utils/catalogTransformers.ts](#src-utils-catalogtransformers-ts)
+- [src/database/modernDb.ts](#src-databasemoderndbts)
+- [src/database/catalogSync.ts](#src-databasecatalogsyncts)
+- [src/providers/ApiProvider.tsx](#src-providersapiprovidertsx)
+
+## Backend Integration Rules
+- **Do NOT modify backend code directly.** If backend changes are necessary, provide detailed prompts and requirements to the backend team.
+- **ALWAYS use PRODUCTION mode.** No sandbox, test, or dev modes are configured in the backend. All interactions are with live Square data.
+- **Remove all placeholders** in API calls and configurations.
+- **Square Redirect URL MUST be HTTPS:** `https://gki8kva7e3.execute-api.us-west-1.amazonaws.com/production/api/auth/square/callback` (Used during OAuth flow).
+- **Use deeplinking** for Expo development callbacks (e.g., `joylabs://square-callback`). NO custom web URLs like `joylabs.com` for callbacks.
+- **Be thorough!** Check all dependencies and potential impacts of your changes before declaring a fix or feature complete.
+- **Development Server Port:** Always launch the Expo development server on Port **8081**. If the port is occupied, shut down the existing server (`Ctrl+C` in the terminal) and restart it. Do not attempt to use the next available port (e.g., 8082) as backend configurations might rely on port 8081.
+- **Dependency Checks:** Before installing new dependencies, search the web (NPM, GitHub issues, etc.) to verify:
+    - It's actively maintained and suitable for the current task.
+    - It's compatible with **Expo Go** (if applicable and avoiding development builds is desired). Libraries requiring custom native code not included in Expo Go may cause `TypeError: Cannot read property 'getConstants' of null` errors. Look for libraries specifically mentioning Expo compatibility or using pure JS/Expo SDK APIs/`react-native-svg`.
+
+## API Architecture & Catalog Operations
+
+- **Base URL:** `https://gki8kva7e3.execute-api.us-west-1.amazonaws.com/production`
+- **Backend Role Distinction:**
+    - **OAuth & User Management:** Handled by dedicated backend Lambda functions (`oauth`, `api`). These involve specific logic for token exchange, state management, and potentially user data.
+    - **Catalog Operations:** Handled by the `catalog` Lambda function, acting purely as an **authenticated proxy** directly to the Square API.
+
+- **Endpoint Groups:**
+    1.  **OAuth & Core Backend Endpoints (Use `/api/*` prefix):**
+        -   `GET /api/auth/connect/url`: Initiates the OAuth flow (no token required initially).
+        -   `GET /api/auth/square/callback`: Handles the redirect from Square after user authorization.
+        -   `POST /api/auth/validate-token`: Checks the validity of an existing token (Requires Bearer token).
+        -   `GET /api/health`: Basic health check.
+        -   *(Potentially others for user management, etc.)*
+        -   **Interaction:** Frontend calls these endpoints; backend Lambdas execute specific logic (token exchange, state validation, etc.).
+
+    2.  **Catalog Operations (Proxied - Use `/v2/catalog/*` prefix):**
+        -   `GET /v2/catalog/list`: List items, categories, etc. (Requires Bearer token).
+        -   `GET /v2/catalog/item/{object_id}`: Retrieve a specific object (Requires Bearer token).
+        -   `POST /v2/catalog/search`: Search catalog objects (Requires Bearer token).
+        -   `POST /v2/catalog/object`: Create/Update catalog objects (Requires Bearer token).
+        -   `GET /v2/catalog/list-categories`: Convenience endpoint for categories (Requires Bearer token).
+        -   **Interaction:** Frontend calls these endpoints with a valid `Authorization: Bearer <token>`. The backend `catalog` Lambda *validates the token* and then directly forwards the request (headers, body, query params) to the corresponding Square API endpoint. The response from Square is directly proxied back to the frontend.
+
+- **Data Structure (Catalog):** Responses from `/v2/catalog/*` endpoints directly reflect the Square API's JSON structure (using `snake_case`). Refer to the [Square Catalog API Documentation](https://developer.squareup.com/reference/square/catalog-api).
+- **API Client:** Use `apiClient` or `axios` accordingly, ensuring correct URLs and required `Authorization` headers for authenticated calls.
+
+## Authentication Flow
+- **Protocol:** OAuth 2.0 with Square using PKCE.
+- **Initiation:** Start the flow by calling `GET /api/auth/connect/url` on our backend to get the Square authorization URL.
+- **Callback:** After the user authorizes on Square, they are redirected via deep link (`joylabs://square-callback`), which should trigger the frontend to handle the callback and potentially exchange the authorization code via our backend (handled internally by the callback endpoint logic if needed, or passed to `GET /api/auth/square/callback`).
+- **Token Management:**
+    - Successful authentication via the backend flow results in access and refresh tokens.
+    - Store tokens securely using Expo's `SecureStore`.
+    - `TokenService` (or similar) manages token storage, retrieval, and validation (e.g., using `POST /api/auth/validate-token`).
+- **Authenticated Requests:** Use the obtained access token as a Bearer token in the `Authorization` header for all subsequent calls requiring authentication, primarily the `/v2/catalog/*` endpoints.
+
+## Data Management
+- **Sorting:** Categories fetched via `/v2/catalog/list-categories` or `/v2/catalog/list?types=CATEGORY` should be sorted alphabetically client-side if needed.
+- **Selective Fetching:** Use appropriate API calls for specific data needs (e.g., fetch only categories vs. full item list). Consider using `refreshData('categories')` patterns if applicable.
+- **Error Handling:** Implement robust error handling for API calls, providing clear UI feedback to the user on failures. Parse error responses forwarded from Square via the backend proxy.
+- **Caching:** Implement TTL-based caching using memory cache or other strategies to reduce redundant API calls and improve performance.
+
+## Square Integration Details
+- **Square App ID:** `sq0idp-WFTYv3An7NPv6ovGFLld1Q`
+- **Square API Version (Handled by Backend):** The backend proxy ensures the correct `Square-Version` header (`2025-04-16`) is used for all proxied requests.
+- **Search Endpoint Usage:** `POST /v2/catalog/search` requires a valid Square Catalog Search query body. Ensure `object_types` are included when necessary as per Square documentation.
+
+## Development Notes
+- **Development Server Port:** Always launch the Expo development server on Port **8081**. If the port is occupied, shut down the existing server (`Ctrl+C` in the terminal) and restart it. Do not attempt to use the next available port (e.g., 8082) as backend configurations might rely on port 8081.
+- **Expo Go Compatibility:**
+    - **Preference:** Develop using **Expo Go** whenever possible to maintain a fast iteration cycle.
+    - **Native Module Issues:** Be aware that Expo Go has limitations regarding native modules. Errors like `TypeError: Cannot read property 'getConstants' of null` often indicate a dependency using native code not bundled with Expo Go.
+    - **Troubleshooting:**
+        1.  **Identify the Culprit:** Temporarily remove or comment out suspected libraries (e.g., hardware interaction, custom UI needing native views) and see if the error resolves.
+        2.  **Check Alternatives:** Search for Expo Go-compatible alternatives (e.g., use `expo-barcode-generator` instead of `react-native-barcode-creator`). Check library documentation for explicit Expo support.
+        3.  **Clean Build:** As a general step, try clearing `node_modules`, lock files, and Metro cache (`npx expo start --clear`).
+    - **Last Resort (If Expo Go is Required):** If a specific library with native code is essential *and* development builds are not desired, you may need to find a fundamentally different approach or library that achieves the goal using only Expo Go-compatible APIs.
+
+## JoyLabs App Navigation Guide
+
+### Main App Flow
+The application uses a bottom tab bar for primary navigation upon launch.
+
+### Path to Sync Functionality
+1. App Launch → Bottom Tab Bar
+2. Tap **"Profile"** Tab (Rightmost Icon) -> Navigates to `app/(profile)/index.tsx`
+3. Profile Screen (`app/(profile)/index.tsx`) → Top Tab Navigation (managed by `app/(profile)/_layout.tsx`)
+4. Tap **"Sync Catalog"** Tab -> Displays `app/(profile)/sync.tsx`
+
+### Key Pages & Files Reference
+
+#### Profile Screen & Tabs Layout
+- **Layout File:** `app/(profile)/_layout.tsx`
+- **Navigator:** Uses `@react-navigation/material-top-tabs`'s `createMaterialTopTabNavigator`.
+- **Manages Tabs:** "Profile" (`index.tsx`), "Settings" (`settings.tsx`), "Sync Catalog" (`sync.tsx`). Includes header, back button, and debug tools logic previously in `app/profile.tsx`.
+
+#### Profile Tab Content
+- **File:** `app/(profile)/index.tsx`
+- **Purpose:** Displays user info and Square connection status/actions.
+
+#### Settings Tab Content
+- **File:** `app/(profile)/settings.tsx`
+- **Purpose:** Displays app settings toggles (e.g., Notifications, Dark Mode).
+
+#### Sync Tab Content
+- **File:** `app/(profile)/sync.tsx`
+- **Purpose:** Displays sync status and logs components.
+- **Components:**
+  - `CatalogSyncStatus` (`src/components/CatalogSyncStatus.tsx`)
+  - `SyncLogsView` (`src/components/SyncLogsView.tsx`)
+
+#### CatalogSyncStatus Component
+- **Purpose:** Displays sync status (last sync, progress).
+- **Actions:**
+  - "Full Sync" button
+  - "Categories Only" button
+  - Debug Mode (Bug Icon):
+    - "Test API" button
+    - "Reset Sync" button
+
+#### SyncLogsView Component
+- **Purpose:** Shows sync operation logs.
+- **Actions:**
+  - Refresh button
+  - Download button
+  - Trash button
+
+### Catalog Categories Browsing
+1. App Launch → Bottom Tab Bar
+2. Tap **"Profile"** Tab -> Navigates to `app/(profile)/index.tsx`
+3. Profile Screen (`app/(profile)/index.tsx`) → Top Tab Navigation (managed by `app/(profile)/_layout.tsx`)
+4. Tap **"Categories"** Tab (*Note: This tab doesn't exist in the current `app/(profile)/_layout.tsx` setup - verify requirement*)
+
+### Settings Access
+1. App Launch → Bottom Tab Bar
+2. Tap **"Profile"** Tab -> Navigates to `app/(profile)/index.tsx`
+3. Profile Screen (`app/(profile)/index.tsx`) → Top Tab Navigation (managed by `app/(profile)/_layout.tsx`)
+4. Tap **"Settings"** Tab -> Displays `app/(profile)/settings.tsx`
+
+### Core Code References
+- **Sync Logic:** `src/database/catalogSync.ts` (May need refactoring if sync logic changes due to backend proxy)
+- **API Communication:** `src/api/index.ts` (Verify usage of proxied endpoints)
+- **Database Operations:** `src/database/db.ts`
+- **Square Auth:** `src/hooks/useSquareAuth.ts`
+
+*Always reference the relevant file path when discussing UI elements or behavior.*
+
+## Square's usage of camelCase vs snake_case
+
+The Square API uses **`snake_case`** for JSON keys in API responses and webhook payloads.
+
+- **API Responses (via Backend Proxy `/v2/catalog/*`):** Expect **`snake_case`** (e.g., `payment_status`, `item_data`). The backend proxy forwards Square's response directly.
+- **API Responses (from `/api/*` endpoints):** These *might* use `camelCase` if the backend logic transforms data, but generally aim for consistency. Check specific endpoint responses.
+- **Frontend:** Adapt frontend models and interfaces primarily for `snake_case` when dealing with catalog data. Be mindful of potential differences if interacting with non-proxied `/api/*` endpoints.
+
+**Example (Catalog Proxy):**
+- Response from `GET /v2/catalog/list`: `{"objects": [{"id": "...", "type": "ITEM", "item_data": {...}}], "cursor": "..."}`
+
+## Expo Router Layout Rules
+- **Main Navigation:** Define primary navigation elements (Bottom Tabs, Drawers) in parent **layout files** (e.g., `app/_layout.tsx`, `app/(tabs)/_layout.tsx`).
+- **Screen Components:** Individual screen files (e.g., `app/profile.tsx`) rendered within layouts should **NOT** render these main navigation elements themselves.
+- **Scrolling:** If a screen's content needs to be scrollable, wrap the *screen-specific content* in a `<ScrollView>` within the screen component file (e.g., `app/profile.tsx`). Layout files manage headers/footers around this scrollable view.
+- **Modifying Navigation:** To change tabs, headers, etc., first check the relevant **layout file (`_layout.tsx`)** where the navigator (`Tabs`, `Stack`, etc.) is configured. 
+
+## Codebase Overview
+
+This section provides a summary of key files and their roles within the JoyLabs frontend application.
+
+### `app/item/[id].tsx`
+
+*   **Purpose:** Primary screen component for adding (`id='new'`) or editing an existing catalog item. Uses Expo Router for navigation and dynamic routing based on the `id` parameter.
+*   **State Management:**
+    *   Uses `useState` extensively to manage the item being edited (`item`), the original item state (`originalItem`), loading states (`isLoading`, `isSaving`), error states (`error`), edit status (`isEdited`), and UI states (modals, search terms, available options).
+    *   **NEW: Manages item variations using a separate `variations` state array (`useState<ItemVariation[]>`).**
+    *   Uses `useEffect` to fetch initial data (item details including all variations, categories, taxes, modifiers), update header buttons, filter categories, and determine edit status.
+    *   Uses `useCallback` for stable event handlers (`handleSave`, `handleCancel`, `handleDelete`).
+    *   Uses `useMemo` for derived state (`selectedCategoryName`).
+*   **Data Fetching & Updates:**
+    *   **Initial Load:** Calls `getAllCategories`, `getAllTaxes`, `getAllModifierLists` (`src/database/modernDb.ts`) for options. Calls `getProductById` (`src/hooks/useCatalogItems.ts`) for existing items, which now returns the full `ConvertedItem` including all variations.
+    *   **Saving (`handleSave`):**
+        *   Constructs `itemPayload` from local `item` and `variations` state.
+        *   Passes the constructed payload (including the variations array) to `createProduct` or `updateProduct` (`src/hooks/useCatalogItems.ts`). **Does NOT perform Square API-specific transformations (e.g., `tax_ids`, `modifier_list_info`) as this is handled by the hooks.**
+        *   Handles UI feedback and navigation.
+*   **User Interface:** Renders form inputs (`TextInput`, `TouchableOpacity`, `Modal`, etc.) for item properties. **Includes a dedicated section to display, add, and remove variations.** Includes category/tax/modifier selection logic.
+*   **Key Dependencies:** `expo-router`, `src/hooks/useCatalogItems.ts`, `src/database/modernDb.ts`, `src/types/api.ts`, `src/utils/recentCategories.ts`.
+
+### `src/hooks/useCatalogItems.ts`
+
+- **Purpose:** Centralizes logic for fetching, creating, updating, and deleting catalog items (products). Manages loading/error states, pagination, and acts as the bridge between UI components and data sources (API, DB) for items.
+- **State Management:** Uses `useAppStore` (Zustand) for global product list, loading states, errors, and scan history. Uses local `useState` for pagination and `useRef` for category mapping cache.
+- **API Interaction:** Uses `directSquareApi` (from `src/api/index.ts`) for direct Square API CRUD operations (`fetchCatalogPage`, `upsertCatalogObject`, `retrieveCatalogObject`, `deleteCatalogObject`). Checks `isSquareConnected` from `useApi` provider before calls.
+    - **`createProduct`:** Constructs a Square payload for a new item, including all variations provided. New variations are assigned temporary `#`-prefixed IDs.
+    - **`updateProduct`:** Constructs a **single** Square payload to update an existing item. **Crucially includes the item's `version`**. It maps the `variations` array from the input `productData`:
+        - Existing variations include their `id` and `version`.
+        - New variations are assigned a temporary `#`-prefixed `id` and have no `version`.
+        - **Omits `item_id` from within `item_variation_data` during updates.**
+        - Transforms frontend fields (`taxIds`, `modifierListIds`) into the Square API format (`tax_ids`, `modifier_list_info`).
+- **Data Transformation:** Uses `transformCatalogItemToItem` (from `src/utils/catalogTransformers.ts`) to convert between Square API `snake_case` (`CatalogObject`) and frontend `camelCase` (`ConvertedItem`) formats. Constructs `snake_case` payloads for create/update.
+- **Database Interaction:** Uses helpers from `src/database/modernDb.ts` (`getDatabase`, `getItemOrVariationRawById`, `upsertCatalogObjects`). `getProductById` checks store then DB. `createProduct`/`updateProduct` update the DB after successful Square operations.
+- **Key Functions:** `fetchProducts`, `refreshProducts`, `loadMoreProducts`, `getProductById`, `createProduct`, `updateProduct`, `deleteProduct` encapsulate the core logic for item management.
+- **Dependencies:** `directSquareApi` (for API calls), `useAppStore` (Zustand state), `modernDb` (local cache), `catalogTransformers`, `logger`, `useApi` (Square connection status).
+
+### `src/api/index.ts`
+
+- **Purpose:** Centralizes API communication logic using Axios.
+- **Axios Instances:**
+    - `apiClient` (default export): Configured with `config.api.baseUrl` (JoyLabs backend proxy). Includes interceptors for:
+        - **Network Connectivity Checks:** Prevents requests when offline (using `expo-network` and `@react-native-community/netinfo`).
+        - **Caching:** GET request caching via `AsyncStorage` with configurable TTL. Keys are based on method, URL, and params.
+        - **Authentication:** Automatically attaches `Authorization: Bearer <token>` header using `tokenService.ensureValidToken()` (which handles refresh).
+        - **401 Handling:** Attempts token refresh via `tokenService` upon 401 response and retries the original request.
+        - **Retry Logic:** Retries failed requests (network errors, 5xx server errors) with configurable delay and count.
+    - `directSquareApi` (named export): Makes direct calls to the Square API (`https://connect.squareup.com`) using `axios` (no JoyLabs proxy involvement).
+        - **Authentication:** Uses `tokenService.getAuthHeaders()` to add the Bearer token.
+        - **Square Version Header:** Adds the required `Square-Version` header.
+        - **Error Handling:** Includes specific error handling (`handleDirectSquareError`) for Square API responses (parsing `errors[0].detail`, etc.).
+
+        - **Error Handling:** Includes specific error handling (`handleDirectSquareError`) for Square API responses (parsing `errors[0].detail`, etc.).
+- **Structure:**
+    - Defines common types (`ApiResponse`, `ApiError`, `RequestConfig`).
+    - Implements caching utilities (`getCacheKey`, `getFromCache`, `saveToCache`, `clearCache`).
+    - Creates the `apiClient` instance with interceptors.
+    - **Exports `apiClient` as the default export.**
+    - **Exports `directSquareApi` as a named export** containing functions for direct Square calls (`upsertCatalogObject`, `deleteCatalogObject`, `retrieveCatalogObject`, `fetchCatalogPage`). These are used primarily by `useCatalogItems` and `catalogSync`.
+    - **Does NOT export a structured `api` object with grouped endpoints (e.g., `api.catalog`).** Calls to the proxied backend should be made using standard `apiClient.get()`, `apiClient.post()`, etc.
+- **Token Management:** Relies heavily on `src/services/tokenService.ts` for storing, retrieving, validating, and refreshing tokens.
+- **Logging:** Uses `src/utils/logger.ts` extensively for debugging requests, responses, cache operations, and errors.
+
+### `src/utils/catalogTransformers.ts`
+
+
+- **Purpose:** Provides utility functions to convert data structures between the Square Catalog API format (`CatalogObject`, `snake_case`) and the internal frontend format (`ConvertedItem`, `ConvertedCategory`, `camelCase`). This is essential for displaying API data in the UI and for sending UI data back to the API for saving.
+- **Key Functions:**
+    - `transformCatalogItemToItem`: Converts raw `CatalogObject` (ITEM) from API/DB to frontend `ConvertedItem`. Handles:
+        - **Mapping all variations** from `item_data.variations` into the `variations` array of `ConvertedItem`.
+        - **Extracting `modifierListIds`** from `item_data.modifier_list_info`.
+        - **Extracting `taxIds`** from `item_data.tax_ids`.
+        - **Including the top-level item `version`**. Crucial for updates.
+        - Extracting `reporting_category_id`.
+        - Pulling price/SKU/barcode from the primary variation (e.g., 'Regular' or first) for top-level convenience fields in `ConvertedItem`.
+    - `transformCatalogCategoryToCategory`: Converts raw `CatalogObject` (CATEGORY) to frontend `ConvertedCategory`. Assigns placeholder colors.
+    - **DEPRECATED/REPLACED:** `transformItemToCatalogItem` and `transformCategoryToCatalogCategory` logic is now primarily handled within the `createProduct`/`updateProduct` hooks in `useCatalogItems.ts` to construct the specific Square API payloads.
+- **Dependencies:** `src/types/api.ts`, `src/utils/logger.ts`.
+- **Importance:** Acts as a critical data mapping layer, especially for accurately loading item data (including version, variations, modifiers, taxes) into the UI state for editing. Correctness prevents version mismatch errors and data loss during updates.
+
+### `src/database/modernDb.ts`
+
+- **Purpose:** Manages the local SQLite database (`joylabs.db`) using `expo-sqlite`. It serves as the local cache for catalog data synced from Square.
+- **Key Responsibilities:**
+    - **Initialization & Schema:** Handles DB connection (`initDatabase`), defines table schemas (`initializeSchema`) for items, categories, variations, modifiers, taxes, sync status, etc., and manages basic schema versioning/migration (resets DB if version is outdated).
+    - **Data Persistence:** The `upsertCatalogObjects` function is central to storing fetched Square data. It takes raw API objects and inserts/updates them into the appropriate tables, often storing the original JSON (`data_json`) alongside indexed fields.
+    - **Data Retrieval:** Provides functions to query the local cache (e.g., `searchLocalItems`, `getAllCategories`, `getAllTaxes`, `getAllModifierLists`). Search/retrieval functions often transform the stored data back into frontend types (like `ConvertedItem`) using `catalogTransformers`.
+    - **Sync Management:** Tracks synchronization progress and status (`getSyncStatus`, `updateSyncStatus`).
+    - **Utilities:** Includes functions for DB reset (`resetDatabase`), connection management (`getDatabase`, `closeDatabase`), and raw data inspection.
+- **Dependencies:** `expo-sqlite`, `expo-file-system`, `src/utils/logger.ts`, `src/types/api.ts`, `src/utils/catalogTransformers.ts`.
+- **Importance:** Provides offline access to catalog data and reduces reliance on constant API calls by caching synced information. Essential for the sync process and displaying catalog lists. 
+
+### `src/database/catalogSync.ts`
+
+- **Purpose:** Manages the synchronization of Square catalog data with the local SQLite database (`joylabs.db`). Handles fetching data, storing it locally via `modernDb`, and managing sync status/scheduling.
+- **Key Responsibilities:**
+    - **Singleton Service:** Ensures only one instance manages the sync process (`CatalogSyncService.getInstance()`).
+    - **Initialization/Scheduling:** Sets up DB connection, manages sync state on startup, and provides optional automatic background sync scheduling (`initialize`, `setAutoSync`, `scheduleNextSync`). Auto-sync is OFF by default.
+    - **Sync Status:** Reads/writes sync status (progress, errors, cursor, timestamps) to the `sync_status` table via `modernDb` (`getSyncStatus`, `updateSyncStatus`, `resetSyncStatus`).
+    - **Authentication:** Checks for a valid Square token via `SecureStore` before syncing (`checkAuthentication`).
+    - **Sync Execution (`runFullSync`):** The core loop that iteratively calls `directSquareApi.fetchCatalogPage()` to get data from Square and `modernDb.upsertCatalogObjects()` to save the raw data locally. Manages pagination using cursors and updates progress.
+    - **Manual/Background Trigger:** Provides methods to trigger syncs manually (`forceFullSync`) or in the background (`startBackgroundSync`).
+    - **Data Verification (`checkItemsInDatabase`):** Utility to count local items/categories.
+- **Dependencies:** `expo-network`, `expo-sqlite`, `expo-file-system`, `../utils/logger`, `./modernDb`, `expo-secure-store`, `../api` (specifically `directSquareApi`).
+- **Importance:** Orchestrates the process of keeping the local database cache up-to-date with the Square catalog. 
+
+### `src/providers/ApiProvider.tsx`
+
+*   **Purpose:** Context provider (`ApiProvider`, consumed via `useApi`) to manage and expose Square connection status and related actions.
+*   **Context Value:** Exposes `isConnected`, `merchantId`, `isLoading`, `error` (from `useSquareAuth`), `connectToSquare`/`disconnectFromSquare` (from `useSquareAuth`), `refreshData` (fetches items/categories via `apiClient` with rate-limiting), and `verifyConnection` (uses `tokenService`).
+*   **State/Logic:**
+    *   Instantiates `useSquareAuth` for core state/actions.
+    *   Performs an initial connection check on mount using `tokenService` (mainly for logging).
+    *   Implements `refreshData` which fetches data via `apiClient`, transforms it, and updates the Zustand store (`useAppStore`) using `setProducts`/`setCategories`.
+    *   Implements `verifyConnection` using `tokenService`.
+*   **Dependencies:** `react`, `useSquareAuth`, `logger`, `apiClient`, `useAppStore`, `tokenService`, `catalogTransformers`, types.
+*   **Potential Areas:**
+    *   **Initial Check:** Initial connection check `useEffect` adds minor complexity, primarily for logging.
+
+*   **Configuration:** Relies on `../config`.
+
+### `src/components/DatabaseProvider.tsx` (Generated by AI Audit - Please Verify)
+
+*   **Purpose:** Component responsible for initializing the SQLite database (`modernDb.initDatabase`) on app startup and providing the DB context via `expo-sqlite`'s `SQLiteProvider`.
+*   **Initialization:** Uses `useEffect` to call `modernDb.initDatabase()`. Manages loading/error states during initialization, showing an `ActivityIndicator` or error message.
+*   **Context:** Renders `SQLiteProvider` (from `expo-sqlite`) once initialized, making the DB connection available to children via context hooks (e.g., `useSQLiteContext`).
+*   **Cleanup:** Calls `modernDb.closeDatabase()` on unmount.
+*   **Dependencies:** `react`, `react-native`, `expo-sqlite`, `modernDb`, `logger`.
+*   **Potential Areas:**
+    *   **Simplicity:** Could potentially be integrated into `modernDb` or root layout loading logic if separate DB loading UI isn't strictly needed.
+    *   **`useSuspense={false}`:** Standard choice but prevents use of React Suspense for DB loading state in consuming components.
+
+### `src/components/CatalogSyncStatus.tsx`
+
+*   **Purpose:** Displays the current catalog synchronization status (last sync time, progress if syncing, errors) and provides controls to initiate a full sync. Includes debug tools for testing and resetting sync status.
+*   **State Management:**
+    *   Uses `useState` to manage the sync status (`status`), loading state (`loading`), debug tools visibility (`showDebug`), and DB inspection state (`isInspectingDb`).
+    *   Uses `useFocusEffect` combined with `useCallback` to fetch the sync status when the screen is focused and to set up polling (every 2 seconds) via `setInterval` to refresh the status if a sync is currently in progress (`status.isSyncing`).
+*   **Data Fetching & Actions:**
+    *   `fetchSyncStatus`: Reads the sync status directly from the `sync_status` table in the SQLite database using `modernDb.getFirstAsync`.
+    *   `startFullSync`: Initiates a full sync by calling `catalogSyncService.initialize()` and `catalogSyncService.runFullSync()`. Checks for a valid token (`useSquareAuth`) before starting. Refreshes status afterwards.
+    *   `syncCategoriesOnly`: (Commented out) Placeholder for a potential future feature to sync only categories.
+    *   `testApi`: Calls a health check endpoint (`api.webhooks.healthCheck()`) - **Note:** This seems incorrect, as the `/api` endpoints are for OAuth/backend logic, not catalog/webhooks. It should likely use a proxied catalog endpoint or a dedicated health check endpoint.
+    *   `resetSync`: Resets the sync status flags in the `sync_status` table via direct SQL (`modernDb.runAsync`).
+    *   `handleInspectDatabase` (Debug): Fetches the first 10 raw items from the DB (`modernDb.getFirstTenItemsRaw`) and logs them to the console.
+*   **User Interface:**
+    *   Displays "Last Sync" time, formatted using `toLocaleString`.
+    *   Shows sync progress (`X / Y (Z%)`) if `isSyncing` is true.
+    *   Displays errors from `syncError`.
+    *   Provides a "Full Sync" button (disabled during sync).
+    *   Includes a "Bug" icon button to toggle visibility of debug actions ("Test API", "Reset Sync", "Inspect DB").
+*   **Dependencies:** `react`, `react-native`, `@expo/vector-icons`, `@react-navigation/native`, `../database/modernDb`, `../database/catalogSync`, `../hooks/useSquareAuth`, `../api`, `../utils/logger`.
+*   **Potential Areas:**
+    *   **Polling:** Using `setInterval` for polling can be inefficient and might not be necessary if sync progress updates could be pushed or observed differently (e.g., via Zustand state updated by the sync service).
+    *   **Direct DB Access:** The component directly queries and updates the `sync_status` table. It might be cleaner if `catalogSyncService` exposed functions or state for reading status and resetting, centralizing DB interactions.
+    *   **`testApi` Endpoint:** The API endpoint used for testing (`api.webhooks.healthCheck()`) seems incorrect for verifying general API connectivity to the proxied backend or Square. A call to `/api/health` or `/v2/catalog/list` (with minimal params) might be more appropriate.
+    *   **Commented Code:** The `syncCategoriesOnly` function is commented out. Decide if it's needed or should be removed.
+    *   **Debug Logic:** Consider conditional compilation or other methods to remove debug tools (`testApi`, `resetSync`, `handleInspectDatabase`) from production builds.
+
+### `src/components/SyncStatusComponent.tsx` (Generated by AI Audit - Please Verify)
+
+*   **Purpose:** Displays catalog sync status (Idle, Syncing, Error, Synced), progress bar, last sync time, and provides buttons to start/reset sync. Includes debug tools.
+*   **State Management:** Uses `useState` for sync status, loading/error, debug state, merchant/location info. Uses `useRef` for polling interval.
+*   **Data Fetching:** Fetches sync status via `catalogSyncService.getSyncStatus()`. Polls status every 2s if sync might be active. Fetches merchant/location data directly from `modernDb` (**out of place?**).
+*   **Actions:**
+    *   `Start Sync`: Calls `catalogSyncService.runFullSync()` (async, not awaited).
+    *   `Reset Sync` (Debug): Calls `catalogSyncService.resetSyncStatus()`.
+    *   `Test API`/`Test DB` (Debug): Calls test functions in `api`/`modernDb`.
+*   **UI:** Displays status text, progress bar (`react-native-progress/Bar`), last sync time (`date-fns`), error messages, merchant/location info.
+*   **Dependencies:** `react`, `react-native`, icons, `catalogSyncService`, `logger`, `date-fns`, `api`, `ProgressBar`, `modernDb`.
+*   **Potential Areas:**
+    *   **Merchant/Location Fetching:** Logic to fetch/display this data and potentially create tables belongs elsewhere (e.g., DB init, dedicated sync process).
+    *   **Debug Code:** Consider conditional compilation.
+    *   **Type Casting:** Ensure `CurrentSyncStatus` type matches service.
+
+### `src/components/SyncLogsView.tsx`
+
+*   **Purpose:** Displays a list of synchronization log entries fetched from the local database (`sync_logs` table). Provides actions to refresh the logs, export them to a JSON file, and clear all logs from the database.
+*   **State Management:**
+    *   Uses `useState` to store the fetched log entries (`logs`), loading state (`loading`), and exporting state (`exporting`).
+    *   Uses `useFocusEffect` with `useCallback` to automatically call `loadLogs` whenever the screen containing this component gains focus.
+*   **Data Fetching & Actions:**
+    *   `loadLogs`: Fetches the latest 100 log entries from the `sync_logs` table using `modernDb.getDatabase().getAllAsync`, ordering by timestamp descending. Assumes the table exists.
+    *   `exportLogs`: Formats the currently displayed `logs` state into a JSON string. Uses `expo-file-system` to write the JSON to a temporary file in the cache directory. Uses `expo-sharing` to open the native share sheet for the created JSON file. Handles cases where sharing might not be available.
+    *   `clearLogs`: Shows a confirmation `Alert`. If confirmed, executes a `DELETE FROM sync_logs` SQL command using `modernDb.getDatabase().runAsync`. Clears the local `logs` state.
+*   **User Interface:**
+    *   Displays a header with the title "Sync Logs" and action buttons (Refresh, Export, Clear). Buttons are disabled appropriately based on loading/exporting state or if there are no logs.
+    *   Uses a `FlatList` to render the log entries.
+    *   `renderLogItem`: Renders each log entry, formatting the timestamp (`toLocaleString`), displaying the log level (color-coded using `getLevelColor`), the message, and optionally the first few lines of associated data (`item.data`).
+    *   `renderEmptyState`: Shows an icon and text ("No sync logs available") when the log list is empty.
+    *   Shows an `ActivityIndicator` while loading or exporting.
+*   **Dependencies:** `react`, `react-native`, `@expo/vector-icons`, `../database/modernDb`, `../utils/logger`, `expo-file-system`, `expo-sharing`, `@react-navigation/native`.
+*   **Potential Areas:**
+    *   **Error Handling:** Assumes the `sync_logs` table exists. While `modernDb` likely creates it on init, adding a check or more specific error handling within `loadLogs` could make it more robust.
+    *   **Log Limit:** Hardcoded limit of 100 logs fetched. Consider if pagination or a larger limit is needed, or if 100 is sufficient for debugging purposes.
+    *   **Performance:** Rendering very long log messages or large `data` payloads could impact `FlatList` performance. The `numberOfLines={3}` on the data helps, but very large datasets might still be an issue.
+    *   **Export Scope:** Exports only the currently loaded 100 logs. If users need to export *all* historical logs, the `exportLogs` function would need modification to fetch all logs from the DB instead of using the `logs` state.
+
+### `src/components/BottomTabBar.tsx` (Generated by AI Audit - Please Verify)
+
+*   **Purpose:** Custom bottom navigation bar with tabs and a central FAB.
+*   **Navigation:** Uses `expo-router` (`useRouter`, `usePathname`).
+*   **UI:** Standard tabs ('Scan', 'Search', 'Labels', 'Profile') + FAB.
+*   **FAB Behavior:** Acts as 'Add Item' normally, changes to 'Save Item' on `/item/...` screens.
+*   **Save Action:** Dispatches global `CustomEvent('item:save')` to trigger save on item screen (workaround).
+*   **Save Action:** Triggers save on item screen via Zustand store action (`triggerItemSave`).
+*   **Dependencies:** `react`, `react-native`, icons, `expo-router`, `../store`.
+*   **Potential Areas:**
+    *   Reliability of `activeTab` prop vs. router state.
+    *   Hardcoded routes.
+
+### `src/components/ProfileTopTabs.tsx` (Generated by AI Audit - Please Verify)
+
+*   **Purpose:** Custom top tab bar for the Profile screen ('profile', 'settings', 'sync').
+*   **Props:** `activeSection` (string), `onChangeSection` (callback).
+*   **Implementation:** Maps over a predefined `tabs` array, renders `TouchableOpacity`, applies active styles, calls `onChangeSection` on press.
+*   **Styling:** Uses `StyleSheet` and `lightTheme`.
+*   **Dependencies:** `react`, `react-native`, icons, `../themes`.
+*   **Potential Areas:**
+    *   Not very reusable (specific to Profile screen sections).
+    *   Could potentially be replaced by Expo Router's built-in top tab navigator for simpler state management.
+
+### `src/utils/logger.ts` (Generated by AI Audit - Please Verify)
+
+*   **Purpose:** Custom logging utility with levels, console output, in-memory buffering, AsyncStorage persistence, and file export.
+*   **Features:**
+    *   Levels: `DEBUG`, `INFO`, `WARN`, `

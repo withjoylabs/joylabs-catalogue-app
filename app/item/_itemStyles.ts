@@ -91,6 +91,39 @@ interface ItemStyles {
   footerButtonSaveAndPrint: any;
   footerButtonIcon: any;
   footerButtonText: any;
+
+  // Styles for Menu integration in footer
+  footerMenuWrapper: any;
+  footerButtonVisuals: any;
+
+  // === Styles for Print Options Popover Modal ===
+  printOptionsCenteredView: any;
+  printOptionsModalView: any;
+  printOptionsModalTitle: any;
+  printOptionVariationBlock: any;
+  printOptionVariationName: any;
+  printOptionItem: any;
+  printOptionItemIndent: any;
+  printOptionText: any;
+  printOptionDetailText: any;
+  // === End Styles for Print Options Popover Modal ===
+
+  // === Category Modal Styles (copied from _indexStyles for consistency) ===
+  categoryModalContainer: any;
+  categoryModalContent: any;
+  categoryModalTitle: any;
+  categoryModalSearchInput: any;
+  categoryModalItem: any;
+  categoryModalItemText: any;
+  categoryModalItemTextSelected: any;
+  categoryModalEmpty: any;
+  categoryModalEmptyText: any;
+  categoryModalFooter: any;
+  categoryModalButton: any;
+  categoryModalClearButton: any;
+  categoryModalCloseButton: any;
+  categoryModalButtonText: any;
+  categoryModalClearButtonText: any;
 }
 
 // Export the styles with type safety
@@ -98,6 +131,8 @@ export const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: lightTheme.colors.background,
+    alignItems: 'center',
+    marginTop: 10,
   },
   content: {
     flex: 1,
@@ -544,5 +579,172 @@ export const styles = StyleSheet.create({
     fontWeight: '500',
     textAlign: 'center',
     color: lightTheme.colors.text, // Default text color
+  },
+
+  // Styles for Menu integration in footer
+  footerMenuWrapper: {
+    flex: 1,
+    marginHorizontal: 4, // Matches footerButton margin
+  },
+  footerButtonVisuals: { // For the content inside MenuTrigger, making it look like a button
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,   // from footerButton
+    paddingHorizontal: 5, // from footerButton
+    borderRadius: 5,      // from footerButton
+    // IMPORTANT: No flex: 1 here
+  },
+
+  // === Styles for Print Options Popover Modal ===
+  printOptionsCenteredView: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  printOptionsModalView: {
+    margin: 20,
+    backgroundColor: lightTheme.colors.card, // Use theme color
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'stretch',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    width: '90%',
+    maxHeight: '80%',
+  },
+  printOptionsModalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 15,
+    textAlign: 'center',
+    color: lightTheme.colors.text,
+  },
+  printOptionVariationBlock: {
+    marginBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: lightTheme.colors.border,
+    paddingBottom: 10,
+  },
+  printOptionVariationName: { // For variation name when it has overrides
+    fontSize: 16,
+    fontWeight: '600',
+    color: lightTheme.colors.text,
+    marginBottom: 8,
+  },
+  printOptionItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    backgroundColor: '#f0f0f0', // Fallback for backgroundOffset, ensure good contrast with modal bg
+    borderRadius: 6,
+    marginBottom: 5,
+  },
+  printOptionItemIndent: { // For location overrides, indented
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    marginLeft: 15, 
+    backgroundColor: '#f0f0f0', // Fallback for backgroundOffset
+    borderRadius: 6,
+    marginBottom: 5,
+  },
+  printOptionText: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: lightTheme.colors.primary, 
+  },
+  printOptionDetailText: {
+    fontSize: 13,
+    color: '#888',
+    marginLeft: 10,
+  },
+  // === End Styles for Print Options Popover Modal ===
+
+  // === Category Modal Styles (copied from _indexStyles for consistency) ===
+  categoryModalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  categoryModalContent: {
+    width: '90%',
+    maxWidth: 500,
+    backgroundColor: 'white',
+    borderRadius: 14,
+    padding: 20,
+    maxHeight: '80%',
+  },
+  categoryModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  categoryModalSearchInput: {
+    height: 44,
+    borderColor: lightTheme.colors.border,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    fontSize: 16,
+    backgroundColor: lightTheme.colors.background,
+    color: lightTheme.colors.text,
+    marginBottom: 10,
+  },
+  categoryModalItem: {
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: lightTheme.colors.border,
+  },
+  categoryModalItemText: {
+    fontSize: 16,
+  },
+  categoryModalItemTextSelected: {
+    fontWeight: 'bold',
+    color: lightTheme.colors.primary,
+  },
+  categoryModalEmpty: {
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+  categoryModalEmptyText: {
+    color: '#666',
+  },
+  categoryModalFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingTop: 10,
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: lightTheme.colors.border,
+  },
+  categoryModalButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    flex: 1,
+    alignItems: 'center',
+  },
+  categoryModalClearButton: {
+    backgroundColor: '#e9ecef',
+    marginRight: 10,
+  },
+  categoryModalCloseButton: {
+    backgroundColor: lightTheme.colors.primary,
+  },
+  categoryModalButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: 'white',
+  },
+  categoryModalClearButtonText: {
+    color: lightTheme.colors.text,
   },
 }) as unknown as ItemStyles; // Ensures stricter type checking by TypeScript
