@@ -83,7 +83,6 @@ export default function ItemDetails() {
   const { id, ...params } = useLocalSearchParams<{ id: string, name?: string, sku?: string, barcode?: string }>();
   const navigation = useNavigation();
   const isNewItem = id === 'new';
-  const isProgrammaticNavigation = useRef(false);
   
   // Hooks for categories and items
   // const { // Commented out
@@ -117,6 +116,9 @@ export default function ItemDetails() {
   const [printNotificationMessage, setPrintNotificationMessage] = useState('');
   const [printNotificationType, setPrintNotificationType] = useState<'success' | 'error'>('success');
   
+  // State to manage navigation declaratively after a save action
+  const [postSaveAction, setPostSaveAction] = useState<(() => void) | null>(null);
+
   // State for variations
   const [variations, setVariations] = useState<ItemVariation[]>([{
     name: null,
@@ -493,7 +495,7 @@ export default function ItemDetails() {
   const isEmpty = useCallback((): boolean => {
     return (
       !(item.name && item.name.trim()) && 
-      !(item.sku && item.sku.trim()) && 
+      !(item.sku && item.sku.trim()) &&
       item.price === undefined &&
       !(item.description && item.description.trim()) &&
       !item.reporting_category_id
@@ -611,13 +613,15 @@ export default function ItemDetails() {
             
             // Step 2: If printing is successful, proceed to save the item.
             if (printSuccess) {
-                // Step 3: Save the item. Let it manage its own state flags, but prevent it from updating the local UI state.
+                // Step 3: Save the item. Let it manage its own state flags.
                 const savedItem = await handleSaveAction({ manageState: false });
 
-                // Step 4: If saving is successful, signal exit and navigate away.
+                // Step 4: If saving is successful, update state and set trigger for navigation.
                 if (savedItem) {
-                    isProgrammaticNavigation.current = true;
-                    handleSaveSuccessNavigation(savedItem);
+                    setItem(savedItem);
+                    setOriginalItem(savedItem);
+                    setVariations(savedItem.variations || []);
+                    setPostSaveAction(() => () => handleSaveSuccessNavigation(savedItem));
                 }
             }
         } catch (e) {
@@ -736,24 +740,9 @@ export default function ItemDetails() {
           const fetchedItem = await getProductById(id);
           if (fetchedItem) {
             console.log('[ItemDetails] Fetched Item Data:', JSON.stringify(fetchedItem, null, 2)); 
-            const initialReportingCategoryId = (fetchedItem as any).reporting_category?.id || fetchedItem.reporting_category_id || '';
-            console.log('[ItemDetails] Initial Reporting Category ID:', initialReportingCategoryId); 
-            
-            const initialTaxIds = fetchedItem.taxIds || [];
-            const initialModifierListIds = fetchedItem.modifierListIds || [];
-            const initialVersion = fetchedItem.version; 
-            
-            const itemWithReportingId = { 
-              ...fetchedItem, 
-              version: initialVersion, 
-              reporting_category_id: initialReportingCategoryId,
-              taxIds: initialTaxIds, 
-              modifierListIds: initialModifierListIds 
-            };
-            setItem(itemWithReportingId);
-            setOriginalItem(itemWithReportingId); 
-            
-            const itemVariations = fetchedItem.variations && Array.isArray(fetchedItem.variations) && fetchedItem.variations.length > 0
+
+            // Create the canonical 'variations' array first to ensure consistent structure.
+            const itemVariations = (fetchedItem.variations && Array.isArray(fetchedItem.variations) && fetchedItem.variations.length > 0
               ? fetchedItem.variations.map(v => ({
                   id: (v as ItemVariation).id,
                   version: (v as ItemVariation).version,
@@ -761,19 +750,38 @@ export default function ItemDetails() {
                   sku: (v as ItemVariation).sku || null,
                   price: (v as ItemVariation).price,
                   barcode: (v as ItemVariation).barcode,
-                  locationOverrides: (v as ItemVariation).locationOverrides // Pass locationOverrides through
+                  locationOverrides: (v as ItemVariation).locationOverrides || []
                 }))
-              : [{
-                  id: fetchedItem.variationId, // This might be from an older structure
+              : [{ // Fallback for older data structures
+                  id: fetchedItem.variationId,
                   version: fetchedItem.variationVersion,
                   name: fetchedItem.variationName || null,
                   sku: fetchedItem.sku || null,
                   price: fetchedItem.price,
                   barcode: fetchedItem.barcode,
-                  // No locationOverrides for this fallback structure by default
-                }];
+                  locationOverrides: []
+                }]).map(v => ({...v, locationOverrides: v.locationOverrides || []})); // Ensure overrides array exists
             
+            const initialReportingCategoryId = (fetchedItem as any).reporting_category?.id || fetchedItem.reporting_category_id || '';
+            const initialTaxIds = fetchedItem.taxIds || [];
+            const initialModifierListIds = fetchedItem.modifierListIds || [];
+            const initialVersion = fetchedItem.version; 
+            
+            // Construct the definitive item object using the transformed variations.
+            const definitiveItem = { 
+              ...fetchedItem, 
+              version: initialVersion, 
+              reporting_category_id: initialReportingCategoryId,
+              taxIds: initialTaxIds, 
+              modifierListIds: initialModifierListIds,
+              variations: itemVariations, // Use the canonical variations array
+            };
+
+            // Set all relevant state from this single source of truth.
+            setItem(definitiveItem);
+            setOriginalItem(definitiveItem);
             setVariations(itemVariations);
+            
           } else {
             setError('Item not found');
             setItem(EMPTY_ITEM);
@@ -838,9 +846,6 @@ export default function ItemDetails() {
   
   // Check if item has been edited and update 'all taxes selected' status
   useEffect(() => {
-    // This effect is now only for calculating the 'isEdited' state.
-    // The logic for 'setAllTaxesSelected' has been moved to its own effect for performance.
-
     const areArraysEqual = (a: string[] = [], b: string[] = []) => {
       if (a.length !== b.length) return false;
       const sortedA = [...a].sort();
@@ -1027,7 +1032,8 @@ export default function ItemDetails() {
             try {
               await deleteProduct(item.id as string); // Ensure item.id is passed as string
               Alert.alert('Success', 'Item deleted successfully');
-              isProgrammaticNavigation.current = true;
+              // Manually set isEdited to false right before navigating to prevent prompt.
+              setIsEdited(false);
               router.back(); // Dismiss modal on delete
             } catch (error: any) {
               console.error('Error deleting item:', error);
@@ -1073,9 +1079,13 @@ export default function ItemDetails() {
         const triggerSave = async () => {
             const savedItem = await handleSaveAction();
             if (savedItem) {
-                isProgrammaticNavigation.current = true;
+                // Update state upon successful save to mark as "not edited"
+                setItem(savedItem);
+                setOriginalItem(savedItem);
+                setVariations(savedItem.variations || []);
+                // Trigger navigation via the effect
+                setPostSaveAction(() => () => handleSaveSuccessNavigation(savedItem));
             }
-            handleSaveSuccessNavigation(savedItem);
         };
         triggerSave();
       } else {
@@ -1108,10 +1118,8 @@ export default function ItemDetails() {
   
   // NEW: Effect to handle unsaved changes before leaving the screen
   usePreventRemove(
-    isEdited && !isProgrammaticNavigation.current,
+    isEdited,
     ({ data }) => {
-      // Prevent default behavior is implicit with this hook.
-
       // Show a confirmation modal
       setModalContent({
         title: 'Unsaved Changes',
@@ -1119,9 +1127,6 @@ export default function ItemDetails() {
           {
             label: 'Discard Changes',
             onPress: () => {
-              setIsActionModalVisible(false);
-              // Set the flag to true to allow navigation and then dispatch the action
-              isProgrammaticNavigation.current = true;
               navigation.dispatch(data.action);
             },
             isDestructive: true,
@@ -1135,7 +1140,16 @@ export default function ItemDetails() {
       setIsActionModalVisible(true);
     }
   );
-  
+
+  // NEW: Effect to handle navigation after a save has completed and state has been updated.
+  useEffect(() => {
+    // If there's a post-save action pending AND the component is no longer edited, execute it.
+    if (postSaveAction && !isEdited) {
+      postSaveAction();
+      setPostSaveAction(null); // Reset for next time
+    }
+  }, [postSaveAction, isEdited]);
+
   // If loading, show spinner
   if (isLoading) {
     return (
@@ -1524,9 +1538,13 @@ export default function ItemDetails() {
                 onPress={async () => {
                   const savedItem = await handleSaveAction();
                   if (savedItem) {
-                      isProgrammaticNavigation.current = true;
+                      // Update state upon successful save to mark as "not edited"
+                      setItem(savedItem);
+                      setOriginalItem(savedItem);
+                      setVariations(savedItem.variations || []);
+                      // Trigger navigation via the effect
+                      setPostSaveAction(() => () => handleSaveSuccessNavigation(savedItem));
                   }
-                  handleSaveSuccessNavigation(savedItem);
                 }}
                 disabled={isSaving || isPrinting || isSavingAndPrinting || !isEdited} 
               >
