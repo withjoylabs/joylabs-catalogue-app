@@ -124,6 +124,7 @@ interface ItemStyles {
   categoryModalCloseButton: any;
   categoryModalButtonText: any;
   categoryModalClearButtonText: any;
+  categoryModalListContainer: any;
 }
 
 // Export the styles with type safety
@@ -131,11 +132,11 @@ export const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: lightTheme.colors.background,
-    alignItems: 'center',
     marginTop: 10,
   },
   content: {
     flex: 1,
+    width: '100%',
     padding: 16,
   },
   scrollContentContainer: {
@@ -287,12 +288,15 @@ export const styles = StyleSheet.create({
   recentCategoryChip: {
     backgroundColor: '#e9e9e9',
     borderRadius: 15,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
     marginRight: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: 36,
   },
   recentCategoryChipText: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#333',
   },
   variationContainer: {
@@ -679,13 +683,15 @@ export const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderRadius: 14,
     padding: 20,
-    maxHeight: '80%',
+    height: '75%',
+    maxHeight: 600,
   },
   categoryModalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    marginBottom: 15,
+    marginBottom: 10,
     textAlign: 'center',
+    color: lightTheme.colors.text,
   },
   categoryModalSearchInput: {
     height: 44,
@@ -746,5 +752,8 @@ export const styles = StyleSheet.create({
   },
   categoryModalClearButtonText: {
     color: lightTheme.colors.text,
+  },
+  categoryModalListContainer: {
+    flex: 1,
   },
 }) as unknown as ItemStyles; // Ensures stricter type checking by TypeScript

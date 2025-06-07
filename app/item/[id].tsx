@@ -17,7 +17,8 @@ import {
   KeyboardAvoidingView,
   Animated,
   ActivityIndicator,
-  SafeAreaView
+  SafeAreaView,
+  Pressable
 } from 'react-native';
 import { useRouter, useLocalSearchParams, Stack, useNavigation } from 'expo-router';
 import { usePreventRemove } from '@react-navigation/native';
@@ -837,7 +838,7 @@ export default function ItemDetails() {
     if (!categorySearch) {
       setFilteredCategories(availableCategories);
     } else {
-      const searchLower = categorySearch.toLowerCase();
+      const searchLower = categorySearch.toLowerCase().trim();
       const filtered = availableCategories.filter(
         category => category.name.toLowerCase().includes(searchLower)
       );
@@ -1610,7 +1611,7 @@ export default function ItemDetails() {
 
           {/* FINALLY a CORRECT Category Selection Modal - Centered Pop-up with Slide Animation */}
           <Modal
-            animationType="slide"
+            animationType="fade"
             transparent={true}
             visible={showCategoryModal}
             onRequestClose={() => {
@@ -1618,43 +1619,21 @@ export default function ItemDetails() {
               setCategorySearch('');
             }}
           >
-            <TouchableWithoutFeedback onPress={() => {
-              setShowCategoryModal(false);
-              setCategorySearch('');
-            }}>
-              <View style={styles.categoryModalContainer}>
+            <Pressable
+              style={styles.categoryModalContainer}
+              onPress={() => {
+                setShowCategoryModal(false);
+                setCategorySearch('');
+              }}
+            >
+              <KeyboardAvoidingView
+                behavior={Platform.OS === "ios" ? "padding" : "height"}
+                style={{ width: '100%', alignItems: 'center' }}
+                keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+              >
                 <TouchableWithoutFeedback>
-                  <KeyboardAvoidingView 
-                    behavior={Platform.OS === "ios" ? "padding" : "height"} 
-                    style={{ width: '100%', alignItems: 'center' }} 
-                    keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
-                  >
                     <View style={styles.categoryModalContent}>
                       <Text style={styles.categoryModalTitle}>Select Reporting Category</Text>
-                      <FlatList
-                          data={filteredCategories}
-                          keyExtractor={(cat) => cat.id}
-                          renderItem={({ item: cat }) => (
-                              <TouchableOpacity 
-                                  style={styles.categoryModalItem}
-                                  onPress={() => handleSelectCategory(cat.id)}
-                              >
-                                  <Text 
-                                      style={[
-                                          styles.categoryModalItemText,
-                                          (cat.id === item.reporting_category_id) && styles.categoryModalItemTextSelected 
-                                      ]}
-                                  >
-                                      {cat.name}
-                                  </Text>
-                              </TouchableOpacity>
-                          )}
-                          ListEmptyComponent={() => (
-                              <View style={styles.categoryModalEmpty}>
-                                  <Text style={styles.categoryModalEmptyText}>No categories match "{categorySearch}"</Text>
-                              </View>
-                          )}
-                      />
                       <TextInput
                           style={styles.categoryModalSearchInput}
                           placeholder="Search categories..."
@@ -1663,7 +1642,34 @@ export default function ItemDetails() {
                           onChangeText={setCategorySearch}
                           autoCapitalize="none"
                           autoCorrect={false}
+                          autoFocus
                       />
+                      <View style={styles.categoryModalListContainer}>
+                        <FlatList
+                            data={filteredCategories}
+                            keyExtractor={(cat) => cat.id}
+                            renderItem={({ item: cat }) => (
+                                <TouchableOpacity 
+                                    style={styles.categoryModalItem}
+                                    onPress={() => handleSelectCategory(cat.id)}
+                                >
+                                    <Text 
+                                        style={[
+                                            styles.categoryModalItemText,
+                                            (cat.id === item.reporting_category_id) && styles.categoryModalItemTextSelected 
+                                        ]}
+                                    >
+                                        {cat.name}
+                                    </Text>
+                                </TouchableOpacity>
+                            )}
+                            ListEmptyComponent={() => (
+                                <View style={styles.categoryModalEmpty}>
+                                    <Text style={styles.categoryModalEmptyText}>No categories match "{categorySearch}"</Text>
+                                </View>
+                            )}
+                        />
+                      </View>
                       <View style={styles.categoryModalFooter}>
                           <TouchableOpacity 
                               style={[styles.categoryModalButton, styles.categoryModalClearButton]} 
@@ -1682,10 +1688,9 @@ export default function ItemDetails() {
                           </TouchableOpacity>
                       </View>
                     </View>
-                  </KeyboardAvoidingView>
                 </TouchableWithoutFeedback>
-              </View>
-            </TouchableWithoutFeedback>
+              </KeyboardAvoidingView>
+            </Pressable>
           </Modal>
 
             {/* Print Notification Modal - Replaced with SystemModal */}
