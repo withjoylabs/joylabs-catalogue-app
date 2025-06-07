@@ -18,7 +18,7 @@ import {
   Alert, // Added for print feedback
 } from 'react-native';
 import { useRouter, useFocusEffect, Link, useNavigation } from 'expo-router';
-import { useIsFocused } from '@react-navigation/native';
+import { useIsFocused, useNavigationState } from '@react-navigation/native';
 import { Swipeable } from 'react-native-gesture-handler'; // Added for swipe actions
 import ConnectionStatusBar from '../../src/components/ConnectionStatusBar';
 import { ConvertedItem, SearchResultItem } from '../../src/types/api';
@@ -38,26 +38,33 @@ import { SearchFilters } from '../../src/database/modernDb'; // For search filte
 import { printItemLabel, LabelData } from '../../src/utils/printLabel'; // Added for printing
 import SystemModal from '../../src/components/SystemModal'; // Added for notifications
 
-// Debounce utility (copied from search.tsx)
+// Debounce utility
 const debounce = <F extends (...args: any[]) => any>(func: F, waitFor: number) => {
   let timeout: NodeJS.Timeout | null = null;
+  
   const debounced = (...args: Parameters<F>) => {
     if (timeout !== null) {
       clearTimeout(timeout);
-      timeout = null;
     }
     timeout = setTimeout(() => func(...args), waitFor);
   };
-  return debounced as (...args: Parameters<F>) => ReturnType<F>;
+
+  debounced.cancel = () => {
+    if (timeout !== null) {
+      clearTimeout(timeout);
+    }
+  };
+  
+  return debounced as ((...args: Parameters<F>) => void) & { cancel: () => void };
 };
 
 // --- START: SearchResultsArea Component Definition ---
 interface SearchResultsAreaProps {
-  initialSearchQuery: string;
+  searchTopic: string;
   onPrintSuccessForChaining: () => void;
 }
 
-const SearchResultsArea = memo(({ initialSearchQuery, onPrintSuccessForChaining }: SearchResultsAreaProps) => {
+const SearchResultsArea = memo(({ searchTopic, onPrintSuccessForChaining }: SearchResultsAreaProps) => {
   const router = useRouter(); 
   const swipeableRefs = useRef<Record<string, Swipeable | null>>({});
 
@@ -67,7 +74,6 @@ const SearchResultsArea = memo(({ initialSearchQuery, onPrintSuccessForChaining 
   const [printNotificationMessage, setPrintNotificationMessage] = useState('');
   const [printNotificationType, setPrintNotificationType] = useState<'success' | 'error'>('success');
 
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>('');
   const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
   const [searchFilters, setSearchFilters] = useState<SearchFilters>({
     name: true, 
@@ -80,21 +86,16 @@ const SearchResultsArea = memo(({ initialSearchQuery, onPrintSuccessForChaining 
   const [availableResultCategories, setAvailableResultCategories] = useState<Array<{ id: string; name: string }>>([]);
 
   const { performSearch, isSearching: catalogIsSearching, searchError: catalogSearchError } = useCatalogItems();
-  const debouncedSetQuery = useCallback(debounce(setDebouncedSearchQuery, 500), []);
-
-  useEffect(() => {
-    debouncedSetQuery(initialSearchQuery);
-  }, [initialSearchQuery, debouncedSetQuery]);
-
+  
   // Extracted search logic into a useCallback
   const executeSearch = useCallback(async () => {
-    if (debouncedSearchQuery.trim() === '') {
+    if (searchTopic.trim() === '') {
       setSearchResults([]);
       return;
     }
     
-    logger.info('SearchResultsArea', 'Executing search for query:', { query: debouncedSearchQuery });
-    const rawResults = await performSearch(debouncedSearchQuery, searchFilters);
+    logger.info('SearchResultsArea', 'Executing search for topic:', { topic: searchTopic });
+    const rawResults = await performSearch(searchTopic, searchFilters);
     
     let processedResults = [...rawResults];
 
@@ -117,8 +118,8 @@ const SearchResultsArea = memo(({ initialSearchQuery, onPrintSuccessForChaining 
         break;
     }
     setSearchResults(processedResults);
-    logger.info('SearchResultsArea', 'Search executed, results set.', { count: processedResults.length });
-  }, [debouncedSearchQuery, searchFilters, performSearch, sortOrder, selectedResultCategoryId, setSearchResults]);
+    // logger.info('SearchResultsArea', 'Search executed, results set.', { count: processedResults.length });
+  }, [searchTopic, searchFilters, performSearch, sortOrder, selectedResultCategoryId, setSearchResults]);
 
   // useEffect to run search when query/filters/sort change
   useEffect(() => {
@@ -128,7 +129,7 @@ const SearchResultsArea = memo(({ initialSearchQuery, onPrintSuccessForChaining 
   // Effect to update/refresh search results if a relevant item was globally updated or created
   useEffect(() => {
     if (lastUpdatedItem) {
-      logger.info('SearchResultsArea', 'lastUpdatedItem detected, re-executing search.', { itemId: lastUpdatedItem.id });
+      // logger.info('SearchResultsArea', 'lastUpdatedItem detected, re-executing search.', { itemId: lastUpdatedItem.id });
       executeSearch(); 
       setLastUpdatedItem(null); 
     }
@@ -179,7 +180,7 @@ const SearchResultsArea = memo(({ initialSearchQuery, onPrintSuccessForChaining 
   }, [setSelectedResultCategoryId]);
 
   const handleResultItemPress = useCallback((item: SearchResultItem) => {
-    logger.info('SearchResultsArea', 'Search result selected', { itemId: item.id, name: item.name });
+    // logger.info('SearchResultsArea', 'Search result selected', { itemId: item.id, name: item.name });
     router.push(`/item/${item.id}`);
   }, [router]);
 
@@ -298,7 +299,7 @@ const SearchResultsArea = memo(({ initialSearchQuery, onPrintSuccessForChaining 
         </View>
       );
     }
-    if (catalogIsSearching && debouncedSearchQuery.trim() !== '') {
+    if (catalogIsSearching && searchTopic.trim() !== '') {
       return (
         <View style={styles.emptyContainer}>
           <ActivityIndicator size="large" color={lightTheme.colors.primary} />
@@ -306,7 +307,7 @@ const SearchResultsArea = memo(({ initialSearchQuery, onPrintSuccessForChaining 
         </View>
       );
     }
-    if (debouncedSearchQuery.trim() === '' && initialSearchQuery.trim() === '') {
+    if (searchTopic.trim() === '') {
       return (
         <View style={styles.emptyContainer}>
           <Ionicons name="search-outline" size={48} color="#ccc" />
@@ -315,8 +316,8 @@ const SearchResultsArea = memo(({ initialSearchQuery, onPrintSuccessForChaining 
         </View>
       );
     }
-    if (searchResults.length === 0 && debouncedSearchQuery.trim() !== '') {
-      const query = debouncedSearchQuery.trim();
+    if (searchResults.length === 0 && searchTopic.trim() !== '') {
+      const query = searchTopic.trim();
       return (
         <View style={styles.emptyContainer}>
           <Ionicons name="file-tray-outline" size={48} color="#ccc" />
@@ -346,12 +347,12 @@ const SearchResultsArea = memo(({ initialSearchQuery, onPrintSuccessForChaining 
       );
     }
     return null;
-  }, [catalogSearchError, catalogIsSearching, debouncedSearchQuery, initialSearchQuery, searchResults, styles, lightTheme, router]);
+  }, [catalogSearchError, catalogIsSearching, searchTopic, searchResults, styles, lightTheme, router]);
 
   const renderFilterBadges = useCallback(() => {
     const activeFilters = Object.entries(searchFilters).filter(([key, isEnabled]) => key !== 'category' && isEnabled).map(([key]) => key as keyof SearchFilters);
     if (activeFilters.length === 3 || activeFilters.length === 0) return null;
-    if (initialSearchQuery.trim().length === 0) return null; 
+    if (searchTopic.trim().length === 0) return null; 
     return (
       <View style={styles.filterBadgesContainer}>
         {activeFilters.map((filterKey) => (
@@ -362,7 +363,7 @@ const SearchResultsArea = memo(({ initialSearchQuery, onPrintSuccessForChaining 
         )}
       </View>
     );
-  }, [searchFilters, initialSearchQuery, styles, selectedResultCategoryId, availableResultCategories]);
+  }, [searchFilters, searchTopic, styles, selectedResultCategoryId, availableResultCategories]);
 
   return (
     <View style={styles.mainContent}> 
@@ -376,7 +377,7 @@ const SearchResultsArea = memo(({ initialSearchQuery, onPrintSuccessForChaining 
         keyboardShouldPersistTaps="handled"
         style={{ flex: 1 }}
       />
-      {initialSearchQuery.trim().length > 0 && (
+      {searchTopic.trim().length > 0 && (
         <FilterAndSortControls 
           searchFilters={searchFilters} 
           onToggleFilter={toggleFilter} 
@@ -564,72 +565,65 @@ export default function App() {
 function RootLayoutNav() {
   const router = useRouter();
   const { isConnected } = useApi();
-  const isFocused = useIsFocused();
   const searchInputRef = useRef<TextInput>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isScanSearch, setIsScanSearch] = useState(false);
 
-  // Auto-focus and select text in search bar on screen focus
+  // State for the *finalized* search term that triggers the actual search.
+  const [searchTopic, setSearchTopic] = useState('');
+  // A state to signal to the search bar that it should select all its text.
+  const [selectAllSignal, setSelectAllSignal] = useState(0);
+
+  const itemModalJustClosed = useAppStore(state => state.itemModalJustClosed);
+  const setItemModalJustClosed = useAppStore(state => state.setItemModalJustClosed);
+
   useFocusEffect(
     useCallback(() => {
-      const focusTimeout = setTimeout(() => {
-        searchInputRef.current?.focus();
-        if (isScanSearch && searchQuery.length > 0) {
-          searchInputRef.current?.setSelection(0, searchQuery.length);
-          setIsScanSearch(false); // Reset the flag after selection
-        }
-      }, 500);
-
-      return () => {
-        clearTimeout(focusTimeout);
-      };
-    }, [isScanSearch, searchQuery])
+      // Logic to run when the screen is focused
+      if (itemModalJustClosed) {
+        // logger.info('RootLayoutNav', 'Modal was just closed, focusing input and selecting all.');
+        const timeout = setTimeout(() => {
+          searchInputRef.current?.focus();
+          setSelectAllSignal(prev => prev + 1);
+        }, 50);
+        
+        // Reset the flag immediately after processing
+        setItemModalJustClosed(false);
+        
+        return () => clearTimeout(timeout);
+      } else {
+        // For general focus (like switching tabs), just focus the input without selecting all.
+        const timeout = setTimeout(() => {
+          searchInputRef.current?.focus();
+        }, 50);
+        return () => clearTimeout(timeout);
+      }
+    }, [itemModalJustClosed, setItemModalJustClosed])
   );
 
+  const handleSearchSubmit = useCallback((query: string) => {
+    // logger.info('RootLayoutNav', 'Search submitted', { query });
+    setSearchTopic(query);
+    // NOTE: No longer triggering select all here to avoid aggressive highlighting.
+  }, []);
+
   const handleClearSearch = useCallback(() => {
-    setSearchQuery('');
-    setIsScanSearch(false);
+    setSearchTopic('');
     searchInputRef.current?.focus();
   }, []);
 
-  const handleBarcodeScanned = useCallback((data: { [key: string]: any }) => {
-    const barcode = data.data;
-    if (typeof barcode === 'string' && barcode.length > 0) {
-      logger.info('Barcode scanned', barcode);
-      setSearchQuery(barcode);
-      setIsScanSearch(true); // Flag this as a scan-initiated search
-    }
-  }, []);
-
   const handlePrintAndClear = useCallback(() => {
-    setSearchQuery('');
-    setIsScanSearch(false);
+    setSearchTopic('');
+    // After printing, just focus the input. Selection is handled by the focus effect.
     setTimeout(() => {
       searchInputRef.current?.focus();
-    }, 100);
+    }, 100); 
   }, []);
-
+  
   const scanHistory = useAppStore((state) => state.scanHistory);
   const addScanHistoryItem = useAppStore((state) => state.addScanHistoryItem);
-  const autoSearchOnEnter = useAppStore((state) => state.autoSearchOnEnter);
-  const autoSearchOnTab = useAppStore((state) => state.autoSearchOnTab);
   
   const navigateToHistory = useCallback(() => {
     router.push('/(tabs)/scanHistory');
   }, [router]);
-
-  const handlePrintSuccessForChaining = useCallback(() => {
-    if (searchInputRef.current) {
-      searchInputRef.current.focus();
-      if (searchQuery.length > 0) {
-        searchInputRef.current.setSelection(0, searchQuery.length);
-      }
-      logger.info('RootLayoutNav', 'Search input focused and text selected for chain scanning.');
-    }
-  }, [searchInputRef, searchQuery]);
-  
-  const KAV_OFFSET_IOS = 0;
-  const KAV_OFFSET_ANDROID = 0;
   
   return (
     <SafeAreaView style={styles.container}>
@@ -643,15 +637,16 @@ function RootLayoutNav() {
       <ScanHistoryButtonComponent count={scanHistory.length} onNavigate={navigateToHistory} />
 
       <SearchResultsArea 
-        initialSearchQuery={searchQuery} 
+        searchTopic={searchTopic} 
         onPrintSuccessForChaining={handlePrintAndClear}
       />
 
       <BottomSearchBarComponent 
-        searchInputRef={searchInputRef} 
-        searchQuery={searchQuery} 
-        setSearchQuery={setSearchQuery} 
-        onClearSearch={handleClearSearch} 
+        ref={searchInputRef} 
+        searchTopic={searchTopic}
+        onSearchSubmit={handleSearchSubmit} 
+        onClearSearch={handleClearSearch}
+        selectAllSignal={selectAllSignal}
       />
     </SafeAreaView>
   );
@@ -674,17 +669,52 @@ const FilterButtonsComponent = memo(({ searchFilters, onToggleFilter }: FilterBu
 });
 
 interface BottomSearchBarProps {
-  searchInputRef: React.RefObject<TextInput | null>;
-  searchQuery: string;
-  setSearchQuery: (query: string) => void;
+  searchTopic: string;
+  onSearchSubmit: (query: string) => void;
   onClearSearch: () => void;
+  selectAllSignal: number;
 }
-const BottomSearchBarComponent = memo(({ 
-  searchInputRef, 
-  searchQuery, 
-  setSearchQuery, 
+const BottomSearchBarComponent = memo(React.forwardRef<TextInput, BottomSearchBarProps>(({ 
+  searchTopic,
+  onSearchSubmit,
   onClearSearch,
-}: BottomSearchBarProps) => {
+  selectAllSignal,
+}, ref) => {
+  // This state is for UI responsiveness (e.g., showing/hiding clear buttons).
+  // It is NOT used to control the TextInput value, which is the key to the fix.
+  const [inputValue, setInputValue] = useState(searchTopic);
+
+  // Debounced function to trigger search after user stops typing.
+  const debouncedSearch = useCallback(debounce((query: string) => {
+    onSearchSubmit(query);
+  }, 500), [onSearchSubmit]);
+
+  // Sync from parent if searchTopic changes externally (e.g., from history).
+  // This ensures the key prop change is respected and state is in sync.
+  useEffect(() => {
+    if (searchTopic !== inputValue) {
+      setInputValue(searchTopic);
+    }
+  }, [searchTopic]);
+
+  // Handle incoming selectAll signal from the parent.
+  useEffect(() => {
+    if (selectAllSignal > 0 && ref && 'current' in ref && ref.current) {
+      ref.current.setSelection(0, inputValue.length);
+    }
+  }, [selectAllSignal, ref, inputValue]);
+
+  const handleChangeText = (text: string) => {
+    setInputValue(text); // Update local state for UI purposes.
+    debouncedSearch(text); // Trigger the actual debounced search.
+  };
+
+  const handleClear = () => {
+    debouncedSearch.cancel();
+    setInputValue('');
+    onClearSearch(); // Notify parent to clear search results and re-mount this component.
+  };
+
   const KAV_OFFSET_IOS_internal = 0; 
   const KAV_OFFSET_ANDROID_internal = 0;
 
@@ -695,35 +725,37 @@ const BottomSearchBarComponent = memo(({
       style={styles.searchBarContainer} 
     >
       <TouchableOpacity 
-        style={[styles.externalClearTextButton, searchQuery.length === 0 && styles.externalClearTextButtonDisabled]}
-        onPress={onClearSearch}
-        disabled={searchQuery.length === 0}
+        style={[styles.externalClearTextButton, inputValue.length === 0 && styles.externalClearTextButtonDisabled]}
+        onPress={handleClear}
+        disabled={inputValue.length === 0}
       >
-        <Text style={[styles.externalClearButtonText, searchQuery.length === 0 && styles.externalClearButtonTextDisabled]}>Clear</Text>
+        <Text style={[styles.externalClearButtonText, inputValue.length === 0 && styles.externalClearButtonTextDisabled]}>Clear</Text>
       </TouchableOpacity>
       <View style={styles.searchInputWrapper}>
         <Ionicons name="search" size={22} color="#888" style={styles.searchIcon} />
         <TextInput
-          ref={searchInputRef}
+          key={searchTopic} // *** CRITICAL: Re-mounts component when topic changes, making it uncontrolled.
+          ref={ref}
           style={styles.searchInput}
           placeholder="Scan barcode or search items..."
           placeholderTextColor="#999"
-          value={searchQuery}
-          onChangeText={setSearchQuery}
+          defaultValue={searchTopic} // Use defaultValue to make it an UNCONTROLLED component.
+          onChangeText={handleChangeText}
+          autoFocus={true}
           autoCapitalize="none"
           autoCorrect={false}
           returnKeyType="search"
           blurOnSubmit={false}
         />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity style={styles.clearButton} onPress={onClearSearch}>
+        {inputValue.length > 0 && (
+          <TouchableOpacity style={styles.clearButton} onPress={handleClear}>
             <Ionicons name="close-circle" size={20} color="#aaa" />
           </TouchableOpacity>
         )}
       </View>
     </KeyboardAvoidingView>
   );
-});
+}));
 
 // Define Memoized ScanHistoryButtonComponent
 interface ScanHistoryButtonProps {

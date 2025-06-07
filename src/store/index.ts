@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ScanHistoryItem } from '../types'; // Import ScanHistoryItem
-import { ConvertedItem } from '../types/api'; // Import ConvertedItem
+import { ConvertedItem, CatalogCategoryData } from '../types/api'; // Import ConvertedItem and CatalogCategoryData
 import logger from '../utils/logger'; // Import logger
 
 // Product type definition
@@ -127,6 +127,9 @@ interface AppState {
   
   refreshProducts: () => Promise<void>;
   loadMoreProducts: () => Promise<void>;
+
+  itemModalJustClosed: boolean;
+  setItemModalJustClosed: (wasClosed: boolean) => void;
 }
 
 // Add the same helper function
@@ -260,6 +263,9 @@ export const useAppStore = create<AppState>()(
       refreshProducts: async () => { console.warn('refreshProducts not implemented in store'); },
       loadMoreProducts: async () => { console.warn('loadMoreProducts not implemented in store'); },
       
+      itemModalJustClosed: false,
+      setItemModalJustClosed: (wasClosed: boolean) => set({ itemModalJustClosed: wasClosed }),
+      
       // ... rest of the store implementation ...
     }),
     {
@@ -281,6 +287,7 @@ export const useAppStore = create<AppState>()(
               'labelLiveFieldMap',
               'showSuccessNotification',
               'successMessage',
+              'itemModalJustClosed',
               // 'lastUpdatedItem' should NOT be persisted
             ].includes(key)
           )

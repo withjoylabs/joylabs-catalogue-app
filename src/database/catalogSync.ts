@@ -442,182 +442,87 @@ export class CatalogSyncService {
   }
 
   /**
-   * Manually trigger a full catalog sync
-   * @param skipCategorySync Whether to skip syncing categories (speeds up full sync)
+   * Run a full catalog sync
    */
-  public async runFullSync(): Promise<void> {
-    logger.info('CatalogSync', 'Starting full catalog sync run...');
-    
-    // Check auth before proceeding
-    try {
-      await this.checkAuthentication();
-    } catch (authError) {
-       logger.error('CatalogSync', 'Authentication failed before starting sync', { error: authError });
-      await this.updateSyncStatus({ syncError: authError instanceof Error ? authError.message : String(authError), isSyncing: false });
-      return; // Stop sync if not authenticated
+  public async runFullSync(): Promise<{ itemCount: number, categoryCount: number }> {
+    const status = await this.getSyncStatus();
+    if (status.isSyncing) {
+      logger.warn('CatalogSync', 'Full sync aborted - another sync is already in progress');
+      return { itemCount: 0, categoryCount: 0 };
     }
     
-    let currentStatus = await this.getSyncStatus();
-
-    // Prevent concurrent syncs
-    if (currentStatus.isSyncing) {
-      logger.warn('CatalogSync', 'Sync already in progress. Skipping new run.');
-      return;
-    }
-
-    // --- Begin Sync --- 
+    logger.info('CatalogSync', 'Starting full sync...');
     await this.updateSyncStatus({
       isSyncing: true,
       syncError: null,
       syncProgress: 0,
-      syncTotal: 0, // Reset total, as it's hard to know beforehand
+      syncTotal: 0, // Reset total, will be set by each batch
       syncType: 'full',
       lastSyncAttempt: new Date().toISOString(),
-      syncAttemptCount: (currentStatus.syncAttemptCount || 0) + 1,
-      // Keep last_page_cursor from status in case we are resuming
+      syncAttemptCount: (status.syncAttemptCount || 0) + 1
     });
-
-    let cursor: string | null | undefined = currentStatus.last_page_cursor; // Start from stored cursor if available
-    let page = 1;
-    let totalObjectsProcessed = 0;
-    const limit = 1000; // Page size (adjustable)
-    const typesToFetch = 'ITEM,CATEGORY,MODIFIER_LIST,MODIFIER,TAX,DISCOUNT,IMAGE'; // All relevant types
-    let successfulCompletion = false;
+    
+    let totalItemsSynced = 0;
+    let totalCategoriesSynced = 0;
 
     try {
-      // Clear previous catalog data before starting a full sync
-      // Only clear if we are starting from the beginning (no cursor)
-      if (!cursor) {
-        logger.info('CatalogSync', 'Starting from beginning, clearing existing catalog data...');
-        await modernDb.clearCatalogData();
-        logger.info('CatalogSync', 'Existing catalog data cleared.');
-      }
+      // Step 1: Clear existing catalog data
+      logger.info('CatalogSync', 'Clearing existing catalog data...');
+      await modernDb.clearCatalogData();
       
-      // Fetch and sync locations from Square API before catalog items
-      logger.info('CatalogSync', 'Syncing locations from Square API...');
+      // Step 2: Fetch all catalog data from Square in pages
+      let cursor: string | undefined = undefined;
+      const objectTypes = "ITEM,CATEGORY,TAX,MODIFIER_LIST,DISCOUNT,IMAGE";
       
-      // Implement location syncing directly here
-      try {
-        const response = await directSquareApi.fetchLocations();
-        
-        if (!response.success || !response.data || !response.data.locations) {
-          logger.warn('CatalogSync', 'Failed to fetch locations from Square API', { 
-            responseSuccess: response.success, 
-            error: response.error
-          });
-        } else {
-          const locations = response.data.locations;
-          logger.info('CatalogSync', `Fetched ${locations.length} locations from Square API`);
-          
-          // Get the database
-          const db = await modernDb.getDatabase();
-          
-          // Process and store locations
-          await db.withTransactionAsync(async () => {
-            // First mark all existing locations as deleted
-            await db.runAsync('UPDATE locations SET is_deleted = 1');
-            
-            // Insert/update each location from the API
-            for (const location of locations) {
-              // Format address as JSON string if it exists
-              const addressStr = location.address ? JSON.stringify(location.address) : null;
-              
-              await db.runAsync(`
-                INSERT OR REPLACE INTO locations (
-                  id, name, merchant_id, address, timezone,
-                  phone_number, business_name, business_email,
-                  website_url, description, status, type,
-                  created_at, last_updated, data, is_deleted
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-              `, [
-                location.id,
-                location.name,
-                location.merchant_id,
-                addressStr,
-                location.timezone,
-                location.phone_number,
-                location.business_name,
-                location.business_email,
-                location.website_url,
-                location.description,
-                location.status,
-                location.type,
-                location.created_at,
-                new Date().toISOString(),
-                JSON.stringify(location), // Store full location data as JSON
-                0 // Not deleted
-              ]);
-            }
-          });
-          
-          logger.info('CatalogSync', `Successfully synced ${locations.length} locations to database`);
-        }
-      } catch (locationError) {
-        logger.error('CatalogSync', 'Error syncing locations from Square API', { error: locationError });
-        // Continue with catalog sync even if location sync fails
-      }
-      
+      // Loop to handle pagination
       do {
-        logger.info('CatalogSync', `Fetching page ${page}. Cursor: ${cursor ? 'Yes' : 'No'}`);
+        logger.info('CatalogSync', `Fetching catalog page... ${cursor ? `(cursor: ${cursor})` : ''}`);
         
-        // Update progress (optional: track page number)
-        await this.updateSyncStatus({ syncProgress: totalObjectsProcessed }); // Update progress with objects processed so far
+        // Use directSquareApi to make the API call
+        const response = await directSquareApi.fetchCatalogPage(1000, cursor, objectTypes);
 
-        // Fetch page from API
-        // Note: The API function gets the token internally via apiClient
-        const response = await directSquareApi.fetchCatalogPage(limit, cursor ?? undefined, typesToFetch);
-        
         const objects = response.objects || [];
-        const nextCursor = response.cursor;
+        const newCursor = response.cursor;
 
-        logger.info('CatalogSync', `Page ${page}: Received ${objects.length} objects. Next cursor: ${nextCursor ? 'Yes' : 'No'}`);
+        if (objects && objects.length > 0) {
+          logger.info('CatalogSync', `Fetched ${objects.length} objects from Square`);
+          await modernDb.upsertCatalogObjects(objects);
+          
+          // Update counts
+          totalItemsSynced += objects.filter((o: CatalogObjectFromApi) => o.type === 'ITEM').length;
+          totalCategoriesSynced += objects.filter((o: CatalogObjectFromApi) => o.type === 'CATEGORY').length;
 
-        if (objects.length > 0) {
-           // Store fetched objects in the database
-           logger.debug('CatalogSync', `Storing ${objects.length} objects from page ${page}...`);
-           await modernDb.upsertCatalogObjects(objects);
-           totalObjectsProcessed += objects.length;
-           logger.debug('CatalogSync', `Stored objects from page ${page}. Total processed: ${totalObjectsProcessed}`);
+          // Update sync progress
+          await this.updateSyncStatus({
+            syncProgress: totalItemsSynced + totalCategoriesSynced, // Simple progress for now
+            syncTotal: (status.syncTotal || 0) + objects.length
+          });
         }
-
-        cursor = nextCursor; // Update cursor for the next iteration
-
-        // Store the latest cursor in case sync is interrupted
-        await this.updateSyncStatus({ last_page_cursor: cursor }); 
-
-        page++;
-
-        // Optional delay to avoid overwhelming the backend or DB
-        // await new Promise(resolve => setTimeout(resolve, 100)); 
-
+        
+        cursor = newCursor || undefined;
+        
       } while (cursor);
-
-      // --- Sync Complete --- 
-      logger.info('CatalogSync', `Full catalog sync completed successfully! Processed ${totalObjectsProcessed} objects.`);
+      
+      // Step 3: Finalize sync
+      logger.info('CatalogSync', 'Full sync completed successfully');
       await this.updateSyncStatus({
         isSyncing: false,
-        syncError: null,
         lastSyncTime: new Date().toISOString(),
-        syncProgress: totalObjectsProcessed,
-        syncTotal: totalObjectsProcessed, // Set total to processed count on success
-        syncAttemptCount: 0, // Reset attempt count on success
-        last_page_cursor: null // Clear cursor on successful completion
+        syncError: null,
+        syncAttemptCount: 0 // Reset attempt count on success
       });
-      successfulCompletion = true;
+
+      return { itemCount: totalItemsSynced, categoryCount: totalCategoriesSynced };
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error('CatalogSync', 'Full catalog sync failed', { error: errorMessage, page, lastCursor: cursor });
+      logger.error('CatalogSync', 'Full sync failed', { error: errorMessage });
       await this.updateSyncStatus({
         isSyncing: false,
-        syncError: `Sync failed on page ${page}: ${errorMessage}`,
-        // Keep progress and attempt count
+        syncError: errorMessage
       });
-    } finally {
-       // Schedule next sync only if this one completed successfully
-       if (successfulCompletion) {
-         this.scheduleNextSync();
-       }
+      // Re-throw to allow UI to handle the error
+      throw error;
     }
   }
 

@@ -8,6 +8,7 @@ import { transformCatalogItemToItem } from '../utils/catalogTransformers';
 const DATABASE_NAME = 'joylabs.db';
 const DATABASE_VERSION = 2; // Increment version due to schema change
 let db: SQLiteDatabase | null = null;
+let dbInitPromise: Promise<SQLiteDatabase> | null = null;
 
 // Define a helper type for Catalog Objects from API
 // (This is simplified; a more specific type based on Square docs would be better)
@@ -30,53 +31,54 @@ type CatalogObjectFromApi = {
 };
 
 /**
- * Initializes the database connection and schema
+ * Initializes the database connection and schema. This function is now designed
+ * to be robust against race conditions by using a singleton promise.
  */
-export async function initDatabase(): Promise<SQLiteDatabase> {
-  try {
-    logger.info('Database', 'Initializing database');
-    
-    if (db) {
-      logger.debug('Database', 'Database already initialized');
-      return db;
-    }
-    
-    // Open or create database
-    db = await openDatabaseAsync(DATABASE_NAME);
-    logger.info('Database', 'Database opened successfully');
-    
-    // Get current database version
-    let currentVersion = 0;
-    try {
-      const versionRow = await db.getFirstAsync<{ version: number }>(
-        'SELECT version FROM db_version WHERE id = 1'
-      );
-      currentVersion = versionRow?.version || 0;
-    } catch (e) {
-      // Table might not exist yet
-      currentVersion = 0;
-    }
-
-    // Check if migration is needed
-    if (currentVersion < DATABASE_VERSION) {
-      logger.info('Database', `Needs migration from v${currentVersion} to v${DATABASE_VERSION}`);
-      // Perform migration (or full reset for simplicity)
-      await resetDatabase(); // Resets and sets the version
-    } else {
-      // Just initialize schema if no migration needed
-      await initializeSchema();
-    }
-    
-    // Ensure the locations table is properly set up
-    await ensureLocationsTable();
-    
-    logger.info('Database', 'Database initialized successfully');
-    
-    return db;
-  } catch (error) {
-    logger.error('Database', 'Failed to initialize database', { error });
-    throw new Error(`Failed to initialize database: ${error instanceof Error ? error.message : String(error)}`);
+export function initDatabase(): Promise<SQLiteDatabase> {
+  if (db) {
+    return Promise.resolve(db);
   }
+  if (dbInitPromise) {
+    return dbInitPromise;
+  }
+
+  dbInitPromise = (async () => {
+    try {
+      logger.info('Database', 'Initializing database connection...');
+      
+      const newDb = await openDatabaseAsync(DATABASE_NAME);
+      logger.info('Database', 'Database opened successfully');
+      
+      let currentVersion = 0;
+      try {
+        const versionRow = await newDb.getFirstAsync<{ version: number }>(
+          'SELECT version FROM db_version WHERE id = 1'
+        );
+        currentVersion = versionRow?.version || 0;
+      } catch (e) {
+        currentVersion = 0;
+      }
+
+      if (currentVersion < DATABASE_VERSION) {
+        logger.info('Database', `Needs migration from v${currentVersion} to v${DATABASE_VERSION}`);
+        await initializeSchema(newDb);
+      } else {
+        await initializeSchema(newDb);
+      }
+      
+      await ensureLocationsTable(newDb);
+      
+      logger.info('Database', 'Database initialized successfully');
+      db = newDb; // Assign to global `db` only on success
+      return db;
+    } catch (error) {
+      logger.error('Database', 'Failed to initialize database', { error });
+      dbInitPromise = null; // Reset promise on failure to allow retries
+      throw new Error(`Failed to initialize database: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  })();
+
+  return dbInitPromise;
 }
 
 /**
@@ -130,9 +132,9 @@ async function checkDatabaseMigration(db: SQLiteDatabase): Promise<boolean> {
 /**
  * Initialize database schema - creates tables if they don't exist
  */
-export async function initializeSchema(): Promise<void> {
+export async function initializeSchema(dbInstance?: SQLiteDatabase): Promise<void> {
   logger.info('Database', 'Initializing database schema...');
-  const db = await getDatabase();
+  const db = dbInstance || await getDatabase();
   let currentVersion = 0;
 
   // Check if db_version table exists and get current version
@@ -310,7 +312,7 @@ export async function initializeSchema(): Promise<void> {
           status TEXT,
           main_location_id TEXT,
           created_at TEXT,
-          last_updated TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          last_updated TEXT,
           logo_url TEXT,
           data TEXT
         )`);
@@ -330,8 +332,9 @@ export async function initializeSchema(): Promise<void> {
           type TEXT,
           logo_url TEXT,
           created_at TEXT,
-          last_updated TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          data TEXT
+          last_updated TEXT,
+          data TEXT,
+          is_deleted INTEGER NOT NULL DEFAULT 0
         )`);
         logger.debug('Schema Init', 'Created locations table.');
         await db.runAsync(`CREATE TABLE sync_logs (
@@ -412,277 +415,52 @@ export async function initializeSchema(): Promise<void> {
 }
 
 /**
- * Reset the database by recreating all tables according to the latest schema.
+ * Resets the entire database by deleting the file and re-initializing it.
+ * This is a destructive operation.
+ * @param dbInstance - An optional existing database instance to close.
  */
 export async function resetDatabase(): Promise<void> {
-  logger.info('Database', 'Resetting database...');
-  const db = await getDatabase();
+  logger.warn('Database', 'Executing full database reset...');
+  try {
+    // Step 1: Close the active database connection, if it exists.
+    await closeDatabase();
 
-  // Create tables in a transaction for atomicity
-  await db.withTransactionAsync(async () => {
-    logger.info('Database Reset', 'Starting transaction...'); // Log transaction start
-    
-    logger.info('Database Reset', 'Dropping existing tables...');
-    try {
-      await db.runAsync('DROP TABLE IF EXISTS sync_status');
-      await db.runAsync('DROP TABLE IF EXISTS categories');
-      await db.runAsync('DROP TABLE IF EXISTS catalog_items');
-      await db.runAsync('DROP TABLE IF EXISTS item_variations');
-      await db.runAsync('DROP TABLE IF EXISTS modifier_lists');
-      await db.runAsync('DROP TABLE IF EXISTS modifiers');
-      await db.runAsync('DROP TABLE IF EXISTS taxes');
-      await db.runAsync('DROP TABLE IF EXISTS discounts');
-      await db.runAsync('DROP TABLE IF EXISTS images');
-      await db.runAsync('DROP TABLE IF EXISTS merchant_info');
-      await db.runAsync('DROP TABLE IF EXISTS locations');
-      await db.runAsync('DROP TABLE IF EXISTS sync_logs');
-      await db.runAsync('DROP TABLE IF EXISTS db_version');
-      logger.info('Database Reset', 'Existing tables dropped successfully.');
-    } catch (dropError) {
-      logger.error('Database Reset', 'Error dropping tables', { dropError });
-      throw dropError; // Ensure transaction rolls back on drop error
-    }
+    // Step 2: Delete the database file from the filesystem.
+    const dbPath = `${FileSystem.documentDirectory}SQLite/${DATABASE_NAME}`;
+    logger.info('Database', `Deleting database file at: ${dbPath}`);
+    await FileSystem.deleteAsync(dbPath, { idempotent: true });
+    logger.info('Database', 'Database file deleted successfully.');
 
-    logger.info('Database Reset', 'Creating new tables...');
-    try {
-      // Create sync_status table
-      await db.runAsync(`CREATE TABLE sync_status (
-          id INTEGER PRIMARY KEY NOT NULL DEFAULT 1,
-          last_sync_time TEXT,
-          is_syncing INTEGER NOT NULL DEFAULT 0,
-          sync_error TEXT,
-          sync_progress INTEGER NOT NULL DEFAULT 0,
-          sync_total INTEGER NOT NULL DEFAULT 0, -- Consider removing if progress is page-based
-          sync_type TEXT, -- e.g., 'full', 'delta'
-          last_page_cursor TEXT, -- Store cursor for resuming
-          last_sync_attempt TEXT,
-          sync_attempt_count INTEGER NOT NULL DEFAULT 0,
-          last_incremental_sync_cursor TEXT
-        )`);
-      await db.runAsync(`INSERT INTO sync_status (id) VALUES (1)`);
-      logger.debug('Database Reset', 'Created sync_status table.');
-      
-      // Create categories table
-      await db.runAsync(`CREATE TABLE categories (
-          id TEXT PRIMARY KEY NOT NULL,
-          updated_at TEXT NOT NULL,
-          version TEXT NOT NULL, -- Store as TEXT since it can be large number string
-          is_deleted INTEGER NOT NULL DEFAULT 0,
-          name TEXT,
-          data_json TEXT -- Store the raw category_data JSON
-        )`);
-      logger.debug('Database Reset', 'Created categories table.');
-      await db.runAsync(`CREATE TABLE catalog_items (
-          id TEXT PRIMARY KEY NOT NULL,
-          updated_at TEXT NOT NULL,
-          version TEXT NOT NULL,
-          is_deleted INTEGER NOT NULL DEFAULT 0,
-          present_at_all_locations INTEGER DEFAULT 1,
-          name TEXT,
-          description TEXT,
-          category_id TEXT, -- Reference categories table
-          data_json TEXT -- Store the raw item_data JSON
-        )`);
-      logger.debug('Database Reset', 'Created catalog_items table.');
-      await db.runAsync(`CREATE TABLE item_variations (
-          id TEXT PRIMARY KEY NOT NULL,
-          updated_at TEXT NOT NULL,
-          version TEXT NOT NULL,
-          is_deleted INTEGER NOT NULL DEFAULT 0,
-          item_id TEXT NOT NULL, -- Reference items table
-          name TEXT,
-          sku TEXT,
-          pricing_type TEXT,
-          price_amount INTEGER, -- Store amount in cents/smallest unit
-          price_currency TEXT,
-          data_json TEXT -- Store the raw item_variation_data JSON
-        )`);
-      logger.debug('Database Reset', 'Created item_variations table.');
-      await db.runAsync(`CREATE TABLE modifier_lists (
-          id TEXT PRIMARY KEY NOT NULL,
-          updated_at TEXT NOT NULL,
-          version TEXT NOT NULL,
-          is_deleted INTEGER NOT NULL DEFAULT 0,
-          name TEXT,
-          selection_type TEXT, -- SINGLE or MULTIPLE
-          data_json TEXT -- Store the raw modifier_list_data JSON
-        )`);
-      logger.debug('Database Reset', 'Created modifier_lists table.');
-      await db.runAsync(`CREATE TABLE modifiers (
-          id TEXT PRIMARY KEY NOT NULL,
-          updated_at TEXT NOT NULL,
-          version TEXT NOT NULL,
-          is_deleted INTEGER NOT NULL DEFAULT 0,
-          modifier_list_id TEXT NOT NULL, -- Reference modifier_lists table
-          name TEXT,
-          price_amount INTEGER,
-          price_currency TEXT,
-          ordinal INTEGER,
-          data_json TEXT -- Store the raw modifier_data JSON
-        )`);
-      logger.debug('Database Reset', 'Created modifiers table.');
-      await db.runAsync(`CREATE TABLE taxes (
-          id TEXT PRIMARY KEY NOT NULL,
-          updated_at TEXT NOT NULL,
-          version TEXT NOT NULL,
-          is_deleted INTEGER NOT NULL DEFAULT 0,
-          name TEXT,
-          calculation_phase TEXT, -- SUBTOTAL_PHASE, TOTAL_PHASE
-          inclusion_type TEXT, -- ADDITIVE, INCLUSIVE
-          percentage TEXT, -- Store as string as it can be like "7.25"
-          applies_to_custom_amounts INTEGER,
-          enabled INTEGER,
-          data_json TEXT -- Store the raw tax_data JSON
-        )`);
-      logger.debug('Database Reset', 'Created taxes table.');
-      await db.runAsync(`CREATE TABLE discounts (
-          id TEXT PRIMARY KEY NOT NULL,
-          updated_at TEXT NOT NULL,
-          version TEXT NOT NULL,
-          is_deleted INTEGER NOT NULL DEFAULT 0,
-          name TEXT,
-          discount_type TEXT, -- FIXED_PERCENTAGE, FIXED_AMOUNT, VARIABLE_PERCENTAGE, VARIABLE_AMOUNT
-          percentage TEXT,
-          amount INTEGER,
-          currency TEXT,
-          pin_required INTEGER,
-          label_color TEXT,
-          modify_tax_basis TEXT, -- MODIFY_TAX_BASIS, DO_NOT_MODIFY_TAX_BASIS
-          data_json TEXT -- Store the raw discount_data JSON
-        )`);
-      logger.debug('Database Reset', 'Created discounts table.');
-      await db.runAsync(`CREATE TABLE images (
-          id TEXT PRIMARY KEY NOT NULL,
-          updated_at TEXT NOT NULL,
-          version TEXT NOT NULL,
-          is_deleted INTEGER NOT NULL DEFAULT 0,
-          name TEXT,
-          url TEXT,
-          caption TEXT,
-          type TEXT DEFAULT 'IMAGE', -- Keep track of object type
-          data_json TEXT -- Store the raw image_data JSON
-        )`);
-      logger.debug('Database Reset', 'Created images table.');
-      
-      // --- Recreate Other Tables ---
-      await db.runAsync(`CREATE TABLE merchant_info (
-          id TEXT PRIMARY KEY NOT NULL,
-          business_name TEXT,
-          country TEXT,
-          language_code TEXT,
-          currency TEXT,
-          status TEXT,
-          main_location_id TEXT,
-          created_at TEXT,
-          last_updated TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          logo_url TEXT,
-          data TEXT
-        )`);
-      logger.debug('Database Reset', 'Created merchant_info table.');
-      await db.runAsync(`CREATE TABLE locations (
-          id TEXT PRIMARY KEY NOT NULL,
-          name TEXT,
-          merchant_id TEXT,
-          address TEXT,
-          timezone TEXT,
-          phone_number TEXT,
-          business_name TEXT,
-          business_email TEXT,
-          website_url TEXT,
-          description TEXT,
-          status TEXT,
-          type TEXT,
-          logo_url TEXT,
-          created_at TEXT,
-          last_updated TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          data TEXT
-        )`);
-      logger.debug('Database Reset', 'Created locations table.');
-      await db.runAsync(`CREATE TABLE sync_logs (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          timestamp TEXT NOT NULL,
-          level TEXT NOT NULL,
-          message TEXT NOT NULL,
-          data TEXT
-        )`);
-      logger.debug('Database Reset', 'Created sync_logs table.');
-      await db.runAsync(`CREATE TABLE db_version (
-          id INTEGER PRIMARY KEY NOT NULL DEFAULT 1,
-          version INTEGER NOT NULL,
-          updated_at TEXT
-        )`);
-      await db.runAsync(`INSERT INTO db_version (id, version, updated_at) VALUES (1, ?, ?)`, DATABASE_VERSION, new Date().toISOString());
-      logger.debug('Database Reset', 'Created db_version table.');
-      
-      logger.info('Database Reset', 'All tables created successfully.');
+    // Step 3: Re-initialize the database. This will create a new empty file
+    // and set up the schema.
+    await initDatabase();
+    logger.info('Database', 'Database has been re-initialized after reset.');
 
-    } catch (createError) {
-      logger.error('Database Reset', 'Error creating tables', { createError });
-      throw createError; // Ensure transaction rolls back on create error
-    }
-    
-    logger.info('Database Reset', 'Creating indexes...');
-    try {
-      // --- Create Indexes --- 
-      // Catalog Items
-      await db.runAsync('CREATE INDEX IF NOT EXISTS idx_items_name ON catalog_items (name)');
-      await db.runAsync('CREATE INDEX IF NOT EXISTS idx_items_category_id ON catalog_items (category_id)');
-      await db.runAsync('CREATE INDEX IF NOT EXISTS idx_items_deleted ON catalog_items (is_deleted)');
-      // Variations
-      await db.runAsync('CREATE INDEX IF NOT EXISTS idx_variations_item_id ON item_variations (item_id)');
-      await db.runAsync('CREATE INDEX IF NOT EXISTS idx_variations_sku ON item_variations (sku)');
-      await db.runAsync('CREATE INDEX IF NOT EXISTS idx_variations_deleted ON item_variations (is_deleted)');
-      // Categories
-      await db.runAsync('CREATE INDEX IF NOT EXISTS idx_categories_name ON categories (name)');
-      await db.runAsync('CREATE INDEX IF NOT EXISTS idx_categories_deleted ON categories (is_deleted)');
-      // Modifiers
-      await db.runAsync('CREATE INDEX IF NOT EXISTS idx_modifiers_list_id ON modifiers (modifier_list_id)');
-      await db.runAsync('CREATE INDEX IF NOT EXISTS idx_modifiers_deleted ON modifiers (is_deleted)');
-      // Modifier Lists
-      await db.runAsync('CREATE INDEX IF NOT EXISTS idx_modifier_lists_deleted ON modifier_lists (is_deleted)');
-      // Taxes
-      await db.runAsync('CREATE INDEX IF NOT EXISTS idx_taxes_deleted ON taxes (is_deleted)');
-      // Discounts
-      await db.runAsync('CREATE INDEX IF NOT EXISTS idx_discounts_deleted ON discounts (is_deleted)');
-      // Images
-      await db.runAsync('CREATE INDEX IF NOT EXISTS idx_images_deleted ON images (is_deleted)');
-      // Locations
-      await db.runAsync('CREATE INDEX IF NOT EXISTS idx_locations_merchant_id ON locations (merchant_id)');
-      
-      logger.info('Database Reset', 'Indexes created successfully.');
-    } catch (indexError) {
-       logger.error('Database Reset', 'Error creating indexes', { indexError });
-      throw indexError; // Ensure transaction rolls back on index error
-    }
-  });
-  logger.info('Database', 'Database reset completed.');
+  } catch (error) {
+    logger.error('Database', 'Failed to reset database', { error });
+    // Re-throw the error to be handled by the calling function.
+    throw error;
+  }
 }
 
 /**
- * Close the database connection
+ * Closes the database connection if it's open.
  */
 export async function closeDatabase(): Promise<void> {
-  try {
-    if (db) {
-      await db.closeAsync();
-      db = null;
-      logger.info('Database', 'Database closed successfully');
-    }
-  } catch (error) {
-    logger.error('Database', 'Failed to close database', { error });
-    throw new Error(`Failed to close database: ${error instanceof Error ? error.message : String(error)}`);
+  if (db) {
+    await db.closeAsync();
+    db = null;
+    dbInitPromise = null; // Also clear the promise
+    logger.info('Database', 'Database connection closed.');
   }
 }
 
 /**
- * Gets the database instance, initializing it if needed
+ * Gets the singleton database instance, initializing it if necessary.
+ * This function is the primary entry point for accessing the database.
  */
 export async function getDatabase(): Promise<SQLiteDatabase> {
-  if (!db) {
-    logger.warn('Database', 'Database accessed before initialization. Initializing now...');
-    return await initDatabase();
-  }
-  return db;
+  return initDatabase();
 }
 
 /**
@@ -1322,23 +1100,18 @@ export async function getFirstTenVariationsRaw(): Promise<any[]> {
  * Fetches all categories (ID and Name) from the database.
  * @returns A promise resolving to an array of categories { id: string, name: string }.
  */
-export async function getAllCategories(): Promise<{ id: string; name: string }[]> {
+export const getAllCategories = async (): Promise<Array<{ id: string; name: string }>> => {
   const db = await getDatabase();
-  logger.info('Database', 'Fetching all categories');
   try {
-    const results = await db.getAllAsync<{ id: string; name: string }>(`
-      SELECT id, name 
-      FROM categories 
-      WHERE is_deleted = 0 
-      ORDER BY name ASC
-    `);
-    logger.info('Database', `Fetched ${results.length} categories`);
-    return results || []; // Ensure we return an empty array if null/undefined
+    const results = await db.getAllAsync<{ id: string, name: string }>(
+      'SELECT id, name FROM categories WHERE is_deleted = 0 ORDER BY name ASC'
+    );
+    return results;
   } catch (error) {
-    logger.error('Database', 'Failed to fetch categories', { error });
-    throw error; // Re-throw the error
+    logger.error('Database', 'Error fetching categories', { error });
+    return [];
   }
-}
+};
 
 /**
  * Fetches all non-deleted taxes (ID, Name, and Percentage) from the database.
@@ -1404,9 +1177,9 @@ export async function getAllModifierLists(): Promise<{ id: string; name: string 
 /**
  * Ensure the locations table exists and has default data
  */
-export async function ensureLocationsTable(): Promise<void> {
+export async function ensureLocationsTable(dbInstance?: SQLiteDatabase): Promise<void> {
   try {
-    const db = await getDatabase();
+    const db = dbInstance || await getDatabase();
     logger.info('Database', 'Ensuring locations table exists and has data');
     
     // Create the locations table directly with "IF NOT EXISTS" instead of checking first
@@ -1425,7 +1198,7 @@ export async function ensureLocationsTable(): Promise<void> {
       type TEXT,
       logo_url TEXT,
       created_at TEXT,
-      last_updated TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      last_updated TEXT,
       data TEXT,
       is_deleted INTEGER NOT NULL DEFAULT 0
     )`);
@@ -1449,16 +1222,16 @@ export async function getAllLocations(): Promise<{ id: string; name: string }[]>
   logger.info('Database', 'Fetching all locations');
   
   try {
-    // First ensure the locations table exists
-    await ensureLocationsTable();
-    
-    // Now try to fetch locations
     const results = await db.getAllAsync<{ id: string; name: string }>(`
       SELECT id, name 
       FROM locations 
       WHERE is_deleted = 0 
       ORDER BY name ASC
     `);
+
+    if (results.length === 0) {
+      logger.warn('Database', 'The locations table is empty. A location sync may be required.');
+    }
     
     logger.info('Database', `Fetched ${results.length} locations`);
     return results;
@@ -1610,25 +1383,22 @@ export interface RawSearchResult {
   match_context: string; // e.g., the actual SKU value, category name, etc.
 }
 
-export async function searchCatalogItems(
+export const searchCatalogItems = async (
   searchTerm: string,
   filters: SearchFilters
-): Promise<RawSearchResult[]> {
-  if (!searchTerm.trim()) {
+): Promise<RawSearchResult[]> => {
+  // logger.debug('searchCatalogItems', 'Starting search', { searchTerm, filters });
+
+  if (!searchTerm || searchTerm.trim().length === 0) {
     return [];
   }
 
-  const db = await getDatabase();
-  const likeTerm = `%${searchTerm}%`;
-  const queries: string[] = [];
-  const params: SQLiteBindValue[] = [];
-  const resultsById: { [key: string]: RawSearchResult } = {};
+  const queryParts: string[] = [];
+  const params: any[] = [];
+  const searchTermLike = `%${searchTerm.trim()}%`;
 
-  logger.debug('searchCatalogItems', 'Starting search', { searchTerm, filters });
-
-  // 1. Search by Item Name
   if (filters.name) {
-    const nameQuery = `
+    queryParts.push(`
       SELECT
         ci.id,
         ci.data_json,
@@ -1636,15 +1406,13 @@ export async function searchCatalogItems(
         ci.name as match_context
       FROM catalog_items ci
       WHERE ci.name LIKE ? AND ci.is_deleted = 0
-    `;
-    queries.push(nameQuery);
-    params.push(likeTerm);
-    logger.debug('searchCatalogItems', 'Added name query');
+    `);
+    params.push(searchTermLike);
+    // logger.debug('searchCatalogItems', 'Added name query');
   }
 
-  // 2. Search by SKU in Item Variations
   if (filters.sku) {
-    const skuQuery = `
+    queryParts.push(`
       SELECT
         iv.item_id as id,
         ci.data_json,
@@ -1653,17 +1421,15 @@ export async function searchCatalogItems(
       FROM item_variations iv
       JOIN catalog_items ci ON iv.item_id = ci.id
       WHERE iv.sku LIKE ? AND iv.is_deleted = 0 AND ci.is_deleted = 0
-    `;
-    queries.push(skuQuery);
-    params.push(likeTerm);
-    logger.debug('searchCatalogItems', 'Added SKU query');
+    `);
+    params.push(searchTermLike);
+    // logger.debug('searchCatalogItems', 'Added SKU query');
   }
 
-  // 3. Search by Barcode (UPC) in Item Variations (data_json)
   if (filters.barcode) {
-    // Note: json_extract might be slow on large datasets without specific indexing.
-    // Square stores UPC in item_variation_data.upc
-    const barcodeQuery = `
+    // Note: This relies on the specific JSON structure within data_json for item_variations.
+    // This is less efficient than a dedicated column but necessary for the current schema.
+    queryParts.push(`
       SELECT
         iv.item_id as id,
         ci.data_json,
@@ -1673,74 +1439,70 @@ export async function searchCatalogItems(
       JOIN catalog_items ci ON iv.item_id = ci.id
       WHERE json_extract(iv.data_json, '$.item_variation_data.upc') LIKE ?
         AND iv.is_deleted = 0 AND ci.is_deleted = 0
-    `;
-    // Make sure the path '$.item_variation_data.upc' is correct based on your JSON structure
-    // For initial search, we assume it is. If no results, this might need adjustment or broader JSON search.
-    queries.push(barcodeQuery);
-    params.push(likeTerm);
-    logger.debug('searchCatalogItems', 'Added barcode query');
+    `);
+    params.push(searchTermLike);
+    // logger.debug('searchCatalogItems', 'Added barcode query');
   }
 
-  // 4. Search by Category Name
   if (filters.category) {
-    const categoryQueryPart1 = `
+    const categorySearchTerm = searchTerm.trim();
+    // Search by exact category name on catalog_items.category_id joining categories
+    queryParts.push(`
       SELECT
         ci.id,
         ci.data_json,
         'category' as match_type,
-        c.name as match_context
+        cat.name as match_context
       FROM catalog_items ci
-      JOIN categories c ON ci.category_id = c.id
-      WHERE c.name LIKE ? AND ci.is_deleted = 0 AND c.is_deleted = 0
-    `;
-    queries.push(categoryQueryPart1);
-    params.push(likeTerm);
-    logger.debug('searchCatalogItems', 'Added category query (standard category_id)');
-
-    const categoryQueryPart2 = `
+      JOIN categories cat ON ci.category_id = cat.id
+      WHERE cat.name LIKE ? AND ci.is_deleted = 0 AND cat.is_deleted = 0
+    `);
+    params.push(searchTermLike);
+    // logger.debug('searchCatalogItems', 'Added category query (standard category_id)');
+    
+    // Search by reporting_category_id on catalog_items joining categories
+    queryParts.push(`
       SELECT
         ci.id,
         ci.data_json,
         'category' as match_type,
-        c.name as match_context
+        rcat.name as match_context
       FROM catalog_items ci
-      JOIN categories c ON json_extract(ci.data_json, '$.item_data.reporting_category.id') = c.id
-      WHERE c.name LIKE ? AND ci.is_deleted = 0 AND c.is_deleted = 0
-    `;
-    queries.push(categoryQueryPart2);
-    params.push(likeTerm);
-    logger.debug('searchCatalogItems', 'Added category query (reporting_category_id)');
+      JOIN categories rcat ON json_extract(ci.data_json, '$.reporting_category.id') = rcat.id
+      WHERE rcat.name LIKE ? AND ci.is_deleted = 0 AND rcat.is_deleted = 0
+    `);
+    params.push(searchTermLike);
+    // logger.debug('searchCatalogItems', 'Added category query (reporting_category_id)');
   }
 
-  if (queries.length === 0) {
-    logger.debug('searchCatalogItems', 'No active filters, returning empty results.');
+  if (queryParts.length === 0) {
+    // logger.debug('searchCatalogItems', 'No active filters, returning empty results.');
     return [];
   }
 
-  const fullQuery = queries.join('\nUNION\n') + '\nLIMIT 250;'; // Combine queries and limit results
-  logger.debug('searchCatalogItems', 'Executing combined query', { query: fullQuery, params });
-
+  const fullQuery = queryParts.join('\n\nUNION\n') + '\nLIMIT 250;';
+  // logger.debug('searchCatalogItems', 'Executing combined query', { query: fullQuery, params });
+  
   try {
+    const db = await getDatabase();
     const rawResults = await db.getAllAsync<RawSearchResult>(fullQuery, params);
-    logger.debug('searchCatalogItems', `Raw query returned ${rawResults.length} results.`);
-
-    // Deduplicate results, preferring the first encountered match for an item ID
+    // logger.debug('searchCatalogItems', `Raw query returned ${rawResults.length} results.`);
+    
+    // Deduplicate results based on item ID, preserving the first match found
+    const uniqueResults = new Map<string, RawSearchResult>();
     rawResults.forEach(row => {
-      if (row && row.id && row.data_json) { // Ensure essential fields are present
-        if (!resultsById[row.id]) {
-          resultsById[row.id] = row;
-        }
+      if (row && row.id && row.data_json) {
+        uniqueResults.set(row.id, row);
       } else {
         logger.warn('searchCatalogItems', 'Skipping invalid row from DB search', { row });
       }
     });
     
-    const finalResults = Object.values(resultsById);
-    logger.info('searchCatalogItems', `Search for '${searchTerm}' found ${finalResults.length} unique items.`);
+    const finalResults = Array.from(uniqueResults.values());
+    // logger.info('searchCatalogItems', `Search for '${searchTerm}' found ${finalResults.length} unique items.`);
     return finalResults;
-
   } catch (error) {
     logger.error('searchCatalogItems', 'Error executing search query', { error, query: fullQuery });
     throw error; // Re-throw to be handled by the calling hook
   }
-} 
+}; 

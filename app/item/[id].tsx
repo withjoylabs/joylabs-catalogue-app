@@ -156,6 +156,8 @@ export default function ItemDetails() {
     actions: Array<{ label: string; onPress: () => void; isDestructive?: boolean }>;
   } | null>(null);
   
+  const setItemModalJustClosed = useAppStore((state) => state.setItemModalJustClosed);
+  
   // --- Printing Logic --- 
 
   // Original initiatePrint for inline variation print buttons (takes index)
@@ -1149,6 +1151,16 @@ export default function ItemDetails() {
       setPostSaveAction(null); // Reset for next time
     }
   }, [postSaveAction, isEdited]);
+
+  // Set flag when modal is closed
+  useEffect(() => {
+    // This effect runs when the component mounts.
+    // The cleanup function runs when the component unmounts.
+    return () => {
+      logger.info('ItemDetails', 'Modal is closing, setting itemModalJustClosed flag.');
+      setItemModalJustClosed(true);
+    };
+  }, [setItemModalJustClosed]);
 
   // If loading, show spinner
   if (isLoading) {

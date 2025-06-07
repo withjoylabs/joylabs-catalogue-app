@@ -885,34 +885,29 @@ export const useCatalogItems = () => {
   }, [categoryMapRef]);
 
   // Function to perform search using local DB
-  const performSearch = useCallback(
-    async (searchTerm: string, filters: SearchFilters): Promise<SearchResultItem[]> => {
-      if (!searchTerm.trim()) {
-        return [];
-      }
-      setIsSearching(true);
-      setSearchError(null);
-      try {
-        logger.info('useCatalogItems', 'Performing search', { searchTerm, filters });
-        const rawResults = await searchCatalogItems(searchTerm, filters); // Returns RawSearchResult[]
-        logger.debug('useCatalogItems', `Search returned ${rawResults.length} raw results.`);
-
-        const finalResults = rawResults
+  const performSearch = useCallback(async (searchTerm: string, filters: SearchFilters): Promise<SearchResultItem[]> => {
+    if (!searchTerm.trim()) {
+      setSearchResults([]);
+      return [];
+    }
+    setIsSearching(true);
+    setSearchError(null);
+    try {
+      const rawResults = await searchCatalogItems(searchTerm, filters);
+      const finalResults = rawResults
           .map(rawResult => transformDbResultToItem(rawResult))
           .filter((item): item is SearchResultItem => item !== null);
-        
-        logger.info('useCatalogItems', `Search transformed ${finalResults.length} items.`);
-        setIsSearching(false);
-        return finalResults;
-      } catch (error: any) {
-        logger.error('useCatalogItems', 'Error performing search', { error });
-        setSearchError(error.message || 'Failed to perform search');
-        setIsSearching(false);
-        return [];
-      }
-    },
-    [transformDbResultToItem] // Dependency on the memoized transformDbResultToItem
-  );
+      
+      setSearchResults(finalResults);
+      return finalResults;
+    } catch (err) {
+      logger.error('useCatalogItems', 'Error during search', { error: err });
+      setSearchError(err instanceof Error ? err.message : 'An unknown error occurred.');
+      return [];
+    } finally {
+      setIsSearching(false);
+    }
+  }, [transformDbResultToItem]);
 
   return {
     products: storeProducts,

@@ -7,6 +7,7 @@ import catalogSyncService from '../database/catalogSync';
 import { useSquareAuth } from '../hooks/useSquareAuth';
 import api, { directSquareApi } from '../api';
 import logger from '../utils/logger';
+import * as FileSystem from 'expo-file-system';
 
 interface SyncStatus {
   lastSyncTime: string | null;
@@ -205,6 +206,25 @@ export default function CatalogSyncStatus() {
     }, [])
   );
 
+  // Effect to auto-refresh status while syncing is in progress
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    if (status?.isSyncing) {
+      // Set up an interval to fetch status every second
+      interval = setInterval(() => {
+        logger.debug('CatalogSyncStatus', 'Auto-refreshing sync status...');
+        fetchSyncStatus();
+      }, 1000); // 1 second
+    }
+
+    // Cleanup function to clear the interval when sync is done or component unmounts
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [status?.isSyncing]); // This effect depends only on the isSyncing status
+
   // Start a full catalog sync
   const startFullSync = async () => {
     try {
@@ -213,237 +233,120 @@ export default function CatalogSyncStatus() {
         return;
       }
       
-      await catalogSyncService.initialize();
-      await catalogSyncService.runFullSync();
+      logger.info('CatalogSyncStatus', 'Starting full sync process...');
       
-      // Immediately fetch status after starting sync to update UI
-      setTimeout(() => {
-        logger.debug('CatalogSyncStatus', 'Fetching status after starting sync');
-      fetchSyncStatus();
-      }, 500); // Short delay to let sync process start
+      // Step 1: Sync locations silently and get the count.
+      const locationsSynced = await syncLocationsOnly({ silent: true });
+      
+      // Step 2: Initialize the catalog sync service.
+      await catalogSyncService.initialize();
+      
+      // Step 3: Run the full sync for items and categories and get the counts.
+      const { itemCount, categoryCount } = await catalogSyncService.runFullSync();
+      
+      // Step 4: Show a consolidated success message.
+      Alert.alert(
+        'Full Sync Complete',
+        `Successfully synced:\n- ${locationsSynced} Locations\n- ${categoryCount} Categories\n- ${itemCount} Items`,
+        [{ text: 'OK' }]
+      );
+
+      // Step 5: Refresh the UI with the new data.
+      await fetchSyncStatus();
+      await fetchLocations();
       
     } catch (error) {
       logger.error('CatalogSyncStatus', 'Failed to start full sync', { error });
-      Alert.alert('Error', 'Failed to start sync');
+      Alert.alert('Error', `Failed to start sync: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      // Also refresh status on error to clear is_syncing flag if needed
+      await fetchSyncStatus();
+      await fetchLocations();
     }
   };
 
   // Sync only locations
-  const syncLocationsOnly = async () => {
+  const syncLocationsOnly = async (options?: { silent?: boolean }): Promise<number> => {
     try {
       if (!hasValidToken) {
+        if (!options?.silent) {
         Alert.alert('Auth Required', 'Please connect to Square first');
-        return;
+        }
+        return 0;
       }
       
       setIsSyncingLocations(true);
+      let locationCount = 0;
       
       try {
         logger.info('CatalogSyncStatus', 'Starting locations sync');
         const response = await directSquareApi.fetchLocations();
         
-        if (!response.success || !response.data) {
-          throw new Error('Failed to fetch locations from Square API');
+        if (!response.success || !response.data?.locations) {
+          const errorMessage = typeof response.error === 'string' ? response.error : 'Failed to fetch locations from Square API';
+          throw new Error(errorMessage);
         }
         
-        logger.debug('CatalogSyncStatus', 'Square locations response:', response.data);
-        
-        // Get locations array or handle locationCount format
-        let locations = [];
-        if (response.data.locations && Array.isArray(response.data.locations)) {
-          locations = response.data.locations;
-        } else if (response.data.locationCount > 0) {
-          // If response has locationCount but no locations array, we need to make a follow-up call
-          logger.info('CatalogSyncStatus', `Response indicates ${response.data.locationCount} locations exist but no locations array was returned`);
-          
-          // In this case, we'd typically make another API call to fetch details
-          throw new Error('API returned locationCount without locations array. Additional API calls needed to fetch location details.');
-        }
-        
-        if (locations.length === 0) {
-          logger.warn('CatalogSyncStatus', 'No locations returned from Square API');
-          Alert.alert('Warning', 'No locations found in your Square account');
-          setIsSyncingLocations(false);
-          return;
-        }
-        
-        logger.info('CatalogSyncStatus', `Fetched ${locations.length} locations from Square API`);
-        
-        try {
-          // Get the database
+        const locations = response.data.locations;
+        locationCount = locations.length;
+
           const db = await modernDb.getDatabase();
-          
-          // Ensure the locations table exists
-          await modernDb.ensureLocationsTable();
-          
-          // Check if is_deleted column exists
-          try {
-            const hasIsDeletedColumn = await db.getFirstAsync<{ count: number }>(
-              "SELECT COUNT(*) as count FROM pragma_table_info('locations') WHERE name = 'is_deleted'"
-            );
-            
-            if (!hasIsDeletedColumn || hasIsDeletedColumn.count === 0) {
-              logger.info('CatalogSyncStatus', 'Adding is_deleted column to locations table');
-              // Add the missing column
-              await db.runAsync("ALTER TABLE locations ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0");
-            }
-          } catch (columnCheckError) {
-            logger.error('CatalogSyncStatus', 'Error checking for is_deleted column', { error: columnCheckError });
-            // If we can't check/add the column, we'll need to proceed without using is_deleted
-          }
-          
-          // Process and store locations
           await db.withTransactionAsync(async () => {
-            try {
-              // First attempt to mark all existing locations as deleted (if is_deleted column exists)
-              try {
-                await db.runAsync('UPDATE locations SET is_deleted = 1');
-              } catch (updateError) {
-                // If this fails, the column likely doesn't exist despite our check
-                logger.warn('CatalogSyncStatus', 'Could not update is_deleted flag, continuing without it', { error: updateError });
-              }
-              
-              // Insert/update each location from the API
+          await db.runAsync('DELETE FROM locations'); // Clear old locations
               for (const location of locations) {
-                try {
-                  // Format address as JSON string if it exists
                   const addressStr = location.address ? JSON.stringify(location.address) : null;
-                  
-                  // Check if the location exists first
-                  const existingLocation = await db.getFirstAsync<{ id: string }>(
-                    'SELECT id FROM locations WHERE id = ?', [location.id]
-                  );
-                  
-                  if (existingLocation) {
-                    // Location exists - UPDATE
-                    await db.runAsync(`
-                      UPDATE locations SET
-                        name = ?,
-                        merchant_id = ?,
-                        address = ?,
-                        timezone = ?,
-                        phone_number = ?,
-                        business_name = ?,
-                        business_email = ?,
-                        website_url = ?,
-                        description = ?,
-                        status = ?,
-                        type = ?,
-                        created_at = ?,
-                        last_updated = ?,
-                        data = ?,
-                        is_deleted = 0
-                      WHERE id = ?
-                    `, [
-                      location.name || '',
-                      location.merchant_id || '',
-                      addressStr,
-                      location.timezone || null,
-                      location.phone_number || null,
-                      location.business_name || null,
-                      location.business_email || null,
-                      location.website_url || null,
-                      location.description || null,
-                      location.status || null,
-                      location.type || null,
-                      location.created_at || new Date().toISOString(),
-                      new Date().toISOString(),
-                      JSON.stringify(location),
-                      location.id
-                    ]);
-                  } else {
-                    // Location doesn't exist - INSERT
-                    try {
-                      // Try with is_deleted column
                       await db.runAsync(`
                         INSERT INTO locations (
-                          id, name, merchant_id, address, timezone,
-                          phone_number, business_name, business_email,
-                          website_url, description, status, type,
-                          created_at, last_updated, data, is_deleted
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                id, name, merchant_id, address, timezone, phone_number, 
+                business_name, business_email, website_url, logo_url, 
+                description, status, type, created_at, last_updated, data
+              ) 
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                       `, [
-                        location.id || '',
-                        location.name || '',
-                        location.merchant_id || '',
+              location.id,
+              location.name,
+              location.merchant_id,
                         addressStr,
-                        location.timezone || null,
-                        location.phone_number || null,
-                        location.business_name || null,
-                        location.business_email || null,
-                        location.website_url || null,
-                        location.description || null,
-                        location.status || null,
-                        location.type || null,
-                        location.created_at || new Date().toISOString(),
-                        new Date().toISOString(),
-                        JSON.stringify(location),
-                        0 // Not deleted
-                      ]);
-                    } catch (insertError) {
-                      // If insert fails with is_deleted, try without it
-                      logger.warn('CatalogSyncStatus', `Error inserting with is_deleted, trying without it`, { locationId: location.id });
-                      
-                      await db.runAsync(`
-                        INSERT INTO locations (
-                          id, name, merchant_id, address, timezone,
-                          phone_number, business_name, business_email,
-                          website_url, description, status, type,
-                          created_at, last_updated, data
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                      `, [
-                        location.id || '',
-                        location.name || '',
-                        location.merchant_id || '',
-                        addressStr,
-                        location.timezone || null,
-                        location.phone_number || null,
-                        location.business_name || null,
-                        location.business_email || null,
-                        location.website_url || null,
-                        location.description || null,
-                        location.status || null,
-                        location.type || null,
-                        location.created_at || new Date().toISOString(),
+              location.timezone,
+              location.phone_number,
+              location.business_name,
+              location.business_email,
+              location.website_url,
+              location.logo_url,
+              location.description,
+              location.status,
+              location.type,
+              location.created_at,
                         new Date().toISOString(),
                         JSON.stringify(location)
                       ]);
                     }
-                  }
-                } catch (locationError) {
-                  // Log the error but continue with other locations
-                  logger.error('CatalogSyncStatus', `Error processing location ${location.id}`, { 
-                    error: locationError, 
-                    location: JSON.stringify(location)
-                  });
-                }
-              }
-              
-            } catch (transactionError) {
-              logger.error('CatalogSyncStatus', 'Error in transaction', { error: transactionError });
-              throw transactionError;
-            }
-          });
-          
-          logger.info('CatalogSyncStatus', `Successfully synced ${locations.length} locations to database`);
-          Alert.alert('Success', `Successfully synced ${locations.length} locations`);
-          
-          // Refresh locations in UI
-          fetchLocations();
-        } catch (dbError) {
-          logger.error('CatalogSyncStatus', 'Database error during location sync', { error: dbError });
-          Alert.alert('Error', 'Database error while syncing locations: ' + (dbError instanceof Error ? dbError.message : 'Unknown error'));
+        });
+        
+        if (!options?.silent) {
+          Alert.alert('Success', `Successfully synced ${locationCount} locations.`);
         }
+        await fetchLocations(); // Refresh locations list
+        
       } catch (error) {
-        logger.error('CatalogSyncStatus', 'Error syncing locations', { error });
-        Alert.alert('Error', 'Failed to sync locations: ' + (error instanceof Error ? error.message : 'Unknown error'));
+        logger.error('CatalogSyncStatus', 'Failed to sync locations', { error });
+        if (!options?.silent) {
+          Alert.alert('Error', `Failed to sync locations: ${error instanceof Error ? error.message : 'Unknown Error'}`);
+        }
+        // Re-throw if silent, so the calling function (full sync) knows it failed
+        if (options?.silent) {
+          throw error;
+        }
       } finally {
         setIsSyncingLocations(false);
       }
+      return locationCount;
     } catch (error) {
-      logger.error('CatalogSyncStatus', 'Failed to sync locations', { error });
-      Alert.alert('Error', 'Failed to sync locations');
+      logger.error('CatalogSyncStatus', 'Outer error in syncLocationsOnly', { error });
       setIsSyncingLocations(false);
+       if (options?.silent) {
+          throw error; // Propagate error for full sync to handle
+       }
+      return 0;
     }
   };
 
@@ -510,45 +413,25 @@ export default function CatalogSyncStatus() {
 
   // Complete database reset function
   const resetDatabase = async () => {
-    Alert.alert(
-      'Reset Entire Database',
-      'This will delete ALL data in the local database. Are you sure you want to continue?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel'
-        },
-        {
-          text: 'Reset Everything',
-          style: 'destructive',
-          onPress: async () => {
             try {
               setIsResettingDb(true);
               logger.warn('CatalogSyncStatus', 'User initiated complete database reset');
               
-              // First reset the sync status
-              await catalogSyncService.resetSyncStatus();
-              
-              // Then reset the entire database
               await modernDb.resetDatabase();
               
-              // Re-initialize sync service
+      // Re-initialize sync service and refresh status
               await catalogSyncService.initialize();
-              
-              // Fetch status
               await fetchSyncStatus();
+      await fetchLocations(); // Also refresh locations
               
               Alert.alert('Success', 'Database has been completely reset');
+
             } catch (error) {
               logger.error('CatalogSyncStatus', 'Failed to reset database', { error });
               Alert.alert('Error', 'Failed to reset database');
             } finally {
               setIsResettingDb(false);
             }
-          }
-        }
-      ]
-    );
   };
 
   // Display locations section with expandable details
@@ -685,8 +568,8 @@ export default function CatalogSyncStatus() {
         </View>
 
       <View style={styles.statusSection}>
-        <Text style={styles.label}>Last Sync:</Text>
-        <Text style={styles.value}>{lastSyncText}</Text>
+        <Text style={styles.statusLabel}>Last Sync:</Text>
+        <Text style={styles.statusValue}>{status?.lastSyncTime ? new Date(status.lastSyncTime).toLocaleString() : 'Never'}</Text>
       </View>
 
         {/* Item count indicators */}
@@ -700,31 +583,23 @@ export default function CatalogSyncStatus() {
           <Text style={styles.value}>{dbItemCount.categoryCount}</Text>
         </View>
 
-      {status?.isSyncing && (
-          <>
-        <View style={styles.statusSection}>
-          <Text style={styles.label}>Progress:</Text>
-          <Text style={styles.value}>
-            {status.syncProgress} / {status.syncTotal} ({syncProgress}%)
-          </Text>
-        </View>
-            
-            <View style={styles.progressBarContainer}>
-              <View 
-                style={[
-                  styles.progressBar, 
-                  { width: `${syncProgress}%` }
-                ]} 
-              />
+        {/* Progress Display */}
+        {status?.isSyncing && (
+          <View>
+            <View style={styles.statusRow}>
+              <Text style={styles.statusLabel}>Progress:</Text>
+              <Text style={styles.statusValue}>
+                {`${status.syncProgress || 0} objects synced`}
+              </Text>
             </View>
-          </>
-      )}
+          </View>
+        )}
 
-      {status?.syncError && (
-        <View style={styles.errorSection}>
-          <Text style={styles.errorText}>{status.syncError}</Text>
-        </View>
-      )}
+        {status?.syncError && !status?.isSyncing && (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorText}>{status.syncError}</Text>
+          </View>
+        )}
         
         {!status?.isSyncing && !status?.syncError && status?.lastSyncTime && (
           <View style={styles.statusMessageContainer}>
@@ -751,7 +626,7 @@ export default function CatalogSyncStatus() {
 
         <TouchableOpacity
             style={[styles.button, isSyncingLocations ? styles.buttonDisabled : null]}
-            onPress={syncLocationsOnly}
+            onPress={() => syncLocationsOnly({ silent: false })}
             disabled={isSyncingLocations || !hasValidToken}
         >
             {isSyncingLocations ? (
@@ -871,11 +746,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 8,
   },
-  label: {
+  statusLabel: {
     fontWeight: '400',
     color: '#333',
   },
-  value: {
+  statusValue: {
     fontWeight: '600',
     color: '#333',
   },
@@ -1015,5 +890,16 @@ const styles = StyleSheet.create({
   detailValue: {
     fontSize: 14,
     color: '#666',
+  },
+  statusRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  errorBox: {
+    backgroundColor: '#ffebee',
+    padding: 8,
+    borderRadius: 4,
+    marginBottom: 16,
   },
 }); 
