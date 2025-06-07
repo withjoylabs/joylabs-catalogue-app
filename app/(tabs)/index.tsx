@@ -62,9 +62,18 @@ const debounce = <F extends (...args: any[]) => any>(func: F, waitFor: number) =
 interface SearchResultsAreaProps {
   searchTopic: string;
   onPrintSuccessForChaining: () => void;
+  onCreateNewItem: (params: { name?: string; sku?: string; barcode?: string }) => void;
+  isAwaitingPostSaveSearch: boolean;
+  onSearchComplete: () => void;
 }
 
-const SearchResultsArea = memo(({ searchTopic, onPrintSuccessForChaining }: SearchResultsAreaProps) => {
+const SearchResultsArea = memo(({ 
+  searchTopic, 
+  onPrintSuccessForChaining, 
+  onCreateNewItem,
+  isAwaitingPostSaveSearch,
+  onSearchComplete
+}: SearchResultsAreaProps) => {
   const router = useRouter(); 
   const swipeableRefs = useRef<Record<string, Swipeable | null>>({});
 
@@ -86,6 +95,8 @@ const SearchResultsArea = memo(({ searchTopic, onPrintSuccessForChaining }: Sear
   const [availableResultCategories, setAvailableResultCategories] = useState<Array<{ id: string; name: string }>>([]);
 
   const { performSearch, isSearching: catalogIsSearching, searchError: catalogSearchError } = useCatalogItems();
+  
+  const itemModalJustClosed = useAppStore((state) => state.itemModalJustClosed);
   
   // Extracted search logic into a useCallback
   const executeSearch = useCallback(async () => {
@@ -118,8 +129,9 @@ const SearchResultsArea = memo(({ searchTopic, onPrintSuccessForChaining }: Sear
         break;
     }
     setSearchResults(processedResults);
+    onSearchComplete(); // Notify parent that search is done
     // logger.info('SearchResultsArea', 'Search executed, results set.', { count: processedResults.length });
-  }, [searchTopic, searchFilters, performSearch, sortOrder, selectedResultCategoryId, setSearchResults]);
+  }, [searchTopic, searchFilters, performSearch, sortOrder, selectedResultCategoryId, setSearchResults, onSearchComplete]);
 
   // useEffect to run search when query/filters/sort change
   useEffect(() => {
@@ -129,9 +141,16 @@ const SearchResultsArea = memo(({ searchTopic, onPrintSuccessForChaining }: Sear
   // Effect to update/refresh search results if a relevant item was globally updated or created
   useEffect(() => {
     if (lastUpdatedItem) {
-      // logger.info('SearchResultsArea', 'lastUpdatedItem detected, re-executing search.', { itemId: lastUpdatedItem.id });
-      executeSearch(); 
-      setLastUpdatedItem(null); 
+      logger.info('SearchResultsArea', 'lastUpdatedItem detected, queueing re-search.', { itemId: lastUpdatedItem.id });
+      // Add a small delay to give the database time to process the update
+      // before we re-query. This helps prevent race conditions on save.
+      const refreshTimer = setTimeout(() => {
+        logger.info('SearchResultsArea', 'Executing delayed search refresh.');
+        executeSearch(); 
+        setLastUpdatedItem(null); 
+      }, 300); // 300ms delay
+
+      return () => clearTimeout(refreshTimer);
     }
   }, [lastUpdatedItem, setLastUpdatedItem, executeSearch]);
 
@@ -299,7 +318,8 @@ const SearchResultsArea = memo(({ searchTopic, onPrintSuccessForChaining }: Sear
         </View>
       );
     }
-    if (catalogIsSearching && searchTopic.trim() !== '') {
+    // While searching OR awaiting post-save search, show a spinner.
+    if (catalogIsSearching || isAwaitingPostSaveSearch) {
       return (
         <View style={styles.emptyContainer}>
           <ActivityIndicator size="large" color={lightTheme.colors.primary} />
@@ -326,19 +346,19 @@ const SearchResultsArea = memo(({ searchTopic, onPrintSuccessForChaining }: Sear
           <View style={styles.createItemButtonsContainer}>
             <TouchableOpacity 
               style={styles.createItemButton} 
-              onPress={() => router.push({ pathname: '/item/new', params: { name: query }})}
+              onPress={() => onCreateNewItem({ name: query })}
             >
               <Text style={styles.createItemButtonText}>Create new item with name "{query}"</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.createItemButton} 
-              onPress={() => router.push({ pathname: '/item/new', params: { sku: query }})}
+              onPress={() => onCreateNewItem({ sku: query })}
             >
               <Text style={styles.createItemButtonText}>Create new item with SKU "{query}"</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.createItemButton} 
-              onPress={() => router.push({ pathname: '/item/new', params: { barcode: query }})}
+              onPress={() => onCreateNewItem({ barcode: query })}
             >
               <Text style={styles.createItemButtonText}>Create new item with UPC "{query}"</Text>
             </TouchableOpacity>
@@ -347,7 +367,7 @@ const SearchResultsArea = memo(({ searchTopic, onPrintSuccessForChaining }: Sear
       );
     }
     return null;
-  }, [catalogSearchError, catalogIsSearching, searchTopic, searchResults, styles, lightTheme, router]);
+  }, [catalogSearchError, catalogIsSearching, searchTopic, searchResults, styles, lightTheme, onCreateNewItem, isAwaitingPostSaveSearch]);
 
   const renderFilterBadges = useCallback(() => {
     const activeFilters = Object.entries(searchFilters).filter(([key, isEnabled]) => key !== 'category' && isEnabled).map(([key]) => key as keyof SearchFilters);
@@ -569,35 +589,27 @@ function RootLayoutNav() {
 
   // State for the *finalized* search term that triggers the actual search.
   const [searchTopic, setSearchTopic] = useState('');
-  // A state to signal to the search bar that it should select all its text.
-  const [selectAllSignal, setSelectAllSignal] = useState(0);
+  const [isAwaitingPostSaveSearch, setIsAwaitingPostSaveSearch] = useState(false);
 
-  const itemModalJustClosed = useAppStore(state => state.itemModalJustClosed);
-  const setItemModalJustClosed = useAppStore(state => state.setItemModalJustClosed);
+  const handleClearSearch = useCallback(() => {
+    setSearchTopic('');
+    // No longer need to manually focus; the key change + autoFocus handles it.
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
-      // Logic to run when the screen is focused
-      if (itemModalJustClosed) {
-        // logger.info('RootLayoutNav', 'Modal was just closed, focusing input and selecting all.');
-        const timeout = setTimeout(() => {
-          searchInputRef.current?.focus();
-          setSelectAllSignal(prev => prev + 1);
-        }, 50);
-        
-        // Reset the flag immediately after processing
-        setItemModalJustClosed(false);
-        
-        return () => clearTimeout(timeout);
-      } else {
-        // For general focus (like switching tabs), just focus the input without selecting all.
-        const timeout = setTimeout(() => {
-          searchInputRef.current?.focus();
-        }, 50);
-        return () => clearTimeout(timeout);
+      // Failsafe to ensure the loading state doesn't get stuck.
+      if (isAwaitingPostSaveSearch) {
+        const timer = setTimeout(() => {
+          if (isAwaitingPostSaveSearch) {
+              setIsAwaitingPostSaveSearch(false);
+          }
+        }, 2000);
+        return () => clearTimeout(timer);
       }
-    }, [itemModalJustClosed, setItemModalJustClosed])
+    }, [isAwaitingPostSaveSearch])
   );
+
 
   const handleSearchSubmit = useCallback((query: string) => {
     // logger.info('RootLayoutNav', 'Search submitted', { query });
@@ -605,10 +617,11 @@ function RootLayoutNav() {
     // NOTE: No longer triggering select all here to avoid aggressive highlighting.
   }, []);
 
-  const handleClearSearch = useCallback(() => {
-    setSearchTopic('');
-    searchInputRef.current?.focus();
-  }, []);
+  const handleCreateNewItem = useCallback((params: { name?: string; sku?: string; barcode?: string }) => {
+    logger.info('RootLayoutNav', 'Navigating to create new item', params);
+    setIsAwaitingPostSaveSearch(true);
+    router.push({ pathname: '/item/new', params });
+  }, [router]);
 
   const handlePrintAndClear = useCallback(() => {
     setSearchTopic('');
@@ -639,6 +652,9 @@ function RootLayoutNav() {
       <SearchResultsArea 
         searchTopic={searchTopic} 
         onPrintSuccessForChaining={handlePrintAndClear}
+        onCreateNewItem={handleCreateNewItem}
+        isAwaitingPostSaveSearch={isAwaitingPostSaveSearch}
+        onSearchComplete={() => setIsAwaitingPostSaveSearch(false)}
       />
 
       <BottomSearchBarComponent 
@@ -646,7 +662,6 @@ function RootLayoutNav() {
         searchTopic={searchTopic}
         onSearchSubmit={handleSearchSubmit} 
         onClearSearch={handleClearSearch}
-        selectAllSignal={selectAllSignal}
       />
     </SafeAreaView>
   );
@@ -672,13 +687,11 @@ interface BottomSearchBarProps {
   searchTopic: string;
   onSearchSubmit: (query: string) => void;
   onClearSearch: () => void;
-  selectAllSignal: number;
 }
 const BottomSearchBarComponent = memo(React.forwardRef<TextInput, BottomSearchBarProps>(({ 
   searchTopic,
   onSearchSubmit,
   onClearSearch,
-  selectAllSignal,
 }, ref) => {
   // This state is for UI responsiveness (e.g., showing/hiding clear buttons).
   // It is NOT used to control the TextInput value, which is the key to the fix.
@@ -696,13 +709,6 @@ const BottomSearchBarComponent = memo(React.forwardRef<TextInput, BottomSearchBa
       setInputValue(searchTopic);
     }
   }, [searchTopic]);
-
-  // Handle incoming selectAll signal from the parent.
-  useEffect(() => {
-    if (selectAllSignal > 0 && ref && 'current' in ref && ref.current) {
-      ref.current.setSelection(0, inputValue.length);
-    }
-  }, [selectAllSignal, ref, inputValue]);
 
   const handleChangeText = (text: string) => {
     setInputValue(text); // Update local state for UI purposes.

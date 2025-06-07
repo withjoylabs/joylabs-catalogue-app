@@ -116,8 +116,8 @@ export default function ItemDetails() {
   const [printNotificationMessage, setPrintNotificationMessage] = useState('');
   const [printNotificationType, setPrintNotificationType] = useState<'success' | 'error'>('success');
   
-  // State to manage navigation declaratively after a save action
-  const [postSaveAction, setPostSaveAction] = useState<(() => void) | null>(null);
+  // NEW: State to safely trigger navigation after state updates.
+  const [isReadyToNavigate, setIsReadyToNavigate] = useState(false);
 
   // State for variations
   const [variations, setVariations] = useState<ItemVariation[]>([{
@@ -156,7 +156,7 @@ export default function ItemDetails() {
     actions: Array<{ label: string; onPress: () => void; isDestructive?: boolean }>;
   } | null>(null);
   
-  const setItemModalJustClosed = useAppStore((state) => state.setItemModalJustClosed);
+  const setLastUpdatedItem = useAppStore((state) => state.setLastUpdatedItem);
   
   // --- Printing Logic --- 
 
@@ -511,13 +511,9 @@ export default function ItemDetails() {
 
   const handleSaveSuccessNavigation = (savedItem: ConvertedItem | null) => {
     if (savedItem) {
-      if (isNewItem && savedItem.id) {
-        // For new items, replace the route to avoid navigating back to a blank "new" screen.
-        router.replace({ pathname: '/item/[id]', params: { id: savedItem.id } });
-      } else if (!isNewItem) {
-        // For existing items, simply navigate back.
-        router.back();
-      }
+      // Reverting to router.back() to prevent the unacceptable full-screen flash.
+      // The state management will be handled correctly on the search screen.
+      router.back();
     }
   };
 
@@ -574,6 +570,7 @@ export default function ItemDetails() {
       
       if (savedItem) {
         logger.info('ItemDetails:handleSaveAction', 'Save successful', { savedItemId: savedItem.id });
+        setLastUpdatedItem(savedItem);
         return savedItem;
       } else {
         logger.error('ItemDetails:handleSaveAction', 'Save failed. No saved item data returned.');
@@ -620,10 +617,12 @@ export default function ItemDetails() {
 
                 // Step 4: If saving is successful, update state and set trigger for navigation.
                 if (savedItem) {
+                    setLastUpdatedItem(savedItem);
                     setItem(savedItem);
                     setOriginalItem(savedItem);
                     setVariations(savedItem.variations || []);
-                    setPostSaveAction(() => () => handleSaveSuccessNavigation(savedItem));
+                    setIsEdited(false); // Manually disable prompt
+                    setIsReadyToNavigate(true); // Signal that we are ready to navigate
                 }
             }
         } catch (e) {
@@ -1082,11 +1081,12 @@ export default function ItemDetails() {
             const savedItem = await handleSaveAction();
             if (savedItem) {
                 // Update state upon successful save to mark as "not edited"
+                setLastUpdatedItem(savedItem);
                 setItem(savedItem);
                 setOriginalItem(savedItem);
                 setVariations(savedItem.variations || []);
-                // Trigger navigation via the effect
-                setPostSaveAction(() => () => handleSaveSuccessNavigation(savedItem));
+                setIsEdited(false); // Manually disable prompt
+                setIsReadyToNavigate(true); // Signal that we are ready to navigate
             }
         };
         triggerSave();
@@ -1143,14 +1143,14 @@ export default function ItemDetails() {
     }
   );
 
-  // NEW: Effect to handle navigation after a save has completed and state has been updated.
+  // This effect will now safely handle navigation AFTER the state has been updated.
   useEffect(() => {
-    // If there's a post-save action pending AND the component is no longer edited, execute it.
-    if (postSaveAction && !isEdited) {
-      postSaveAction();
-      setPostSaveAction(null); // Reset for next time
+    // Only navigate if we have explicitly signaled we are ready AND the form is no longer edited.
+    // This prevents the usePreventRemove hook from blocking the navigation.
+    if (isReadyToNavigate && !isEdited) {
+      router.back();
     }
-  }, [postSaveAction, isEdited]);
+  }, [isReadyToNavigate, isEdited, router]);
 
   // Set flag when modal is closed
   useEffect(() => {
@@ -1158,9 +1158,8 @@ export default function ItemDetails() {
     // The cleanup function runs when the component unmounts.
     return () => {
       logger.info('ItemDetails', 'Modal is closing, setting itemModalJustClosed flag.');
-      setItemModalJustClosed(true);
     };
-  }, [setItemModalJustClosed]);
+  }, []);
 
   // If loading, show spinner
   if (isLoading) {
@@ -1551,11 +1550,12 @@ export default function ItemDetails() {
                   const savedItem = await handleSaveAction();
                   if (savedItem) {
                       // Update state upon successful save to mark as "not edited"
+                      setLastUpdatedItem(savedItem);
                       setItem(savedItem);
                       setOriginalItem(savedItem);
                       setVariations(savedItem.variations || []);
-                      // Trigger navigation via the effect
-                      setPostSaveAction(() => () => handleSaveSuccessNavigation(savedItem));
+                      setIsEdited(false); // Manually disable prompt
+                      setIsReadyToNavigate(true); // Signal that we are ready to navigate
                   }
                 }}
                 disabled={isSaving || isPrinting || isSavingAndPrinting || !isEdited} 
