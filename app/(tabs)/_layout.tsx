@@ -95,11 +95,11 @@ export default function MainTabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="search"
+        name="reorders"
         options={{
-          title: 'Search',
+          title: 'Reorders',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'search' : 'search-outline'} size={24} color={color} />
+            <Ionicons name={focused ? 'receipt-outline' : 'receipt-outline'} size={24} color={color} />
           ),
         }}
       />

@@ -3,10 +3,11 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Scr
 import { useApi } from '../../../src/providers/ApiProvider';
 import { useSquareAuth } from '../../../src/hooks/useSquareAuth';
 import logger from '../../../src/utils/logger';
-import { useRouter } from 'expo-router'; // Added for navigation
-import { Ionicons } from '@expo/vector-icons'; // For icons
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+// import { withAuthenticator, useAuthenticator } from '@aws-amplify/ui-react-native';
 
-// Dummy user data (Consider fetching real data or passing via context/props)
+// Dummy user data restored to unblock development
 const user = {
   name: 'John Doe',
   email: 'john.doe@example.com',
@@ -14,9 +15,10 @@ const user = {
   joinDate: 'January 2024',
 };
 
-export default function ProfileScreen() { // Renamed from ProfileTab to ProfileScreen for clarity
-  const router = useRouter(); // Added router hook
-  // Get connection state and actions from context/hooks
+export default function ProfileScreen() {
+  const router = useRouter();
+  // const { user, signOut } = useAuthenticator((context) => [context.user]);
+
   const {
     isConnected,
     merchantId,
@@ -26,11 +28,9 @@ export default function ProfileScreen() { // Renamed from ProfileTab to ProfileS
     disconnectFromSquare
   } = useApi();
   
-  // Get test connection function (or pass it down if needed)
   const { testConnection } = useSquareAuth(); 
   const [testingConnection, setTestingConnection] = React.useState(false);
 
-  // Replicated test function (or pass down from layout)
   const testSquareConnection = async () => {
     try {
       setTestingConnection(true);
@@ -85,6 +85,10 @@ export default function ProfileScreen() { // Renamed from ProfileTab to ProfileS
           <Text style={styles.navButtonText}>Sync Catalog</Text>
           <Ionicons name="chevron-forward" size={20} color={styles.navButtonText.color} />
         </TouchableOpacity>
+        {/* <TouchableOpacity style={styles.navButton} onPress={signOut}>
+          <Ionicons name="log-out-outline" size={22} color={styles.navButtonText.color} style={styles.navButtonIcon} />
+          <Text style={styles.navButtonText}>Sign Out</Text>
+        </TouchableOpacity> */}
       </View>
 
       <View style={[styles.section, styles.connectionContainer]}>
@@ -153,6 +157,8 @@ export default function ProfileScreen() { // Renamed from ProfileTab to ProfileS
     </ScrollView>
   );
 }
+
+// export default withAuthenticator(ProfileScreen);
 
 // Styles extracted from original profile.tsx for the 'profile' section
 const styles = StyleSheet.create({

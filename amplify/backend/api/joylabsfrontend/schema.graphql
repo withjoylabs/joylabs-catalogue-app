@@ -1,0 +1,42 @@
+# This is a custom, non-model type for notes. These will be stored
+# as a list inside the ItemData object.
+type Note {
+  id: ID!
+  content: String!
+  isComplete: Boolean!
+  authorId: String!
+  authorName: String!
+  createdAt: AWSDateTime!
+  updatedAt: AWSDateTime!
+}
+
+# Model for storing custom item information, linked to a Square Item.
+type ItemData @model @auth(rules: [{ allow: owner }]) {
+  id: ID! # This ID is the Square Item ID
+
+  # Renamed and new fields as per your request
+  caseUpc: String @index(name: "byCaseUpc", queryField: "itemsByCaseUpc")
+  caseCost: Float
+  caseQuantity: Int
+  vendor: String
+  discontinued: Boolean
+  notes: [Note] # For "Additional Notes"
+
+  # Timestamps are handled automatically by AppSync
+}
+
+# This model creates an immutable "ItemChangeLog" table, serving as an
+# audit trail for all important actions.
+type ItemChangeLog @model @auth(rules: [{ allow: owner }]) {
+  id: ID!
+  # The @index allows us to efficiently query all changes for a specific item.
+  itemID: ID! @index(name: "byItem", queryField: "listChangesForItem")
+
+  authorId: String!
+  authorName: String!
+
+  timestamp: AWSDateTime!
+  changeType: String!
+  changeDetails: String!
+}
+

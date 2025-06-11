@@ -1,7 +1,7 @@
 import React, { useEffect, createContext, useContext, useState, useMemo, useCallback } from 'react';
 import { useSquareAuth } from '../hooks/useSquareAuth';
 import logger from '../utils/logger';
-import { apiClientInstance } from '../api';
+import { apiClientInstance } from '../api/client';
 import tokenService from '../services/tokenService';
 import { useAppStore } from '../store';
 import {

@@ -18,10 +18,12 @@ import {
   Animated,
   ActivityIndicator,
   SafeAreaView,
-  Pressable
+  Pressable,
+  useWindowDimensions
 } from 'react-native';
 import { useRouter, useLocalSearchParams, Stack, useNavigation } from 'expo-router';
 import { usePreventRemove } from '@react-navigation/native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 // import { useCategories } from '../../src/hooks'; // Commented out
@@ -35,6 +37,8 @@ import logger from '../../src/utils/logger';
 import { printItemLabel, LabelData, getLabelPrinterStatus } from '../../src/utils/printLabel';
 import { styles } from './_itemStyles';
 import SystemModal from '../../src/components/SystemModal';
+import { generateClient } from 'aws-amplify/api';
+import TeamDataSection from './TeamDataSection';
 
 // Define type for Tax and Modifier List Pickers
 type TaxPickerItem = { id: string; name: string; percentage: string | null };
@@ -79,11 +83,24 @@ export interface ItemVariation {
   locationOverrides?: Array<LocationOverrideType>; // Use defined type
 }
 
+const client = generateClient();
+
 export default function ItemDetails() {
   const router = useRouter();
   const { id, ...params } = useLocalSearchParams<{ id: string, name?: string, sku?: string, barcode?: string }>();
   const navigation = useNavigation();
   const isNewItem = id === 'new';
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
+  const panGesture = Gesture.Pan()
+    .onUpdate((event) => {
+      // You could add logic here for interactive dismissal, but for now we'll just use onEnd
+    })
+    .onEnd((event) => {
+      if (event.translationY > 50) { // If swiped down more than 50 pixels
+        router.back();
+      }
+    });
   
   // Hooks for categories and items
   // const { // Commented out
@@ -157,8 +174,13 @@ export default function ItemDetails() {
     actions: Array<{ label: string; onPress: () => void; isDestructive?: boolean }>;
   } | null>(null);
   
+  // State for inline location picker
+  const [expandedLocationPicker, setExpandedLocationPicker] = useState<{ variationIndex: number; overrideIndex: number } | null>(null);
+  
   const setLastUpdatedItem = useAppStore((state) => state.setLastUpdatedItem);
   
+  const teamDataSaveRef = useRef<(() => Promise<void>) | null>(null);
+
   // --- Printing Logic --- 
 
   // Original initiatePrint for inline variation print buttons (takes index)
@@ -570,7 +592,9 @@ export default function ItemDetails() {
       }
       
       if (savedItem) {
-        logger.info('ItemDetails:handleSaveAction', 'Save successful', { savedItemId: savedItem.id });
+        if (teamDataSaveRef.current) {
+          await teamDataSaveRef.current();
+        }
         setLastUpdatedItem(savedItem);
         return savedItem;
       } else {
@@ -1102,7 +1126,13 @@ export default function ItemDetails() {
     const screenTitle = isNewItem ? 'New Item' : (item?.name || 'Edit Item');
     navigation.setOptions({
       headerShown: true,
-      title: screenTitle,
+      headerTitle: () => (
+        <View style={{ alignItems: 'center' }}>
+          <View style={styles.grabber} />
+          <Text style={{ fontSize: 17, fontWeight: '600', width: '100%', marginTop: 10, marginBottom: 10 }}>{screenTitle}</Text>
+        </View>
+      ),
+      title: screenTitle, // Keep for accessibility
       headerLeft: () => null,
       headerBackButtonMenuEnabled: false,
       headerRight: () => {
@@ -1153,15 +1183,6 @@ export default function ItemDetails() {
     }
   }, [isReadyToNavigate, isEdited, router]);
 
-  // Set flag when modal is closed
-  useEffect(() => {
-    // This effect runs when the component mounts.
-    // The cleanup function runs when the component unmounts.
-    return () => {
-      logger.info('ItemDetails', 'Modal is closing, setting itemModalJustClosed flag.');
-    };
-  }, []);
-
   // If loading, show spinner
   if (isLoading) {
     return (
@@ -1193,11 +1214,17 @@ export default function ItemDetails() {
 
         {/* Main Content: Render ScrollView and Modal if NO error OR if it's a new item (allows form filling even if some dropdown data failed) */} 
         {(!error || isNewItem) && (
-        <>
-            <ScrollView style={styles.content} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scrollContentContainer}>
+        <GestureDetector gesture={panGesture}>
+          <View style={{ flex: 1, width: '100%', maxWidth: isTablet ? 800 : '100%' }}>
+            <ScrollView 
+              style={styles.content}
+              keyboardShouldPersistTaps="handled" 
+              contentContainerStyle={styles.scrollContentContainer}
+            >
             {/* Item Name */}
             <View style={styles.fieldContainer}>
               <Text style={styles.label}>Item Name</Text>
+              <View style={styles.inputWrapper}>
               <TextInput
                 style={styles.input}
                 value={item.name || ''}
@@ -1205,6 +1232,12 @@ export default function ItemDetails() {
                 placeholder="Enter item name"
                 placeholderTextColor="#999"
               />
+                {(item.name || '').length > 0 && (
+                  <TouchableOpacity onPress={() => handleInputChange('name', '')} style={styles.clearButton}>
+                    <Ionicons name="close-circle" size={20} color="#ccc" />
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
 
             {/* Variations Section */}
@@ -1225,7 +1258,7 @@ export default function ItemDetails() {
                             <ActivityIndicator size="small" color={lightTheme.colors.primary} />
                           ) : (
                             <>
-                        <Ionicons name="print-outline" size={18} color={lightTheme.colors.primary} style={styles.inlinePrintIcon} />
+                          <Ionicons name="print-outline" size={20} color={lightTheme.colors.primary} style={styles.inlinePrintIcon} />
                         <Text style={styles.inlinePrintButtonText}>Print</Text>
                             </>
                           )}
@@ -1245,6 +1278,7 @@ export default function ItemDetails() {
                   {/* Variation Name */}
                   <View style={styles.fieldContainer}>
                     <Text style={styles.subLabel}>Variation Name</Text>
+                    <View style={styles.inputWrapper}>
                     <TextInput
                       style={styles.input}
                       value={variation.name || ''}
@@ -1252,11 +1286,38 @@ export default function ItemDetails() {
                       placeholder="e.g., Regular, Large, Blue (optional)"
                       placeholderTextColor="#999"
                     />
+                      {(variation.name || '').length > 0 && (
+                        <TouchableOpacity onPress={() => handleVariationChange(index, 'name', '')} style={styles.clearButton}>
+                          <Ionicons name="close-circle" size={20} color="#ccc" />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+
+                  {/* UPC/Barcode */}
+                  <View style={styles.fieldContainer}>
+                    <Text style={styles.subLabel}>UPC / Barcode</Text>
+                    <View style={styles.inputWrapper}>
+                      <TextInput
+                        style={styles.input}
+                        value={variation.barcode || ''}
+                        onChangeText={(value) => handleVariationChange(index, 'barcode', value)}
+                        placeholder="Enter UPC or scan barcode"
+                        placeholderTextColor="#999"
+                          keyboardType="numeric" // Barcodes can be numeric
+                      />
+                      {(variation.barcode || '').length > 0 && (
+                        <TouchableOpacity onPress={() => handleVariationChange(index, 'barcode', '')} style={styles.clearButton}>
+                          <Ionicons name="close-circle" size={20} color="#ccc" />
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   </View>
 
                   {/* SKU */}
                   <View style={styles.fieldContainer}>
                     <Text style={styles.subLabel}>SKU</Text>
+                    <View style={styles.inputWrapper}>
                     <TextInput
                       style={styles.input}
                       value={variation.sku || ''}
@@ -1265,6 +1326,12 @@ export default function ItemDetails() {
                       placeholderTextColor="#999"
                         autoCapitalize="characters" // Keep autoCapitalize for SKU
                     />
+                      {(variation.sku || '').length > 0 && (
+                        <TouchableOpacity onPress={() => handleVariationChange(index, 'sku', '')} style={styles.clearButton}>
+                          <Ionicons name="close-circle" size={20} color="#ccc" />
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   </View>
 
                   {/* Price */}
@@ -1280,6 +1347,11 @@ export default function ItemDetails() {
                         placeholderTextColor="#999"
                         keyboardType="numeric"
                       />
+                      {variation.price !== undefined && (
+                        <TouchableOpacity onPress={() => handleVariationChange(index, 'price', undefined)} style={styles.clearButton}>
+                          <Ionicons name="close-circle" size={20} color="#ccc" />
+                        </TouchableOpacity>
+                      )}
                     </View>
                     <Text style={styles.helperText}>Leave blank for variable pricing</Text> 
 
@@ -1314,27 +1386,26 @@ export default function ItemDetails() {
                                 style={styles.priceOverrideInput}
                               value={override.price !== undefined ? override.price.toFixed(2) : ''}
                               onChangeText={(value) => updatePriceOverride(index, overrideIndex, 'price', value)}
-                              placeholder="Price"
+                                placeholder="Variable"
                               placeholderTextColor="#999"
                               keyboardType="numeric"
                             />
+                              {override.price !== undefined && (
+                                <TouchableOpacity onPress={() => updatePriceOverride(index, overrideIndex, 'price', undefined)} style={styles.clearButton}>
+                                  <Ionicons name="close-circle" size={20} color="#ccc" />
+                                </TouchableOpacity>
+                              )}
                           </View>
 
                           {/* Location selector */}
                             <View style={styles.priceOverrideLocationSelectorWrapper}>
                             {availableLocations.length > 0 ? (
+                              <>
                               <TouchableOpacity 
                                   style={styles.priceOverrideLocationButton}
                                 onPress={() => {
-                                  Alert.alert(
-                                    "Select Location",
-                                    "Choose a location for this price override",
-                                    availableLocations.map(location => ({
-                                      text: location.name,
-                                      onPress: () => updatePriceOverride(index, overrideIndex, 'locationId', location.id)
-                                    })),
-                                    { cancelable: true }
-                                  );
+                                      const isExpanded = expandedLocationPicker?.variationIndex === index && expandedLocationPicker?.overrideIndex === overrideIndex;
+                                      setExpandedLocationPicker(isExpanded ? null : { variationIndex: index, overrideIndex: overrideIndex });
                                 }}
                               >
                                 <Text style={[
@@ -1345,8 +1416,30 @@ export default function ItemDetails() {
                                       (override.locationName || availableLocations.find(loc => loc.id === override.locationId)?.name || 'Select Location') :
                                     'Select Location'}
                                 </Text>
-                                <Ionicons name="chevron-down" size={16} color="#666" />
+                                  <Ionicons name={
+                                      expandedLocationPicker?.variationIndex === index && expandedLocationPicker?.overrideIndex === overrideIndex ?
+                                      "chevron-up" : "chevron-down"
+                                    } size={16} color="#666" />
                               </TouchableOpacity>
+                                {expandedLocationPicker?.variationIndex === index && expandedLocationPicker?.overrideIndex === overrideIndex && (
+                                  <View style={styles.inlineLocationListContainer}>
+                                    <ScrollView nestedScrollEnabled>
+                                      {availableLocations.map(location => (
+                                        <TouchableOpacity
+                                          key={location.id}
+                                          style={styles.inlineLocationListItem}
+                                          onPress={() => {
+                                            updatePriceOverride(index, overrideIndex, 'locationId', location.id);
+                                            setExpandedLocationPicker(null); // Close the list
+                                          }}
+                                        >
+                                          <Text style={styles.inlineLocationListItemText}>{location.name}</Text>
+                                        </TouchableOpacity>
+                                      ))}
+                                    </ScrollView>
+                                  </View>
+                                )}
+                              </>
                             ) : (
                                 <Text style={styles.noLocationsText}>No locations</Text>
                             )}
@@ -1363,19 +1456,6 @@ export default function ItemDetails() {
                         </View>
                       ))}
                     </View>
-                  </View>
-                  
-                  {/* UPC/Barcode */}
-                  <View style={styles.fieldContainer}>
-                    <Text style={styles.subLabel}>UPC / Barcode</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={variation.barcode || ''}
-                      onChangeText={(value) => handleVariationChange(index, 'barcode', value)}
-                      placeholder="Enter UPC or scan barcode"
-                      placeholderTextColor="#999"
-                        keyboardType="numeric" // Barcodes can be numeric
-                    />
                   </View>
                 </View>
               ))}
@@ -1489,35 +1569,29 @@ export default function ItemDetails() {
               <TextInput
                 style={[styles.input, styles.textArea]}
                 value={item.description || ''}
-                  onChangeText={(text) => updateItem('description', text)}
-                placeholder="Enter item description (optional)"
-                placeholderTextColor="#999"
+                onChangeText={(value) => handleInputChange('description', value)}
+                placeholder="Enter item description..."
                 multiline
-                numberOfLines={4}
-                  textAlignVertical="top"
               />
             </View>
 
-              {/* Delete Button - Only for existing items */}
-              {!isNewItem && (
-                <View style={styles.deleteButtonContainer}>
-                  <TouchableOpacity
-                    style={styles.deleteButton}
-                    onPress={handleDelete}
-                    disabled={isSaving || isSavingAndPrinting} // Disable during save
-                  >
-                    <Ionicons name="trash-outline" size={20} color={styles.deleteButtonText.color} />
-                    <Text style={styles.deleteButtonText}>Delete Item</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
+            {!isNewItem && <TeamDataSection itemId={id} onSaveRef={teamDataSaveRef} />}
 
-              {/* Spacer to push delete button to the bottom / general spacing */}
-              <View style={{ height: Platform.OS === 'ios' ? 80 : 100 }} /> 
+            {/* Delete Button - Only for existing items */}
+            {!isNewItem && (
+              <View style={styles.deleteButtonContainer}>
+                <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
+                  <Text style={styles.deleteButtonText}>Delete Item</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Spacer to push delete button to the bottom / general spacing */}
+            <View style={{ height: Platform.OS === 'ios' ? 80 : 100 }} /> 
           </ScrollView>
 
             {/* Fixed Footer Button Container */}
-            <View style={styles.footerContainer}>
+            <View style={[styles.footerContainer, { paddingBottom: isTablet ? 20 : 10 }]}>
               {/* Close Button */}
               <TouchableOpacity
                 style={[styles.footerButton, styles.footerButtonClose, { flex: 1, justifyContent: 'center', alignItems: 'center' }]}
@@ -1622,53 +1696,60 @@ export default function ItemDetails() {
             <Pressable
               style={styles.categoryModalContainer}
               onPress={() => {
-                setShowCategoryModal(false);
-                setCategorySearch('');
+              setShowCategoryModal(false);
+              setCategorySearch('');
               }}
             >
-              <KeyboardAvoidingView
-                behavior={Platform.OS === "ios" ? "padding" : "height"}
-                style={{ width: '100%', alignItems: 'center' }}
-                keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
-              >
+                  <KeyboardAvoidingView 
+                    behavior={Platform.OS === "ios" ? "padding" : "height"} 
+                    style={{ width: '100%', alignItems: 'center' }} 
+                    keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+                  >
                 <TouchableWithoutFeedback>
                     <View style={styles.categoryModalContent}>
                       <Text style={styles.categoryModalTitle}>Select Reporting Category</Text>
-                      <TextInput
-                          style={styles.categoryModalSearchInput}
-                          placeholder="Search categories..."
-                          placeholderTextColor="#999"
-                          value={categorySearch}
-                          onChangeText={setCategorySearch}
-                          autoCapitalize="none"
-                          autoCorrect={false}
-                          autoFocus
-                      />
-                      <View style={styles.categoryModalListContainer}>
-                        <FlatList
-                            data={filteredCategories}
-                            keyExtractor={(cat) => cat.id}
-                            renderItem={({ item: cat }) => (
-                                <TouchableOpacity 
-                                    style={styles.categoryModalItem}
-                                    onPress={() => handleSelectCategory(cat.id)}
-                                >
-                                    <Text 
-                                        style={[
-                                            styles.categoryModalItemText,
-                                            (cat.id === item.reporting_category_id) && styles.categoryModalItemTextSelected 
-                                        ]}
-                                    >
-                                        {cat.name}
-                                    </Text>
-                                </TouchableOpacity>
-                            )}
-                            ListEmptyComponent={() => (
-                                <View style={styles.categoryModalEmpty}>
-                                    <Text style={styles.categoryModalEmptyText}>No categories match "{categorySearch}"</Text>
-                                </View>
-                            )}
+                      <View style={styles.categoryModalSearchInputWrapper}>
+                        <TextInput
+                            style={styles.categoryModalSearchInput}
+                            placeholder="Search categories..."
+                            placeholderTextColor="#999"
+                            value={categorySearch}
+                            onChangeText={setCategorySearch}
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                            autoFocus
                         />
+                        {categorySearch.length > 0 && (
+                          <TouchableOpacity onPress={() => setCategorySearch('')} style={styles.clearButton}>
+                            <Ionicons name="close-circle" size={20} color="#ccc" />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                      <View style={styles.categoryModalListContainer}>
+                      <FlatList
+                          data={filteredCategories}
+                          keyExtractor={(cat) => cat.id}
+                          renderItem={({ item: cat }) => (
+                              <TouchableOpacity 
+                                  style={styles.categoryModalItem}
+                                  onPress={() => handleSelectCategory(cat.id)}
+                              >
+                                  <Text 
+                                      style={[
+                                          styles.categoryModalItemText,
+                                          (cat.id === item.reporting_category_id) && styles.categoryModalItemTextSelected 
+                                      ]}
+                                  >
+                                      {cat.name}
+                                  </Text>
+                              </TouchableOpacity>
+                          )}
+                          ListEmptyComponent={() => (
+                              <View style={styles.categoryModalEmpty}>
+                                  <Text style={styles.categoryModalEmptyText}>No categories match "{categorySearch}"</Text>
+                              </View>
+                          )}
+                      />
                       </View>
                       <View style={styles.categoryModalFooter}>
                           <TouchableOpacity 
@@ -1747,7 +1828,8 @@ export default function ItemDetails() {
                 </View>
               </TouchableWithoutFeedback>
             </Modal>
-        </>
+        </View>
+      </GestureDetector>
       )}
     </SafeAreaView>
   );

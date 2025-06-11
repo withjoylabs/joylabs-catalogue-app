@@ -1,0 +1,11 @@
+{
+  "AppSyncApiName": "joylabsfrontend",
+  "DynamoDBBillingMode": "PAY_PER_REQUEST",
+  "DynamoDBEnableServerSideEncryption": false,
+  "AuthCognitoUserPoolId": {
+    "Fn::GetAtt": [
+      "authjoylabsfrontend6dd27818",
+      "Outputs.UserPoolId"
+    ]
+  }
+}

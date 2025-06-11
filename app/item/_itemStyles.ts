@@ -17,6 +17,8 @@ interface ItemStyles {
   subLabel: any;
   sectionHeaderText: any;
   input: any;
+  inputWrapper: any;
+  clearButton: any;
   textArea: any;
   priceInputContainer: any;
   currencySymbol: any;
@@ -67,6 +69,11 @@ interface ItemStyles {
   noLocationsText: any;
   removePriceOverrideButton: any;
   
+  // Inline Location Picker
+  inlineLocationListContainer: any;
+  inlineLocationListItem: any;
+  inlineLocationListItemText: any;
+  
   // Delete Button Container
   deleteButtonContainer: any;
 
@@ -113,6 +120,7 @@ interface ItemStyles {
   categoryModalContent: any;
   categoryModalTitle: any;
   categoryModalSearchInput: any;
+  categoryModalSearchInputWrapper: any;
   categoryModalItem: any;
   categoryModalItemText: any;
   categoryModalItemTextSelected: any;
@@ -125,6 +133,18 @@ interface ItemStyles {
   categoryModalButtonText: any;
   categoryModalClearButtonText: any;
   categoryModalListContainer: any;
+
+  grabber: any;
+
+  modalTitle: any;
+
+  teamDataSection: any;
+  teamDataTitle: any;
+  checkboxRow: any;
+  logContainer: any;
+  logItem: any;
+  logText: any;
+  logMeta: any;
 }
 
 // Export the styles with type safety
@@ -132,7 +152,14 @@ export const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: lightTheme.colors.background,
-    marginTop: 10,
+    alignItems: 'center',
+  },
+  grabber: {
+    width: 40,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#D1D1D6',
+    marginBottom: 8,
   },
   content: {
     flex: 1,
@@ -197,13 +224,59 @@ export const styles = StyleSheet.create({
     marginBottom: 12,
     color: '#333',
   },
-  input: {
+  teamDataSection: {
+    marginTop: 24,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+  },
+  teamDataTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: lightTheme.colors.primary,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  checkboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  logContainer: {
+    marginTop: 16,
+  },
+  logItem: {
+    backgroundColor: '#f9f9f9',
+    borderRadius: 5,
+    padding: 10,
+    marginBottom: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: lightTheme.colors.primary,
+  },
+  logText: {
+    fontSize: 14,
+    color: '#333',
+  },
+  logMeta: {
+    fontSize: 12,
+    color: '#777',
+    marginTop: 4,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 5,
+    backgroundColor: 'white',
+  },
+  input: {
+    flex: 1,
     padding: 12,
     fontSize: 16,
-    backgroundColor: 'white',
+  },
+  clearButton: {
+    padding: 8,
   },
   textArea: {
     height: 100,
@@ -242,6 +315,7 @@ export const styles = StyleSheet.create({
     borderRadius: 5,
     padding: 12,
     backgroundColor: 'white',
+    color: 'white',
   },
   selectorText: {
     fontSize: 16,
@@ -325,15 +399,20 @@ export const styles = StyleSheet.create({
   inlinePrintButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     marginRight: 8,
+    backgroundColor: '#EFEFEF',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#DDD',
   },
   inlinePrintIcon: {
-    marginRight: 4,
+    marginRight: 6,
   },
   inlinePrintButtonText: {
-    fontSize: 14,
+    fontSize: 15,
+    fontWeight: '500',
     color: lightTheme.colors.primary,
   },
   removeVariationButton: {
@@ -438,13 +517,13 @@ export const styles = StyleSheet.create({
   },
   priceOverrideInput: {
     flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 6,
-    fontSize: 15,
+    padding: 12,
+    fontSize: 16,
   },
   priceOverrideLocationSelectorWrapper: { 
     flex: 1.2, 
     marginRight: 8,
+    zIndex: 1,
   },
   priceOverrideLocationButton: {
     flexDirection: 'row',
@@ -453,25 +532,51 @@ export const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 5,
-    paddingVertical: 10, 
+    paddingVertical: 12, 
     paddingHorizontal: 8,
     backgroundColor: 'white',
   },
   priceOverrideLocationText: {
-    fontSize: 15,
+    fontSize: 16,
     color: '#333',
   },
   priceOverrideLocationPlaceholder: {
     color: '#999',
+    fontSize: 16,
   },
   noLocationsText: { 
-    fontSize: 14,
+    fontSize: 16,
     color: '#888',
     fontStyle: 'italic',
     paddingVertical: 10, 
   },
   removePriceOverrideButton: {
     padding: 5, 
+  },
+  
+  // Inline Location Picker
+  inlineLocationListContainer: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: '#DDD',
+    borderRadius: 8,
+    backgroundColor: 'white',
+    maxHeight: 180, // Restrict height for scrolling
+    zIndex: 10, // Ensure it's on top of other elements
+  },
+  inlineLocationListItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEE',
+  },
+  inlineLocationListItemText: {
+    fontSize: 16,
+    color: '#333',
   },
   
   // Delete Button Container
@@ -546,7 +651,7 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    paddingVertical: Platform.OS === 'ios' ? 10 : 10,
+    paddingVertical: 10,
     paddingHorizontal: 10,
     backgroundColor: lightTheme.colors.background,
     borderTopWidth: 1,
@@ -693,16 +798,21 @@ export const styles = StyleSheet.create({
     textAlign: 'center',
     color: lightTheme.colors.text,
   },
-  categoryModalSearchInput: {
+  categoryModalSearchInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
     height: 44,
     borderColor: lightTheme.colors.border,
     borderWidth: 1,
     borderRadius: 8,
+    backgroundColor: lightTheme.colors.background,
+    marginBottom: 10,
+  },
+  categoryModalSearchInput: {
+    flex: 1,
     paddingHorizontal: 12,
     fontSize: 16,
-    backgroundColor: lightTheme.colors.background,
     color: lightTheme.colors.text,
-    marginBottom: 10,
   },
   categoryModalItem: {
     paddingVertical: 14,
@@ -755,5 +865,12 @@ export const styles = StyleSheet.create({
   },
   categoryModalListContainer: {
     flex: 1,
+  },
+
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 16,
   },
 }) as unknown as ItemStyles; // Ensures stricter type checking by TypeScript

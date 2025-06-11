@@ -34,6 +34,12 @@ import { MenuProvider } from 'react-native-popup-menu';
 import * as SystemUI from 'expo-system-ui';
 import { lightTheme } from '../src/themes';
 import GlobalSuccessModal from '../src/components/GlobalSuccessModal';
+import { Amplify } from 'aws-amplify';
+import { ConsoleLogger } from 'aws-amplify/utils';
+import config from '../src/aws-exports';
+
+Amplify.configure(config);
+ConsoleLogger.LOG_LEVEL = 'DEBUG';
 
 const BACKGROUND_NOTIFICATION_TASK = 'CATALOG_SYNC_TASK';
 
@@ -251,7 +257,7 @@ export default function RootLayout() {
                         }}
                       >
                         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                        <Stack.Screen name="item/[id]" options={{ presentation: 'modal', headerShown: false }} />
+                        <Stack.Screen name="item/[id]" options={{ presentation: 'modal' }} />
                         <Stack.Screen name="auth/success" />
                         <Stack.Screen name="debug" />
                         <Stack.Screen name="labelDesigner" />
@@ -260,8 +266,8 @@ export default function RootLayout() {
                         <Stack.Screen name="modules" />
                       </Stack>
                     ) : (
-                      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: paperTheme.colors.background }}>
-                        <ActivityIndicator size="large" color={paperTheme.colors.primary} />
+                      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: lightTheme.colors.background }}>
+                        <ActivityIndicator size="large" color={lightTheme.colors.primary} />
                       </View>
                     )}
                   </DatabaseProvider>
