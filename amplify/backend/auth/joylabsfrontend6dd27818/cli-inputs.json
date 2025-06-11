@@ -23,13 +23,24 @@
       "email"
     ],
     "aliasAttributes": [],
+    "customAttributes": [
+      {
+        "AttributeName": "title",
+        "AttributeDataType": "String",
+        "Mutable": "true"
+      }
+    ],
     "userpoolClientGenerateSecret": false,
     "userpoolClientRefreshTokenValidity": 30,
     "userpoolClientWriteAttributes": [
-      "email"
+      "email",
+      "name",
+      "custom:title"
     ],
     "userpoolClientReadAttributes": [
-      "email"
+      "email",
+      "name",
+      "custom:title"
     ],
     "userpoolClientLambdaRole": "joylab6dd27818_userpoolclient_lambda_role",
     "userpoolClientSetAttributes": false,

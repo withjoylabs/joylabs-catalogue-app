@@ -36,7 +36,37 @@ import { lightTheme } from '../src/themes';
 import GlobalSuccessModal from '../src/components/GlobalSuccessModal';
 import { Amplify } from 'aws-amplify';
 import { ConsoleLogger } from 'aws-amplify/utils';
-import config from '../src/aws-exports';
+import { Authenticator } from '@aws-amplify/ui-react-native';
+
+const config = {
+  "aws_project_region": "us-west-1",
+  "aws_cognito_identity_pool_id": "us-west-1:86879c1c-571a-4a6f-9da3-19a2955b7422",
+  "aws_cognito_region": "us-west-1",
+  "aws_user_pools_id": "us-west-1_3ErX60pRX",
+  "aws_user_pools_web_client_id": "35eqlqiilknf6v5lqrshbhj3bc",
+  "oauth": {},
+  "aws_cognito_username_attributes": [
+    "EMAIL"
+  ],
+  "aws_cognito_social_providers": [],
+  "aws_cognito_signup_attributes": [
+    "EMAIL"
+  ],
+  "aws_cognito_mfa_configuration": "OFF",
+  "aws_cognito_mfa_types": [
+    "SMS"
+  ],
+  "aws_cognito_password_protection_settings": {
+    "passwordPolicyMinLength": 8,
+    "passwordPolicyCharacters": []
+  },
+  "aws_cognito_verification_mechanisms": [
+    "EMAIL"
+  ],
+  "aws_appsync_graphqlEndpoint": "https://wx4zbczmdveldktohcnfa6vvba.appsync-api.us-west-1.amazonaws.com/graphql",
+  "aws_appsync_region": "us-west-1",
+  "aws_appsync_authenticationType": "AMAZON_COGNITO_USER_POOLS"
+};
 
 Amplify.configure(config);
 ConsoleLogger.LOG_LEVEL = 'DEBUG';
@@ -236,55 +266,87 @@ export default function RootLayout() {
     });
   }, []);
 
-  if (!loaded && !fontError) {
-    return null;
+  const router = useRouter();
+
+  useEffect(() => {
+    // Other notification setup...
+
+    // Listener for when a user taps on a notification
+    const responseSubscription = Notifications.addNotificationResponseReceivedListener(response => {
+      const url = response.notification.request.content.data.url;
+      if (typeof url === 'string') {
+        router.push(url);
+      }
+    });
+
+    return () => {
+      responseSubscription.remove();
+    };
+  }, [router]);
+
+  if (!isAppReady) {
+    return <ActivityIndicator size="large" style={{ flex: 1, justifyContent: 'center' }} />;
   }
 
   return (
-    <MenuProvider>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <PaperProvider theme={paperTheme}>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ActionSheetProvider>
+        <Authenticator.Provider>
           <ApiProvider>
-            <SafeAreaProvider>
-              <ActionSheetProvider>
-                <React.Fragment>
-                  <DatabaseProvider>
-                    {isAppReady ? (
-                      <Stack
-                        screenOptions={{
-                          headerShown: false,
-                          gestureEnabled: true,
-                        }}
-                      >
-                        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                        <Stack.Screen name="item/[id]" options={{ presentation: 'modal' }} />
-                        <Stack.Screen name="auth/success" />
-                        <Stack.Screen name="debug" />
-                        <Stack.Screen name="labelDesigner" />
-                        <Stack.Screen name="labelSettings" />
-                        <Stack.Screen name="catalogue" />
-                        <Stack.Screen name="modules" />
-                      </Stack>
-                    ) : (
-                      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: lightTheme.colors.background }}>
-                        <ActivityIndicator size="large" color={lightTheme.colors.primary} />
-                      </View>
-                    )}
-                  </DatabaseProvider>
+            <DatabaseProvider>
+              <PaperProvider theme={paperTheme}>
+                <MenuProvider>
+                  <StatusBar style="auto" />
+                  <Stack>
+                    <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                    <Stack.Screen
+                      name="item/[id]"
+                      options={{
+                        headerShown: true,
+                        headerTitle: 'Item Detail',
+                        presentation: 'modal',
+                        gestureEnabled: true,
+                      }}
+                    />
+                    <Stack.Screen name="debug" options={{
+                      presentation: 'modal',
+                      headerShown: true,
+                      headerTitle: 'Debug & Developer Info'
+                    }} />
+                    <Stack.Screen name="labelDesigner" options={{
+                      presentation: 'modal',
+                      headerShown: true,
+                      headerTitle: 'Label Designer'
+                    }} />
+                    <Stack.Screen name="labelSettings" options={{
+                      presentation: 'modal',
+                      headerShown: true,
+                      headerTitle: 'Label Settings'
+                    }} />
+                    <Stack.Screen name="catalogue" options={{
+                      presentation: 'modal',
+                      headerShown: true,
+                      headerTitle: 'Product Catalog'
+                    }} />
+                    <Stack.Screen name="modules" options={{
+                      presentation: 'modal',
+                      headerShown: true,
+                      headerTitle: 'Modules'
+                    }} />
+                    <Stack.Screen name="login" options={{
+                      presentation: 'modal',
+                      headerShown: true,
+                      headerTitle: 'Sign In'
+                    }} />
+                  </Stack>
                   <GlobalSuccessModal />
-                  <TouchableOpacity onPress={handleDebugTap} style={{ position: 'absolute', bottom: 0, left: 0, width: 50, height: 50, opacity: 0.05 }} />
-                  {debugModeActive && (
-                    <View style={{ position: 'absolute', bottom: 10, right: 10, padding: 10, backgroundColor: 'rgba(0,0,0,0.7)', borderRadius: 5 }}>
-                      <Text style={{ color: 'white' }}>Debug Mode Active</Text>
-                    </View>
-                  )}
-                </React.Fragment>
-              </ActionSheetProvider>
-            </SafeAreaProvider>
+                </MenuProvider>
+              </PaperProvider>
+            </DatabaseProvider>
           </ApiProvider>
-        </PaperProvider>
-      </GestureHandlerRootView>
-    </MenuProvider>
+        </Authenticator.Provider>
+      </ActionSheetProvider>
+    </GestureHandlerRootView>
   );
 }
 

@@ -5,19 +5,23 @@ import { useSquareAuth } from '../../../src/hooks/useSquareAuth';
 import logger from '../../../src/utils/logger';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-// import { withAuthenticator, useAuthenticator } from '@aws-amplify/ui-react-native';
+import { useAuthenticator } from '@aws-amplify/ui-react-native';
 
 // Dummy user data restored to unblock development
-const user = {
-  name: 'John Doe',
-  email: 'john.doe@example.com',
-  role: 'Store Manager',
-  joinDate: 'January 2024',
-};
+// const user = {
+//   name: 'John Doe',
+//   email: 'john.doe@example.com',
+//   role: 'Store Manager',
+//   joinDate: 'January 2024',
+// };
 
-export default function ProfileScreen() {
+const ProfileScreen = () => {
   const router = useRouter();
-  // const { user, signOut } = useAuthenticator((context) => [context.user]);
+  const { user, signOut, route } = useAuthenticator((context) => [
+    context.user,
+    context.signOut,
+    context.route,
+  ]);
 
   const {
     isConnected,
@@ -50,26 +54,38 @@ export default function ProfileScreen() {
     }
   };
 
+  const isAuthenticated = route === 'authenticated';
+  const userEmail = user?.signInDetails?.loginId || 'N/A';
+  const userName = user?.signInDetails?.loginId?.split('@')[0] || 'Guest';
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
       <View style={styles.section}>
         <View style={styles.avatarContainer}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{user.name.charAt(0)}</Text>
+            <Text style={styles.avatarText}>{userName.charAt(0).toUpperCase()}</Text>
           </View>
-          <Text style={styles.userName}>{user.name}</Text>
-          <Text style={styles.userRole}>{user.role}</Text>
+          <Text style={styles.userName}>{userName}</Text>
+          {isAuthenticated && user?.signInDetails?.loginId && (
+            <Text style={styles.userRole}>Store Manager</Text> // Placeholder role
+          )}
         </View>
 
-        <View style={styles.infoItem}>
-          <Text style={styles.infoLabel}>Email</Text>
-          <Text style={styles.infoValue}>{user.email}</Text>
-        </View>
-
-        <View style={styles.infoItem}>
-          <Text style={styles.infoLabel}>Member since</Text>
-          <Text style={styles.infoValue}>{user.joinDate}</Text>
-        </View>
+        {isAuthenticated ? (
+          <>
+            <View style={styles.infoItem}>
+              <Text style={styles.infoLabel}>Email</Text>
+              <Text style={styles.infoValue}>{userEmail}</Text>
+            </View>
+          </>
+        ) : (
+          <View style={styles.loggedOutContainer}>
+            <Text style={styles.loggedOutText}>Log in to manage your account and sync data.</Text>
+            <TouchableOpacity style={styles.logInButton} onPress={() => router.push('/login')}>
+              <Text style={styles.logInButtonText}>Log In / Sign Up</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       {/* Navigation Links Section */}
@@ -85,10 +101,12 @@ export default function ProfileScreen() {
           <Text style={styles.navButtonText}>Sync Catalog</Text>
           <Ionicons name="chevron-forward" size={20} color={styles.navButtonText.color} />
         </TouchableOpacity>
-        {/* <TouchableOpacity style={styles.navButton} onPress={signOut}>
-          <Ionicons name="log-out-outline" size={22} color={styles.navButtonText.color} style={styles.navButtonIcon} />
-          <Text style={styles.navButtonText}>Sign Out</Text>
-        </TouchableOpacity> */}
+        {isAuthenticated && (
+          <TouchableOpacity style={styles.navButton} onPress={signOut}>
+            <Ionicons name="log-out-outline" size={22} color={styles.navButtonText.color} style={styles.navButtonIcon} />
+            <Text style={styles.navButtonText}>Sign Out</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <View style={[styles.section, styles.connectionContainer]}>
@@ -158,7 +176,7 @@ export default function ProfileScreen() {
   );
 }
 
-// export default withAuthenticator(ProfileScreen);
+export default ProfileScreen;
 
 // Styles extracted from original profile.tsx for the 'profile' section
 const styles = StyleSheet.create({
@@ -297,5 +315,26 @@ const styles = StyleSheet.create({
     marginTop: 10,
     textAlign: 'center',
     fontSize: 14,
+  },
+  loggedOutContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  loggedOutText: {
+    fontSize: 16,
+    color: '#555',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  logInButton: {
+    backgroundColor: '#007bff',
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    borderRadius: 8,
+  },
+  logInButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 }); 

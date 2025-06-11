@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, Switch, StyleSheet, ActivityIndicator, Alert, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, Switch, StyleSheet, ActivityIndicator, Alert, TouchableOpacity, ScrollView, TextInput } from 'react-native';
 import { lightTheme } from '../../../src/themes'; // Corrected path
 import logger from '../../../src/utils/logger'; // Corrected path
 import * as notificationService from '../../../src/services/notificationService'; // Corrected path
@@ -7,6 +7,9 @@ import * as notificationState from '../../../src/services/notificationState'; //
 import { useRouter } from 'expo-router'; // Import router for navigation
 import { Ionicons } from '@expo/vector-icons'; // Import icons
 import { useAppStore } from '../../../src/store'; // Corrected path and assuming this is the intended import
+import { useAuthenticator } from '@aws-amplify/ui-react-native';
+import { fetchUserAttributes, updateUserAttributes } from 'aws-amplify/auth';
+import { List } from 'react-native-paper';
 
 const TAG = '[ProfileSettingsScreen]';
 
@@ -19,6 +22,8 @@ interface SettingsState {
 
 const ProfileSettingsScreen = () => {
   const router = useRouter(); // Initialize router for navigation
+  const { user } = useAuthenticator((context) => [context.user]);
+
   const [settings, setSettings] = useState<SettingsState>({
     notificationsEnabled: false,
     backgroundSyncEnabled: false,
@@ -30,17 +35,42 @@ const ProfileSettingsScreen = () => {
   const [storedPushToken, setStoredPushToken] = useState<string | null>(null);
   const [isToggling, setIsToggling] = useState(false); // Separate loading state for toggle action
 
+  // Profile editing state
+  const [name, setName] = useState('');
+  const [title, setTitle] = useState('');
+  const [initialName, setInitialName] = useState('');
+  const [initialTitle, setInitialTitle] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
   // Auto-search settings from the Zustand store
   const autoSearchOnEnter = useAppStore((state) => state.autoSearchOnEnter);
   const autoSearchOnTab = useAppStore((state) => state.autoSearchOnTab);
   const toggleAutoSearchOnEnter = useAppStore((state) => state.toggleAutoSearchOnEnter);
   const toggleAutoSearchOnTab = useAppStore((state) => state.toggleAutoSearchOnTab);
 
+  // Fetch user profile data
+  const handleFetchUserAttributes = async () => {
+    try {
+      const attributes = await fetchUserAttributes();
+      const fetchedName = attributes.name || '';
+      const fetchedTitle = attributes['custom:title'] || '';
+      setName(fetchedName);
+      setTitle(fetchedTitle);
+      setInitialName(fetchedName);
+      setInitialTitle(fetchedTitle);
+      logger.debug(TAG, 'Fetched user attributes', attributes);
+    } catch (error) {
+      logger.error(TAG, 'Error fetching user attributes', { error });
+      Alert.alert('Error', 'Could not load your profile data.');
+    }
+  };
+
   // Load initial state on mount
   useEffect(() => {
     const loadInitialState = async () => {
       setIsLoading(true);
       try {
+        await handleFetchUserAttributes(); // Fetch profile data
         const enabled = await notificationState.loadNotificationEnabledStatus();
         const token = await notificationState.loadPushToken();
         setSettings({
@@ -58,8 +88,36 @@ const ProfileSettingsScreen = () => {
         setIsLoading(false);
       }
     };
-    loadInitialState();
-  }, []);
+    if (user) {
+        loadInitialState();
+    }
+  }, [user]);
+
+  const handleUpdateProfile = async () => {
+    if (name === initialName && title === initialTitle) {
+      Alert.alert('No Changes', 'You have not made any changes to your profile.');
+      return;
+    }
+
+    setIsSavingProfile(true);
+    try {
+      await updateUserAttributes({
+        userAttributes: {
+          name,
+          'custom:title': title,
+        },
+      });
+      setInitialName(name); // Update initial state to reflect saved changes
+      setInitialTitle(title);
+      Alert.alert('Success', 'Your profile has been updated.');
+      logger.info(TAG, 'User profile updated successfully.');
+    } catch (error) {
+      logger.error(TAG, 'Error updating user profile', { error });
+      Alert.alert('Error', 'There was a problem updating your profile. Please try again.');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
 
   const handleToggleNotifications = useCallback(async (newValue: boolean) => {
     setIsToggling(true);
@@ -144,8 +202,48 @@ const ProfileSettingsScreen = () => {
     );
   }
 
+  const isProfileChanged = name !== initialName || title !== initialTitle;
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+      {/* Profile Information Section */}
+      <View style={styles.sectionContent}>
+        <Text style={styles.sectionTitle}>Profile Information</Text>
+        <View style={styles.inputContainer}>
+          <Text style={styles.inputLabel}>Full Name</Text>
+          <TextInput
+            style={styles.input}
+            value={name}
+            onChangeText={setName}
+            placeholder="e.g., Jane Doe"
+            autoCapitalize="words"
+            editable={!isSavingProfile}
+          />
+        </View>
+        <View style={styles.inputContainer}>
+          <Text style={styles.inputLabel}>Job Title</Text>
+          <TextInput
+            style={styles.input}
+            value={title}
+            onChangeText={setTitle}
+            placeholder="e.g., Store Manager"
+            autoCapitalize="words"
+            editable={!isSavingProfile}
+          />
+        </View>
+        <TouchableOpacity
+          style={[styles.saveButton, (!isProfileChanged || isSavingProfile) && styles.saveButtonDisabled]}
+          onPress={handleUpdateProfile}
+          disabled={!isProfileChanged || isSavingProfile}
+        >
+          {isSavingProfile ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Text style={styles.saveButtonText}>Save Changes</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+
       {/* App Settings Section */}
       <View style={styles.sectionContent}>
         <Text style={styles.sectionTitle}>App Settings</Text>
@@ -254,7 +352,21 @@ const ProfileSettingsScreen = () => {
             />
           </View>
         </TouchableOpacity>
-    </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Manage Account</Text>
+        <List.Item
+          title="Edit Profile"
+          onPress={() => router.push('/(profile)/edit-profile')}
+          right={(props) => <List.Icon {...props} icon="chevron-right" />}
+        />
+        <List.Item
+          title="Change Password"
+          onPress={() => router.push('/(auth)/change-password')}
+          right={(props) => <List.Icon {...props} icon="chevron-right" />}
+        />
+      </View>
     </ScrollView>
   );
 };
@@ -266,25 +378,61 @@ const styles = StyleSheet.create({
     backgroundColor: lightTheme.colors.background,
   },
   contentContainer: {
-    paddingBottom: 30, // Add padding to the bottom so content isn't cut off
+    paddingBottom: 20,
   },
   centered: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
   sectionContent: {
-    backgroundColor: lightTheme.colors.card,
+    backgroundColor: 'white',
     borderRadius: 8,
-    padding: 20,
-    marginBottom: 20,
-    marginHorizontal: 15,
-    marginTop: 15,
+    marginHorizontal: 16,
+    marginTop: 20,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: lightTheme.colors.text,
-    marginBottom: 15,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 16,
+  },
+  inputContainer: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#555',
+    marginBottom: 6,
+  },
+  input: {
+    backgroundColor: '#f0f0f5',
+    borderRadius: 6,
+    padding: 12,
+    fontSize: 16,
+    color: '#333',
+  },
+  saveButton: {
+    backgroundColor: lightTheme.colors.primary,
+    borderRadius: 8,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  saveButtonDisabled: {
+    backgroundColor: '#a0c8ff', // Lighter shade of primary for disabled state
+  },
+  saveButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
   },
   settingItem: {
     flexDirection: 'row',
@@ -315,6 +463,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  section: {
+    backgroundColor: 'white',
+    borderRadius: 8,
+    marginHorizontal: 16,
+    marginTop: 20,
+    paddingVertical: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
 });
 

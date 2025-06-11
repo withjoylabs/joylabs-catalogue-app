@@ -18,7 +18,7 @@ import { useCatalogItems } from '../../src/hooks/useCatalogItems';
 import { ConvertedItem } from '../../src/types/api';
 import { lightTheme } from '../../src/themes';
 import logger from '../../src/utils/logger';
-import { styles } from './_indexStyles'; // Use styles from index
+import { styles } from '../../src/styles/_indexStyles'; // Use styles from index
 
 export default function ReordersScreen() {
   const router = useRouter();

@@ -22,9 +22,11 @@
     },
     "production": {
       "ios": {
-        "resourceClass": "m-medium"
+        "resourceClass": "m-medium",
+        "buildConfiguration": "Release"
       },
-      "channel": "production"
+      "channel": "production",
+      "autoIncrement": true
     },
     "production-build": {
       "distribution": "internal",

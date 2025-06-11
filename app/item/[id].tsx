@@ -35,7 +35,7 @@ import { getRecentCategoryIds, addRecentCategoryId } from '../../src/utils/recen
 import { useAppStore } from '../../src/store';
 import logger from '../../src/utils/logger';
 import { printItemLabel, LabelData, getLabelPrinterStatus } from '../../src/utils/printLabel';
-import { styles } from './_itemStyles';
+import { styles } from '../../src/styles/_itemStyles';
 import SystemModal from '../../src/components/SystemModal';
 import { generateClient } from 'aws-amplify/api';
 import TeamDataSection from './TeamDataSection';

@@ -33,7 +33,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { lightTheme } from '../../src/themes';
 import * as modernDb from '../../src/database/modernDb';
 import { useCatalogItems } from '../../src/hooks/useCatalogItems';
-import { styles } from './_indexStyles'; // Updated import
+import { styles } from '../../src/styles/_indexStyles'; // Updated import
 import { SearchFilters } from '../../src/database/modernDb'; // For search filters type
 import { printItemLabel, LabelData } from '../../src/utils/printLabel'; // Added for printing
 import SystemModal from '../../src/components/SystemModal'; // Added for notifications
