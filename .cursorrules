@@ -14,3 +14,6 @@ Phase 2: Implementation and Testing
 General Guidelines:
 
 •	⁠Strict adherence to plan: Do not introduce any changes that were not explicitly part of the agreed-upon plan.
+•	Do NOT run the app for me for testing.
+•	Do NOT run an EAS build without my explicit request.
+•	Do NOT commit and push to git without my explicit request.

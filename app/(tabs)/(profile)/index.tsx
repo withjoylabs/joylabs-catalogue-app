@@ -73,10 +73,10 @@ const ProfileScreen = () => {
 
         {isAuthenticated ? (
           <>
-            <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Email</Text>
+        <View style={styles.infoItem}>
+          <Text style={styles.infoLabel}>Email</Text>
               <Text style={styles.infoValue}>{userEmail}</Text>
-            </View>
+        </View>
           </>
         ) : (
           <View style={styles.loggedOutContainer}>
@@ -84,7 +84,7 @@ const ProfileScreen = () => {
             <TouchableOpacity style={styles.logInButton} onPress={() => router.push('/login')}>
               <Text style={styles.logInButtonText}>Log In / Sign Up</Text>
             </TouchableOpacity>
-          </View>
+        </View>
         )}
       </View>
 

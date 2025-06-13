@@ -444,4 +444,50 @@ export const styles = StyleSheet.create({
     marginLeft: 8,
     fontSize: 14,
   },
+  // Styles for swipe-to-reorder action (RIGHT swipe)
+  swipeReorderActionRight: {
+    justifyContent: 'center',
+    alignItems: 'flex-end', // Align button to the right end of the swipe area
+  },
+  swipeReorderButtonContainer: {
+    backgroundColor: '#28a745', // Green color for reorder action
+    paddingHorizontal: 20,
+    paddingVertical: 10, 
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: '100%', 
+    flexDirection: 'row',
+  },
+  swipeReorderActionText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  // Styles for inline reorder notification
+  inlineNotification: {
+    position: 'absolute',
+    right: 16,
+    top: '50%',
+    transform: [{ translateY: -12 }],
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(40, 167, 69, 0.95)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#28a745',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    zIndex: 1000,
+  },
+  inlineNotificationText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
 }); 

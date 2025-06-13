@@ -37,6 +37,12 @@ import { styles } from '../../src/styles/_indexStyles'; // Updated import
 import { SearchFilters } from '../../src/database/modernDb'; // For search filters type
 import { printItemLabel, LabelData } from '../../src/utils/printLabel'; // Added for printing
 import SystemModal from '../../src/components/SystemModal'; // Added for notifications
+import { reorderService, TeamData } from '../../src/services/reorderService'; // Added for reorder functionality
+import { generateClient } from 'aws-amplify/api';
+import * as queries from '../../src/graphql/queries';
+import { useAuthenticator } from '@aws-amplify/ui-react-native';
+
+const client = generateClient();
 
 // Debounce utility
 const debounce = <F extends (...args: any[]) => any>(func: F, waitFor: number) => {
@@ -76,12 +82,21 @@ const SearchResultsArea = memo(({
 }: SearchResultsAreaProps) => {
   const router = useRouter(); 
   const swipeableRefs = useRef<Record<string, Swipeable | null>>({});
+  
+  // Get authenticated user information
+  const { user } = useAuthenticator((context) => [context.user]);
 
   const { lastUpdatedItem, setLastUpdatedItem } = useAppStore();
 
   const [showPrintNotification, setShowPrintNotification] = useState(false);
   const [printNotificationMessage, setPrintNotificationMessage] = useState('');
   const [printNotificationType, setPrintNotificationType] = useState<'success' | 'error'>('success');
+
+  // Reorder notification state
+  const [showReorderNotification, setShowReorderNotification] = useState(false);
+  const [reorderNotificationMessage, setReorderNotificationMessage] = useState('');
+  const [reorderNotificationType, setReorderNotificationType] = useState<'success' | 'error'>('success');
+  const [reorderNotificationItemId, setReorderNotificationItemId] = useState<string | null>(null);
 
   const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
   const [searchFilters, setSearchFilters] = useState<SearchFilters>({
@@ -95,6 +110,36 @@ const SearchResultsArea = memo(({
   const [availableResultCategories, setAvailableResultCategories] = useState<Array<{ id: string; name: string }>>([]);
 
   const { performSearch, isSearching: catalogIsSearching, searchError: catalogSearchError } = useCatalogItems();
+  
+  // Get categories from store for manual category lookup if needed
+  const categories = useAppStore((state) => state.categories);
+  
+  // Helper function to fetch team data for an item (now uses reorder service for caching)
+  const fetchTeamData = useCallback(async (itemId: string): Promise<TeamData | undefined> => {
+    return await reorderService.fetchTeamData(itemId);
+  }, []);
+
+  // Helper function to ensure proper category conversion
+  const ensureCategoryName = useCallback(async (item: SearchResultItem): Promise<string | undefined> => {
+    // First try the already converted category from search results
+    if (item.category) {
+      return item.category;
+    }
+    
+    // If no category name, try to look it up using categoryId or reporting_category_id from database
+    const categoryId = item.categoryId || item.reporting_category_id;
+    if (categoryId) {
+      try {
+        const categoriesFromDb = await modernDb.getAllCategories();
+        const foundCategory = categoriesFromDb.find(cat => cat.id === categoryId);
+        return foundCategory?.name;
+      } catch (error) {
+        logger.error('SearchResultsArea:ensureCategoryName', 'Error fetching categories from DB', { error, categoryId });
+      }
+    }
+    
+    return undefined;
+  }, []);
   
   const itemModalJustClosed = useAppStore((state) => state.itemModalJustClosed);
   
@@ -238,6 +283,119 @@ const SearchResultsArea = memo(({
     }
   }, [printItemLabel, swipeableRefs, setPrintNotificationMessage, setPrintNotificationType, setShowPrintNotification, onPrintSuccessForChaining]);
 
+  const handleSwipeReorder = useCallback(async (item: SearchResultItem) => {
+    logger.info('SearchResultsArea:handleSwipeReorder', 'Reorder triggered for item', { itemId: item.id, name: item.name });
+    
+    // Ensure we have the proper category name
+    const categoryName = await ensureCategoryName(item);
+    
+    // Debug logging for category data
+    logger.info('SearchResultsArea:handleSwipeReorder', 'Category data debug', {
+      itemId: item.id,
+      originalCategory: item.category,
+      categoryId: item.categoryId,
+      reportingCategoryId: item.reporting_category_id,
+      ensuredCategoryName: categoryName,
+      categoriesCount: categories?.length || 0
+    });
+    
+    // Convert SearchResultItem to ConvertedItem for reorder service
+    const convertedItem: ConvertedItem = {
+      id: item.id,
+      name: item.name || '',
+      sku: item.sku,
+      barcode: item.barcode,
+      price: item.price,
+      category: categoryName, // Use the ensured category name
+      categoryId: item.categoryId, // Keep the category ID
+      reporting_category_id: item.categoryId || item.reporting_category_id, // Include reporting_category_id
+      description: item.description,
+      isActive: true,
+      images: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    try {
+      // Fetch team data for the item
+      const teamData = await fetchTeamData(item.id);
+      const userName = user?.signInDetails?.loginId?.split('@')[0] || 'Unknown User';
+      const success = reorderService.addItem(convertedItem, 1, teamData, userName);
+      if (success) {
+        setReorderNotificationMessage(`"${item.name || 'Item'}" added to reorder list.`);
+        setReorderNotificationType('success');
+        setReorderNotificationItemId(item.id);
+      } else {
+        setReorderNotificationMessage('Failed to add item to reorder list.');
+        setReorderNotificationType('error');
+        setReorderNotificationItemId(item.id);
+      }
+    } catch (error) {
+      logger.error('SearchResultsArea:handleSwipeReorder', 'Error adding item to reorder list', { error });
+      setReorderNotificationMessage('An unexpected error occurred while adding to reorder list.');
+      setReorderNotificationType('error');
+      setReorderNotificationItemId(item.id);
+    } finally {
+      setShowReorderNotification(true);
+      setTimeout(() => {
+        setShowReorderNotification(false);
+        setReorderNotificationItemId(null);
+      }, 3000);
+      swipeableRefs.current[item.id]?.close(); // Close swipeable row
+    }
+  }, [reorderService, swipeableRefs, setReorderNotificationMessage, setReorderNotificationType, setShowReorderNotification, setReorderNotificationItemId, ensureCategoryName, fetchTeamData, user]);
+
+  const handleFullSwipeReorder = useCallback(async (item: SearchResultItem) => {
+    logger.info('SearchResultsArea:handleFullSwipeReorder', 'Full swipe reorder triggered for item', { itemId: item.id, name: item.name });
+    
+    // Ensure we have the proper category name
+    const categoryName = await ensureCategoryName(item);
+    
+    // Convert SearchResultItem to ConvertedItem for reorder service
+    const convertedItem: ConvertedItem = {
+      id: item.id,
+      name: item.name || '',
+      sku: item.sku,
+      barcode: item.barcode,
+      price: item.price,
+      category: categoryName, // Use the ensured category name
+      categoryId: item.categoryId, // Keep the category ID
+      reporting_category_id: item.categoryId || item.reporting_category_id, // Include reporting_category_id
+      description: item.description,
+      isActive: true,
+      images: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    try {
+      // Fetch team data for the item
+      const teamData = await fetchTeamData(item.id);
+      const userName = user?.signInDetails?.loginId?.split('@')[0] || 'Unknown User';
+      const success = reorderService.addItem(convertedItem, 1, teamData, userName);
+      if (success) {
+        setReorderNotificationMessage(`"${item.name || 'Item'}" added to reorder list.`);
+        setReorderNotificationType('success');
+        setReorderNotificationItemId(item.id);
+      } else {
+        setReorderNotificationMessage('Failed to add item to reorder list.');
+        setReorderNotificationType('error');
+        setReorderNotificationItemId(item.id);
+      }
+    } catch (error) {
+      logger.error('SearchResultsArea:handleFullSwipeReorder', 'Error adding item to reorder list', { error });
+      setReorderNotificationMessage('An unexpected error occurred while adding to reorder list.');
+      setReorderNotificationType('error');
+      setReorderNotificationItemId(item.id);
+    } finally {
+      setShowReorderNotification(true);
+      setTimeout(() => {
+        setShowReorderNotification(false);
+        setReorderNotificationItemId(null);
+      }, 2000); // Shorter timeout for full swipe
+    }
+  }, [reorderService, setReorderNotificationMessage, setReorderNotificationType, setShowReorderNotification, setReorderNotificationItemId, ensureCategoryName, fetchTeamData, user]);
+
   const renderLeftActions = useCallback((progress: Animated.AnimatedInterpolation<number>, dragX: Animated.AnimatedInterpolation<number>, item: SearchResultItem) => {
     const SWIPE_BUTTON_WIDTH = 100; 
     // const LIST_HORIZONTAL_PADDING = 16; // No longer needed here
@@ -267,6 +425,32 @@ const SearchResultsArea = memo(({
     );
   }, [handleSwipePrint, styles]);
 
+  const renderRightActions = useCallback((progress: Animated.AnimatedInterpolation<number>, dragX: Animated.AnimatedInterpolation<number>, item: SearchResultItem) => {
+    const SWIPE_BUTTON_WIDTH = 100; // Reduced width since no icon
+
+    const trans = progress.interpolate({
+      inputRange: [0, 1],
+      outputRange: [SWIPE_BUTTON_WIDTH, 0],
+      extrapolate: 'clamp',
+    });
+
+    return (
+      <TouchableOpacity 
+        onPress={() => { 
+          handleSwipeReorder(item);
+        }}
+        style={[styles.swipeReorderActionRight, { width: SWIPE_BUTTON_WIDTH }]} 
+      >
+        <Animated.View style={[
+          styles.swipeReorderButtonContainer, 
+          { width: SWIPE_BUTTON_WIDTH, transform: [{ translateX: trans }] }
+        ]}>
+            <Text style={styles.swipeReorderActionText}>Reorder</Text>
+        </Animated.View>
+      </TouchableOpacity>
+    );
+  }, [handleSwipeReorder, styles]);
+
   const renderSearchResultItem = useCallback(({ item, index }: { item: SearchResultItem; index: number }) => {
     const formattedPrice = typeof item.price === 'number' 
       ? `$${item.price.toFixed(2)}` 
@@ -275,6 +459,7 @@ const SearchResultsArea = memo(({
       <Swipeable
         ref={(ref) => { swipeableRefs.current[item.id] = ref; }}
         renderLeftActions={(progress, dragX) => renderLeftActions(progress, dragX, item)} 
+        renderRightActions={(progress, dragX) => renderRightActions(progress, dragX, item)}
         onSwipeableWillOpen={() => {
           Object.values(swipeableRefs.current).forEach(ref => {
             if (ref && ref !== swipeableRefs.current[item.id]) {
@@ -282,8 +467,17 @@ const SearchResultsArea = memo(({
             }
           });
         }}
+        onSwipeableRightOpen={() => {
+          // Full swipe to the left (revealing right actions) - auto add to reorder
+          handleFullSwipeReorder(item);
+          // Close the swipeable after a short delay to reset the gesture
+          setTimeout(() => {
+            swipeableRefs.current[item.id]?.close();
+          }, 50);
+        }}
         friction={2}
-        leftThreshold={50} 
+        leftThreshold={40} 
+        rightThreshold={40}
         overshootFriction={8} 
         enableTrackpadTwoFingerGesture
       >
@@ -303,10 +497,17 @@ const SearchResultsArea = memo(({
             <Text style={styles.priceText}>{formattedPrice}</Text>
             <Ionicons name="chevron-forward" size={18} color="#ccc" />
           </View>
+          {/* Inline reorder success notification */}
+          {showReorderNotification && reorderNotificationItemId === item.id && reorderNotificationType === 'success' && (
+            <View style={styles.inlineNotification}>
+              <Ionicons name="checkmark-circle" size={16} color="#fff" />
+              <Text style={styles.inlineNotificationText}>Added to reorder!</Text>
+            </View>
+          )}
         </TouchableOpacity>
       </Swipeable>
     );
-  }, [handleResultItemPress, renderLeftActions, styles, swipeableRefs]);
+  }, [handleResultItemPress, renderLeftActions, renderRightActions, styles, swipeableRefs, showReorderNotification, reorderNotificationItemId, reorderNotificationType, handleFullSwipeReorder]);
 
   const renderEmptyState = useCallback(() => {
     if (catalogSearchError) {
@@ -417,6 +618,7 @@ const SearchResultsArea = memo(({
         autoClose={true}
         autoCloseTime={2500} // Slightly shorter time for quick feedback
       />
+
     </View>
   );
 });
@@ -590,6 +792,18 @@ function RootLayoutNav() {
   // State for the *finalized* search term that triggers the actual search.
   const [searchTopic, setSearchTopic] = useState('');
   const [isAwaitingPostSaveSearch, setIsAwaitingPostSaveSearch] = useState(false);
+  
+  // Track reorder count for badge
+  const [reorderCount, setReorderCount] = useState(0);
+  
+  // Listen to reorder service changes
+  useEffect(() => {
+    setReorderCount(reorderService.getCount());
+    const unsubscribe = reorderService.addListener((items) => {
+      setReorderCount(items.length);
+    });
+    return unsubscribe;
+  }, []);
 
   const handleClearSearch = useCallback(() => {
     setSearchTopic('');

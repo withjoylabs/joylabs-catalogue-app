@@ -289,11 +289,11 @@ export default function RootLayout() {
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+      <GestureHandlerRootView style={{ flex: 1 }}>
       <ActionSheetProvider>
         <Authenticator.Provider>
           <ApiProvider>
-            <DatabaseProvider>
+                  <DatabaseProvider>
               <PaperProvider theme={paperTheme}>
                 <MenuProvider>
                   <StatusBar style="auto" />
@@ -305,8 +305,8 @@ export default function RootLayout() {
                         headerShown: true,
                         headerTitle: 'Item Detail',
                         presentation: 'modal',
-                        gestureEnabled: true,
-                      }}
+                          gestureEnabled: true,
+                        }}
                     />
                     <Stack.Screen name="debug" options={{
                       presentation: 'modal',
@@ -338,7 +338,7 @@ export default function RootLayout() {
                       headerShown: true,
                       headerTitle: 'Sign In'
                     }} />
-                  </Stack>
+                      </Stack>
                   <GlobalSuccessModal />
                 </MenuProvider>
               </PaperProvider>
@@ -346,7 +346,7 @@ export default function RootLayout() {
           </ApiProvider>
         </Authenticator.Provider>
       </ActionSheetProvider>
-    </GestureHandlerRootView>
+      </GestureHandlerRootView>
   );
 }
 

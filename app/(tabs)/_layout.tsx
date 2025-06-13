@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Platform, View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { Tabs, useRouter, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppStore } from '../../src/store';
 import logger from '../../src/utils/logger';
+import { reorderService } from '../../src/services/reorderService';
 
 // Styles for the custom FAB, extracted from original BottomTabBar.tsx logic
 // Note: These were previously in app/_layout.tsx
@@ -33,6 +34,28 @@ const fabStyles = StyleSheet.create({
   saveButton: {
     backgroundColor: '#4CD964',
   },
+  // Badge styles
+  badgeContainer: {
+    position: 'relative',
+  },
+  badge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    backgroundColor: '#FF3B30',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
 });
 
 function CustomFabButton() {
@@ -59,6 +82,29 @@ function CustomFabButton() {
       >
         <Ionicons name={isItemDetails ? "checkmark" : "add"} size={28} color="#fff" />
       </TouchableOpacity>
+    </View>
+  );
+}
+
+function ReorderIconWithBadge({ color, focused }: { color: string; focused: boolean }) {
+  const [reorderCount, setReorderCount] = useState(0);
+  
+  useEffect(() => {
+    setReorderCount(reorderService.getCount());
+    const unsubscribe = reorderService.addListener((items) => {
+      setReorderCount(items.length);
+    });
+    return unsubscribe;
+  }, []);
+
+  return (
+    <View style={fabStyles.badgeContainer}>
+      <Ionicons name={focused ? 'receipt-outline' : 'receipt-outline'} size={24} color={color} />
+      {reorderCount > 0 && (
+        <View style={fabStyles.badge}>
+          <Text style={fabStyles.badgeText}>{reorderCount > 99 ? '99+' : reorderCount}</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -99,7 +145,7 @@ export default function MainTabsLayout() {
         options={{
           title: 'Reorders',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'receipt-outline' : 'receipt-outline'} size={24} color={color} />
+            <ReorderIconWithBadge color={color} focused={focused} />
           ),
         }}
       />

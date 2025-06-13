@@ -180,7 +180,7 @@ export default function ItemDetails() {
   const setLastUpdatedItem = useAppStore((state) => state.setLastUpdatedItem);
   
   const teamDataSaveRef = useRef<(() => Promise<void>) | null>(null);
-
+  
   // --- Printing Logic --- 
 
   // Original initiatePrint for inline variation print buttons (takes index)
@@ -1577,17 +1577,17 @@ export default function ItemDetails() {
 
             {!isNewItem && <TeamDataSection itemId={id} onSaveRef={teamDataSaveRef} />}
 
-            {/* Delete Button - Only for existing items */}
-            {!isNewItem && (
-              <View style={styles.deleteButtonContainer}>
+              {/* Delete Button - Only for existing items */}
+              {!isNewItem && (
+                <View style={styles.deleteButtonContainer}>
                 <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
-                  <Text style={styles.deleteButtonText}>Delete Item</Text>
-                </TouchableOpacity>
-              </View>
-            )}
+                    <Text style={styles.deleteButtonText}>Delete Item</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
 
-            {/* Spacer to push delete button to the bottom / general spacing */}
-            <View style={{ height: Platform.OS === 'ios' ? 80 : 100 }} /> 
+              {/* Spacer to push delete button to the bottom / general spacing */}
+              <View style={{ height: Platform.OS === 'ios' ? 80 : 100 }} /> 
           </ScrollView>
 
             {/* Fixed Footer Button Container */}

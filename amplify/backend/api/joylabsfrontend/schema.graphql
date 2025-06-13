@@ -40,3 +40,4 @@ type ItemChangeLog @model @auth(rules: [{ allow: owner }]) {
   changeDetails: String!
 }
 
+ 
