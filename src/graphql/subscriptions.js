@@ -148,3 +148,69 @@ export const onDeleteItemChangeLog = /* GraphQL */ `
     }
   }
 `;
+export const onCreateReorderItem = /* GraphQL */ `
+  subscription OnCreateReorderItem(
+    $filter: ModelSubscriptionReorderItemFilterInput
+    $owner: String
+  ) {
+    onCreateReorderItem(filter: $filter, owner: $owner) {
+      id
+      itemId
+      itemName
+      itemBarcode
+      itemCategory
+      itemPrice
+      quantity
+      completed
+      addedBy
+      createdAt
+      updatedAt
+      owner
+      __typename
+    }
+  }
+`;
+export const onUpdateReorderItem = /* GraphQL */ `
+  subscription OnUpdateReorderItem(
+    $filter: ModelSubscriptionReorderItemFilterInput
+    $owner: String
+  ) {
+    onUpdateReorderItem(filter: $filter, owner: $owner) {
+      id
+      itemId
+      itemName
+      itemBarcode
+      itemCategory
+      itemPrice
+      quantity
+      completed
+      addedBy
+      createdAt
+      updatedAt
+      owner
+      __typename
+    }
+  }
+`;
+export const onDeleteReorderItem = /* GraphQL */ `
+  subscription OnDeleteReorderItem(
+    $filter: ModelSubscriptionReorderItemFilterInput
+    $owner: String
+  ) {
+    onDeleteReorderItem(filter: $filter, owner: $owner) {
+      id
+      itemId
+      itemName
+      itemBarcode
+      itemCategory
+      itemPrice
+      quantity
+      completed
+      addedBy
+      createdAt
+      updatedAt
+      owner
+      __typename
+    }
+  }
+`;

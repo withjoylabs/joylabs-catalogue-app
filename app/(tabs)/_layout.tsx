@@ -62,16 +62,28 @@ function CustomFabButton() {
   const router = useRouter();
   const pathname = usePathname();
   const isItemDetails = pathname.startsWith('/item/');
+  const isReordersPage = pathname === '/reorders';
   const triggerItemSave = useAppStore((state) => state.triggerItemSave);
+  const triggerAddCustomItem = useAppStore((state) => state.triggerAddCustomItem);
 
   const handlePress = () => {
     if (isItemDetails) {
       logger.info('CustomFabButton', 'Save action triggered', { pathname });
       triggerItemSave();
+    } else if (isReordersPage) {
+      logger.info('CustomFabButton', 'Add custom item action triggered', { pathname });
+      triggerAddCustomItem();
     } else {
       logger.info('CustomFabButton', 'Add action triggered, navigating to /item/new', { pathname });
       router.push('/item/new');
     }
+  };
+
+  // Determine icon based on current page
+  const getIcon = () => {
+    if (isItemDetails) return "checkmark";
+    if (isReordersPage) return "add-outline"; // Different icon for reorders
+    return "add";
   };
 
   return (
@@ -80,7 +92,7 @@ function CustomFabButton() {
         style={[fabStyles.fabButton, isItemDetails && fabStyles.saveButton]} 
         onPress={handlePress}
       >
-        <Ionicons name={isItemDetails ? "checkmark" : "add"} size={28} color="#fff" />
+        <Ionicons name={getIcon()} size={28} color="#fff" />
       </TouchableOpacity>
     </View>
   );

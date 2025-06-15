@@ -64,6 +64,7 @@ interface AppState {
   autoSearchOnEnter: boolean;
   autoSearchOnTab: boolean;
   itemSaveTriggeredAt: number | null;
+  addCustomItemTriggeredAt: number | null;
   
   // Square Connection State
   isSquareConnected: boolean;
@@ -114,6 +115,7 @@ interface AppState {
   toggleAutoSearchOnEnter: () => void;
   toggleAutoSearchOnTab: () => void;
   triggerItemSave: () => void;
+  triggerAddCustomItem: () => void;
   
   // Square Connection Action
   setSquareConnected: (isConnected: boolean) => void;
@@ -166,6 +168,7 @@ export const useAppStore = create<AppState>()(
       autoSearchOnEnter: true,
       autoSearchOnTab: false,
       itemSaveTriggeredAt: null,
+      addCustomItemTriggeredAt: null,
 
       // Initial Square Connection state
       isSquareConnected: false,
@@ -248,6 +251,7 @@ export const useAppStore = create<AppState>()(
       toggleAutoSearchOnEnter: () => set((state) => ({ autoSearchOnEnter: !state.autoSearchOnEnter })),
       toggleAutoSearchOnTab: () => set((state) => ({ autoSearchOnTab: !state.autoSearchOnTab })),
       triggerItemSave: () => set({ itemSaveTriggeredAt: Date.now() }),
+      triggerAddCustomItem: () => set({ addCustomItemTriggeredAt: Date.now() }),
       
       // Square Connection action implementation
       setSquareConnected: (isSquareConnected: boolean) => set({ isSquareConnected }),

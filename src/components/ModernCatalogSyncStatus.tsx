@@ -7,6 +7,9 @@ import { useSQLiteContext } from 'expo-sqlite';
 import SyncProgressBar from './SyncProgressBar';
 import logger from '../utils/logger';
 import { CatalogSyncService, SyncStatus } from '../database/catalogSync';
+import catalogRepository from '../database/catalogRepository';
+import { useWebhooks } from '../hooks/useWebhooks';
+import { useCatalogSubscription } from '../hooks/useCatalogSubscription';
 
 const ModernCatalogSyncStatus: React.FC = () => {
   const db = useSQLiteContext();
@@ -18,8 +21,10 @@ const ModernCatalogSyncStatus: React.FC = () => {
   const [testBatchResult, setTestBatchResult] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   
-  // Initialize the sync service
+  // Initialize the sync service and webhook handlers
   const syncService = CatalogSyncService.getInstance();
+  const { isWebhookActive, merchantId } = useWebhooks();
+  const { isSubscribed } = useCatalogSubscription();
 
   // Fetch sync status
   const fetchSyncStatus = useCallback(async () => {
@@ -33,11 +38,6 @@ const ModernCatalogSyncStatus: React.FC = () => {
     }
   }, [syncService]);
 
-  // Handle sync status update
-  const handleSyncStatusUpdate = useCallback((status: SyncStatus) => {
-    setSyncStatus(status);
-  }, []);
-
   // Handle sync button click
   const handleSync = async () => {
     if (syncStatus?.isSyncing) return;
@@ -50,12 +50,12 @@ const ModernCatalogSyncStatus: React.FC = () => {
     }
   };
 
-  // Handle categories-only sync
+  // Handle categories-only sync using catalogRepository
   const handleCategoriesOnlySync = async () => {
     if (syncStatus?.isSyncing) return;
     
     try {
-      await syncService.syncCategories();
+      await catalogRepository.syncCategories();
       Alert.alert('Sync Complete', 'Categories synced successfully.');
     } catch (error) {
       logger.error('CatalogSyncStatus', 'Failed to sync categories', { error });
@@ -66,8 +66,8 @@ const ModernCatalogSyncStatus: React.FC = () => {
   // Reset sync state
   const resetSyncState = async () => {
     try {
-      logger.info('CatalogSyncStatus', 'Forcefully clearing sync status');
-      await syncService.forceClearSyncStatus();
+      logger.info('CatalogSyncStatus', 'Resetting sync status');
+      await syncService.resetSyncStatus();
       Alert.alert('Reset Complete', 'Sync state has been successfully reset.');
       await fetchSyncStatus(); // Refresh immediately
     } catch (error) {
@@ -76,14 +76,15 @@ const ModernCatalogSyncStatus: React.FC = () => {
     }
   };
 
-  // Test API connection
+  // Test API connection - simplified version
   const testApiConnection = async () => {
     try {
       setTestBatchRunning(true);
       setTestBatchResult(null);
       
-      const result = await syncService.testApiConnection();
-      setTestBatchResult(`API test successful: ${JSON.stringify(result)}`);
+      // Simple test - try to get sync status
+      const status = await syncService.getSyncStatus();
+      setTestBatchResult(`API test successful: Status retrieved`);
       
       Alert.alert('API Test', 'API connection successful!');
     } catch (error) {
@@ -96,18 +97,18 @@ const ModernCatalogSyncStatus: React.FC = () => {
     }
   };
 
-  // Test small batch sync
+  // Test small batch sync - use incremental sync
   const testSmallBatchSync = async () => {
     try {
       setTestBatchRunning(true);
       setTestBatchResult(null);
       
-      await syncService.testSmallBatchSync();
-      setTestBatchResult('Small batch sync completed successfully');
+      await syncService.runIncrementalSync();
+      setTestBatchResult('Incremental sync completed successfully');
       
-      Alert.alert('Test Sync', 'Small batch sync completed successfully!');
+      Alert.alert('Test Sync', 'Incremental sync completed successfully!');
     } catch (error) {
-      logger.error('CatalogSyncStatus', 'Small batch sync failed', { error });
+      logger.error('CatalogSyncStatus', 'Incremental sync failed', { error });
       setTestBatchResult(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       
       Alert.alert('Test Sync Failed', `${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -159,19 +160,15 @@ const ModernCatalogSyncStatus: React.FC = () => {
 
     initializeSync();
 
-    // Set up sync status listener
-    syncService.registerListener('modernStatusComponent', handleSyncStatusUpdate);
+    // Set up periodic status refresh (much less frequent than before)
+    const statusInterval = setInterval(fetchSyncStatus, 10000); // Every 10 seconds instead of 3
     
-    // Refresh sync status periodically
-    const intervalId = setInterval(fetchSyncStatus, 3000);
-
     // Cleanup
     return () => {
-      syncService.unregisterListener('modernStatusComponent');
       unsubscribe();
-      clearInterval(intervalId);
+      clearInterval(statusInterval);
     };
-  }, [fetchSyncStatus, handleSyncStatusUpdate, syncService]);
+  }, [fetchSyncStatus, syncService]);
 
   // Render sync status
   const renderSyncStatus = () => {
@@ -196,7 +193,6 @@ const ModernCatalogSyncStatus: React.FC = () => {
           <Text style={styles.statusLabel}>Last sync:</Text>
           <Text style={styles.statusValue}>
             {formatLastSyncTime(syncStatus.lastSyncTime)}
-            {syncStatus.syncComplete === false && " (partial)"}
           </Text>
         </View>
         
@@ -216,8 +212,23 @@ const ModernCatalogSyncStatus: React.FC = () => {
           </Text>
         </View>
         
+        <View style={styles.statusRow}>
+          <Text style={styles.statusLabel}>Real-time:</Text>
+          <Text style={[
+            styles.statusValue,
+            isSubscribed && isWebhookActive ? styles.connected : styles.disconnected
+          ]}>
+            {isSubscribed && isWebhookActive
+              ? '🟢 Connected'
+              : isSubscribed
+                ? '🟡 Connecting...'
+                : '🔴 Offline'
+            }
+          </Text>
+        </View>
+        
         {/* Progress bar */}
-        {syncStatus.isSyncing && syncStatus.totalItems > 0 && (
+        {syncStatus.isSyncing && syncStatus.syncTotal > 0 && (
           <SyncProgressBar showWhenComplete={false} />
         )}
         
@@ -244,10 +255,22 @@ const ModernCatalogSyncStatus: React.FC = () => {
             </View>
             
             <View style={styles.statusRow}>
+              <Text style={styles.statusLabel}>Webhook:</Text>
+              <Text style={styles.statusValue}>
+                {isSubscribed && isWebhookActive 
+                  ? `✅ Active (${merchantId?.split('@')[0] || 'user'})`
+                  : isSubscribed 
+                    ? '🔄 Connecting...'
+                    : '❌ Offline'
+                }
+              </Text>
+            </View>
+            
+            <View style={styles.statusRow}>
               <Text style={styles.statusLabel}>DB Status:</Text>
               <Text style={styles.statusValue}>
                 is_syncing = {syncStatus.isSyncing ? 'TRUE' : 'false'}, 
-                items = {syncStatus.syncedItems}/{syncStatus.totalItems}
+                items = {syncStatus.syncProgress}/{syncStatus.syncTotal}
               </Text>
             </View>
             
@@ -422,6 +445,12 @@ const styles = StyleSheet.create({
     color: '#2196f3',
   },
   error: {
+    color: '#f44336',
+  },
+  connected: {
+    color: '#4caf50',
+  },
+  disconnected: {
     color: '#f44336',
   },
   offlineMessage: {

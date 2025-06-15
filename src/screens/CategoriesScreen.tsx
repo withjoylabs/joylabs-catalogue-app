@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { lightTheme } from '../themes';
 import { useCatalogCategories } from '../hooks/useCatalogCategories';
 import { useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'react-native';
 import { useSquareAuth } from '../hooks/useSquareAuth';
 import SyncProgressBar from '../components/SyncProgressBar';
@@ -10,12 +12,16 @@ import catalogSyncService from '../database/catalogSync';
 import * as modernDb from '../database/modernDb';
 import NetInfo from '@react-native-community/netinfo';
 import tokenService from '../services/tokenService';
+import { useWebhooks } from '../hooks/useWebhooks';
+import { useCatalogSubscription } from '../hooks/useCatalogSubscription';
+import logger from '../utils/logger';
 
 // Define category interface to match the hook
 interface Category {
   id: string;
   name: string;
   imageUrl?: string;
+  itemCount?: number;
 }
 
 // Define navigation type
@@ -30,6 +36,11 @@ const CategoriesScreen: React.FC = () => {
   const { isConnected } = useSquareAuth();
   const [syncing, setSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<any>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  
+  // Integrate webhook system for real-time updates
+  const { isWebhookActive, merchantId } = useWebhooks();
+  const { isSubscribed } = useCatalogSubscription();
   
   // Check sync status when screen loads
   useEffect(() => {
@@ -39,10 +50,8 @@ const CategoriesScreen: React.FC = () => {
       console.log('📊 Current sync status:', status);
     };
     
+    // Check sync status once on mount, no polling
     checkSyncStatus();
-    const intervalId = setInterval(checkSyncStatus, 2000); // Check every 2 seconds
-    
-    return () => clearInterval(intervalId);
   }, []);
   
   const handleSyncCatalog = async () => {
@@ -178,6 +187,26 @@ Choose "Reset Sync State" to fix this.
     }
   };
   
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refetchCategories();
+      logger.info('CategoriesScreen', 'Categories refreshed successfully');
+    } catch (error) {
+      logger.error('CategoriesScreen', 'Failed to refresh categories', { error });
+      Alert.alert('Refresh Failed', 'Could not refresh categories. Please try again.');
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refetchCategories]);
+
+  // Auto-refresh when webhook system detects changes
+  useEffect(() => {
+    if (isWebhookActive) {
+      logger.info('CategoriesScreen', 'Webhook system active, categories will update automatically');
+    }
+  }, [isWebhookActive]);
+
   const renderItem = ({ item }: { item: Category }) => (
     <TouchableOpacity
       style={styles.categoryCard}
@@ -192,6 +221,9 @@ Choose "Reset Sync State" to fix this.
       />
       <View style={styles.categoryInfo}>
         <Text style={styles.categoryName}>{item.name}</Text>
+        {item.itemCount !== undefined && (
+          <Text style={styles.itemCount}>{item.itemCount} items</Text>
+        )}
         <Ionicons name="chevron-forward" size={20} color="#888" />
       </View>
     </TouchableOpacity>
@@ -200,191 +232,211 @@ Choose "Reset Sync State" to fix this.
   // Show connection screen if not connected to Square
   if (!isConnected) {
     return (
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
-          <Ionicons name="cloud-offline" size={64} color="#ccc" />
-          <Text style={styles.errorTitle}>Not Connected to Square</Text>
-          <Text style={styles.errorText}>
+          <Ionicons name="cloud-offline" size={64} color={lightTheme.colors.text} />
+          <Text style={styles.errorText}>Not Connected to Square</Text>
+          <Text style={styles.errorDetail}>
             Please connect your Square account in the Profile tab to view your categories.
           </Text>
           <TouchableOpacity
-            style={styles.buttonPrimary}
+            style={styles.retryButton}
             onPress={() => navigation.navigate('/(profile)')}
           >
-            <Text style={styles.buttonText}>Go to Profile</Text>
+            <Text style={styles.retryButtonText}>Go to Profile</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
   // Show loading state
-  if (isLoading && categories.length === 0) {
+  if (isLoading && !refreshing) {
     return (
-      <View style={styles.container}>
-        <SyncProgressBar showWhenComplete={false} />
-        <View style={styles.centerContent}>
-          <ActivityIndicator size="large" color="#0066cc" />
-          <Text style={styles.loadingText}>Loading categories...</Text>
-          <TouchableOpacity 
-            style={styles.debugButton}
-            onPress={handleDebugSyncStatus}
-          >
-            <Ionicons name="bug" size={16} color="#fff" />
-            <Text style={styles.debugButtonText}>Debug Sync</Text>
-          </TouchableOpacity>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Categories</Text>
+          <View style={styles.statusContainer}>
+            {isSubscribed && isWebhookActive ? (
+              <View style={styles.statusBadge}>
+                <Ionicons name="cloud-done" size={16} color={lightTheme.colors.secondary} />
+                <Text style={[styles.statusText, { color: lightTheme.colors.secondary }]}>
+                  Live
+                </Text>
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh}>
+                <Ionicons name="refresh" size={20} color={lightTheme.colors.primary} />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
-      </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={lightTheme.colors.primary} />
+          <Text style={styles.loadingText}>Loading categories...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   // Show error state
-  if (error && categories.length === 0) {
+  if (error) {
     return (
-      <View style={styles.container}>
-        <SyncProgressBar showWhenComplete={false} />
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Categories</Text>
+          <View style={styles.statusContainer}>
+            {isSubscribed && isWebhookActive ? (
+              <View style={styles.statusBadge}>
+                <Ionicons name="cloud-done" size={16} color={lightTheme.colors.secondary} />
+                <Text style={[styles.statusText, { color: lightTheme.colors.secondary }]}>
+                  Live
+                </Text>
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh}>
+                <Ionicons name="refresh" size={20} color={lightTheme.colors.primary} />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle-outline" size={64} color="#cc0000" />
-          <Text style={styles.errorTitle}>Error Loading Categories</Text>
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity
-            style={styles.buttonPrimary}
-            onPress={() => refetchCategories()}
-          >
-            <Text style={styles.buttonText}>Retry</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.debugButton, { marginTop: 10 }]}
-            onPress={handleDebugSyncStatus}
-          >
-            <Ionicons name="bug" size={16} color="#fff" />
-            <Text style={styles.debugButtonText}>Debug Sync</Text>
+          <Ionicons name="alert-circle" size={48} color={lightTheme.colors.notification} />
+          <Text style={styles.errorText}>Failed to load categories</Text>
+          <Text style={styles.errorDetail}>{error}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={handleRefresh}>
+            <Text style={styles.retryButtonText}>Try Again</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
   // Show empty state
   if (categories.length === 0) {
     return (
-      <View style={styles.container}>
-        <SyncProgressBar showWhenComplete={false} />
-        <View style={styles.errorContainer}>
-          <Ionicons name="folder-open-outline" size={64} color="#ccc" />
-          <Text style={styles.errorTitle}>No Categories Found</Text>
-          <Text style={styles.errorText}>
-            You don't have any categories in your Square catalog yet.
-          </Text>
-          <TouchableOpacity
-            style={styles.buttonPrimary}
-            onPress={() => refetchCategories()}
-          >
-            <Text style={styles.buttonText}>Refresh</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.debugButton, { marginTop: 10 }]}
-            onPress={handleDebugSyncStatus}
-          >
-            <Ionicons name="bug" size={16} color="#fff" />
-            <Text style={styles.debugButtonText}>Debug Sync</Text>
-          </TouchableOpacity>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Categories</Text>
+          <View style={styles.statusContainer}>
+            {isSubscribed && isWebhookActive ? (
+              <View style={styles.statusBadge}>
+                <Ionicons name="cloud-done" size={16} color={lightTheme.colors.secondary} />
+                <Text style={[styles.statusText, { color: lightTheme.colors.secondary }]}>
+                  Live
+                </Text>
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh}>
+                <Ionicons name="refresh" size={20} color={lightTheme.colors.primary} />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
-      </View>
+        <View style={styles.emptyContainer}>
+          <Ionicons name="folder-open-outline" size={64} color={lightTheme.colors.text} />
+          <Text style={styles.emptyText}>No categories found</Text>
+          <Text style={styles.emptySubtext}>
+            {isWebhookActive 
+              ? 'Categories will appear here automatically when added'
+              : 'Pull down to refresh or check your connection'
+            }
+          </Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   // Show categories list
   return (
-    <View style={styles.container}>
-      <SyncProgressBar showWhenComplete={false} />
-      <View style={styles.headerContainer}>
-        <Text style={styles.headerText}>Categories</Text>
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity 
-            style={styles.syncButton}
-            onPress={handleSyncCatalog}
-            disabled={syncing}
-          >
-            <Ionicons name="sync" size={18} color="#fff" />
-            <Text style={styles.syncButtonText}>Sync Catalog</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.debugButton}
-            onPress={handleDebugSyncStatus}
-          >
-            <Ionicons name="bug" size={16} color="#fff" />
-            <Text style={styles.debugButtonText}>Debug</Text>
-          </TouchableOpacity>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Categories</Text>
+        <View style={styles.statusContainer}>
+          {isSubscribed && isWebhookActive ? (
+            <View style={styles.statusBadge}>
+              <Ionicons name="cloud-done" size={16} color={lightTheme.colors.secondary} />
+              <Text style={[styles.statusText, { color: lightTheme.colors.secondary }]}>
+                Live
+              </Text>
+            </View>
+          ) : (
+            <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh}>
+              <Ionicons name="refresh" size={20} color={lightTheme.colors.primary} />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
       <FlatList
         data={categories}
         renderItem={renderItem}
         keyExtractor={(item: Category) => item.id}
-        contentContainerStyle={styles.list}
-        refreshControl={
-          <RefreshControl refreshing={isLoading} onRefresh={refetchCategories} />
+        contentContainerStyle={styles.listContainer}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
+        showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Ionicons name="folder-open-outline" size={64} color={lightTheme.colors.text} />
+            <Text style={styles.emptyText}>No categories found</Text>
+            <Text style={styles.emptySubtext}>
+              {isWebhookActive 
+                ? 'Categories will appear here automatically when added'
+                : 'Pull down to refresh or check your connection'
+              }
+            </Text>
+          </View>
         }
       />
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f8f8',
-    paddingTop: 10,
+    backgroundColor: lightTheme.colors.background,
   },
-  list: {
-    padding: 15,
+  listContainer: {
+    flexGrow: 1,
   },
-  headerContainer: {
+  header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 15,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: lightTheme.colors.background,
   },
-  buttonContainer: {
-    flexDirection: 'row',
-  },
-  headerText: {
-    fontSize: 22,
+  title: {
+    fontSize: 28,
     fontWeight: 'bold',
-    color: '#333',
+    color: lightTheme.colors.text,
   },
-  syncButton: {
+  statusContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0066cc',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    marginRight: 8,
   },
-  syncButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '500',
-    marginLeft: 5,
-  },
-  debugButton: {
+  statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#666',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+    backgroundColor: lightTheme.colors.background,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: lightTheme.colors.secondary,
   },
-  debugButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '500',
-    marginLeft: 5,
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  refreshButton: {
+    padding: 8,
   },
   categoryCard: {
-    backgroundColor: '#fff',
+    backgroundColor: lightTheme.colors.card,
     borderRadius: 12,
     marginBottom: 15,
     overflow: 'hidden',
@@ -406,51 +458,78 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   categoryName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: 16,
+    fontWeight: '600',
+    color: lightTheme.colors.text,
+    marginBottom: 2,
+  },
+  itemCount: {
+    fontSize: 14,
+    color: lightTheme.colors.text,
+    opacity: 0.7,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   loadingText: {
-    marginTop: 20,
+    marginTop: 16,
     fontSize: 16,
-    color: '#666',
+    color: lightTheme.colors.text,
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 30,
-  },
-  errorTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginTop: 20,
-    marginBottom: 10,
-    color: '#333',
+    paddingHorizontal: 32,
   },
   errorText: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: 18,
+    fontWeight: '600',
+    color: lightTheme.colors.text,
+    marginTop: 16,
     textAlign: 'center',
-    marginBottom: 20,
   },
-  buttonPrimary: {
-    backgroundColor: '#0066cc',
-    paddingVertical: 12,
+  errorDetail: {
+    fontSize: 14,
+    color: lightTheme.colors.text,
+    opacity: 0.7,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  retryButton: {
+    backgroundColor: lightTheme.colors.primary,
     paddingHorizontal: 24,
+    paddingVertical: 12,
     borderRadius: 8,
-    marginTop: 10,
+    marginTop: 24,
   },
-  buttonText: {
-    color: '#fff',
+  retryButtonText: {
+    color: lightTheme.colors.background,
     fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
+    fontWeight: '600',
   },
-  centerContent: {
+  emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 32,
+    paddingTop: 64,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: lightTheme.colors.text,
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: lightTheme.colors.text,
+    opacity: 0.7,
+    marginTop: 8,
+    textAlign: 'center',
   },
 });
 

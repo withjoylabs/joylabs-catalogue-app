@@ -93,6 +93,52 @@ export const listItemChangeLogs = /* GraphQL */ `
     }
   }
 `;
+export const getReorderItem = /* GraphQL */ `
+  query GetReorderItem($id: ID!) {
+    getReorderItem(id: $id) {
+      id
+      itemId
+      itemName
+      itemBarcode
+      itemCategory
+      itemPrice
+      quantity
+      completed
+      addedBy
+      createdAt
+      updatedAt
+      owner
+      __typename
+    }
+  }
+`;
+export const listReorderItems = /* GraphQL */ `
+  query ListReorderItems(
+    $filter: ModelReorderItemFilterInput
+    $limit: Int
+    $nextToken: String
+  ) {
+    listReorderItems(filter: $filter, limit: $limit, nextToken: $nextToken) {
+      items {
+        id
+        itemId
+        itemName
+        itemBarcode
+        itemCategory
+        itemPrice
+        quantity
+        completed
+        addedBy
+        createdAt
+        updatedAt
+        owner
+        __typename
+      }
+      nextToken
+      __typename
+    }
+  }
+`;
 export const itemsByCaseUpc = /* GraphQL */ `
   query ItemsByCaseUpc(
     $caseUpc: String!
@@ -148,6 +194,41 @@ export const listChangesForItem = /* GraphQL */ `
         timestamp
         changeType
         changeDetails
+        createdAt
+        updatedAt
+        owner
+        __typename
+      }
+      nextToken
+      __typename
+    }
+  }
+`;
+export const reordersByItemId = /* GraphQL */ `
+  query ReordersByItemId(
+    $itemId: ID!
+    $sortDirection: ModelSortDirection
+    $filter: ModelReorderItemFilterInput
+    $limit: Int
+    $nextToken: String
+  ) {
+    reordersByItemId(
+      itemId: $itemId
+      sortDirection: $sortDirection
+      filter: $filter
+      limit: $limit
+      nextToken: $nextToken
+    ) {
+      items {
+        id
+        itemId
+        itemName
+        itemBarcode
+        itemCategory
+        itemPrice
+        quantity
+        completed
+        addedBy
         createdAt
         updatedAt
         owner

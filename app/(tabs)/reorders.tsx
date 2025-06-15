@@ -1,26 +1,28 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { 
+  View, 
+  Text, 
+  TextInput, 
+  TouchableOpacity, 
   FlatList,
   StyleSheet,
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
+  KeyboardAvoidingView, 
+  Platform, 
   SafeAreaView,
   Image,
   Modal,
   Alert,
   ScrollView,
   Animated,
+  RefreshControl,
+  Vibration,
 } from 'react-native';
 import { Stack, useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 import { useCatalogItems } from '../../src/hooks/useCatalogItems';
-import { useBarcodeScanner } from '../../src/hooks/useBarcodeScanner';
+import { BarcodeScannerWithRef, BarcodeScannerRef } from '../../src/components/BarcodeScanner';
 import { ConvertedItem } from '../../src/types/api';
 import { lightTheme } from '../../src/themes';
 import logger from '../../src/utils/logger';
@@ -31,11 +33,25 @@ import { generateClient } from 'aws-amplify/api';
 import * as queries from '../../src/graphql/queries';
 import { useAuthenticator } from '@aws-amplify/ui-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAppStore } from '../../src/store';
 
 const client = generateClient();
 
 // Types for reorder functionality - use the service type
-type ReorderItem = ServiceReorderItem;
+type ReorderItem = ServiceReorderItem & {
+  isCustom?: boolean;
+  notes?: string;
+};
+
+// Add interface for custom item being edited
+interface CustomItemEdit {
+  id: string;
+  itemName: string;
+  itemCategory: string;
+  vendor: string;
+  quantity: number;
+  notes: string;
+}
 
 interface QuantityModalProps {
   visible: boolean;
@@ -222,21 +238,36 @@ const renderDropdown = (
   placeholder: string
 ) => {
   return (
-    <ScrollView style={{ maxHeight: 150 }} showsVerticalScrollIndicator={false}>
+    <ScrollView style={{ maxHeight: 180 }} showsVerticalScrollIndicator={false}>
       <TouchableOpacity
-        style={[reorderStyles.dropdownItem, { paddingVertical: 10 }]}
+        style={{
+          paddingHorizontal: 20,
+          paddingVertical: 14,
+          borderBottomWidth: 1,
+          borderBottomColor: '#f0f0f0',
+          backgroundColor: !selectedValue ? '#f0f8ff' : 'transparent',
+        }}
         onPress={() => onSelect(null)}
       >
-        <Text style={[
-          reorderStyles.dropdownItemText,
-          !selectedValue && reorderStyles.dropdownItemTextSelected
-        ]}>
+        <Text style={{
+          fontSize: 15,
+          color: !selectedValue ? '#007AFF' : '#333',
+          fontWeight: !selectedValue ? '600' : '400',
+        }}>
           All {placeholder}
         </Text>
       </TouchableOpacity>
       {items.length === 0 ? (
-        <View style={[reorderStyles.dropdownItem, { paddingVertical: 10 }]}>
-          <Text style={[reorderStyles.dropdownItemText, { fontStyle: 'italic', opacity: 0.6 }]}>
+        <View style={{
+          paddingHorizontal: 20,
+          paddingVertical: 20,
+          alignItems: 'center',
+        }}>
+          <Text style={{
+            fontSize: 14,
+            color: '#999',
+            fontStyle: 'italic',
+          }}>
             No {placeholder.toLowerCase()} available
           </Text>
         </View>
@@ -244,15 +275,42 @@ const renderDropdown = (
         items.map((item, index) => (
           <TouchableOpacity
             key={`${item.name}-${index}`}
-            style={[reorderStyles.dropdownItem, { paddingVertical: 10 }]}
+            style={{
+              paddingHorizontal: 20,
+              paddingVertical: 14,
+              borderBottomWidth: index === items.length - 1 ? 0 : 1,
+              borderBottomColor: '#f0f0f0',
+              backgroundColor: selectedValue === item.name ? '#f0f8ff' : 'transparent',
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
             onPress={() => onSelect(item.name)}
           >
-            <Text style={[
-              reorderStyles.dropdownItemText,
-              selectedValue === item.name && reorderStyles.dropdownItemTextSelected
-            ]}>
-              {item.name} ({item.count})
+            <Text style={{
+              fontSize: 15,
+              color: selectedValue === item.name ? '#007AFF' : '#333',
+              fontWeight: selectedValue === item.name ? '600' : '400',
+              flex: 1,
+            }}>
+              {item.name}
             </Text>
+            <View style={{
+              backgroundColor: selectedValue === item.name ? '#007AFF' : '#e0e0e0',
+              paddingHorizontal: 8,
+              paddingVertical: 4,
+              borderRadius: 12,
+              minWidth: 24,
+              alignItems: 'center',
+            }}>
+              <Text style={{
+                fontSize: 12,
+                color: selectedValue === item.name ? '#fff' : '#666',
+                fontWeight: '600',
+              }}>
+                {item.count}
+              </Text>
+            </View>
           </TouchableOpacity>
         ))
       )}
@@ -271,13 +329,27 @@ export default function ReordersScreen() {
   const [showSelectionModal, setShowSelectionModal] = useState(false);
   const [currentScannedItem, setCurrentScannedItem] = useState<ConvertedItem | null>(null);
   const [multipleItems, setMultipleItems] = useState<ConvertedItem[]>([]);
-  const [scannerActive, setScannerActive] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  
+  // Custom item states
+  const [showAddCustomItem, setShowAddCustomItem] = useState(false);
+  const [editingCustomItem, setEditingCustomItem] = useState<string | null>(null);
+  const [customItemEdit, setCustomItemEdit] = useState<CustomItemEdit | null>(null);
+  
+  // Sync status state
+  const [syncStatus, setSyncStatus] = useState({ isOnline: false, pendingCount: 0, isAuthenticated: false });
+  const [showSyncStatusPopover, setShowSyncStatusPopover] = useState(false);
   
   // State for filters and sorting
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedVendor, setSelectedVendor] = useState<string | null>(null);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [showVendorDropdown, setShowVendorDropdown] = useState(false);
+  const [showConfigDropdown, setShowConfigDropdown] = useState(false);
+  const [sectionByCategory, setSectionByCategory] = useState(false);
+  const [sectionByVendor, setSectionByVendor] = useState(false);
   const [sortState, setSortState] = useState<{
     chronological: 'off' | 'desc' | 'asc';
     alphabetical: 'off' | 'desc' | 'asc';
@@ -289,84 +361,140 @@ export default function ReordersScreen() {
   // Get authenticated user information
   const { user } = useAuthenticator((context) => [context.user]);
 
+  // Listen for add custom item trigger from tab bar
+  const addCustomItemTriggeredAt = useAppStore((state) => state.addCustomItemTriggeredAt);
+  const lastTriggeredAtRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (addCustomItemTriggeredAt && addCustomItemTriggeredAt !== lastTriggeredAtRef.current) {
+      lastTriggeredAtRef.current = addCustomItemTriggeredAt;
+      handleAddCustomItem();
+    }
+  }, [addCustomItemTriggeredAt]);
+
   const { performSearch, isSearching, searchError } = useCatalogItems();
+
+  // Add ref for the barcode scanner component
+  const scannerRef = useRef<BarcodeScannerRef>(null);
   
+  // Audio/Haptic feedback for scan results
+  const playSuccessSound = useCallback(() => {
+    console.log('🔊 SUCCESS - Item found!');
+    logger.info(TAG, 'Playing success feedback');
+    // Single short vibration for success
+    Vibration.vibrate(100);
+  }, []);
+
+  const playErrorSound = useCallback(() => {
+    console.log('🔊 ERROR - Scan failed!');  
+    logger.info(TAG, 'Playing error feedback');
+    // Double vibration pattern for error
+    Vibration.vibrate([0, 200, 100, 200]);
+  }, []);
+
   // Handle barcode scan from the scanner
-  const handleBarcodeScan = useCallback((barcode: string) => {
+  const handleBarcodeScan = useCallback(async (barcode: string) => {
     logger.info(TAG, `Barcode scanned: ${barcode}`);
+    
+    // If error modal is open, dismiss it with any new scan and refocus scanner
+    if (showErrorModal) {
+      setShowErrorModal(false);
+      setErrorMessage('');
+      // Refocus the scanner after modal dismissal
+      scannerRef.current?.refocus();
+    }
     
     // If quantity modal is open, auto-submit current item with qty 1 and process new scan
     if (showQuantityModal && currentScannedItem) {
       logger.info(TAG, 'Auto-submitting current item with qty 1 due to new scan');
       
-      reorderService.addItem(currentScannedItem, 1);
+      try {
+        await reorderService.addItem(currentScannedItem, 1);
+      } catch (error) {
+        logger.error(TAG, 'Error auto-submitting current item', { error });
+      }
       setShowQuantityModal(false);
       setCurrentScannedItem(null);
     }
     
-    // Find items with matching barcode
-    const matchingItems = catalogItems.filter((item: ConvertedItem) => 
-      item.barcode === barcode
-    );
+    // Search for items with matching barcode using the same logic as main screen
+    try {
+      const searchFilters = {
+        name: false,
+        sku: false,
+        barcode: true, // Only search by barcode
+        category: false
+      };
+      
+      const matchingItems = await performSearch(barcode, searchFilters);
 
-    if (matchingItems.length === 0) {
-      // No item found
-      Alert.alert(
-        'Item Not Found',
-        'No item found with this barcode. Please create the item in the main scan page first.',
-        [{ text: 'OK' }]
-      );
-      return;
+      if (matchingItems.length === 0) {
+        // ERROR CASE 1: No item found in database - play error sound & show modal
+        playErrorSound();
+        setErrorMessage(`No item found with barcode: ${barcode}\n\nPlease create the item in the main scan page first.`);
+        setShowErrorModal(true);
+        return;
+      }
+
+      // Success - play success sound
+      playSuccessSound();
+
+      if (matchingItems.length === 1) {
+        // Single item found - convert SearchResultItem to ConvertedItem
+        const convertedItem: ConvertedItem = {
+          id: matchingItems[0].id,
+          name: matchingItems[0].name || '',
+          sku: matchingItems[0].sku,
+          barcode: matchingItems[0].barcode,
+          price: matchingItems[0].price,
+          category: matchingItems[0].category,
+          categoryId: matchingItems[0].categoryId,
+          reporting_category_id: matchingItems[0].categoryId || matchingItems[0].reporting_category_id,
+          description: matchingItems[0].description,
+          isActive: true,
+          images: [],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        
+        setCurrentScannedItem(convertedItem);
+        setShowQuantityModal(true);
+      } else {
+        // Multiple items found - convert all SearchResultItems to ConvertedItems
+        const convertedItems: ConvertedItem[] = matchingItems.map(item => ({
+          id: item.id,
+          name: item.name || '',
+          sku: item.sku,
+          barcode: item.barcode,
+          price: item.price,
+          category: item.category,
+          categoryId: item.categoryId,
+          reporting_category_id: item.categoryId || item.reporting_category_id,
+          description: item.description,
+          isActive: true,
+          images: [],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }));
+        
+        setMultipleItems(convertedItems);
+        setShowSelectionModal(true);
+      }
+    } catch (error) {
+      logger.error(TAG, 'Error searching for barcode', { barcode, error });
+      playErrorSound();
+      setErrorMessage(`Search failed for barcode: ${barcode}\n\nPlease try again.`);
+      setShowErrorModal(true);
     }
+  }, [performSearch, showQuantityModal, currentScannedItem, showErrorModal, playSuccessSound, playErrorSound]);
 
-    if (matchingItems.length === 1) {
-      // Single item found
-      setCurrentScannedItem(matchingItems[0]);
-      setShowQuantityModal(true);
-    } else {
-      // Multiple items found
-      setMultipleItems(matchingItems);
-      setShowSelectionModal(true);
-    }
-  }, [catalogItems, showQuantityModal, currentScannedItem, reorderItems.length]);
-
-  // Initialize barcode scanner
-  const { 
-    isListening, 
-    isKeyEventAvailable
-  } = useBarcodeScanner({
-    onScan: handleBarcodeScan,
-    enabled: scannerActive,
-    minLength: 4,
-    maxLength: 50,
-    timeout: 100
-  });
-
-  // Test function for manual barcode input (for testing when scanner isn't available)
-  const testBarcodeScan = useCallback(() => {
-    // For testing - simulate scanning a barcode
-    const testBarcodes = ['123456789', '987654321', '555666777'];
-    const randomBarcode = testBarcodes[Math.floor(Math.random() * testBarcodes.length)];
-    handleBarcodeScan(randomBarcode);
-  }, [handleBarcodeScan]);
-
-  // Set up reorder service listener and cleanup
-  useEffect(() => {
-    const unsubscribe = reorderService.addListener(setReorderItems);
-    
-    return () => {
-      unsubscribe();
-      // Cleanup subscriptions when component unmounts
-      reorderService.cleanup();
-    };
-  }, []);
-
-  // Log scanner status (removed annoying alert)
-  useEffect(() => {
-    if (scannerActive && !isKeyEventAvailable) {
-      logger.info(TAG, 'Scanner module not available, test mode enabled');
-    }
-  }, [scannerActive, isKeyEventAvailable]);
+  // Handle scan errors (ERROR CASE 2: Invalid GTIN format - play error sound & show modal)
+  const handleScanError = useCallback((error: string) => {
+    logger.warn(TAG, `Scan error: ${error}`);
+    playErrorSound();
+    setErrorMessage(`Scan failed: ${error}`);
+    setShowErrorModal(true);
+  }, [playErrorSound]);
 
   // Handle quantity submission
   const handleQuantitySubmit = useCallback(async (quantity: number) => {
@@ -377,16 +505,23 @@ export default function ReordersScreen() {
       const teamData = await reorderService.fetchTeamData(currentScannedItem.id);
       const userName = user?.signInDetails?.loginId?.split('@')[0] || 'Unknown User';
       
-      reorderService.addItem(currentScannedItem, quantity, teamData, userName);
-      setShowQuantityModal(false);
-      setCurrentScannedItem(null);
-
-      logger.info(TAG, `Added reorder item: ${currentScannedItem.name} x${quantity}`);
+      const success = await reorderService.addItem(currentScannedItem, quantity, teamData, userName);
+      
+      if (success) {
+        playSuccessSound();
+        setShowQuantityModal(false);
+        setCurrentScannedItem(null);
+        logger.info(TAG, `Added reorder item: ${currentScannedItem.name} x${quantity}`);
+      } else {
+        playErrorSound();
+        setErrorMessage('Failed to add item to reorder list');
+        setShowErrorModal(true);
+      }
     } catch (error) {
       logger.error(TAG, 'Error adding reorder item', { error });
-      // Still add the item without team data
-      const userName = user?.signInDetails?.loginId?.split('@')[0] || 'Unknown User';
-      reorderService.addItem(currentScannedItem, quantity, undefined, userName);
+      playErrorSound();
+      setErrorMessage('Failed to add item to reorder list');
+      setShowErrorModal(true);
       setShowQuantityModal(false);
       setCurrentScannedItem(null);
     }
@@ -408,6 +543,128 @@ export default function ReordersScreen() {
     }
   };
 
+  // Handle manual refresh
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await reorderService.refresh();
+      // Update sync status after refresh
+      const status = reorderService.getSyncStatus();
+      setSyncStatus(status);
+      logger.info(TAG, 'Manual refresh completed');
+    } catch (error) {
+      logger.error(TAG, 'Manual refresh failed', { error });
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, []);
+
+  // Handle custom item creation
+  const handleAddCustomItem = useCallback(() => {
+    const newCustomItem: CustomItemEdit = {
+      id: `custom-${Date.now()}`,
+      itemName: '',
+      itemCategory: '',
+      vendor: '',
+      quantity: 1,
+      notes: ''
+    };
+    setCustomItemEdit(newCustomItem);
+    setEditingCustomItem(newCustomItem.id);
+    setShowAddCustomItem(true);
+  }, []);
+
+  // Handle custom item save
+  const handleSaveCustomItem = useCallback(async () => {
+    if (!customItemEdit || !customItemEdit.itemName.trim()) return;
+
+    try {
+      const userName = user?.signInDetails?.loginId?.split('@')[0] || 'Unknown User';
+      
+      const success = await reorderService.addCustomItem({
+        itemName: customItemEdit.itemName.trim(),
+        itemCategory: customItemEdit.itemCategory || 'Custom',
+        quantity: customItemEdit.quantity,
+        addedBy: userName,
+        vendor: customItemEdit.vendor || undefined,
+        notes: customItemEdit.notes || undefined
+      });
+      
+      if (success) {
+        // Reset states
+        setShowAddCustomItem(false);
+        setEditingCustomItem(null);
+        setCustomItemEdit(null);
+        
+        logger.info(TAG, `Added custom item: ${customItemEdit.itemName}`);
+      } else {
+        Alert.alert('Error', 'Failed to add custom item');
+      }
+    } catch (error) {
+      logger.error(TAG, 'Error adding custom item', { error });
+      Alert.alert('Error', 'Failed to add custom item');
+    }
+  }, [customItemEdit, user]);
+
+  // Handle custom item edit
+  const handleEditCustomItem = useCallback((item: ReorderItem) => {
+    if (!item.isCustom) return;
+    
+    const editItem: CustomItemEdit = {
+      id: item.id,
+      itemName: item.itemName,
+      itemCategory: item.itemCategory || '',
+      vendor: item.teamData?.vendor || '',
+      quantity: item.quantity,
+      notes: item.notes || ''
+    };
+    
+    setCustomItemEdit(editItem);
+    setEditingCustomItem(item.id);
+  }, []);
+
+  // Handle custom item cancel
+  const handleCancelCustomItem = useCallback(() => {
+    setShowAddCustomItem(false);
+    setEditingCustomItem(null);
+    setCustomItemEdit(null);
+  }, []);
+
+  // Monitor sync status
+  useEffect(() => {
+    const updateSyncStatus = () => {
+      const status = reorderService.getSyncStatus();
+      setSyncStatus(status);
+    };
+    
+    // Update immediately
+    updateSyncStatus();
+    
+    // Update every 5 seconds
+    const interval = setInterval(updateSyncStatus, 5000);
+    
+    return () => clearInterval(interval);
+  }, []);
+
+  // Set up reorder service listener and cleanup
+  useEffect(() => {
+    const unsubscribe = reorderService.addListener(setReorderItems);
+    
+    return () => {
+      unsubscribe();
+      // Cleanup subscriptions when component unmounts
+      reorderService.cleanup();
+    };
+  }, []);
+
+  // Initialize service with user ID when user changes
+  useEffect(() => {
+    if (user?.signInDetails?.loginId) {
+      const userId = user.signInDetails.loginId;
+      reorderService.initialize(userId);
+    }
+  }, [user?.signInDetails?.loginId]);
+
   // Generate dynamic filter data with counts
   const filterData = useMemo(() => {
     const incompleteItems = reorderItems.filter(item => !item.completed);
@@ -417,7 +674,7 @@ export default function ReordersScreen() {
     // Category counts with better handling
     const categoryMap = new Map<string, number>();
     incompleteItems.forEach(item => {
-      let category = item.item.category;
+      let category = item.itemCategory;
       
       // Handle various undefined/null/empty cases
       if (!category || category.trim() === '' || category === 'N/A') {
@@ -467,7 +724,7 @@ export default function ReordersScreen() {
     // Apply category filter
     if (selectedCategory) {
       filtered = filtered.filter(item => 
-        item.item.category === selectedCategory
+        item.itemCategory === selectedCategory
       );
     }
 
@@ -481,12 +738,14 @@ export default function ReordersScreen() {
     // Apply sorting based on sortState
     if (sortState.alphabetical !== 'off') {
       filtered = [...filtered].sort((a, b) => {
-        const comparison = (a.item.name || '').localeCompare(b.item.name || '');
+        const comparison = (a.itemName || '').localeCompare(b.itemName || '');
         return sortState.alphabetical === 'asc' ? comparison : -comparison;
       });
     } else if (sortState.chronological !== 'off') {
       filtered = [...filtered].sort((a, b) => {
-        const comparison = new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+        const aTime = a.timestamp ? a.timestamp.getTime() : new Date(a.createdAt).getTime();
+        const bTime = b.timestamp ? b.timestamp.getTime() : new Date(b.createdAt).getTime();
+        const comparison = bTime - aTime;
         return sortState.chronological === 'desc' ? comparison : -comparison;
       });
     }
@@ -508,9 +767,9 @@ export default function ReordersScreen() {
   const renderSortButton = (sortType: 'chronological' | 'alphabetical', label: string, icon: string) => {
     const state = sortState[sortType];
     const isActive = state !== 'off';
-    
+
     return (
-      <TouchableOpacity
+      <TouchableOpacity 
         style={[
           reorderStyles.filterButton,
           isActive && reorderStyles.filterButtonActive
@@ -618,7 +877,7 @@ export default function ReordersScreen() {
       </TouchableOpacity>
     );
   };
-
+  
   // Handle sort button clicks (3-state cycle for chronological/alphabetical)
   const handleSortClick = (sortType: 'chronological' | 'alphabetical') => {
     setSortState(prev => {
@@ -644,26 +903,28 @@ export default function ReordersScreen() {
 
   // Handle filter button clicks (toggle on/off)
   const handleFilterClick = (filter: FilterType) => {
-    if (filter === 'category' || filter === 'vendor') {
-      // Special handling for dropdown filters
-      if (filter === 'category') {
-        setShowCategoryDropdown(!showCategoryDropdown);
-        setShowVendorDropdown(false);
-      } else {
-        setShowVendorDropdown(!showVendorDropdown);
-        setShowCategoryDropdown(false);
-      }
+    // Close all dropdowns first
+    setShowCategoryDropdown(false);
+    setShowVendorDropdown(false);
+    setShowConfigDropdown(false);
+    setShowSyncStatusPopover(false);
+    
+    if (filter === 'completed') {
+      setCurrentFilter(currentFilter === 'completed' ? null : 'completed');
+    } else if (filter === 'incomplete') {
+      setCurrentFilter(currentFilter === 'incomplete' ? null : 'incomplete');
+    } else if (filter === 'category') {
+      setShowCategoryDropdown(true);
+    } else if (filter === 'vendor') {
+      setShowVendorDropdown(true);
     } else if (filter === 'sortConfig') {
-      // TODO: Handle sort config button
-    } else {
-      // Toggle filter on/off
-      setCurrentFilter(currentFilter === filter ? null : filter);
+      setShowConfigDropdown(true);
     }
   };
 
   // Render reorder item
   const renderReorderItem = ({ item }: { item: ReorderItem }) => {
-    return (
+      return (
       <Swipeable
         friction={2}
         leftThreshold={120}
@@ -696,8 +957,8 @@ export default function ReordersScreen() {
                   <Ionicons name="trash-outline" size={24} color="#fff" />
                 </TouchableOpacity>
               </Animated.View>
-            </View>
-          );
+        </View>
+      );
         }}
         onSwipeableRightOpen={() => {
           // Auto-delete on full swipe
@@ -706,7 +967,8 @@ export default function ReordersScreen() {
       >
         <View style={[
           reorderStyles.reorderItem,
-          item.completed && reorderStyles.reorderItemCompleted
+          item.completed && reorderStyles.reorderItemCompleted,
+          item.isCustom && { borderLeftWidth: 4, borderLeftColor: '#007AFF' }
         ]}>
           {/* Index number - tappable for completion toggle */}
           <TouchableOpacity
@@ -723,20 +985,28 @@ export default function ReordersScreen() {
             )}
           </TouchableOpacity>
 
-          {/* Item content - not tappable */}
-          <View style={reorderStyles.itemContent}>
+          {/* Item content - tappable for custom items */}
+          <TouchableOpacity 
+            style={reorderStyles.itemContent}
+            onPress={() => {
+              if (item.isCustom) {
+                handleEditCustomItem(item);
+              }
+            }}
+            disabled={!item.isCustom}
+          >
             <View style={reorderStyles.itemHeader}>
               <View style={reorderStyles.itemNameContainer}>
                 <Text style={[
                   reorderStyles.itemName,
                   item.completed && reorderStyles.itemNameCompleted
                 ]} numberOfLines={1}>
-                  {item.item.name}
+                  {item.itemName}
                 </Text>
                 <Text style={reorderStyles.compactDetails}>
-                  UPC: {item.item.barcode || 'N/A'}{item.item.sku ? ` • SKU: ${item.item.sku}` : ''} • Cat: {item.item.category || 'N/A'} • Price: ${item.item.price?.toFixed(2) || 'Variable'}{item.teamData?.vendorCost ? ` • Cost: $${item.teamData.vendorCost.toFixed(2)}` : ' • Cost: N/A'}{item.teamData?.vendor ? ` • Vendor: ${item.teamData.vendor}` : ' • Vendor: N/A'}{item.teamData?.discontinued ? ' • DISCONTINUED' : ''}
+                  UPC: {item.itemBarcode || 'N/A'}{item.itemBarcode ? ` • SKU: N/A` : ''} • Cat: {item.itemCategory || 'N/A'} • Price: ${item.itemPrice?.toFixed(2) || 'Variable'}{item.teamData?.vendorCost ? ` • Cost: $${item.teamData.vendorCost.toFixed(2)}` : ' • Cost: N/A'}{item.teamData?.vendor ? ` • Vendor: ${item.teamData.vendor}` : ' • Vendor: N/A'}{item.teamData?.discontinued ? ' • DISCONTINUED' : ''}
                 </Text>
-              </View>
+        </View>
               <View style={reorderStyles.qtyContainer}>
                 <Text style={reorderStyles.qtyLabel}>Qty</Text>
                 <Text style={reorderStyles.qtyNumber}>{item.quantity}</Text>
@@ -745,13 +1015,13 @@ export default function ReordersScreen() {
 
             <View style={reorderStyles.timestampContainer}>
               <Text style={reorderStyles.timestamp}>
-                {item.timestamp.toLocaleDateString()} {item.timestamp.toLocaleTimeString()}
+                {(item.timestamp || new Date(item.createdAt)).toLocaleDateString()} {(item.timestamp || new Date(item.createdAt)).toLocaleTimeString()}
               </Text>
               <Text style={reorderStyles.addedBy}>
                 By: {item.addedBy || 'Unknown User'}
               </Text>
             </View>
-          </View>
+          </TouchableOpacity>
         </View>
       </Swipeable>
     );
@@ -763,18 +1033,210 @@ export default function ReordersScreen() {
       <Ionicons name="scan-outline" size={64} color="#ccc" style={reorderStyles.emptyIcon} />
       <Text style={reorderStyles.emptyTitle}>No Reorders Yet</Text>
       <Text style={reorderStyles.emptySubtitle}>
-        {isListening && isKeyEventAvailable
-          ? 'Scanner is active and ready! Start scanning items to add them to your reorder list.'
-          : isListening && !isKeyEventAvailable
-          ? 'Scanner is in test mode. Use the test button in the header or add items from the main search page.'
-          : 'Scanner is disabled. Tap the scanner icon in the header to enable it.'
-        }
+        Scanner is ready! Start scanning items to add them to your reorder list.
       </Text>
-    </View>
-  );
+        </View>
+      );
+
+  // Create sectioned data for rendering
+  const sectionedData = useMemo(() => {
+    let baseData = filteredAndSortedItems;
+    
+    if (!sectionByCategory && !sectionByVendor) {
+      // Add custom item entry at the top if it's being added
+      if (showAddCustomItem) {
+        return [{ type: 'customEntry' }, ...baseData];
+      }
+      return baseData;
+    }
+
+    const groupBy = sectionByVendor ? 'vendor' : 'category'; // Vendor takes precedence
+    const sections: { [key: string]: ReorderItem[] } = {};
+
+    baseData.forEach(item => {
+      let key: string;
+      if (groupBy === 'vendor') {
+        key = item.teamData?.vendor || 'No Vendor';
+      } else {
+        key = item.itemCategory || 'Uncategorized';
+      }
+      
+      if (!sections[key]) {
+        sections[key] = [];
+      }
+      sections[key].push(item);
+    });
+
+    // Convert to flat array with section headers
+    const flatData: (ReorderItem | { type: 'header'; title: string; count: number } | { type: 'customEntry' })[] = [];
+    
+    // Add custom item entry at the very top if it's being added
+    if (showAddCustomItem) {
+      flatData.push({ type: 'customEntry' });
+    }
+    
+    Object.keys(sections)
+      .sort()
+      .forEach(sectionKey => {
+        flatData.push({
+          type: 'header',
+          title: sectionKey,
+          count: sections[sectionKey].length
+        });
+        flatData.push(...sections[sectionKey]);
+      });
+
+    return flatData;
+  }, [filteredAndSortedItems, sectionByCategory, sectionByVendor, showAddCustomItem]);
+
+  // Render section header
+  const renderSectionHeader = (title: string, count: number) => (
+    <View style={reorderStyles.sectionHeader}>
+      <Text style={reorderStyles.sectionHeaderText}>
+        {title}
+        <Text style={reorderStyles.sectionHeaderCount}>({count})</Text>
+          </Text>
+        </View>
+      );
+
+  // Updated render item function to handle both items and headers
+  const renderListItem = ({ item }: { item: any }) => {
+    if (item.type === 'header') {
+      return renderSectionHeader(item.title, item.count);
+    }
+    if (item.type === 'customEntry') {
+      return renderCustomItemEntry();
+    }
+    return renderReorderItem({ item });
+  };
+
+  // Render custom item entry (inline at top of list)
+  const renderCustomItemEntry = () => {
+    if (!showAddCustomItem || !customItemEdit) return null;
+    
+    return (
+      <View style={[reorderStyles.reorderItem, { borderColor: '#007AFF', borderWidth: 2 }]}>
+        <View style={[reorderStyles.indexContainer, { backgroundColor: '#007AFF' }]}>
+          <Ionicons name="add" size={18} color="#fff" />
+          </View>
+
+        <View style={reorderStyles.itemContent}>
+          <View style={reorderStyles.itemHeader}>
+            <View style={reorderStyles.itemNameContainer}>
+              <TextInput
+                style={[reorderStyles.itemName, { borderBottomWidth: 1, borderBottomColor: '#ddd', paddingBottom: 4 }]}
+                value={customItemEdit.itemName}
+                onChangeText={(text) => setCustomItemEdit(prev => prev ? { ...prev, itemName: text } : null)}
+                placeholder="Enter item name..."
+                autoFocus
+                returnKeyType="next"
+              />
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                <TextInput
+                  style={[reorderStyles.compactDetails, { 
+                    flex: 1, 
+                    borderBottomWidth: 1, 
+                    borderBottomColor: '#ddd', 
+                    paddingBottom: 2,
+                    fontSize: 12
+                  }]}
+                  value={customItemEdit.itemCategory}
+                  onChangeText={(text) => setCustomItemEdit(prev => prev ? { ...prev, itemCategory: text } : null)}
+                  placeholder="Category..."
+                />
+                <TextInput
+                  style={[reorderStyles.compactDetails, { 
+                    flex: 1, 
+                    borderBottomWidth: 1, 
+                    borderBottomColor: '#ddd', 
+                    paddingBottom: 2,
+                    fontSize: 12
+                  }]}
+                  value={customItemEdit.vendor}
+                  onChangeText={(text) => setCustomItemEdit(prev => prev ? { ...prev, vendor: text } : null)}
+                  placeholder="Vendor..."
+                />
+              </View>
+            </View>
+            <View style={reorderStyles.qtyContainer}>
+              <Text style={reorderStyles.qtyLabel}>Qty</Text>
+              <TextInput
+                style={[reorderStyles.qtyNumber, { 
+                  borderBottomWidth: 1, 
+                  borderBottomColor: '#ddd', 
+                  textAlign: 'center',
+                  minWidth: 40
+                }]}
+                value={customItemEdit.quantity.toString()}
+                onChangeText={(text) => {
+                  const qty = parseInt(text) || 1;
+                  setCustomItemEdit(prev => prev ? { ...prev, quantity: qty } : null);
+                }}
+                keyboardType="numeric"
+              />
+            </View>
+          </View>
+
+          <View style={[reorderStyles.timestampContainer, { flexDirection: 'row', justifyContent: 'space-between' }]}>
+            <TouchableOpacity
+              style={{ backgroundColor: '#ff3b30', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }}
+              onPress={handleCancelCustomItem}
+            >
+              <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ 
+                backgroundColor: customItemEdit.itemName.trim() ? '#007AFF' : '#ccc', 
+                paddingHorizontal: 12, 
+                paddingVertical: 6, 
+                borderRadius: 6 
+              }}
+              onPress={handleSaveCustomItem}
+              disabled={!customItemEdit.itemName.trim()}
+            >
+              <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>Save</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    );
+  };
+  
+  // Get sync status explanation
+  const getSyncStatusExplanation = () => {
+    const { isAuthenticated, isOnline, pendingCount } = syncStatus;
+    
+    let title = '';
+    let description = '';
+    let color = '';
+    
+    if (isAuthenticated && isOnline && pendingCount === 0) {
+      title = '✅ Fully Synced';
+      description = 'You are signed in and all items are synced with the server. Changes will appear on all your devices in real-time.';
+      color = '#4CD964';
+    } else if (isAuthenticated && isOnline && pendingCount > 0) {
+      title = '🔄 Syncing';
+      description = `You are signed in but ${pendingCount} item${pendingCount > 1 ? 's' : ''} are waiting to sync. Tap refresh to sync now.`;
+      color = '#FF9500';
+    } else if (isAuthenticated && !isOnline) {
+      title = '📱 Offline Mode';
+      description = 'You are signed in but currently offline. Items are saved locally and will sync when connection is restored.';
+      color = '#FF3B30';
+    } else if (!isAuthenticated && isOnline) {
+      title = '🔐 Not Signed In';
+      description = 'You are not signed in. Items are saved locally on this device only. Sign in to sync across devices.';
+      color = '#FF9500';
+    } else {
+      title = '📱 Local Only';
+      description = 'You are not signed in and offline. Items are saved locally on this device only.';
+      color = '#FF3B30';
+    }
+    
+    return { title, description, color };
+  };
 
   if (loading) {
-    return (
+  return (
       <SafeAreaView style={reorderStyles.container}>
         <Stack.Screen options={{ headerShown: true, title: 'Reorders' }} />
         <View style={reorderStyles.loadingContainer}>
@@ -791,26 +1253,86 @@ export default function ReordersScreen() {
         options={{
           headerShown: true,
           title: 'Reorders',
+          headerLeft: () => (
+            <TouchableOpacity 
+              style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 8 }}
+              onPress={() => setShowSyncStatusPopover(true)}
+            >
+              <Ionicons 
+                name={syncStatus.isAuthenticated ? "person" : "person-outline"} 
+                size={20} 
+                color={syncStatus.isAuthenticated ? "#4CD964" : "#FF9500"} 
+              />
+              <Ionicons 
+                name={syncStatus.isOnline ? "cloud" : "cloud-offline"} 
+                size={20} 
+                color={syncStatus.isOnline ? "#4CD964" : "#FF3B30"} 
+                style={{ marginLeft: 4 }}
+              />
+              {syncStatus.pendingCount > 0 && (
+                <View style={{
+                  backgroundColor: '#FF9500',
+                  borderRadius: 10,
+                  minWidth: 20,
+                  height: 20,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  marginLeft: 4
+                }}>
+                  <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>
+                    {syncStatus.pendingCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          ),
           headerRight: () => (
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              {!isKeyEventAvailable && (
-                <TouchableOpacity 
-                  onPress={testBarcodeScan}
-                  style={{ marginRight: 16 }}
-                >
-                  <Ionicons name="flask-outline" size={24} color="#FF6B35" />
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity onPress={() => setScannerActive(!scannerActive)}>
+              <TouchableOpacity 
+                onPress={handleAddCustomItem}
+                style={{ marginRight: 16 }}
+              >
+                <Ionicons name="add" size={24} color="#007AFF" />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                onPress={handleRefresh}
+                style={{ marginRight: 16 }}
+                disabled={isRefreshing}
+              >
                 <Ionicons 
-                  name={scannerActive ? "scan" : "scan-outline"} 
+                  name={isRefreshing ? "sync" : "refresh"} 
                   size={24} 
-                  color={scannerActive && isKeyEventAvailable ? "#007AFF" : "#666"} 
+                  color={isRefreshing ? "#999" : "#007AFF"} 
                 />
               </TouchableOpacity>
+              <View style={{ alignItems: 'center', marginRight: 8 }}>
+                <Ionicons 
+                  name="scan" 
+                  size={24} 
+                  color="#007AFF" 
+                />
+                <Text style={{ 
+                  fontSize: 10, 
+                  color: "#007AFF",
+                  marginTop: 2
+                }}>
+                  Ready
+                </Text>
+              </View>
             </View>
           ),
         }}
+      />
+
+      {/* Barcode Scanner Component */}
+      <BarcodeScannerWithRef
+        ref={scannerRef}
+        onScan={handleBarcodeScan}
+        onError={handleScanError}
+        enabled={true}
+        minLength={8}
+        maxLength={50}
+        timeout={1000}
       />
 
       {/* Header with stats and filters */}
@@ -843,9 +1365,8 @@ export default function ReordersScreen() {
             flexDirection: 'row',
             alignItems: 'center',
             gap: 8,
-            paddingHorizontal: 16,
           }}
-          style={{ marginBottom: 8 }}
+          style={{ marginBottom: 8, paddingLeft: 16 }}
         >
           {renderFilterButton('sortConfig', '', 'options')}
           {renderFilterButton('incomplete', 'Incomplete', 'ellipse-outline')}
@@ -858,8 +1379,8 @@ export default function ReordersScreen() {
       </View>
 
       {/* Inline Dropdown Overlays */}
-      {(showCategoryDropdown || showVendorDropdown) && (
-        <TouchableOpacity
+      {(showCategoryDropdown || showVendorDropdown || showConfigDropdown) && (
+            <TouchableOpacity 
           style={{
             position: 'absolute',
             top: 0,
@@ -873,6 +1394,7 @@ export default function ReordersScreen() {
           onPress={() => {
             setShowCategoryDropdown(false);
             setShowVendorDropdown(false);
+            setShowConfigDropdown(false);
           }}
         />
       )}
@@ -880,21 +1402,35 @@ export default function ReordersScreen() {
       {showCategoryDropdown && (
         <View style={{
           position: 'absolute',
-          top: 220, // Below the header section
+          top: 120, // Closer to the filter buttons
           left: 16,
           right: 16,
           backgroundColor: '#fff',
-          borderRadius: 8,
+          borderRadius: 12,
           shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.15,
-          shadowRadius: 4,
-          elevation: 8,
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.25,
+          shadowRadius: 8,
+          elevation: 12,
           zIndex: 1000,
-          maxHeight: 200,
+          maxHeight: 250,
+          borderWidth: 1,
+          borderColor: '#e0e0e0',
         }}>
-          <View style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' }}>
-            <Text style={{ fontSize: 14, fontWeight: '600', color: '#333' }}>
+          <View style={{ 
+            padding: 16, 
+            borderBottomWidth: 1, 
+            borderBottomColor: '#f0f0f0',
+            backgroundColor: '#f8f9fa',
+            borderTopLeftRadius: 12,
+            borderTopRightRadius: 12,
+          }}>
+            <Text style={{ 
+              fontSize: 16, 
+              fontWeight: '600', 
+              color: '#333',
+              textAlign: 'center'
+            }}>
               Select Category
             </Text>
           </View>
@@ -913,21 +1449,35 @@ export default function ReordersScreen() {
       {showVendorDropdown && (
         <View style={{
           position: 'absolute',
-          top: 220, // Below the header section
+          top: 120, // Closer to the filter buttons
           left: 16,
           right: 16,
           backgroundColor: '#fff',
-          borderRadius: 8,
+          borderRadius: 12,
           shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.15,
-          shadowRadius: 4,
-          elevation: 8,
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.25,
+          shadowRadius: 8,
+          elevation: 12,
           zIndex: 1000,
-          maxHeight: 200,
+          maxHeight: 250,
+          borderWidth: 1,
+          borderColor: '#e0e0e0',
         }}>
-          <View style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' }}>
-            <Text style={{ fontSize: 14, fontWeight: '600', color: '#333' }}>
+          <View style={{ 
+            padding: 16, 
+            borderBottomWidth: 1, 
+            borderBottomColor: '#f0f0f0',
+            backgroundColor: '#f8f9fa',
+            borderTopLeftRadius: 12,
+            borderTopRightRadius: 12,
+          }}>
+            <Text style={{ 
+              fontSize: 16, 
+              fontWeight: '600', 
+              color: '#333',
+              textAlign: 'center'
+            }}>
               Select Vendor
             </Text>
           </View>
@@ -943,29 +1493,163 @@ export default function ReordersScreen() {
         </View>
       )}
 
+      {showConfigDropdown && (
+        <View style={{
+          position: 'absolute',
+          top: 120,
+          left: 16,
+          right: 16,
+          backgroundColor: '#fff',
+          borderRadius: 12,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.25,
+          shadowRadius: 8,
+          elevation: 12,
+          zIndex: 1000,
+          borderWidth: 1,
+          borderColor: '#e0e0e0',
+        }}>
+          <View style={{ 
+            padding: 16, 
+            borderBottomWidth: 1, 
+            borderBottomColor: '#f0f0f0',
+            backgroundColor: '#f8f9fa',
+            borderTopLeftRadius: 12,
+            borderTopRightRadius: 12,
+          }}>
+            <Text style={{ 
+              fontSize: 16, 
+              fontWeight: '600', 
+              color: '#333',
+              textAlign: 'center'
+            }}>
+              List Organization
+            </Text>
+          </View>
+          
+          <View style={{ padding: 16 }}>
+            <TouchableOpacity
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                paddingVertical: 12,
+                borderBottomWidth: 1,
+                borderBottomColor: '#f0f0f0',
+              }}
+              onPress={() => setSectionByCategory(!sectionByCategory)}
+            >
+              <Text style={{
+                fontSize: 15,
+                color: '#333',
+                fontWeight: '400',
+              }}>
+                Group by Categories
+              </Text>
+              <View style={{
+                width: 24,
+                height: 24,
+                borderRadius: 12,
+                backgroundColor: sectionByCategory ? '#007AFF' : '#e0e0e0',
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}>
+                {sectionByCategory && (
+                  <Ionicons name="checkmark" size={16} color="#fff" />
+                )}
+              </View>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                paddingVertical: 12,
+              }}
+              onPress={() => setSectionByVendor(!sectionByVendor)}
+            >
+              <Text style={{
+                fontSize: 15,
+                color: '#333',
+                fontWeight: '400',
+              }}>
+                Group by Vendors
+              </Text>
+              <View style={{
+                width: 24,
+                height: 24,
+                borderRadius: 12,
+                backgroundColor: sectionByVendor ? '#007AFF' : '#e0e0e0',
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}>
+                {sectionByVendor && (
+                  <Ionicons name="checkmark" size={16} color="#fff" />
+                )}
+              </View>
+            </TouchableOpacity>
+            
+            {sectionByVendor && sectionByCategory && (
+              <Text style={{
+                fontSize: 12,
+                color: '#666',
+                fontStyle: 'italic',
+                marginTop: 8,
+                textAlign: 'center',
+              }}>
+                Vendor grouping takes precedence when both are enabled
+              </Text>
+            )}
+          </View>
+        </View>
+      )}
+
       {/* Reorder List */}
-      <TouchableOpacity 
+            <TouchableOpacity 
         style={reorderStyles.listContainer}
         activeOpacity={1}
         onPress={() => {
           // Close dropdowns when tapping on the list area
           setShowCategoryDropdown(false);
           setShowVendorDropdown(false);
+          setShowConfigDropdown(false);
+          setShowSyncStatusPopover(false);
         }}
       >
-        {filteredAndSortedItems.length === 0 ? (
+        {sectionedData.length === 0 ? (
           renderEmptyState()
         ) : (
           <FlatList
-            data={filteredAndSortedItems}
-            renderItem={renderReorderItem}
-            keyExtractor={(item) => item.id}
+            data={sectionedData}
+            renderItem={renderListItem}
+            keyExtractor={(item) => {
+              if ('type' in item) {
+                if (item.type === 'header' && 'title' in item) {
+                  return `header-${item.title}`;
+                }
+                if (item.type === 'customEntry') {
+                  return 'custom-entry';
+                }
+              }
+              return (item as ReorderItem).id;
+            }}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 20 }}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={handleRefresh}
+                tintColor="#007AFF"
+                title="Pull to refresh"
+                titleColor="#666"
+              />
+            }
           />
         )}
-      </TouchableOpacity>
-
+            </TouchableOpacity>
+            
       {/* Modals */}
       <QuantityModal
         visible={showQuantityModal}
@@ -990,6 +1674,213 @@ export default function ReordersScreen() {
           setMultipleItems([]);
         }}
       />
+
+      {/* Error Modal */}
+      <Modal visible={showErrorModal} transparent animationType="fade">
+            <TouchableOpacity 
+          style={{
+            flex: 1,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: 20,
+          }}
+          activeOpacity={1}
+          onPress={() => {
+            setShowErrorModal(false);
+            // Refocus the scanner after manual modal dismissal
+            scannerRef.current?.refocus();
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: '#fff',
+              borderRadius: 12,
+              padding: 24,
+              minWidth: 280,
+              maxWidth: '90%',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.25,
+              shadowRadius: 8,
+              elevation: 8,
+            }}
+          >
+            <View style={{ alignItems: 'center', marginBottom: 16 }}>
+              <Ionicons name="alert-circle" size={48} color="#FF6B6B" />
+              <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#333', marginTop: 8 }}>
+                Scan Failed
+              </Text>
+          </View>
+            
+            <Text style={{ 
+              fontSize: 16, 
+              color: '#666', 
+              textAlign: 'center', 
+              lineHeight: 24,
+              marginBottom: 20
+            }}>
+              {errorMessage}
+            </Text>
+            
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ 
+                fontSize: 14, 
+                color: '#999', 
+                textAlign: 'center',
+                fontStyle: 'italic'
+              }}>
+                Scan another item to dismiss
+              </Text>
+      </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Sync Status Popover */}
+      <Modal visible={showSyncStatusPopover} transparent animationType="fade">
+        <TouchableOpacity 
+          style={{
+            flex: 1,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: 20
+          }}
+          activeOpacity={1}
+          onPress={() => setShowSyncStatusPopover(false)}
+        >
+          <TouchableOpacity 
+            style={{
+              backgroundColor: '#fff',
+              borderRadius: 16,
+              padding: 24,
+              maxWidth: 320,
+              width: '100%',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.25,
+              shadowRadius: 12,
+              elevation: 8,
+            }}
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={{ alignItems: 'center', marginBottom: 16 }}>
+              <Text style={{
+                fontSize: 18,
+                fontWeight: '600',
+                color: getSyncStatusExplanation().color,
+                textAlign: 'center'
+              }}>
+                {getSyncStatusExplanation().title}
+              </Text>
+            </View>
+            
+            <Text style={{
+              fontSize: 15,
+              color: '#333',
+              lineHeight: 22,
+              textAlign: 'center',
+              marginBottom: 20
+            }}>
+              {getSyncStatusExplanation().description}
+            </Text>
+            
+            <View style={{
+              flexDirection: 'row',
+              justifyContent: 'center',
+              alignItems: 'center',
+              marginBottom: 20,
+              paddingVertical: 12,
+              paddingHorizontal: 16,
+              backgroundColor: '#f8f9fa',
+              borderRadius: 8
+            }}>
+              <View style={{ alignItems: 'center', marginRight: 20 }}>
+                <Ionicons 
+                  name={syncStatus.isAuthenticated ? "person" : "person-outline"} 
+                  size={24} 
+                  color={syncStatus.isAuthenticated ? "#4CD964" : "#FF9500"} 
+                />
+                <Text style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
+                  {syncStatus.isAuthenticated ? 'Signed In' : 'Not Signed In'}
+                </Text>
+              </View>
+              
+              <View style={{ alignItems: 'center', marginRight: 20 }}>
+                <Ionicons 
+                  name={syncStatus.isOnline ? "cloud" : "cloud-offline"} 
+                  size={24} 
+                  color={syncStatus.isOnline ? "#4CD964" : "#FF3B30"} 
+                />
+                <Text style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
+                  {syncStatus.isOnline ? 'Online' : 'Offline'}
+                </Text>
+              </View>
+              
+              {syncStatus.pendingCount > 0 && (
+                <View style={{ alignItems: 'center' }}>
+                  <View style={{
+                    backgroundColor: '#FF9500',
+                    borderRadius: 12,
+                    minWidth: 24,
+                    height: 24,
+                    justifyContent: 'center',
+                    alignItems: 'center'
+                  }}>
+                    <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>
+                      {syncStatus.pendingCount}
+                    </Text>
+                  </View>
+                  <Text style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
+                    Pending
+                  </Text>
+                </View>
+              )}
+            </View>
+            
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              {syncStatus.pendingCount > 0 && (
+            <TouchableOpacity 
+                  style={{
+                    flex: 1,
+                    backgroundColor: '#007AFF',
+                    paddingVertical: 12,
+                    paddingHorizontal: 16,
+                    borderRadius: 8,
+                    alignItems: 'center'
+                  }}
+                  onPress={() => {
+                    setShowSyncStatusPopover(false);
+                    handleRefresh();
+                  }}
+                >
+                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>
+                    Sync Now
+                  </Text>
+            </TouchableOpacity>
+          )}
+              
+              <TouchableOpacity
+                style={{
+                  flex: syncStatus.pendingCount > 0 ? 1 : 2,
+                  backgroundColor: '#f0f0f0',
+                  paddingVertical: 12,
+                  paddingHorizontal: 16,
+                  borderRadius: 8,
+                  alignItems: 'center'
+                }}
+                onPress={() => setShowSyncStatusPopover(false)}
+              >
+                <Text style={{ color: '#333', fontSize: 16, fontWeight: '600' }}>
+                  Close
+                </Text>
+              </TouchableOpacity>
+        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 } 

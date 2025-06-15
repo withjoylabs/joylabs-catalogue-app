@@ -37,6 +37,7 @@ import GlobalSuccessModal from '../src/components/GlobalSuccessModal';
 import { Amplify } from 'aws-amplify';
 import { ConsoleLogger } from 'aws-amplify/utils';
 import { Authenticator } from '@aws-amplify/ui-react-native';
+import { CatalogSubscriptionManager } from '../src/components/CatalogSubscriptionManager';
 
 const config = {
   "aws_project_region": "us-west-1",
@@ -82,9 +83,9 @@ TaskManager.defineTask(BACKGROUND_NOTIFICATION_TASK, async ({ data, error, execu
   }
   const notification = (data as any)?.notification as Notifications.Notification | undefined;
   if (notification) {
-    const notificationData = notification.request.content.data as { type?: string; [key: string]: any } | undefined;
-    logger.info(taskTag, 'Received notification', { notificationData });
-    if (notificationData?.type === 'catalog_updated') {
+    
+    // Handle both old and new notification types for backward compatibility
+    if (notificationData?.type === 'catalog_updated' || notificationData?.type === 'catalog_update') {
       logger.info(taskTag, 'Catalog update notification received. Triggering incremental sync.');
       try {
         const syncService = CatalogSyncService.getInstance();
@@ -140,6 +141,8 @@ export default function RootLayout() {
   const [responseListenerSubscription, setResponseListenerSubscription] = useState<Notifications.Subscription | null>(null);
 
   const colorScheme = useColorScheme();
+  
+  // Real-time catalog updates handled by CatalogSubscriptionManager component
   
   const paperTheme = useMemo(() => {
     logger.info('RootLayout', 'Recalculating paperTheme', { colorScheme });
@@ -220,6 +223,7 @@ export default function RootLayout() {
     Notifications.setNotificationHandler({
       handleNotification: async (notification): Promise<NotificationBehavior> => {
         logger.info('[Notifications]', 'Notification received while app running/foregrounded', notification.request.content);
+        
         return {
           shouldShowAlert: false, 
             shouldPlaySound: false,
@@ -296,6 +300,7 @@ export default function RootLayout() {
                   <DatabaseProvider>
               <PaperProvider theme={paperTheme}>
                 <MenuProvider>
+                  <CatalogSubscriptionManager />
                   <StatusBar style="auto" />
                   <Stack>
                     <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

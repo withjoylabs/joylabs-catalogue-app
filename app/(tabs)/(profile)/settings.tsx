@@ -89,7 +89,7 @@ const ProfileSettingsScreen = () => {
       }
     };
     if (user) {
-        loadInitialState();
+    loadInitialState();
     }
   }, [user]);
 
@@ -352,7 +352,7 @@ const ProfileSettingsScreen = () => {
             />
           </View>
         </TouchableOpacity>
-      </View>
+    </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Manage Account</Text>

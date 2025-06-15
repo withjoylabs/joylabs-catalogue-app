@@ -73,6 +73,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
+    "@terrier-tech/react-native-keyevent-expo-config-plugin": "^1.0.55",
     "@types/lodash": "^4.17.16",
     "@types/react": "~19.0.10",
     "@types/uuid": "^10.0.0",

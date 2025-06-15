@@ -40,4 +40,66 @@ type ItemChangeLog @model @auth(rules: [{ allow: owner }]) {
   changeDetails: String!
 }
 
+# Model for reorder items with real-time sync across devices
+type ReorderItem @model @auth(rules: [{ allow: owner }]) {
+  id: ID!
+  
+  # Reference to the Square Item ID
+  itemId: ID! @index(name: "byItemId", queryField: "reordersByItemId")
+  
+  # Item details (denormalized for performance)
+  itemName: String!
+  itemBarcode: String
+  itemCategory: String
+  itemPrice: Float
+  
+  # Reorder specific data
+  quantity: Int!
+  completed: Boolean!
+  addedBy: String!
+  
+  # Timestamps
+  createdAt: AWSDateTime!
+  updatedAt: AWSDateTime!
+}
+
+# Updated CatalogUpdate model with robust authentication and indexing
+type CatalogUpdate @model @auth(rules: [
+  {allow: owner, provider: userPools}, # Users can access their own data via Cognito
+  {allow: private, provider: iam}      # Lambda can create/update via IAM
+]) {
+  id: ID!
+  eventType: String!
+  eventId: String! @index(name: "byEventId")
+  merchantId: String! @index(name: "byMerchantId")
+  timestamp: AWSDateTime!
+  processed: Boolean!
+  owner: String # This will be merchantId for Cognito auth
+  data: AWSJSON
+}
+
+# Input for webhook mutations
+input CreateCatalogUpdateInput {
+  eventType: String!
+  eventId: String!
+  merchantId: String!
+  timestamp: AWSDateTime!
+  processed: Boolean!
+  owner: String!
+  data: AWSJSON
+}
+
+# Mutation that the webhook Lambda will call (uses IAM auth)
+type Mutation {
+  createCatalogUpdateViaWebhook(input: CreateCatalogUpdateInput!): CatalogUpdate
+    @auth(rules: [{allow: private, provider: iam}])
+}
+
+# Subscription for real-time catalog updates (uses Cognito auth)
+type Subscription {
+  onCatalogUpdate(owner: String!): CatalogUpdate
+    @aws_subscribe(mutations: ["createCatalogUpdate", "createCatalogUpdateViaWebhook"])
+    @auth(rules: [{allow: owner, provider: userPools}])
+}
+
  

@@ -320,7 +320,7 @@ const SearchResultsArea = memo(({
       // Fetch team data for the item
       const teamData = await fetchTeamData(item.id);
       const userName = user?.signInDetails?.loginId?.split('@')[0] || 'Unknown User';
-      const success = reorderService.addItem(convertedItem, 1, teamData, userName);
+      const success = await reorderService.addItem(convertedItem, 1, teamData, userName);
       if (success) {
         setReorderNotificationMessage(`"${item.name || 'Item'}" added to reorder list.`);
         setReorderNotificationType('success');
@@ -372,7 +372,7 @@ const SearchResultsArea = memo(({
       // Fetch team data for the item
       const teamData = await fetchTeamData(item.id);
       const userName = user?.signInDetails?.loginId?.split('@')[0] || 'Unknown User';
-      const success = reorderService.addItem(convertedItem, 1, teamData, userName);
+      const success = await reorderService.addItem(convertedItem, 1, teamData, userName);
       if (success) {
         setReorderNotificationMessage(`"${item.name || 'Item'}" added to reorder list.`);
         setReorderNotificationType('success');

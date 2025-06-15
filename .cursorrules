@@ -11,7 +11,7 @@ Phase 2: Implementation and Testing
 4.	⁠Iterative testing for large changes: For substantial changes, run relevant tests periodically throughout the implementation process. This helps in isolating issues more easily and prevents accumulation of errors.
 5.	⁠Commit upon success: Once all tests pass, create a new, descriptive commit that encapsulates the completed work.
 
-General Guidelines:
+IMPORTANT Guidelines MUST BE RESPECTED:
 
 •	⁠Strict adherence to plan: Do not introduce any changes that were not explicitly part of the agreed-upon plan.
 •	Do NOT run the app for me for testing.

@@ -85,17 +85,27 @@ export const reorderStyles = StyleSheet.create({
   },
   
   sectionHeader: {
-    backgroundColor: '#f0f0f0',
+    backgroundColor: '#f8f9fa',
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
+    marginTop: 8,
   },
   
   sectionHeaderText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
-    color: '#333',
+    color: '#666',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  
+  sectionHeaderCount: {
+    fontSize: 12,
+    fontWeight: '400',
+    color: '#999',
+    marginLeft: 8,
   },
   
   // Reorder item styles

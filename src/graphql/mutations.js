@@ -148,3 +148,69 @@ export const deleteItemChangeLog = /* GraphQL */ `
     }
   }
 `;
+export const createReorderItem = /* GraphQL */ `
+  mutation CreateReorderItem(
+    $input: CreateReorderItemInput!
+    $condition: ModelReorderItemConditionInput
+  ) {
+    createReorderItem(input: $input, condition: $condition) {
+      id
+      itemId
+      itemName
+      itemBarcode
+      itemCategory
+      itemPrice
+      quantity
+      completed
+      addedBy
+      createdAt
+      updatedAt
+      owner
+      __typename
+    }
+  }
+`;
+export const updateReorderItem = /* GraphQL */ `
+  mutation UpdateReorderItem(
+    $input: UpdateReorderItemInput!
+    $condition: ModelReorderItemConditionInput
+  ) {
+    updateReorderItem(input: $input, condition: $condition) {
+      id
+      itemId
+      itemName
+      itemBarcode
+      itemCategory
+      itemPrice
+      quantity
+      completed
+      addedBy
+      createdAt
+      updatedAt
+      owner
+      __typename
+    }
+  }
+`;
+export const deleteReorderItem = /* GraphQL */ `
+  mutation DeleteReorderItem(
+    $input: DeleteReorderItemInput!
+    $condition: ModelReorderItemConditionInput
+  ) {
+    deleteReorderItem(input: $input, condition: $condition) {
+      id
+      itemId
+      itemName
+      itemBarcode
+      itemCategory
+      itemPrice
+      quantity
+      completed
+      addedBy
+      createdAt
+      updatedAt
+      owner
+      __typename
+    }
+  }
+`;
