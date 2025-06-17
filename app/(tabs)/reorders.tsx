@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { 
-  View, 
-  Text, 
-  TextInput, 
-  TouchableOpacity, 
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
   FlatList,
   StyleSheet,
   ActivityIndicator,
-  KeyboardAvoidingView, 
-  Platform, 
+  KeyboardAvoidingView,
+  Platform,
   SafeAreaView,
   Image,
   Modal,
@@ -17,12 +17,14 @@ import {
   Animated,
   RefreshControl,
   Vibration,
+  Keyboard
 } from 'react-native';
 import { Stack, useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 import { useCatalogItems } from '../../src/hooks/useCatalogItems';
-import { BarcodeScannerWithRef, BarcodeScannerRef } from '../../src/components/BarcodeScanner';
+import { BarcodeScanner, BarcodeScannerRef } from '../../src/components/BarcodeScanner';
+import * as modernDb from '../../src/database/modernDb';
 import { ConvertedItem } from '../../src/types/api';
 import { lightTheme } from '../../src/themes';
 import logger from '../../src/utils/logger';
@@ -55,10 +57,9 @@ interface CustomItemEdit {
 
 interface QuantityModalProps {
   visible: boolean;
-  item: ConvertedItem | null;
+  item: ReorderItem | null;
   onSubmit: (quantity: number) => void;
   onCancel: () => void;
-  onDelete: () => void;
 }
 
 interface ItemSelectionModalProps {
@@ -72,51 +73,62 @@ type FilterType = 'completed' | 'incomplete' | 'category' | 'vendor' | 'sortConf
 
 const TAG = '[ReordersScreen]';
 
-// Quantity Modal Component
-const QuantityModal: React.FC<QuantityModalProps> = ({ visible, item, onSubmit, onCancel, onDelete }) => {
-  const [quantity, setQuantity] = useState('1');
+// Quantity Modal Component - now for manual editing only
+const QuantityModal: React.FC<QuantityModalProps & { quantity: string; setQuantity: (qty: string) => void }> = ({ 
+  visible, 
+  item, 
+  onSubmit, 
+  onCancel, 
+  quantity, 
+  setQuantity 
+}) => {
+  const [isFirstInput, setIsFirstInput] = useState(true);
 
-  // Auto-submit if another scan comes in while modal is open
+  // Reset quantity when modal opens with current item quantity
   useEffect(() => {
-    if (!visible) {
-      setQuantity('1'); // Reset quantity when modal closes
+    if (visible && item) {
+      setQuantity(item.quantity.toString());
+      setIsFirstInput(true); // Mark that the next input should overwrite
     }
-  }, [visible]);
+  }, [visible, item, setQuantity]);
 
   const handleKeypadPress = (value: string) => {
     if (value === 'backspace') {
-      setQuantity(prev => prev.length > 1 ? prev.slice(0, -1) : '0');
-    } else if (value === 'clear') {
-      setQuantity('0');
+      setQuantity(quantity.length > 1 ? quantity.slice(0, -1) : '1');
+      setIsFirstInput(false);
+    } else if (value === 'reset') {
+      setQuantity('1');
+      setIsFirstInput(false);
     } else {
-      setQuantity(prev => {
-        const newValue = prev === '0' ? value : prev + value;
-        return parseInt(newValue) > 999 ? prev : newValue;
-      });
+      // First digit after opening modal overwrites existing value, subsequent digits append
+      const newValue = isFirstInput ? value : quantity + value;
+      setQuantity(parseInt(newValue) > 999 ? quantity : newValue);
+      setIsFirstInput(false);
     }
   };
 
   const handleSubmit = () => {
-    const qty = parseInt(quantity) || 1;
-    onSubmit(qty);
-    setQuantity('1');
+    const qty = parseInt(quantity);
+    // Allow 0 for deletion, but default to 1 for invalid input
+    const finalQty = isNaN(qty) ? 1 : qty;
+    onSubmit(finalQty);
   };
 
   const keypadButtons = [
     ['1', '2', '3'],
     ['4', '5', '6'],
     ['7', '8', '9'],
-    ['clear', '0', 'backspace']
+    ['reset', '0', 'backspace']
   ];
 
   return (
-    <Modal visible={visible} transparent animationType="fade">
+    <Modal visible={visible} transparent animationType="none">
       <View style={reorderStyles.modalOverlay}>
         <View style={reorderStyles.modalContainer}>
           <View style={reorderStyles.modalHeader}>
-            <Text style={reorderStyles.modalTitle}>Enter Quantity</Text>
+            <Text style={reorderStyles.modalTitle}>Edit Quantity</Text>
             <Text style={reorderStyles.modalItemName} numberOfLines={2}>
-              {item?.name || 'Unknown Item'}
+              {item?.itemName || 'Unknown Item'}
             </Text>
           </View>
 
@@ -131,14 +143,14 @@ const QuantityModal: React.FC<QuantityModalProps> = ({ visible, item, onSubmit, 
                       key={button}
                       style={[
                         reorderStyles.keypadButton,
-                        (button === 'clear' || button === 'backspace') && reorderStyles.keypadButtonSpecial
+                        (button === 'reset' || button === 'backspace') && reorderStyles.keypadButtonSpecial
                       ]}
                       onPress={() => handleKeypadPress(button)}
                     >
                       {button === 'backspace' ? (
                         <Ionicons name="backspace-outline" size={20} color="#fff" />
-                      ) : button === 'clear' ? (
-                        <Text style={reorderStyles.keypadButtonSpecialText}>CLR</Text>
+                      ) : button === 'reset' ? (
+                        <Text style={reorderStyles.keypadButtonSpecialText}>Reset</Text>
                       ) : (
                         <Text style={reorderStyles.keypadButtonText}>{button}</Text>
                       )}
@@ -150,15 +162,6 @@ const QuantityModal: React.FC<QuantityModalProps> = ({ visible, item, onSubmit, 
           </View>
 
           <View style={reorderStyles.modalActions}>
-            <TouchableOpacity
-              style={[reorderStyles.modalButton, reorderStyles.modalButtonDanger]}
-              onPress={onDelete}
-            >
-              <Text style={[reorderStyles.modalButtonText, reorderStyles.modalButtonTextDanger]}>
-                Delete Scan
-              </Text>
-            </TouchableOpacity>
-            
             <TouchableOpacity
               style={[reorderStyles.modalButton, reorderStyles.modalButtonSecondary]}
               onPress={onCancel}
@@ -186,7 +189,7 @@ const QuantityModal: React.FC<QuantityModalProps> = ({ visible, item, onSubmit, 
 // Item Selection Modal Component
 const ItemSelectionModal: React.FC<ItemSelectionModalProps> = ({ visible, items, onSelect, onCancel }) => {
   return (
-    <Modal visible={visible} transparent animationType="fade">
+    <Modal visible={visible} transparent animationType="none">
       <View style={reorderStyles.modalOverlay}>
         <View style={reorderStyles.modalContainer}>
           <View style={reorderStyles.modalHeader}>
@@ -327,11 +330,14 @@ export default function ReordersScreen() {
   const [currentFilter, setCurrentFilter] = useState<FilterType | null>(null);
   const [showQuantityModal, setShowQuantityModal] = useState(false);
   const [showSelectionModal, setShowSelectionModal] = useState(false);
-  const [currentScannedItem, setCurrentScannedItem] = useState<ConvertedItem | null>(null);
+  const [currentEditingItem, setCurrentEditingItem] = useState<ReorderItem | null>(null);
   const [multipleItems, setMultipleItems] = useState<ConvertedItem[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  
+  // Quantity modal state - for manual editing only
+  const [modalQuantity, setModalQuantity] = useState('1');
   
   // Custom item states
   const [showAddCustomItem, setShowAddCustomItem] = useState(false);
@@ -363,8 +369,31 @@ export default function ReordersScreen() {
 
   // Listen for add custom item trigger from tab bar
   const addCustomItemTriggeredAt = useAppStore((state) => state.addCustomItemTriggeredAt);
+  const setCategories = useAppStore((state) => state.setCategories);
   const lastTriggeredAtRef = useRef<number | null>(null);
 
+  // Load categories from local database into store so useCatalogItems can use them
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const categoriesFromDb = await modernDb.getAllCategories();
+        const formattedCategories = categoriesFromDb.map(cat => ({
+          id: cat.id,
+          name: cat.name,
+          color: '#007AFF',
+          isActive: true,
+          createdAt: '',
+          updatedAt: ''
+        }));
+        setCategories(formattedCategories);
+        logger.info(TAG, `Loaded ${categoriesFromDb.length} categories into store for category name resolution`);
+      } catch (error) {
+        logger.error(TAG, 'Failed to load categories', { error });
+      }
+    };
+    loadCategories();
+  }, [setCategories]);
+  
   useEffect(() => {
     if (addCustomItemTriggeredAt && addCustomItemTriggeredAt !== lastTriggeredAtRef.current) {
       lastTriggeredAtRef.current = addCustomItemTriggeredAt;
@@ -374,8 +403,7 @@ export default function ReordersScreen() {
 
   const { performSearch, isSearching, searchError } = useCatalogItems();
 
-  // Add ref for the barcode scanner component
-  const scannerRef = useRef<BarcodeScannerRef>(null);
+  // Scanner ref no longer needed for fluid scanning
   
   // Audio/Haptic feedback for scan results
   const playSuccessSound = useCallback(() => {
@@ -392,32 +420,17 @@ export default function ReordersScreen() {
     Vibration.vibrate([0, 200, 100, 200]);
   }, []);
 
-  // Handle barcode scan from the scanner
+  // Handle barcode scan - new fluid scanning logic
   const handleBarcodeScan = useCallback(async (barcode: string) => {
-    logger.info(TAG, `Barcode scanned: ${barcode}`);
+    logger.info(TAG, `🔍 FLUID SCAN: "${barcode}"`);
     
-    // If error modal is open, dismiss it with any new scan and refocus scanner
+    // If error modal is open, dismiss it with any new scan
     if (showErrorModal) {
       setShowErrorModal(false);
       setErrorMessage('');
-      // Refocus the scanner after modal dismissal
-      scannerRef.current?.refocus();
     }
     
-    // If quantity modal is open, auto-submit current item with qty 1 and process new scan
-    if (showQuantityModal && currentScannedItem) {
-      logger.info(TAG, 'Auto-submitting current item with qty 1 due to new scan');
-      
-      try {
-        await reorderService.addItem(currentScannedItem, 1);
-      } catch (error) {
-        logger.error(TAG, 'Error auto-submitting current item', { error });
-      }
-      setShowQuantityModal(false);
-      setCurrentScannedItem(null);
-    }
-    
-    // Search for items with matching barcode using the same logic as main screen
+    // Search for items with matching barcode
     try {
       const searchFilters = {
         name: false,
@@ -429,38 +442,98 @@ export default function ReordersScreen() {
       const matchingItems = await performSearch(barcode, searchFilters);
 
       if (matchingItems.length === 0) {
-        // ERROR CASE 1: No item found in database - play error sound & show modal
+        // ERROR CASE: No item found in database - play error sound & show modal
         playErrorSound();
         setErrorMessage(`No item found with barcode: ${barcode}\n\nPlease create the item in the main scan page first.`);
         setShowErrorModal(true);
         return;
       }
 
-      // Success - play success sound
-      playSuccessSound();
-
       if (matchingItems.length === 1) {
-        // Single item found - convert SearchResultItem to ConvertedItem
+        // Single item found - implement additive scanning logic
+        const foundItem = matchingItems[0];
+        
+        // Convert SearchResultItem to ConvertedItem
         const convertedItem: ConvertedItem = {
-          id: matchingItems[0].id,
-          name: matchingItems[0].name || '',
-          sku: matchingItems[0].sku,
-          barcode: matchingItems[0].barcode,
-          price: matchingItems[0].price,
-          category: matchingItems[0].category,
-          categoryId: matchingItems[0].categoryId,
-          reporting_category_id: matchingItems[0].categoryId || matchingItems[0].reporting_category_id,
-          description: matchingItems[0].description,
+          id: foundItem.id,
+          name: foundItem.name || '',
+          sku: foundItem.sku,
+          barcode: foundItem.barcode,
+          price: foundItem.price,
+          category: foundItem.category,
+          categoryId: foundItem.categoryId,
+          reporting_category_id: foundItem.categoryId || foundItem.reporting_category_id,
+          description: foundItem.description,
           isActive: true,
           images: [],
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
         
-        setCurrentScannedItem(convertedItem);
-        setShowQuantityModal(true);
+        // Check if item already exists in reorder list
+        const existingItem = reorderItems.find(item => item.itemId === convertedItem.id);
+        
+        if (existingItem) {
+          // ADDITIVE SCANNING: Increment existing item quantity by 1
+          logger.info(TAG, `📈 ADDITIVE SCAN: ${convertedItem.name} (${existingItem.quantity} → ${existingItem.quantity + 1})`);
+          
+          try {
+            let teamData: any = undefined;
+            try {
+              teamData = await reorderService.fetchTeamData(convertedItem.id);
+            } catch (teamDataError) {
+              logger.warn(TAG, 'Failed to fetch team data, proceeding without it', { teamDataError });
+            }
+            
+            const userName = user?.signInDetails?.loginId?.split('@')[0] || 'Unknown User';
+            const newQuantity = existingItem.quantity + 1;
+            
+            // Use overwrite mode with incremented quantity
+            const success = await reorderService.addItem(convertedItem, newQuantity, teamData, userName, true);
+            
+            if (success) {
+              playSuccessSound();
+              logger.info(TAG, `✅ Incremented item: ${convertedItem.name} to qty ${newQuantity}`);
+            } else {
+              throw new Error('Failed to increment item');
+            }
+          } catch (error) {
+            logger.error(TAG, 'Error incrementing item', { error });
+            playErrorSound();
+            setErrorMessage('Failed to increment item quantity. Please try again.');
+            setShowErrorModal(true);
+          }
+        } else {
+          // NEW ITEM: Add with default quantity of 1
+          logger.info(TAG, `🆕 NEW ITEM SCAN: ${convertedItem.name} (qty: 1)`);
+          
+          try {
+            let teamData: any = undefined;
+            try {
+              teamData = await reorderService.fetchTeamData(convertedItem.id);
+            } catch (teamDataError) {
+              logger.warn(TAG, 'Failed to fetch team data, proceeding without it', { teamDataError });
+            }
+            
+            const userName = user?.signInDetails?.loginId?.split('@')[0] || 'Unknown User';
+            
+            const success = await reorderService.addItem(convertedItem, 1, teamData, userName, true);
+            
+            if (success) {
+              playSuccessSound();
+              logger.info(TAG, `✅ Added new item: ${convertedItem.name} (qty: 1)`);
+            } else {
+              throw new Error('Failed to add new item');
+            }
+          } catch (error) {
+            logger.error(TAG, 'Error adding new item', { error });
+            playErrorSound();
+            setErrorMessage('Failed to add item to reorder list. Please try again.');
+            setShowErrorModal(true);
+          }
+        }
       } else {
-        // Multiple items found - convert all SearchResultItems to ConvertedItems
+        // Multiple items found - show selection modal
         const convertedItems: ConvertedItem[] = matchingItems.map(item => ({
           id: item.id,
           name: item.name || '',
@@ -486,7 +559,7 @@ export default function ReordersScreen() {
       setErrorMessage(`Search failed for barcode: ${barcode}\n\nPlease try again.`);
       setShowErrorModal(true);
     }
-  }, [performSearch, showQuantityModal, currentScannedItem, showErrorModal, playSuccessSound, playErrorSound]);
+  }, [performSearch, showErrorModal, playSuccessSound, playErrorSound, reorderItems, user]);
 
   // Handle scan errors (ERROR CASE 2: Invalid GTIN format - play error sound & show modal)
   const handleScanError = useCallback((error: string) => {
@@ -496,43 +569,155 @@ export default function ReordersScreen() {
     setShowErrorModal(true);
   }, [playErrorSound]);
 
-  // Handle quantity submission
+  // Handle manual quantity edit submission
   const handleQuantitySubmit = useCallback(async (quantity: number) => {
-    if (!currentScannedItem) return;
+    if (!currentEditingItem) return;
+
+    // Handle quantity 0 as deletion
+    if (quantity === 0) {
+      logger.info(TAG, `Quantity 0 specified - deleting item: ${currentEditingItem.itemName}`);
+      
+      try {
+        await reorderService.removeItem(currentEditingItem.id);
+        playSuccessSound();
+        logger.info(TAG, `Deleted reorder item: ${currentEditingItem.itemName}`);
+      } catch (error) {
+        logger.error(TAG, 'Error deleting item', { error });
+        playErrorSound();
+        setErrorMessage('Failed to delete item from reorder list');
+        setShowErrorModal(true);
+      }
+      
+              setShowQuantityModal(false);
+        setCurrentEditingItem(null);
+        setModalQuantity('1');
+      return;
+    }
 
     try {
-      // Use the enhanced team data fetching from reorder service
-      const teamData = await reorderService.fetchTeamData(currentScannedItem.id);
+      // For manual editing, we need to convert the ReorderItem back to ConvertedItem format
+      const convertedItem: ConvertedItem = {
+        id: currentEditingItem.itemId,
+        name: currentEditingItem.itemName,
+        sku: '', // ReorderItem doesn't store SKU
+        barcode: currentEditingItem.itemBarcode || '',
+        price: currentEditingItem.itemPrice || 0,
+        category: currentEditingItem.itemCategory || '',
+        categoryId: '', // ReorderItem doesn't store categoryId
+        reporting_category_id: '', // ReorderItem doesn't store reporting_category_id
+        description: '', // ReorderItem doesn't store description
+        isActive: true,
+        images: [],
+        createdAt: currentEditingItem.createdAt,
+        updatedAt: currentEditingItem.updatedAt,
+      };
+      
+      let teamData: any = currentEditingItem.teamData;
+      if (!teamData) {
+        try {
+          teamData = await reorderService.fetchTeamData(currentEditingItem.itemId);
+        } catch (teamDataError) {
+          logger.warn(TAG, 'Failed to fetch team data, proceeding without it', { teamDataError });
+        }
+      }
+      
       const userName = user?.signInDetails?.loginId?.split('@')[0] || 'Unknown User';
       
-      const success = await reorderService.addItem(currentScannedItem, quantity, teamData, userName);
+      const success = await reorderService.addItem(convertedItem, quantity, teamData, userName, true);
       
       if (success) {
         playSuccessSound();
         setShowQuantityModal(false);
-        setCurrentScannedItem(null);
-        logger.info(TAG, `Added reorder item: ${currentScannedItem.name} x${quantity}`);
+        setCurrentEditingItem(null);
+        logger.info(TAG, `Updated reorder item: ${currentEditingItem.itemName} to qty ${quantity}`);
+        
+        // Check sync status to inform user if saved locally
+        const syncStatus = reorderService.getSyncStatus();
+        if (!syncStatus.isAuthenticated || !syncStatus.isOnline) {
+          logger.info(TAG, 'Item updated locally - will sync when connected');
+        }
       } else {
         playErrorSound();
-        setErrorMessage('Failed to add item to reorder list');
+        setErrorMessage('Failed to update item quantity. Please try again.');
         setShowErrorModal(true);
       }
     } catch (error) {
-      logger.error(TAG, 'Error adding reorder item', { error });
+      logger.error(TAG, 'Error updating reorder item', { error });
       playErrorSound();
-      setErrorMessage('Failed to add item to reorder list');
+      setErrorMessage('Failed to update item quantity. The change has been saved locally and will sync when you\'re connected.');
       setShowErrorModal(true);
       setShowQuantityModal(false);
-      setCurrentScannedItem(null);
+      setCurrentEditingItem(null);
     }
-  }, [currentScannedItem, user]);
+      }, [currentEditingItem, user, playSuccessSound, playErrorSound]);
 
-  // Handle item selection from multiple items
-  const handleItemSelection = useCallback((item: ConvertedItem) => {
-    setCurrentScannedItem(item);
+  // Handle item selection from multiple items - implement additive logic
+  const handleItemSelection = useCallback(async (item: ConvertedItem) => {
     setShowSelectionModal(false);
-    setShowQuantityModal(true);
-  }, []);
+    setMultipleItems([]);
+    
+    // Implement the same additive logic as single item scan
+    const existingItem = reorderItems.find(reorderItem => reorderItem.itemId === item.id);
+    
+    if (existingItem) {
+      // ADDITIVE SCANNING: Increment existing item quantity by 1
+      logger.info(TAG, `📈 ADDITIVE SELECTION: ${item.name} (${existingItem.quantity} → ${existingItem.quantity + 1})`);
+      
+      try {
+        let teamData: any = undefined;
+        try {
+          teamData = await reorderService.fetchTeamData(item.id);
+        } catch (teamDataError) {
+          logger.warn(TAG, 'Failed to fetch team data, proceeding without it', { teamDataError });
+        }
+        
+        const userName = user?.signInDetails?.loginId?.split('@')[0] || 'Unknown User';
+        const newQuantity = existingItem.quantity + 1;
+        
+        const success = await reorderService.addItem(item, newQuantity, teamData, userName, true);
+        
+        if (success) {
+          playSuccessSound();
+          logger.info(TAG, `✅ Incremented selected item: ${item.name} to qty ${newQuantity}`);
+        } else {
+          throw new Error('Failed to increment selected item');
+        }
+      } catch (error) {
+        logger.error(TAG, 'Error incrementing selected item', { error });
+        playErrorSound();
+        setErrorMessage('Failed to increment item quantity. Please try again.');
+        setShowErrorModal(true);
+      }
+    } else {
+      // NEW ITEM: Add with default quantity of 1
+      logger.info(TAG, `🆕 NEW ITEM SELECTION: ${item.name} (qty: 1)`);
+      
+      try {
+        let teamData: any = undefined;
+        try {
+          teamData = await reorderService.fetchTeamData(item.id);
+        } catch (teamDataError) {
+          logger.warn(TAG, 'Failed to fetch team data, proceeding without it', { teamDataError });
+        }
+        
+        const userName = user?.signInDetails?.loginId?.split('@')[0] || 'Unknown User';
+        
+        const success = await reorderService.addItem(item, 1, teamData, userName, true);
+        
+        if (success) {
+          playSuccessSound();
+          logger.info(TAG, `✅ Added selected item: ${item.name} (qty: 1)`);
+        } else {
+          throw new Error('Failed to add selected item');
+        }
+      } catch (error) {
+        logger.error(TAG, 'Error adding selected item', { error });
+        playErrorSound();
+        setErrorMessage('Failed to add item to reorder list. Please try again.');
+        setShowErrorModal(true);
+      }
+    }
+  }, [reorderItems, user, playSuccessSound, playErrorSound]);
 
   // Handle item deletion
   const handleDeleteItem = async (itemId: string) => {
@@ -665,6 +850,8 @@ export default function ReordersScreen() {
     }
   }, [user?.signInDetails?.loginId]);
 
+
+
   // Generate dynamic filter data with counts
   const filterData = useMemo(() => {
     const incompleteItems = reorderItems.filter(item => !item.completed);
@@ -767,9 +954,9 @@ export default function ReordersScreen() {
   const renderSortButton = (sortType: 'chronological' | 'alphabetical', label: string, icon: string) => {
     const state = sortState[sortType];
     const isActive = state !== 'off';
-
+    
     return (
-      <TouchableOpacity 
+      <TouchableOpacity
         style={[
           reorderStyles.filterButton,
           isActive && reorderStyles.filterButtonActive
@@ -877,7 +1064,7 @@ export default function ReordersScreen() {
       </TouchableOpacity>
     );
   };
-  
+
   // Handle sort button clicks (3-state cycle for chronological/alphabetical)
   const handleSortClick = (sortType: 'chronological' | 'alphabetical') => {
     setSortState(prev => {
@@ -924,7 +1111,7 @@ export default function ReordersScreen() {
 
   // Render reorder item
   const renderReorderItem = ({ item }: { item: ReorderItem }) => {
-      return (
+    return (
       <Swipeable
         friction={2}
         leftThreshold={120}
@@ -957,8 +1144,8 @@ export default function ReordersScreen() {
                   <Ionicons name="trash-outline" size={24} color="#fff" />
                 </TouchableOpacity>
               </Animated.View>
-        </View>
-      );
+            </View>
+          );
         }}
         onSwipeableRightOpen={() => {
           // Auto-delete on full swipe
@@ -985,15 +1172,18 @@ export default function ReordersScreen() {
             )}
           </TouchableOpacity>
 
-          {/* Item content - tappable for custom items */}
+          {/* Item content - tappable for quantity editing */}
           <TouchableOpacity 
             style={reorderStyles.itemContent}
             onPress={() => {
               if (item.isCustom) {
                 handleEditCustomItem(item);
+              } else {
+                // Open quantity modal for manual editing
+                setCurrentEditingItem(item);
+                setShowQuantityModal(true);
               }
             }}
-            disabled={!item.isCustom}
           >
             <View style={reorderStyles.itemHeader}>
               <View style={reorderStyles.itemNameContainer}>
@@ -1003,10 +1193,13 @@ export default function ReordersScreen() {
                 ]} numberOfLines={1}>
                   {item.itemName}
                 </Text>
-                <Text style={reorderStyles.compactDetails}>
-                  UPC: {item.itemBarcode || 'N/A'}{item.itemBarcode ? ` • SKU: N/A` : ''} • Cat: {item.itemCategory || 'N/A'} • Price: ${item.itemPrice?.toFixed(2) || 'Variable'}{item.teamData?.vendorCost ? ` • Cost: $${item.teamData.vendorCost.toFixed(2)}` : ' • Cost: N/A'}{item.teamData?.vendor ? ` • Vendor: ${item.teamData.vendor}` : ' • Vendor: N/A'}{item.teamData?.discontinued ? ' • DISCONTINUED' : ''}
-                </Text>
-        </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', marginTop: 2 }}>
+                  {item.itemCategory && <Text style={reorderStyles.itemCategory}>{item.itemCategory}</Text>}
+                  <Text style={reorderStyles.compactDetails}>
+                    UPC: {item.itemBarcode || 'N/A'}{item.itemBarcode ? ` • SKU: N/A` : ''} • Price: ${item.itemPrice?.toFixed(2) || 'Variable'}{item.teamData?.vendorCost ? ` • Cost: $${item.teamData.vendorCost.toFixed(2)}` : ' • Cost: N/A'}{item.teamData?.vendor ? ` • Vendor: ${item.teamData.vendor}` : ' • Vendor: N/A'}{item.teamData?.discontinued ? ' • DISCONTINUED' : ''}
+                  </Text>
+                </View>
+              </View>
               <View style={reorderStyles.qtyContainer}>
                 <Text style={reorderStyles.qtyLabel}>Qty</Text>
                 <Text style={reorderStyles.qtyNumber}>{item.quantity}</Text>
@@ -1035,8 +1228,8 @@ export default function ReordersScreen() {
       <Text style={reorderStyles.emptySubtitle}>
         Scanner is ready! Start scanning items to add them to your reorder list.
       </Text>
-        </View>
-      );
+    </View>
+  );
 
   // Create sectioned data for rendering
   const sectionedData = useMemo(() => {
@@ -1095,9 +1288,9 @@ export default function ReordersScreen() {
       <Text style={reorderStyles.sectionHeaderText}>
         {title}
         <Text style={reorderStyles.sectionHeaderCount}>({count})</Text>
-          </Text>
-        </View>
-      );
+      </Text>
+    </View>
+  );
 
   // Updated render item function to handle both items and headers
   const renderListItem = ({ item }: { item: any }) => {
@@ -1113,12 +1306,12 @@ export default function ReordersScreen() {
   // Render custom item entry (inline at top of list)
   const renderCustomItemEntry = () => {
     if (!showAddCustomItem || !customItemEdit) return null;
-    
+
     return (
       <View style={[reorderStyles.reorderItem, { borderColor: '#007AFF', borderWidth: 2 }]}>
         <View style={[reorderStyles.indexContainer, { backgroundColor: '#007AFF' }]}>
           <Ionicons name="add" size={18} color="#fff" />
-          </View>
+        </View>
 
         <View style={reorderStyles.itemContent}>
           <View style={reorderStyles.itemHeader}>
@@ -1201,7 +1394,7 @@ export default function ReordersScreen() {
       </View>
     );
   };
-  
+
   // Get sync status explanation
   const getSyncStatusExplanation = () => {
     const { isAuthenticated, isOnline, pendingCount } = syncStatus;
@@ -1236,7 +1429,7 @@ export default function ReordersScreen() {
   };
 
   if (loading) {
-  return (
+    return (
       <SafeAreaView style={reorderStyles.container}>
         <Stack.Screen options={{ headerShown: true, title: 'Reorders' }} />
         <View style={reorderStyles.loadingContainer}>
@@ -1325,14 +1518,13 @@ export default function ReordersScreen() {
       />
 
       {/* Barcode Scanner Component */}
-      <BarcodeScannerWithRef
-        ref={scannerRef}
+      <BarcodeScanner
         onScan={handleBarcodeScan}
         onError={handleScanError}
-        enabled={true}
+        enabled={!showQuantityModal && !showSelectionModal && !showErrorModal && !showAddCustomItem}
         minLength={8}
         maxLength={50}
-        timeout={1000}
+        timeout={150}
       />
 
       {/* Header with stats and filters */}
@@ -1380,7 +1572,7 @@ export default function ReordersScreen() {
 
       {/* Inline Dropdown Overlays */}
       {(showCategoryDropdown || showVendorDropdown || showConfigDropdown) && (
-            <TouchableOpacity 
+        <TouchableOpacity
           style={{
             position: 'absolute',
             top: 0,
@@ -1561,7 +1753,7 @@ export default function ReordersScreen() {
               </View>
             </TouchableOpacity>
             
-            <TouchableOpacity 
+            <TouchableOpacity
               style={{
                 flexDirection: 'row',
                 justifyContent: 'space-between',
@@ -1607,7 +1799,7 @@ export default function ReordersScreen() {
       )}
 
       {/* Reorder List */}
-            <TouchableOpacity 
+      <TouchableOpacity 
         style={reorderStyles.listContainer}
         activeOpacity={1}
         onPress={() => {
@@ -1648,20 +1840,19 @@ export default function ReordersScreen() {
             }
           />
         )}
-            </TouchableOpacity>
-            
+      </TouchableOpacity>
+
       {/* Modals */}
       <QuantityModal
         visible={showQuantityModal}
-        item={currentScannedItem}
+        item={currentEditingItem}
+        quantity={modalQuantity}
+        setQuantity={setModalQuantity}
         onSubmit={handleQuantitySubmit}
         onCancel={() => {
           setShowQuantityModal(false);
-          setCurrentScannedItem(null);
-        }}
-        onDelete={() => {
-          setShowQuantityModal(false);
-          setCurrentScannedItem(null);
+          setCurrentEditingItem(null);
+          setModalQuantity('1'); // Reset quantity on cancel
         }}
       />
 
@@ -1688,8 +1879,6 @@ export default function ReordersScreen() {
           activeOpacity={1}
           onPress={() => {
             setShowErrorModal(false);
-            // Refocus the scanner after manual modal dismissal
-            scannerRef.current?.refocus();
           }}
         >
           <View
@@ -1842,7 +2031,7 @@ export default function ReordersScreen() {
             
             <View style={{ flexDirection: 'row', gap: 12 }}>
               {syncStatus.pendingCount > 0 && (
-            <TouchableOpacity 
+                <TouchableOpacity
                   style={{
                     flex: 1,
                     backgroundColor: '#007AFF',
@@ -1859,8 +2048,8 @@ export default function ReordersScreen() {
                   <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>
                     Sync Now
                   </Text>
-            </TouchableOpacity>
-          )}
+                </TouchableOpacity>
+              )}
               
               <TouchableOpacity
                 style={{
@@ -1877,7 +2066,7 @@ export default function ReordersScreen() {
                   Close
                 </Text>
               </TouchableOpacity>
-        </View>
+            </View>
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>

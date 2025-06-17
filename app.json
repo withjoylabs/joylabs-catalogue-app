@@ -2,7 +2,7 @@
   "expo": {
     "name": "joylabs",
     "slug": "joylabs",
-    "version": "0.0.2",
+    "version": "0.2.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -59,8 +59,7 @@
       "expo-secure-store",
       "expo-font",
       "expo-background-task",
-      "expo-sqlite",
-      "@terrier-tech/react-native-keyevent-expo-config-plugin"
+      "expo-sqlite"
     ],
     "newArchEnabled": true,
     "runtimeVersion": "1.0.0",

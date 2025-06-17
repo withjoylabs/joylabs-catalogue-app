@@ -23,6 +23,7 @@ export const useBarcodeScanner = ({
 }: BarcodeScannerOptions) => {
   const isListening = useRef<boolean>(enabled);
   const lastScanTime = useRef<number>(0);
+  const lastScannedCode = useRef<string>('');
   
   useEffect(() => {
     isListening.current = enabled;
@@ -53,18 +54,23 @@ export const useBarcodeScanner = ({
       return false;
     }
     
-    // Prevent processing too quickly after last successful scan
-    if (currentTime - lastScanTime.current < timeout) {
-      logger.info(TAG, 'Ignoring input - too soon after last scan');
-      return false;
-    }
-    
     logger.info(TAG, `Processing barcode input: "${trimmedInput}" (${trimmedInput.length} chars)`);
     
     if (isValidGTIN(trimmedInput)) {
+      // Always allow valid scans - the timeout is only to prevent accidental double-processing
+      // of the same physical scan action, not to prevent intentional rapid scanning
+      if (currentTime - lastScanTime.current < timeout && lastScannedCode.current === trimmedInput) {
+        // Only block if it's suspiciously fast (likely same physical scan)
+        if (currentTime - lastScanTime.current < 100) { // 100ms threshold for same physical scan
+          logger.info(TAG, `Suspected duplicate physical scan ignored - too fast (${currentTime - lastScanTime.current}ms)`);
+          return false;
+        }
+      }
+      
       logger.info(TAG, `Valid GTIN-${trimmedInput.length} detected: ${trimmedInput}`);
       onScan(trimmedInput);
       lastScanTime.current = currentTime;
+      lastScannedCode.current = trimmedInput;
       return true;
     } else {
       const errorMsg = `Invalid GTIN format: ${trimmedInput} (${trimmedInput.length} chars, must be 8/12/13/14 digits)`;
@@ -78,7 +84,6 @@ export const useBarcodeScanner = ({
 
   return {
     isListening: enabled,
-    isKeyEventAvailable: true,
     processBarcodeInput,
   };
 }; 

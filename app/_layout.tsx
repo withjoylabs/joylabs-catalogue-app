@@ -38,6 +38,7 @@ import { Amplify } from 'aws-amplify';
 import { ConsoleLogger } from 'aws-amplify/utils';
 import { Authenticator } from '@aws-amplify/ui-react-native';
 import { CatalogSubscriptionManager } from '../src/components/CatalogSubscriptionManager';
+import { useAuthInit } from '../src/hooks/useAuthInit';
 
 const config = {
   "aws_project_region": "us-west-1",
@@ -83,6 +84,7 @@ TaskManager.defineTask(BACKGROUND_NOTIFICATION_TASK, async ({ data, error, execu
   }
   const notification = (data as any)?.notification as Notifications.Notification | undefined;
   if (notification) {
+    const notificationData = notification.request.content.data;
     
     // Handle both old and new notification types for backward compatibility
     if (notificationData?.type === 'catalog_updated' || notificationData?.type === 'catalog_update') {
@@ -141,6 +143,9 @@ export default function RootLayout() {
   const [responseListenerSubscription, setResponseListenerSubscription] = useState<Notifications.Subscription | null>(null);
 
   const colorScheme = useColorScheme();
+  
+  // Initialize authentication state on app startup
+  const { isLoading: authLoading, isAuthenticated, error: authError } = useAuthInit();
   
   // Real-time catalog updates handled by CatalogSubscriptionManager component
   
@@ -288,7 +293,7 @@ export default function RootLayout() {
     };
   }, [router]);
 
-  if (!isAppReady) {
+  if (!isAppReady || authLoading) {
     return <ActivityIndicator size="large" style={{ flex: 1, justifyContent: 'center' }} />;
   }
 

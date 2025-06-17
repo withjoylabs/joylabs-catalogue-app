@@ -372,17 +372,71 @@ class ReorderService {
   }
 
   // Add item to reorder list using GraphQL
-  async addItem(item: ConvertedItem, quantity: number = 1, teamData?: TeamData, addedBy?: string): Promise<boolean> {
+  async addItem(item: ConvertedItem, quantity: number = 1, teamData?: TeamData, addedBy: string = 'Unknown User', overwriteMode: boolean = false): Promise<boolean> {
     try {
       // Check if item already exists in reorder list
       const existingItemIndex = this.reorderItems.findIndex(
         reorderItem => reorderItem.itemId === item.id
       );
 
+      if (this.isOfflineMode) {
+        // Handle offline mode - add/update locally
+        if (existingItemIndex >= 0) {
+          // Update quantity for existing item
+          const existingItem = this.reorderItems[existingItemIndex];
+          if (overwriteMode) {
+            existingItem.quantity = quantity; // Overwrite instead of add
+          } else {
+            existingItem.quantity += quantity; // Add to existing quantity
+          }
+          existingItem.updatedAt = new Date().toISOString();
+          
+          // Add to pending sync
+          const existingPendingIndex = this.pendingSyncItems.findIndex(pending => pending.id === existingItem.id);
+          if (existingPendingIndex >= 0) {
+            this.pendingSyncItems[existingPendingIndex] = { ...existingItem };
+          } else {
+            this.pendingSyncItems.push({ ...existingItem });
+          }
+        } else {
+          // Add new item locally
+          const newReorderItem: ReorderItem = {
+            id: `offline-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            itemId: item.id,
+            itemName: item.name || 'Unknown Item',
+            itemBarcode: item.barcode || undefined,
+            itemCategory: item.category || undefined,
+            itemPrice: item.price,
+            quantity,
+            completed: false,
+            addedBy: addedBy,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            teamData,
+            timestamp: new Date(),
+            index: this.reorderItems.length + 1
+          };
+          
+          this.reorderItems.push(newReorderItem);
+          this.pendingSyncItems.push({ ...newReorderItem });
+        }
+        
+        await this.saveOfflineItems();
+        this.notifyListeners();
+        
+        logger.info('[ReorderService]', `Added item locally: ${item.name}`, {
+          itemId: item.id,
+          quantity,
+          isOffline: true
+        });
+        return true;
+      }
+
+      // Try to add/update on server
       if (existingItemIndex >= 0) {
         // Update quantity if item already exists
         const existingItem = this.reorderItems[existingItemIndex];
-        const newQuantity = existingItem.quantity + quantity;
+        const newQuantity = overwriteMode ? quantity : existingItem.quantity + quantity;
         
         const response = await this.client.graphql({
           query: mutations.updateReorderItem,
@@ -409,12 +463,12 @@ class ReorderService {
             input: {
               itemId: item.id,
               itemName: item.name,
-              itemBarcode: item.barcode,
-              itemCategory: item.category,
+              itemBarcode: item.barcode || undefined,
+              itemCategory: item.category || undefined,
               itemPrice: item.price,
               quantity,
               completed: false,
-              addedBy: addedBy || 'Unknown User'
+              addedBy: addedBy
             }
           }
         }) as any;
@@ -430,8 +484,65 @@ class ReorderService {
 
       return false;
     } catch (error) {
-      logger.error('[ReorderService]', 'Failed to add item to reorder list', { error, itemId: item.id });
-      return false;
+      logger.error('[ReorderService]', 'Failed to add item to reorder list, falling back to offline mode', { error, itemId: item.id });
+      
+      // Fallback to offline mode
+      this.isOfflineMode = true;
+      
+      // Check if item already exists in reorder list
+      const existingItemIndex = this.reorderItems.findIndex(
+        reorderItem => reorderItem.itemId === item.id
+      );
+
+      if (existingItemIndex >= 0) {
+        // Update quantity for existing item
+        const existingItem = this.reorderItems[existingItemIndex];
+        if (overwriteMode) {
+          existingItem.quantity = quantity; // Overwrite instead of add
+        } else {
+          existingItem.quantity += quantity; // Add to existing quantity
+        }
+        existingItem.updatedAt = new Date().toISOString();
+        
+        // Add to pending sync
+        const existingPendingIndex = this.pendingSyncItems.findIndex(pending => pending.id === existingItem.id);
+        if (existingPendingIndex >= 0) {
+          this.pendingSyncItems[existingPendingIndex] = { ...existingItem };
+        } else {
+          this.pendingSyncItems.push({ ...existingItem });
+        }
+      } else {
+        // Add new item locally
+        const newReorderItem: ReorderItem = {
+          id: `offline-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          itemId: item.id,
+          itemName: item.name || 'Unknown Item',
+          itemBarcode: item.barcode || undefined,
+          itemCategory: item.category || undefined,
+          itemPrice: item.price,
+          quantity,
+          completed: false,
+          addedBy: addedBy || 'Unknown User',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          teamData,
+          timestamp: new Date(),
+          index: this.reorderItems.length + 1
+        };
+        
+        this.reorderItems.push(newReorderItem);
+        this.pendingSyncItems.push({ ...newReorderItem });
+      }
+      
+      await this.saveOfflineItems();
+      this.notifyListeners();
+      
+      logger.info('[ReorderService]', `Added item locally after error: ${item.name}`, {
+        itemId: item.id,
+        quantity,
+        isOfflineFallback: true
+      });
+      return true;
     }
   }
 
@@ -822,7 +933,7 @@ class ReorderService {
     return {
       isOnline: !this.isOfflineMode,
       pendingCount: this.pendingSyncItems.length,
-      isAuthenticated: !this.isOfflineMode && this.currentUserId !== null
+      isAuthenticated: !this.isOfflineMode
     };
   }
 }

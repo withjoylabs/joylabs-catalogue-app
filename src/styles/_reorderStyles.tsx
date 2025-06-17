@@ -282,6 +282,60 @@ export const reorderStyles = StyleSheet.create({
     marginTop: 2,
     lineHeight: 14,
   },
+
+  // New meta styles matching index.tsx format
+  itemMeta: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 4,
+  },
+
+  itemUpc: {
+    fontSize: 12,
+    color: '#666',
+    marginRight: 6,
+    marginBottom: 2,
+  },
+
+  itemCategory: {
+    fontSize: 12,
+    color: '#666',
+    backgroundColor: '#f5f5f5',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginRight: 6,
+    marginBottom: 2,
+  },
+
+  itemPrice: {
+    fontSize: 12,
+    color: '#666',
+    marginRight: 6,
+    marginBottom: 2,
+  },
+
+  itemCost: {
+    fontSize: 12,
+    color: '#666',
+    marginRight: 6,
+    marginBottom: 2,
+  },
+
+  itemVendor: {
+    fontSize: 12,
+    color: '#666',
+    marginRight: 6,
+    marginBottom: 2,
+  },
+
+  itemDiscontinued: {
+    fontSize: 12,
+    color: '#FF3B30',
+    fontWeight: '600',
+    marginRight: 6,
+    marginBottom: 2,
+  },
   
   qtyContainer: {
     alignItems: 'center',
