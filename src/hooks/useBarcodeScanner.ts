@@ -24,7 +24,7 @@ export const useBarcodeScanner = ({
   const isListening = useRef<boolean>(enabled);
   const lastScanTime = useRef<number>(0);
   const lastScannedCode = useRef<string>('');
-  
+
   useEffect(() => {
     isListening.current = enabled;
     if (enabled) {
@@ -48,7 +48,7 @@ export const useBarcodeScanner = ({
   const processBarcodeInput = useCallback((input: string) => {
     const currentTime = Date.now();
     const trimmedInput = input.trim();
-    
+
     // Ignore empty input
     if (trimmedInput.length === 0) {
       return false;
@@ -65,8 +65,8 @@ export const useBarcodeScanner = ({
           logger.info(TAG, `Suspected duplicate physical scan ignored - too fast (${currentTime - lastScanTime.current}ms)`);
           return false;
         }
-      }
-      
+    }
+
       logger.info(TAG, `Valid GTIN-${trimmedInput.length} detected: ${trimmedInput}`);
       onScan(trimmedInput);
       lastScanTime.current = currentTime;

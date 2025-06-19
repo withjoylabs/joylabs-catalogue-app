@@ -1,7 +1,6 @@
 import React, { useRef, useCallback, useEffect } from 'react';
-import { TextInput, StyleSheet, Platform } from 'react-native';
+import { TextInput, StyleSheet, ScrollView } from 'react-native';
 import { useFocusEffect } from 'expo-router';
-import Constants from 'expo-constants';
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
 import logger from '../utils/logger';
 
@@ -13,17 +12,10 @@ interface BarcodeScannerProps {
   maxLength?: number;
   timeout?: number;
   style?: any;
-  debugVisible?: boolean; // For debugging - makes the hidden input visible
+  debugVisible?: boolean;
 }
 
 const TAG = '[BarcodeScanner]';
-
-// Environment detection for future custom UITextField implementation
-const isEASBuild = Constants.executionEnvironment === 'standalone';
-const isExpoGo = Constants.executionEnvironment === 'storeClient';
-const canUseCustomUITextField = Platform.OS === 'ios' && isEASBuild;
-
-logger.info(TAG, `Environment: EAS=${isEASBuild}, ExpoGo=${isExpoGo}, CustomUITextField=${canUseCustomUITextField}`);
 
 export const BarcodeScanner: React.FC<BarcodeScannerProps> = React.memo(({
   onScan,
@@ -35,8 +27,9 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = React.memo(({
   style,
   debugVisible = false
 }) => {
-  const scannerInputRef = useRef<TextInput>(null);
-  const isReadyRef = useRef<boolean>(false);
+  const firstInputRef = useRef<TextInput>(null);
+  const secondInputRef = useRef<TextInput>(null);
+  const focusIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Initialize barcode scanner hook
   const { 
@@ -51,255 +44,170 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = React.memo(({
     timeout
   });
 
-  // Log scanner status for debugging
-  useEffect(() => {
-    logger.info(TAG, `Scanner status - isListening: ${isListening}, enabled: ${enabled}`);
-  }, [isListening, enabled]);
+  // Focus management for first input
+  const focusFirstInput = useCallback(() => {
+    if (enabled && firstInputRef.current) {
+      firstInputRef.current.focus();
+    }
+  }, [enabled]);
 
-  // Focus management when screen becomes active - ensure TextInput is fully ready
+  const startFocusMaintenance = useCallback(() => {
+    if (focusIntervalRef.current) {
+      clearInterval(focusIntervalRef.current);
+    }
+    
+    focusIntervalRef.current = setInterval(() => {
+      if (enabled && firstInputRef.current && !firstInputRef.current.isFocused()) {
+        firstInputRef.current.focus();
+      }
+    }, 2000);
+  }, [enabled]);
+
+  const stopFocusMaintenance = useCallback(() => {
+    if (focusIntervalRef.current) {
+      clearInterval(focusIntervalRef.current);
+      focusIntervalRef.current = null;
+    }
+  }, []);
+
+  // Focus effect for screen navigation
   useFocusEffect(
     useCallback(() => {
-      if (!enabled) {
-        logger.info(TAG, 'Scanner disabled - skipping focus setup');
-        return;
+      if (enabled) {
+        setTimeout(() => {
+          focusFirstInput();
+        }, 100);
+        startFocusMaintenance();
       }
 
-      logger.info(TAG, 'Screen focused - setting up scanner focus');
-      
-      // Give more time for TextInput to be fully mounted and ready
-      const focusTimer = setTimeout(() => {
-        if (scannerInputRef.current) {
-          scannerInputRef.current.focus();
-          logger.info(TAG, 'Scanner input focused via useFocusEffect');
-          
-          // Additional time to ensure focus is fully established
-          setTimeout(() => {
-            isReadyRef.current = true;
-            logger.info(TAG, 'Scanner fully ready for input');
-          }, 100);
-        }
-      }, 500); // Increased from 200ms to 500ms
-
       return () => {
-        clearTimeout(focusTimer);
-        logger.info(TAG, 'Screen unfocused - cleaning up scanner focus');
+        stopFocusMaintenance();
       };
-    }, [enabled])
+    }, [enabled, focusFirstInput, startFocusMaintenance, stopFocusMaintenance])
   );
+
+  // Handle changes to enabled
+  useEffect(() => {
+    if (enabled) {
+      focusFirstInput();
+      startFocusMaintenance();
+    } else {
+      stopFocusMaintenance();
+    }
+  }, [enabled, focusFirstInput, startFocusMaintenance, stopFocusMaintenance]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      stopFocusMaintenance();
+    };
+  }, [stopFocusMaintenance]);
+
+  // Scanner status tracking (silent for performance)
 
   if (!enabled) {
     return null;
   }
 
+  // ScrollView with keyboardShouldPersistTaps to suppress iOS keyboard
   return (
-          <TextInput
-        ref={scannerInputRef}
+    <ScrollView 
+      keyboardShouldPersistTaps="always"
+      style={styles.scannerContainer}
+      showsVerticalScrollIndicator={false}
+      showsHorizontalScrollIndicator={false}
+      pointerEvents="none"
+    >
+      {/* First TextInput - Receives HID scanner input */}
+      <TextInput
+        ref={firstInputRef}
         style={[
           styles.hiddenInput,
-          debugVisible && styles.debugVisible,
+          debugVisible && styles.debugVisibleFirst,
           style
         ]}
-        autoFocus={false}
+        autoFocus={true}
         editable={true}
+        // iOS keyboard suppression
+        showSoftInputOnFocus={false}
         contextMenuHidden={true}
-      onFocus={() => {
-        logger.info(TAG, 'Scanner TextInput focused - ready to receive barcode input');
-      }}
-      onBlur={() => {
-        logger.info(TAG, 'Scanner TextInput lost focus');
-        // Only refocus if the component is still enabled and mounted
-        // Use a longer delay to avoid interfering with modals
-        setTimeout(() => {
-          if (scannerInputRef.current && enabled) {
-            // Check if the input is still mounted and component is visible
-            try {
-              const isFocused = scannerInputRef.current.isFocused();
-              if (!isFocused) {
-                scannerInputRef.current.focus();
-                logger.info(TAG, 'Scanner gently refocused after blur');
-              }
-            } catch (error) {
-              // Input might be unmounted, ignore
-              logger.info(TAG, 'Scanner refocus skipped - input unmounted');
-            }
+        spellCheck={false}
+        autoCorrect={false}
+        autoCapitalize="none"
+        keyboardType="default"
+        onFocus={() => {
+          // Ensure second input is cleared when first input gains focus
+          if (secondInputRef.current) {
+            secondInputRef.current.clear();
+            secondInputRef.current.setNativeProps({ text: '' });
           }
-        }, enabled ? 800 : 1500); // Shorter delay when enabled, longer when disabled for modals
-      }}
-      onChangeText={(text) => {
-        // This is the uncontrolled TextInput - just log, don't interfere
-        logger.info(TAG, `Uncontrolled TextInput onChangeText: "${text}" (${text.length} chars)`);
-      }}
-      onSubmitEditing={(event) => {
-        // Get the complete text directly from the uncontrolled TextInput
-        const text = event.nativeEvent.text.trim();
-        
-        logger.info(TAG, `Uncontrolled TextInput onSubmitEditing: "${text}" (${text.length} chars)`);
-        if (text.length > 0 && processBarcodeInput) {
-          processBarcodeInput(text);
-        }
-        // Clear the input for next scan
-        if (scannerInputRef.current) {
-          scannerInputRef.current.clear();
-        }
-      }}
-      onKeyPress={(event) => {
-        // Log key presses to see when Enter is pressed
-        if (event.nativeEvent.key === 'Enter') {
-          logger.info(TAG, 'Enter key detected!');
-        } else {
-          logger.info(TAG, `Key: "${event.nativeEvent.key}"`);
-        }
-      }}
-      blurOnSubmit={false}
-      placeholder="Scan barcode or search items..."
-    />
-  );
-});
-
-// Create a ref type for external access
-export interface BarcodeScannerRef {
-  focus: () => void;
-  blur: () => void;
-  clear: () => void;
-  isFocused: () => boolean;
-  refocus: () => void;
-}
-
-// Forward ref version for when parent needs direct access
-export const BarcodeScannerWithRef = React.forwardRef<BarcodeScannerRef, BarcodeScannerProps>(
-  (props, ref) => {
-    const scannerInputRef = useRef<TextInput>(null);
-    const isReadyRef = useRef<boolean>(false);
-
-    // Initialize barcode scanner hook
-    const { 
-      isListening, 
-      processBarcodeInput
-    } = useBarcodeScanner({
-      onScan: props.onScan,
-      onError: props.onError,
-      enabled: props.enabled,
-      minLength: props.minLength,
-      maxLength: props.maxLength,
-      timeout: props.timeout
-    });
-
-    // Log scanner status for debugging
-    useEffect(() => {
-      logger.info(TAG, `Scanner status - isListening: ${isListening}, enabled: ${props.enabled}`);
-    }, [isListening, props.enabled]);
-
-    // Focus management when screen becomes active - ensure TextInput is fully ready
-    useFocusEffect(
-      useCallback(() => {
-        if (props.enabled === false) {
-          logger.info(TAG, 'Scanner disabled - skipping focus setup');
-          return;
-        }
-
-        logger.info(TAG, 'Screen focused - setting up scanner focus');
-        
-        // Give more time for TextInput to be fully mounted and ready
-        const focusTimer = setTimeout(() => {
-          if (scannerInputRef.current) {
-            scannerInputRef.current.focus();
-            logger.info(TAG, 'Scanner input focused via useFocusEffect');
-            
-            // Additional time to ensure focus is fully established
+        }}
+        onBlur={() => {
+          if (enabled) {
             setTimeout(() => {
-              isReadyRef.current = true;
-              logger.info(TAG, 'Scanner fully ready for input');
+              if (enabled && firstInputRef.current && !firstInputRef.current.isFocused()) {
+                firstInputRef.current.focus();
+              }
             }, 100);
           }
-        }, 500); // Increased from 200ms to 500ms
-
-        return () => {
-          clearTimeout(focusTimer);
-          logger.info(TAG, 'Screen unfocused - cleaning up scanner focus');
-        };
-      }, [props.enabled])
-    );
-
-    // Expose methods via ref
-    React.useImperativeHandle(ref, () => ({
-      focus: () => scannerInputRef.current?.focus(),
-      blur: () => scannerInputRef.current?.blur(),
-      clear: () => scannerInputRef.current?.clear(),
-      isFocused: () => scannerInputRef.current?.isFocused() || false,
-      refocus: () => {
-        if (props.enabled !== false && scannerInputRef.current) {
-          scannerInputRef.current?.focus();
-          logger.info(TAG, 'Scanner manually refocused via ref');
-        }
-      }
-    }));
-
-    if (props.enabled === false) {
-      return null;
-    }
-
-    return (
-      <TextInput
-        ref={scannerInputRef}
-        style={[
-          styles.hiddenInput,
-          props.debugVisible && styles.debugVisible,
-          props.style
-        ]}
-        autoFocus={false}
-        editable={true}
-        contextMenuHidden={true}
-      onFocus={() => {
-        logger.info(TAG, 'Scanner TextInput focused - ready to receive barcode input');
-      }}
-      onBlur={() => {
-        logger.info(TAG, 'Scanner TextInput lost focus');
-        // Only refocus if the component is still enabled and mounted
-        // Use a longer delay to avoid interfering with modals
-        setTimeout(() => {
-          if (scannerInputRef.current && props.enabled) {
-            // Check if the input is still mounted and component is visible
-            try {
-              const isFocused = scannerInputRef.current.isFocused();
-              if (!isFocused) {
-                scannerInputRef.current.focus();
-                logger.info(TAG, 'Scanner gently refocused after blur');
-              }
-            } catch (error) {
-              // Input might be unmounted, ignore
-              logger.info(TAG, 'Scanner refocus skipped - input unmounted');
+        }}
+        onChangeText={(text) => {
+          // Silent safety check - if text gets too long, clear it to prevent concatenation issues
+          if (text.length > maxLength) {
+            if (firstInputRef.current) {
+              firstInputRef.current.clear();
             }
           }
-        }, props.enabled ? 800 : 1500); // Shorter delay when enabled, longer when disabled for modals
-      }}
-      onChangeText={(text) => {
-        // This is the uncontrolled TextInput - just log, don't interfere
-        logger.info(TAG, `Uncontrolled TextInput onChangeText: "${text}" (${text.length} chars)`);
-      }}
-      onSubmitEditing={(event) => {
-        // Get the complete text directly from the uncontrolled TextInput
-        const text = event.nativeEvent.text.trim();
-        
-        logger.info(TAG, `Uncontrolled TextInput onSubmitEditing: "${text}" (${text.length} chars)`);
-        if (text.length > 0 && processBarcodeInput) {
-          processBarcodeInput(text);
-        }
-        // Clear the input for next scan
-        if (scannerInputRef.current) {
-          scannerInputRef.current.clear();
-        }
-      }}
-      onKeyPress={(event) => {
-        // Log key presses to see when Enter is pressed
-        if (event.nativeEvent.key === 'Enter') {
-          logger.info(TAG, 'Enter key detected!');
-        } else {
-          logger.info(TAG, `Key: "${event.nativeEvent.key}"`);
-        }
-      }}
-      blurOnSubmit={false}
-      placeholder="Scan barcode or search items..."
-    />
+        }}
+        onSubmitEditing={(event) => {
+          // Upon Enter key from barcode scanner, transfer complete string to second input
+          const completeBarcode = event.nativeEvent.text.trim();
+          
+          if (completeBarcode.length > 0 && secondInputRef.current && processBarcodeInput) {
+            // Step 1: Clear first input immediately
+            if (firstInputRef.current) {
+              firstInputRef.current.clear();
+            }
+            
+            // Step 2: Set second input with the barcode
+            secondInputRef.current.setNativeProps({ text: completeBarcode });
+            
+            // Step 3: Process the barcode
+            processBarcodeInput(completeBarcode);
+            
+            // Step 4: Clear second input immediately after processing
+            setTimeout(() => {
+              if (secondInputRef.current) {
+                secondInputRef.current.clear();
+                secondInputRef.current.setNativeProps({ text: '' });
+              }
+            }, 50);
+          }
+          
+          // Refocus first input for next scan
+          setTimeout(() => {
+            focusFirstInput();
+          }, 100);
+        }}
+        onKeyPress={(event) => {
+          // Silent Enter key detection - no logging needed for performance
+        }}
+        blurOnSubmit={false}
+        placeholder=""
+      />
+
+      {/* Second TextInput - Holds the transferred barcode */}
+      <TextInput
+        ref={secondInputRef}
+        style={[
+          styles.hiddenInput,
+          debugVisible && styles.debugVisibleSecond,
+          style
+        ]}
+        editable={false}
+        placeholder=""
+      />
+    </ScrollView>
   );
 });
 
@@ -309,11 +217,11 @@ const styles = StyleSheet.create({
     opacity: 0,
     position: 'absolute'
   },
-  debugVisible: {
+  debugVisibleFirst: {
     position: 'absolute',
     top: 10,
     left: 10,
-    width: 100,
+    width: 200,
     height: 40,
     opacity: 1,
     backgroundColor: 'red',
@@ -323,7 +231,31 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'center',
     textAlignVertical: 'center'
+  },
+  debugVisibleSecond: {
+    position: 'absolute',
+    top: 60,
+    left: 10,
+    width: 200,
+    height: 40,
+    opacity: 1,
+    backgroundColor: 'green',
+    borderWidth: 2,
+    borderColor: 'yellow',
+    color: 'white',
+    fontSize: 12,
+    textAlign: 'center',
+    textAlignVertical: 'center'
+  },
+  scannerContainer: {
+    position: 'absolute',
+    top: -1000, // Move far off-screen instead of using height: 0, width: 0
+    left: -1000,
+    height: 1,
+    width: 1,
+    overflow: 'hidden',
+    zIndex: -1 // Ensure it's behind everything else
   }
 });
 
-export default BarcodeScanner; 
+export default BarcodeScanner;

@@ -23,7 +23,7 @@ import { Stack, useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 import { useCatalogItems } from '../../src/hooks/useCatalogItems';
-import { BarcodeScanner, BarcodeScannerRef } from '../../src/components/BarcodeScanner';
+import { BarcodeScanner } from '../../src/components/BarcodeScanner';
 import * as modernDb from '../../src/database/modernDb';
 import { ConvertedItem } from '../../src/types/api';
 import { lightTheme } from '../../src/themes';
@@ -36,6 +36,7 @@ import * as queries from '../../src/graphql/queries';
 import { useAuthenticator } from '@aws-amplify/ui-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAppStore } from '../../src/store';
+import { itemHistoryService } from '../../src/services/itemHistoryService';
 
 const client = generateClient();
 
@@ -72,6 +73,135 @@ interface ItemSelectionModalProps {
 type FilterType = 'completed' | 'incomplete' | 'category' | 'vendor' | 'sortConfig';
 
 const TAG = '[ReordersScreen]';
+
+// Static styles to prevent recreation on every render
+const staticStyles = {
+  headerLeftContainer: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    marginLeft: 8
+  },
+  headerRightContainer: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const
+  },
+  pendingBadge: {
+    backgroundColor: '#FF9500',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    marginLeft: 4
+  },
+  filterScrollContainer: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+  },
+  filterScrollStyle: {
+    marginBottom: 8,
+    paddingLeft: 16
+  },
+  modalOverlayStyle: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    padding: 20
+  },
+  listContainerPadding: {
+    paddingBottom: 20
+  },
+  dropdownOverlay: {
+    position: 'absolute' as const,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'transparent',
+    zIndex: 999,
+  },
+  dropdownContainer: {
+    position: 'absolute' as const,
+    top: 120,
+    left: 16,
+    right: 16,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 12,
+    zIndex: 1000,
+    minHeight: 300,
+    maxHeight: 400,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  dropdownHeader: {
+    padding: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+    backgroundColor: '#f8f9fa',
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+  },
+  dropdownHeaderText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#333',
+    textAlign: 'center' as const
+  },
+  configDropdownContent: {
+    padding: 12
+  },
+  configToggleButton: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  configToggleButtonLast: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+    paddingVertical: 12,
+  },
+  configToggleText: {
+    fontSize: 15,
+    color: '#333',
+    fontWeight: '400' as const,
+  },
+  configToggleIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+  },
+  configHelpText: {
+    fontSize: 12,
+    color: '#666',
+    fontStyle: 'italic' as const,
+    marginTop: 8,
+    textAlign: 'center' as const,
+  },
+  swipeDeleteContainer: {
+    flex: 1,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'flex-end' as const,
+    paddingRight: 16,
+  },
+  dropdownScrollView: {
+    flex: 1,
+    maxHeight: 320
+  }
+};
 
 // Quantity Modal Component - now for manual editing only
 const QuantityModal: React.FC<QuantityModalProps & { quantity: string; setQuantity: (qty: string) => void }> = ({ 
@@ -241,7 +371,7 @@ const renderDropdown = (
   placeholder: string
 ) => {
   return (
-    <ScrollView style={{ maxHeight: 180 }} showsVerticalScrollIndicator={false}>
+    <ScrollView style={staticStyles.dropdownScrollView} showsVerticalScrollIndicator={false}>
       <TouchableOpacity
         style={{
           paddingHorizontal: 20,
@@ -281,7 +411,7 @@ const renderDropdown = (
             style={{
               paddingHorizontal: 20,
               paddingVertical: 14,
-              borderBottomWidth: index === items.length - 1 ? 0 : 1,
+              borderBottomWidth: 1,
               borderBottomColor: '#f0f0f0',
               backgroundColor: selectedValue === item.name ? '#f0f8ff' : 'transparent',
               flexDirection: 'row',
@@ -321,7 +451,7 @@ const renderDropdown = (
   );
 };
 
-export default function ReordersScreen() {
+const ReordersScreen = React.memo(() => {
   const router = useRouter();
   const { products: catalogItems, isProductsLoading: loading } = useCatalogItems();
   
@@ -360,7 +490,7 @@ export default function ReordersScreen() {
     chronological: 'off' | 'desc' | 'asc';
     alphabetical: 'off' | 'desc' | 'asc';
   }>({
-    chronological: 'off',
+    chronological: 'desc', // Default to most recent first
     alphabetical: 'off'
   });
 
@@ -441,15 +571,15 @@ export default function ReordersScreen() {
       
       const matchingItems = await performSearch(barcode, searchFilters);
 
-      if (matchingItems.length === 0) {
+    if (matchingItems.length === 0) {
         // ERROR CASE: No item found in database - play error sound & show modal
         playErrorSound();
         setErrorMessage(`No item found with barcode: ${barcode}\n\nPlease create the item in the main scan page first.`);
         setShowErrorModal(true);
-        return;
-      }
+      return;
+    }
 
-      if (matchingItems.length === 1) {
+    if (matchingItems.length === 1) {
         // Single item found - implement additive scanning logic
         const foundItem = matchingItems[0];
         
@@ -494,7 +624,7 @@ export default function ReordersScreen() {
             if (success) {
               playSuccessSound();
               logger.info(TAG, `✅ Incremented item: ${convertedItem.name} to qty ${newQuantity}`);
-            } else {
+    } else {
               throw new Error('Failed to increment item');
             }
           } catch (error) {
@@ -502,7 +632,7 @@ export default function ReordersScreen() {
             playErrorSound();
             setErrorMessage('Failed to increment item quantity. Please try again.');
             setShowErrorModal(true);
-          }
+    }
         } else {
           // NEW ITEM: Add with default quantity of 1
           logger.info(TAG, `🆕 NEW ITEM SCAN: ${convertedItem.name} (qty: 1)`);
@@ -852,35 +982,28 @@ export default function ReordersScreen() {
 
 
 
-  // Generate dynamic filter data with counts
+  // Generate dynamic filter data with counts - optimized
   const filterData = useMemo(() => {
     const incompleteItems = reorderItems.filter(item => !item.completed);
     
-
-    
     // Category counts with better handling
     const categoryMap = new Map<string, number>();
+    const vendorMap = new Map<string, number>();
+    
+    // Single loop for both category and vendor counting
     incompleteItems.forEach(item => {
+      // Category processing
       let category = item.itemCategory;
-      
-      // Handle various undefined/null/empty cases
       if (!category || category.trim() === '' || category === 'N/A') {
         category = 'Uncategorized';
       }
-      
       categoryMap.set(category, (categoryMap.get(category) || 0) + 1);
-    });
-    
-    // Vendor counts with better handling
-    const vendorMap = new Map<string, number>();
-    incompleteItems.forEach(item => {
-      let vendor = item.teamData?.vendor;
       
-      // Handle various undefined/null/empty cases
+      // Vendor processing
+      let vendor = item.teamData?.vendor;
       if (!vendor || vendor.trim() === '' || vendor === 'N/A' || vendor === 'Unknown Vendor') {
         vendor = 'No Vendor';
       }
-      
       vendorMap.set(vendor, (vendorMap.get(vendor) || 0) + 1);
     });
     
@@ -892,47 +1015,40 @@ export default function ReordersScreen() {
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count);
     
-
-    
     return { categories, vendors };
   }, [reorderItems]);
 
-  // Filter and sort items based on current filter
+  // Filter and sort items based on current filter - optimized
   const filteredAndSortedItems = useMemo(() => {
     let filtered = reorderItems;
 
-    // Apply completion filter
-    if (currentFilter === 'completed') {
-      filtered = filtered.filter(item => item.completed);
-    } else if (currentFilter === 'incomplete') {
-      filtered = filtered.filter(item => !item.completed);
-    }
+    // Apply all filters in a single pass for better performance
+    filtered = reorderItems.filter(item => {
+      // Completion filter
+      if (currentFilter === 'completed' && !item.completed) return false;
+      if (currentFilter === 'incomplete' && item.completed) return false;
+      
+      // Category filter
+      if (selectedCategory && item.itemCategory !== selectedCategory) return false;
+      
+      // Vendor filter
+      if (selectedVendor && item.teamData?.vendor !== selectedVendor) return false;
+      
+      return true;
+    });
 
-    // Apply category filter
-    if (selectedCategory) {
-      filtered = filtered.filter(item => 
-        item.itemCategory === selectedCategory
-      );
-    }
-
-    // Apply vendor filter
-    if (selectedVendor) {
-      filtered = filtered.filter(item => 
-        item.teamData?.vendor === selectedVendor
-      );
-    }
-
-    // Apply sorting based on sortState
+    // Apply sorting based on sortState - always sort for consistent ordering
     if (sortState.alphabetical !== 'off') {
-      filtered = [...filtered].sort((a, b) => {
+      filtered.sort((a, b) => {
         const comparison = (a.itemName || '').localeCompare(b.itemName || '');
         return sortState.alphabetical === 'asc' ? comparison : -comparison;
       });
-    } else if (sortState.chronological !== 'off') {
-      filtered = [...filtered].sort((a, b) => {
+    } else {
+      // Default to chronological sorting (most recent first)
+      filtered.sort((a, b) => {
         const aTime = a.timestamp ? a.timestamp.getTime() : new Date(a.createdAt).getTime();
         const bTime = b.timestamp ? b.timestamp.getTime() : new Date(b.createdAt).getTime();
-        const comparison = bTime - aTime;
+        const comparison = bTime - aTime; // Most recent first
         return sortState.chronological === 'desc' ? comparison : -comparison;
       });
     }
@@ -950,8 +1066,8 @@ export default function ReordersScreen() {
     return { total, completed, incomplete, totalQuantity };
   }, [reorderItems]);
 
-  // Render sort button (3-state cycle)
-  const renderSortButton = (sortType: 'chronological' | 'alphabetical', label: string, icon: string) => {
+  // Render sort button (3-state cycle) - memoized for performance
+  const renderSortButton = useCallback((sortType: 'chronological' | 'alphabetical', label: string, icon: string) => {
     const state = sortState[sortType];
     const isActive = state !== 'off';
     
@@ -976,10 +1092,10 @@ export default function ReordersScreen() {
         </Text>
       </TouchableOpacity>
     );
-  };
+  }, [sortState]);
 
-  // Render filter button
-  const renderFilterButton = (filter: FilterType, label: string, icon: string) => {
+  // Render filter button - memoized for performance  
+  const renderFilterButton = useCallback((filter: FilterType, label: string, icon: string) => {
     if (filter === 'category') {
       return (
         <TouchableOpacity
@@ -1063,7 +1179,7 @@ export default function ReordersScreen() {
         </Text>
       </TouchableOpacity>
     );
-  };
+  }, [filterData, selectedCategory, selectedVendor, showCategoryDropdown, showVendorDropdown, currentFilter]);
 
   // Handle sort button clicks (3-state cycle for chronological/alphabetical)
   const handleSortClick = (sortType: 'chronological' | 'alphabetical') => {
@@ -1109,8 +1225,8 @@ export default function ReordersScreen() {
     }
   };
 
-  // Render reorder item
-  const renderReorderItem = ({ item }: { item: ReorderItem }) => {
+  // Render reorder item - memoized for performance
+  const renderReorderItem = useCallback(({ item }: { item: ReorderItem }) => {
     return (
       <Swipeable
         friction={2}
@@ -1126,13 +1242,7 @@ export default function ReordersScreen() {
           });
           
           return (
-            <View style={{
-              flex: 1,
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'flex-end',
-              paddingRight: 16,
-            }}>
+            <View style={staticStyles.swipeDeleteContainer}>
               <Animated.View style={[
                 reorderStyles.deleteButton,
                 { opacity }
@@ -1163,7 +1273,10 @@ export default function ReordersScreen() {
               reorderStyles.indexContainer,
               item.completed && reorderStyles.indexContainerCompleted
             ]}
-            onPress={() => reorderService.toggleCompletion(item.id)}
+            onPress={() => {
+              const userName = user?.signInDetails?.loginId?.split('@')[0] || 'Unknown User';
+              reorderService.toggleCompletion(item.id, userName);
+            }}
           >
             {item.completed ? (
               <Ionicons name="checkmark" size={18} color="#fff" />
@@ -1195,9 +1308,9 @@ export default function ReordersScreen() {
                 </Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', marginTop: 2 }}>
                   {item.itemCategory && <Text style={reorderStyles.itemCategory}>{item.itemCategory}</Text>}
-                  <Text style={reorderStyles.compactDetails}>
+                <Text style={reorderStyles.compactDetails}>
                     UPC: {item.itemBarcode || 'N/A'}{item.itemBarcode ? ` • SKU: N/A` : ''} • Price: ${item.itemPrice?.toFixed(2) || 'Variable'}{item.teamData?.vendorCost ? ` • Cost: $${item.teamData.vendorCost.toFixed(2)}` : ' • Cost: N/A'}{item.teamData?.vendor ? ` • Vendor: ${item.teamData.vendor}` : ' • Vendor: N/A'}{item.teamData?.discontinued ? ' • DISCONTINUED' : ''}
-                  </Text>
+                </Text>
                 </View>
               </View>
               <View style={reorderStyles.qtyContainer}>
@@ -1218,10 +1331,10 @@ export default function ReordersScreen() {
         </View>
       </Swipeable>
     );
-  };
+  }, [user, reorderService]);
 
-  // Render empty state
-  const renderEmptyState = () => (
+  // Render empty state - memoized
+  const renderEmptyState = useCallback(() => (
     <View style={reorderStyles.emptyContainer}>
       <Ionicons name="scan-outline" size={64} color="#ccc" style={reorderStyles.emptyIcon} />
       <Text style={reorderStyles.emptyTitle}>No Reorders Yet</Text>
@@ -1229,7 +1342,7 @@ export default function ReordersScreen() {
         Scanner is ready! Start scanning items to add them to your reorder list.
       </Text>
     </View>
-  );
+  ), []);
 
   // Create sectioned data for rendering
   const sectionedData = useMemo(() => {
@@ -1282,18 +1395,18 @@ export default function ReordersScreen() {
     return flatData;
   }, [filteredAndSortedItems, sectionByCategory, sectionByVendor, showAddCustomItem]);
 
-  // Render section header
-  const renderSectionHeader = (title: string, count: number) => (
+  // Render section header - memoized
+  const renderSectionHeader = useCallback((title: string, count: number) => (
     <View style={reorderStyles.sectionHeader}>
       <Text style={reorderStyles.sectionHeaderText}>
         {title}
         <Text style={reorderStyles.sectionHeaderCount}>({count})</Text>
       </Text>
     </View>
-  );
+  ), []);
 
-  // Updated render item function to handle both items and headers
-  const renderListItem = ({ item }: { item: any }) => {
+  // Updated render item function to handle both items and headers - memoized
+  const renderListItem = useCallback(({ item }: { item: any }) => {
     if (item.type === 'header') {
       return renderSectionHeader(item.title, item.count);
     }
@@ -1301,10 +1414,23 @@ export default function ReordersScreen() {
       return renderCustomItemEntry();
     }
     return renderReorderItem({ item });
-  };
+  }, [renderSectionHeader, renderReorderItem]);
 
-  // Render custom item entry (inline at top of list)
-  const renderCustomItemEntry = () => {
+  // Memoized keyExtractor for performance
+  const keyExtractor = useCallback((item: any) => {
+    if ('type' in item) {
+      if (item.type === 'header' && 'title' in item) {
+        return `header-${item.title}`;
+      }
+      if (item.type === 'customEntry') {
+        return 'custom-entry';
+      }
+    }
+    return (item as ReorderItem).id;
+  }, []);
+
+  // Render custom item entry (inline at top of list) - memoized
+  const renderCustomItemEntry = useCallback(() => {
     if (!showAddCustomItem || !customItemEdit) return null;
 
     return (
@@ -1393,7 +1519,7 @@ export default function ReordersScreen() {
         </View>
       </View>
     );
-  };
+  }, [showAddCustomItem, customItemEdit, handleCancelCustomItem, handleSaveCustomItem]);
 
   // Get sync status explanation
   const getSyncStatusExplanation = () => {
@@ -1448,7 +1574,7 @@ export default function ReordersScreen() {
           title: 'Reorders',
           headerLeft: () => (
             <TouchableOpacity 
-              style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 8 }}
+              style={staticStyles.headerLeftContainer}
               onPress={() => setShowSyncStatusPopover(true)}
             >
               <Ionicons 
@@ -1463,15 +1589,7 @@ export default function ReordersScreen() {
                 style={{ marginLeft: 4 }}
               />
               {syncStatus.pendingCount > 0 && (
-                <View style={{
-                  backgroundColor: '#FF9500',
-                  borderRadius: 10,
-                  minWidth: 20,
-                  height: 20,
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  marginLeft: 4
-                }}>
+                <View style={staticStyles.pendingBadge}>
                   <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>
                     {syncStatus.pendingCount}
                   </Text>
@@ -1480,7 +1598,7 @@ export default function ReordersScreen() {
             </TouchableOpacity>
           ),
           headerRight: () => (
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={staticStyles.headerRightContainer}>
               <TouchableOpacity 
                 onPress={handleAddCustomItem}
                 style={{ marginRight: 16 }}
@@ -1553,18 +1671,14 @@ export default function ReordersScreen() {
         <ScrollView 
           horizontal 
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 8,
-          }}
-          style={{ marginBottom: 8, paddingLeft: 16 }}
+          contentContainerStyle={staticStyles.filterScrollContainer}
+          style={staticStyles.filterScrollStyle}
         >
           {renderFilterButton('sortConfig', '', 'options')}
-          {renderFilterButton('incomplete', 'Incomplete', 'ellipse-outline')}
-          {renderFilterButton('completed', 'Completed', 'checkmark-circle')}
           {renderSortButton('chronological', 'Recent', 'time')}
           {renderSortButton('alphabetical', 'A-Z', 'text')}
+          {renderFilterButton('incomplete', 'Incomplete', 'ellipse-outline')}
+          {renderFilterButton('completed', 'Completed', 'checkmark-circle')}
           {renderFilterButton('category', 'Categories', 'folder')}
           {renderFilterButton('vendor', 'Vendors', 'business')}
         </ScrollView>
@@ -1573,15 +1687,7 @@ export default function ReordersScreen() {
       {/* Inline Dropdown Overlays */}
       {(showCategoryDropdown || showVendorDropdown || showConfigDropdown) && (
         <TouchableOpacity
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'transparent',
-            zIndex: 999,
-          }}
+          style={staticStyles.dropdownOverlay}
           activeOpacity={1}
           onPress={() => {
             setShowCategoryDropdown(false);
@@ -1592,37 +1698,9 @@ export default function ReordersScreen() {
       )}
 
       {showCategoryDropdown && (
-        <View style={{
-          position: 'absolute',
-          top: 120, // Closer to the filter buttons
-          left: 16,
-          right: 16,
-          backgroundColor: '#fff',
-          borderRadius: 12,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.25,
-          shadowRadius: 8,
-          elevation: 12,
-          zIndex: 1000,
-          maxHeight: 250,
-          borderWidth: 1,
-          borderColor: '#e0e0e0',
-        }}>
-          <View style={{ 
-            padding: 16, 
-            borderBottomWidth: 1, 
-            borderBottomColor: '#f0f0f0',
-            backgroundColor: '#f8f9fa',
-            borderTopLeftRadius: 12,
-            borderTopRightRadius: 12,
-          }}>
-            <Text style={{ 
-              fontSize: 16, 
-              fontWeight: '600', 
-              color: '#333',
-              textAlign: 'center'
-            }}>
+        <View style={staticStyles.dropdownContainer}>
+          <View style={staticStyles.dropdownHeader}>
+            <Text style={staticStyles.dropdownHeaderText}>
               Select Category
             </Text>
           </View>
@@ -1639,37 +1717,9 @@ export default function ReordersScreen() {
       )}
 
       {showVendorDropdown && (
-        <View style={{
-          position: 'absolute',
-          top: 120, // Closer to the filter buttons
-          left: 16,
-          right: 16,
-          backgroundColor: '#fff',
-          borderRadius: 12,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.25,
-          shadowRadius: 8,
-          elevation: 12,
-          zIndex: 1000,
-          maxHeight: 250,
-          borderWidth: 1,
-          borderColor: '#e0e0e0',
-        }}>
-          <View style={{ 
-            padding: 16, 
-            borderBottomWidth: 1, 
-            borderBottomColor: '#f0f0f0',
-            backgroundColor: '#f8f9fa',
-            borderTopLeftRadius: 12,
-            borderTopRightRadius: 12,
-          }}>
-            <Text style={{ 
-              fontSize: 16, 
-              fontWeight: '600', 
-              color: '#333',
-              textAlign: 'center'
-            }}>
+        <View style={staticStyles.dropdownContainer}>
+          <View style={staticStyles.dropdownHeader}>
+            <Text style={staticStyles.dropdownHeaderText}>
               Select Vendor
             </Text>
           </View>
@@ -1686,67 +1736,25 @@ export default function ReordersScreen() {
       )}
 
       {showConfigDropdown && (
-        <View style={{
-          position: 'absolute',
-          top: 120,
-          left: 16,
-          right: 16,
-          backgroundColor: '#fff',
-          borderRadius: 12,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.25,
-          shadowRadius: 8,
-          elevation: 12,
-          zIndex: 1000,
-          borderWidth: 1,
-          borderColor: '#e0e0e0',
-        }}>
-          <View style={{ 
-            padding: 16, 
-            borderBottomWidth: 1, 
-            borderBottomColor: '#f0f0f0',
-            backgroundColor: '#f8f9fa',
-            borderTopLeftRadius: 12,
-            borderTopRightRadius: 12,
-          }}>
-            <Text style={{ 
-              fontSize: 16, 
-              fontWeight: '600', 
-              color: '#333',
-              textAlign: 'center'
-            }}>
+        <View style={staticStyles.dropdownContainer}>
+          <View style={staticStyles.dropdownHeader}>
+            <Text style={staticStyles.dropdownHeaderText}>
               List Organization
             </Text>
           </View>
           
-          <View style={{ padding: 16 }}>
+          <View style={staticStyles.configDropdownContent}>
             <TouchableOpacity
-              style={{
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                paddingVertical: 12,
-                borderBottomWidth: 1,
-                borderBottomColor: '#f0f0f0',
-              }}
+              style={staticStyles.configToggleButton}
               onPress={() => setSectionByCategory(!sectionByCategory)}
             >
-              <Text style={{
-                fontSize: 15,
-                color: '#333',
-                fontWeight: '400',
-              }}>
+              <Text style={staticStyles.configToggleText}>
                 Group by Categories
               </Text>
-              <View style={{
-                width: 24,
-                height: 24,
-                borderRadius: 12,
-                backgroundColor: sectionByCategory ? '#007AFF' : '#e0e0e0',
-                justifyContent: 'center',
-                alignItems: 'center',
-              }}>
+              <View style={[
+                staticStyles.configToggleIcon,
+                { backgroundColor: sectionByCategory ? '#007AFF' : '#e0e0e0' }
+              ]}>
                 {sectionByCategory && (
                   <Ionicons name="checkmark" size={16} color="#fff" />
                 )}
@@ -1754,29 +1762,16 @@ export default function ReordersScreen() {
             </TouchableOpacity>
             
             <TouchableOpacity
-              style={{
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                paddingVertical: 12,
-              }}
+              style={staticStyles.configToggleButtonLast}
               onPress={() => setSectionByVendor(!sectionByVendor)}
             >
-              <Text style={{
-                fontSize: 15,
-                color: '#333',
-                fontWeight: '400',
-              }}>
+              <Text style={staticStyles.configToggleText}>
                 Group by Vendors
               </Text>
-              <View style={{
-                width: 24,
-                height: 24,
-                borderRadius: 12,
-                backgroundColor: sectionByVendor ? '#007AFF' : '#e0e0e0',
-                justifyContent: 'center',
-                alignItems: 'center',
-              }}>
+              <View style={[
+                staticStyles.configToggleIcon,
+                { backgroundColor: sectionByVendor ? '#007AFF' : '#e0e0e0' }
+              ]}>
                 {sectionByVendor && (
                   <Ionicons name="checkmark" size={16} color="#fff" />
                 )}
@@ -1784,13 +1779,7 @@ export default function ReordersScreen() {
             </TouchableOpacity>
             
             {sectionByVendor && sectionByCategory && (
-              <Text style={{
-                fontSize: 12,
-                color: '#666',
-                fontStyle: 'italic',
-                marginTop: 8,
-                textAlign: 'center',
-              }}>
+              <Text style={staticStyles.configHelpText}>
                 Vendor grouping takes precedence when both are enabled
               </Text>
             )}
@@ -1816,19 +1805,9 @@ export default function ReordersScreen() {
           <FlatList
             data={sectionedData}
             renderItem={renderListItem}
-            keyExtractor={(item) => {
-              if ('type' in item) {
-                if (item.type === 'header' && 'title' in item) {
-                  return `header-${item.title}`;
-                }
-                if (item.type === 'customEntry') {
-                  return 'custom-entry';
-                }
-              }
-              return (item as ReorderItem).id;
-            }}
+            keyExtractor={keyExtractor}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 20 }}
+            contentContainerStyle={staticStyles.listContainerPadding}
             refreshControl={
               <RefreshControl
                 refreshing={isRefreshing}
@@ -1838,6 +1817,14 @@ export default function ReordersScreen() {
                 titleColor="#666"
               />
             }
+            // Performance optimizations for 1000+ items
+            removeClippedSubviews={true}
+            maxToRenderPerBatch={5}
+            updateCellsBatchingPeriod={100}
+            initialNumToRender={10}
+            windowSize={5}
+            // Remove getItemLayout for variable height items - causes performance issues
+            // getItemLayout only works with fixed height items
           />
         )}
       </TouchableOpacity>
@@ -2072,4 +2059,6 @@ export default function ReordersScreen() {
       </Modal>
     </SafeAreaView>
   );
-} 
+});
+
+export default ReordersScreen;

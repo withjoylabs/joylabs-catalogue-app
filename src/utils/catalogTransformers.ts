@@ -114,7 +114,11 @@ export function transformCatalogItemToItem(
     modifierListIds: modifierListIds, // Assign extracted modifier IDs
     abbreviation: itemData.abbreviation || '',
     reporting_category_id: itemData.reporting_category?.id, // Directly use the ID
-    categoryId: itemData.category_id, // Map category_id
+    categoryId: itemData.category_id, // Legacy single category for backward compatibility
+    categories: itemData.categories ? itemData.categories.map((cat: { id: string; ordinal?: number }) => ({
+      id: cat.id,
+      ordinal: cat.ordinal
+    })) : undefined, // Extract categories array from Square
     // --- Variations --- 
     variations: mappedVariations, // Assign the full list of mapped variations
     // --- Images --- 

@@ -282,7 +282,7 @@ export const reorderStyles = StyleSheet.create({
     marginTop: 2,
     lineHeight: 14,
   },
-
+  
   // New meta styles matching index.tsx format
   itemMeta: {
     flexDirection: 'row',

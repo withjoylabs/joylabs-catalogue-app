@@ -49,7 +49,7 @@ export interface CatalogItemData {
   available_online?: boolean;
   available_for_pickup?: boolean;
   available_electronically?: boolean;
-  category_id?: string;
+  category_id?: string; // Legacy single category
   tax_ids?: string[];
   variations?: CatalogObject[];
   product_type?: 'REGULAR' | 'GIFT_CARD' | 'APPOINTMENTS_SERVICE';
@@ -57,7 +57,8 @@ export interface CatalogItemData {
   item_options?: CatalogObject[];
   image_ids?: string[];
   sort_name?: string;
-  categories?: { id: string; name: string }[];
+  categories?: Array<{ id: string; ordinal?: number }>; // Square's categories array
+  reporting_category?: { id: string }; // Square's reporting category
   description_html?: string;
   description_plaintext?: string;
 }
@@ -93,8 +94,9 @@ export interface ConvertedItem {
   price?: number;
   description?: string;
   category?: string;
-  categoryId?: string;
-  reporting_category_id?: string;
+  categoryId?: string; // Keep for backward compatibility
+  reporting_category_id?: string; // The single required reporting category
+  categories?: Array<{ id: string; name?: string; ordinal?: number }>; // Multiple categories from Square
   isActive: boolean;
   images: { id: string; url: string; name: string }[];
   taxIds?: string[];

@@ -5,6 +5,7 @@ import { generateClient } from 'aws-amplify/api';
 import * as queries from '../graphql/queries';
 import * as subscriptions from '../graphql/subscriptions';
 import * as mutations from '../graphql/mutations';
+import { itemHistoryService } from './itemHistoryService';
 
 export interface TeamData {
   vendor?: string;
@@ -637,12 +638,27 @@ class ReorderService {
   }
 
   // Toggle item completion
-  async toggleCompletion(itemId: string) {
+  async toggleCompletion(itemId: string, userName: string = 'Unknown User') {
     try {
       const item = this.reorderItems.find(item => item.id === itemId);
       if (!item) return;
 
       const newCompletedState = !item.completed;
+
+      // Track reorder history if the item is being marked as completed (reordered)
+      if (newCompletedState && item.itemId && item.itemId !== item.id) { // Only track for real items, not custom ones
+        try {
+          await itemHistoryService.logReorder(
+            item.itemId,
+            item.itemName || 'Unknown Item',
+            item.quantity,
+            userName
+          );
+        } catch (historyError) {
+          logger.error('[ReorderService]', 'Failed to track reorder history', { historyError, itemId });
+          // Don't fail the reorder operation if history tracking fails
+        }
+      }
 
       if (this.isOfflineMode) {
         // Update locally
@@ -689,7 +705,23 @@ class ReorderService {
       this.isOfflineMode = true;
       const item = this.reorderItems.find(item => item.id === itemId);
       if (item) {
-        item.completed = !item.completed;
+        const newCompletedState = !item.completed;
+        
+        // Track reorder history if being marked as completed
+        if (newCompletedState && item.itemId && item.itemId !== item.id) {
+          try {
+            await itemHistoryService.logReorder(
+              item.itemId,
+              item.itemName || 'Unknown Item',
+              item.quantity,
+              userName
+            );
+          } catch (historyError) {
+            logger.error('[ReorderService]', 'Failed to track reorder history (offline)', { historyError, itemId });
+          }
+        }
+        
+        item.completed = newCompletedState;
         item.updatedAt = new Date().toISOString();
         
         // Add to pending sync

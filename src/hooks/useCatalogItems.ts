@@ -442,6 +442,10 @@ export const useCatalogItems = () => {
           description: productData.description,
           abbreviation: productData.abbreviation,
           reporting_category: productData.reporting_category_id ? { id: productData.reporting_category_id } : undefined,
+          categories: productData.categories ? productData.categories.map((cat: { id: string; ordinal?: number }) => ({
+            id: cat.id,
+            ordinal: cat.ordinal
+          })) : undefined, // Send categories array to Square
           variations: productData.variations && Array.isArray(productData.variations) && productData.variations.length > 0
             ? productData.variations.map((variation: any, index: number) => ({
                 id: `#variation-${index}-${Date.now()}`,
@@ -605,6 +609,10 @@ export const useCatalogItems = () => {
           description: productData.description,
           abbreviation: productData.abbreviation,
           reporting_category: productData.reporting_category_id ? { id: productData.reporting_category_id } : undefined,
+          categories: productData.categories ? productData.categories.map((cat: { id: string; ordinal?: number }) => ({
+            id: cat.id,
+            ordinal: cat.ordinal
+          })) : undefined, // Send categories array to Square
           
           // Construct the variations array for the single update call
           variations: (productData.variations || []).map((variation: any, index: number) => {

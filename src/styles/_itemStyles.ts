@@ -145,6 +145,17 @@ interface ItemStyles {
   logItem: any;
   logText: any;
   logMeta: any;
+
+  // History Auth Prompt Styles
+  historyAuthPrompt: any;
+  historyAuthPromptTitle: any;
+  historyAuthPromptText: any;
+
+  // Category Advanced Mode Styles
+  categoryHeaderContainer: any;
+  advancedToggle: any;
+  advancedToggleText: any;
+  categorySubtext: any;
 }
 
 // Export the styles with type safety
@@ -872,5 +883,57 @@ export const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
     marginBottom: 16,
+  },
+
+  // History Auth Prompt Styles
+  historyAuthPrompt: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    padding: 16,
+    marginVertical: 8,
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+    alignItems: 'center',
+  },
+  historyAuthPromptTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: lightTheme.colors.primary,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  historyAuthPromptText: {
+    fontSize: 14,
+    color: '#6c757d',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+
+  // Category Advanced Mode Styles
+  categoryHeaderContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  advancedToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: lightTheme.colors.primary + '15',
+  },
+  advancedToggleText: {
+    fontSize: 12,
+    color: lightTheme.colors.primary,
+    fontWeight: '500',
+    marginRight: 4,
+  },
+  categorySubtext: {
+    fontSize: 12,
+    color: '#666',
+    fontStyle: 'italic',
+    marginTop: 4,
   },
 }) as unknown as ItemStyles; // Ensures stricter type checking by TypeScript

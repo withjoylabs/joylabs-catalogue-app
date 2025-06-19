@@ -38,7 +38,11 @@ import { printItemLabel, LabelData, getLabelPrinterStatus } from '../../src/util
 import { styles } from '../../src/styles/_itemStyles';
 import SystemModal from '../../src/components/SystemModal';
 import { generateClient } from 'aws-amplify/api';
+import { useAuthenticator } from '@aws-amplify/ui-react-native';
 import TeamDataSection from './TeamDataSection';
+import ItemHistorySection from '../../src/components/ItemHistorySection';
+import { itemHistoryService } from '../../src/services/itemHistoryService';
+import MultiCategorySelectionModal from '../../src/components/MultiCategorySelectionModal';
 
 // Define type for Tax and Modifier List Pickers
 type TaxPickerItem = { id: string; name: string; percentage: string | null };
@@ -53,9 +57,10 @@ const EMPTY_ITEM: ConvertedItem = {
   sku: '',
   price: undefined,
   description: '',
-  categoryId: '', // Keep for now, but focus on reporting_category_id
-  reporting_category_id: '', // Add this field
-  category: '', // Keep for display compatibility?
+  categoryId: '', // Keep for backward compatibility
+  reporting_category_id: '', // Required reporting category
+  categories: [], // Initialize empty categories array
+  category: '', // Keep for display compatibility
   isActive: true,
   images: [],
   taxIds: [], // Initialize taxIds
@@ -89,6 +94,7 @@ export default function ItemDetails() {
   const router = useRouter();
   const { id, ...params } = useLocalSearchParams<{ id: string, name?: string, sku?: string, barcode?: string }>();
   const navigation = useNavigation();
+  const { user } = useAuthenticator((context) => [context.user]);
   const isNewItem = id === 'new';
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
@@ -137,6 +143,9 @@ export default function ItemDetails() {
   // NEW: State to safely trigger navigation after state updates.
   const [isReadyToNavigate, setIsReadyToNavigate] = useState(false);
 
+  // State to track team data changes
+  const [hasTeamDataChanges, setHasTeamDataChanges] = useState(false);
+
   // State for variations
   const [variations, setVariations] = useState<ItemVariation[]>([{
     name: null,
@@ -149,6 +158,7 @@ export default function ItemDetails() {
   const [availableCategories, setAvailableCategories] = useState<ModalCategoryPickerItem[]>([]);
   const [filteredCategories, setFilteredCategories] = useState<ModalCategoryPickerItem[]>([]);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [showMultiCategoryModal, setShowMultiCategoryModal] = useState(false);
   const [categorySearch, setCategorySearch] = useState('');
   
   // State for recent categories
@@ -180,6 +190,11 @@ export default function ItemDetails() {
   const setLastUpdatedItem = useAppStore((state) => state.setLastUpdatedItem);
   
   const teamDataSaveRef = useRef<(() => Promise<void>) | null>(null);
+
+  // Callback to handle team data changes
+  const handleTeamDataChange = useCallback((hasChanges: boolean) => {
+    setHasTeamDataChanges(hasChanges);
+  }, []);
   
   // --- Printing Logic --- 
 
@@ -540,6 +555,147 @@ export default function ItemDetails() {
     }
   };
 
+  const trackItemChanges = useCallback(async (savedItem: ConvertedItem): Promise<void> => {
+    // Gracefully handle unauthenticated users
+    if (!user?.signInDetails?.loginId) {
+      logger.info('ItemDetails:trackItemChanges', 'Skipping change tracking - user not authenticated', {
+        itemId: savedItem.id
+      });
+      return;
+    }
+    
+    const userName = user.signInDetails.loginId.split('@')[0] || 'Unknown User';
+    
+    try {
+      // Track item creation
+      if (isNewItem) {
+        await itemHistoryService.logItemCreation(
+          savedItem.id,
+          savedItem.name || 'Unnamed Item',
+          userName
+        );
+        return; // For new items, no need to check for other changes
+      }
+      
+      // Track changes for existing items
+      if (!originalItem) return;
+      
+      const changes: Promise<boolean>[] = [];
+      
+      // Track price changes for each variation
+      if (originalItem.variations && savedItem.variations) {
+        const originalVariationsMap = new Map(originalItem.variations.map(v => [v.id || v.name || 'default', v]));
+        
+        for (const newVar of savedItem.variations) {
+          const originalVar = originalVariationsMap.get(newVar.id || newVar.name || 'default');
+          
+          if (originalVar && originalVar.price !== newVar.price) {
+            changes.push(
+              itemHistoryService.logPriceChange(
+                savedItem.id,
+                savedItem.name || 'Unnamed Item',
+                newVar.name,
+                originalVar.price,
+                newVar.price,
+                userName
+              )
+            );
+          }
+        }
+      }
+      
+      // Track tax changes
+      const originalTaxIds = new Set(originalItem.taxIds || []);
+      const newTaxIds = new Set(savedItem.taxIds || []);
+      const addedTaxes = [...newTaxIds].filter(id => !originalTaxIds.has(id));
+      const removedTaxes = [...originalTaxIds].filter(id => !newTaxIds.has(id));
+      
+      if (addedTaxes.length > 0 || removedTaxes.length > 0) {
+        const taxNameMap: Record<string, string> = {};
+        availableTaxes.forEach(tax => {
+          taxNameMap[tax.id] = `${tax.name} (${tax.percentage}%)`;
+        });
+        
+        changes.push(
+          itemHistoryService.logTaxChange(
+            savedItem.id,
+            savedItem.name || 'Unnamed Item',
+            addedTaxes,
+            removedTaxes,
+            taxNameMap,
+            userName
+          )
+        );
+      }
+      
+      // Track category changes
+      const originalCategoryId = originalItem.reporting_category_id;
+      const newCategoryId = savedItem.reporting_category_id;
+      
+      if (originalCategoryId !== newCategoryId) {
+        const originalCategoryName = availableCategories.find(cat => cat.id === originalCategoryId)?.name;
+        const newCategoryName = availableCategories.find(cat => cat.id === newCategoryId)?.name;
+        
+        changes.push(
+          itemHistoryService.logCategoryChange(
+            savedItem.id,
+            savedItem.name || 'Unnamed Item',
+            originalCategoryName,
+            newCategoryName,
+            userName
+          )
+        );
+      }
+      
+      // Track variation additions/removals
+      const originalVariationIds = new Set((originalItem.variations || []).map(v => v.id).filter(Boolean));
+      const newVariationIds = new Set((savedItem.variations || []).map(v => v.id).filter(Boolean));
+      
+      // Added variations
+      for (const newVar of savedItem.variations || []) {
+        if (newVar.id && !originalVariationIds.has(newVar.id)) {
+          changes.push(
+            itemHistoryService.logVariationChange(
+              savedItem.id,
+              savedItem.name || 'Unnamed Item',
+              'added',
+              newVar.name,
+              userName
+            )
+          );
+        }
+      }
+      
+      // Removed variations
+      for (const originalVar of originalItem.variations || []) {
+        if (originalVar.id && !newVariationIds.has(originalVar.id)) {
+          changes.push(
+            itemHistoryService.logVariationChange(
+              savedItem.id,
+              savedItem.name || 'Unnamed Item',
+              'removed',
+              originalVar.name,
+              userName
+            )
+          );
+        }
+      }
+      
+      // Execute all change logging in parallel
+      if (changes.length > 0) {
+        await Promise.allSettled(changes);
+        logger.info('ItemDetails:trackItemChanges', 'Successfully logged item changes', {
+          itemId: savedItem.id,
+          changeCount: changes.length
+        });
+      }
+      
+    } catch (error) {
+      logger.error('ItemDetails:trackItemChanges', 'Error tracking item changes', { error, itemId: savedItem.id });
+      // Don't fail the save operation if history tracking fails
+    }
+  }, [user, isNewItem, originalItem, availableTaxes, availableCategories]);
+
   const handleSaveAction = async (options?: { manageState?: boolean }): Promise<ConvertedItem | null> => {
     const manageState = options?.manageState ?? true;
 
@@ -592,10 +748,15 @@ export default function ItemDetails() {
       }
       
       if (savedItem) {
+        // Track item changes in history
+        await trackItemChanges(savedItem);
+        
         if (teamDataSaveRef.current) {
           await teamDataSaveRef.current();
         }
         setLastUpdatedItem(savedItem);
+        // Reset team data changes flag after successful save
+        setHasTeamDataChanges(false);
         return savedItem;
       } else {
         logger.error('ItemDetails:handleSaveAction', 'Save failed. No saved item data returned.');
@@ -647,6 +808,7 @@ export default function ItemDetails() {
                     setOriginalItem(savedItem);
                     setVariations(savedItem.variations || []);
                     setIsEdited(false); // Manually disable prompt
+                    setHasTeamDataChanges(false); // Reset team data changes
                     setIsReadyToNavigate(true); // Signal that we are ready to navigate
                 }
             }
@@ -921,7 +1083,8 @@ export default function ItemDetails() {
           !!item.reporting_category_id ||
           (item.taxIds && item.taxIds.length > 0) ||
         (item.modifierListIds && item.modifierListIds.length > 0) ||
-        variationsChanged;
+        variationsChanged ||
+        hasTeamDataChanges; // Include team data changes
       setIsEdited(calculatedIsEdited);
 
     } else if (item && originalItem) {
@@ -937,10 +1100,11 @@ export default function ItemDetails() {
           originalItem.reporting_category_id !== item.reporting_category_id ||
           taxIdsChanged ||
         modifierIdsChanged ||
-        variationsChanged;
+        variationsChanged ||
+        hasTeamDataChanges; // Include team data changes
       setIsEdited(calculatedIsEdited);
     }
-  }, [item, originalItem, variations, isNewItem]);
+  }, [item, originalItem, variations, isNewItem, hasTeamDataChanges]); // Add hasTeamDataChanges to dependencies
 
   // This effect now ONLY handles the state of the "select all taxes" button.
   useEffect(() => {
@@ -1009,27 +1173,53 @@ export default function ItemDetails() {
     updateItem('taxIds', newTaxIds);
   };
   
-  // Get the current category name for display, handle loading state
-  const selectedCategoryName = useMemo(() => {
-    if (isLoading) return 'Loading...'; // Show loading state
+  // Get the current category display text, handle loading state
+  const selectedCategoryDisplayText = useMemo(() => {
+    if (isLoading) return 'Loading...';
+    
+    // Check if we have categories array (new system)
+    if (item.categories && item.categories.length > 0) {
+      const reportingCategory = availableCategories.find(c => c.id === item.reporting_category_id);
+      const reportingName = reportingCategory?.name || 'Unknown';
+      
+      if (item.categories.length === 1) {
+        return reportingName;
+      } else {
+        // Get subcategories (all except reporting category)
+        const subcategories = item.categories
+          .filter(cat => cat.id !== item.reporting_category_id)
+          .map(cat => {
+            const categoryData = availableCategories.find(c => c.id === cat.id);
+            return categoryData?.name || 'Unknown';
+          })
+          .filter(name => name !== 'Unknown');
+        
+        if (subcategories.length === 0) {
+          return reportingName;
+        }
+        
+        return `Reporting: ${reportingName}\nSubcategories: ${subcategories.join(', ')}`;
+      }
+    }
+    
+    // Fallback to legacy single category system
     const categoryId = item.reporting_category_id;
-    console.log('[ItemDetails SelectedCategory] Category ID in state:', categoryId);
     if (categoryId) {
       const found = availableCategories.find(c => c.id === categoryId);
       if (found) {
-        if (originalItem?.reporting_category_id !== categoryId) { // Check if recently changed
-             addRecentCategoryId(categoryId);
+        if (originalItem?.reporting_category_id !== categoryId) {
+          addRecentCategoryId(categoryId);
         }
         return found.name;
       } else {
         console.warn(`[ItemDetails SelectedCategory] Category ID "${categoryId}" found in item but NOT in availableCategories list!`);
-        return 'Select Category'; // ID exists but category not found
+        return 'Select Category';
       }
     }
-    return 'Select Category'; // No ID set
-  }, [item.reporting_category_id, availableCategories, isLoading, originalItem]);
+    return 'Select Category';
+  }, [item.reporting_category_id, item.categories, availableCategories, isLoading, originalItem]);
   
-  // Handle selecting a category
+  // Handle selecting a category (legacy single category)
   const handleSelectCategory = (categoryId: string | null) => {
     updateItem('reporting_category_id', categoryId); 
     if (categoryId) {
@@ -1037,6 +1227,32 @@ export default function ItemDetails() {
     }
     setShowCategoryModal(false);
     setCategorySearch(''); // Reset search on selection
+  };
+
+  // Handle multi-category selection
+  const handleMultiCategorySelection = (selectedCategories: Array<{ id: string; ordinal?: number }>, reportingCategoryId: string) => {
+    // Enrich categories with names for better UX
+    const enrichedCategories = selectedCategories.map(cat => {
+      const categoryData = availableCategories.find(c => c.id === cat.id);
+      return {
+        id: cat.id,
+        name: categoryData?.name,
+        ordinal: cat.ordinal
+      };
+    });
+
+    updateItem('categories', enrichedCategories);
+    updateItem('reporting_category_id', reportingCategoryId);
+    
+    if (reportingCategoryId) {
+      addRecentCategoryId(reportingCategoryId);
+    }
+    
+    logger.info('ItemDetails:handleMultiCategorySelection', 'Updated item with multiple categories', {
+      categoriesCount: selectedCategories.length,
+      reportingCategoryId,
+      categories: enrichedCategories
+    });
   };
   
   // Handle delete button press
@@ -1060,6 +1276,7 @@ export default function ItemDetails() {
               Alert.alert('Success', 'Item deleted successfully');
               // Manually set isEdited to false right before navigating to prevent prompt.
               setIsEdited(false);
+              setHasTeamDataChanges(false); // Reset team data changes
               router.back(); // Dismiss modal on delete
             } catch (error: any) {
               console.error('Error deleting item:', error);
@@ -1111,6 +1328,7 @@ export default function ItemDetails() {
                 setOriginalItem(savedItem);
                 setVariations(savedItem.variations || []);
                 setIsEdited(false); // Manually disable prompt
+                setHasTeamDataChanges(false); // Reset team data changes
                 setIsReadyToNavigate(true); // Signal that we are ready to navigate
             }
         };
@@ -1470,13 +1688,34 @@ export default function ItemDetails() {
               </TouchableOpacity>
             </View>
 
-            {/* Reporting Category */}
+            {/* Categories */}
             <View style={styles.fieldContainer}>
-              <Text style={styles.label}>Reporting Category</Text>
-                <TouchableOpacity style={styles.selectorButton} onPress={() => setShowCategoryModal(true)} disabled={isSaving || isSavingAndPrinting}>
-                <Text style={styles.selectorText}>{selectedCategoryName}</Text>
+              <View style={styles.categoryHeaderContainer}>
+                <Text style={styles.label}>Categories</Text>
+                <TouchableOpacity 
+                  style={styles.advancedToggle}
+                  onPress={() => setShowMultiCategoryModal(true)}
+                  disabled={isSaving || isSavingAndPrinting}
+                >
+                  <Text style={styles.advancedToggleText}>Advanced</Text>
+                  <Ionicons name="grid-outline" size={16} color={lightTheme.colors.primary} />
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity 
+                style={styles.selectorButton} 
+                onPress={() => setShowCategoryModal(true)} 
+                disabled={isSaving || isSavingAndPrinting}
+              >
+                <Text style={[styles.selectorText, { flex: 1 }]} numberOfLines={0}>
+                  {selectedCategoryDisplayText}
+                </Text>
                 <Ionicons name="chevron-down" size={20} color="#666" />
               </TouchableOpacity>
+              {item.categories && item.categories.length > 1 && (
+                <Text style={styles.categorySubtext}>
+                  Advanced mode: {item.categories.length} total categories
+                </Text>
+              )}
 
               {/* Recent Categories Horizontal List */} 
               <View style={styles.recentCategoriesContainer}>
@@ -1575,7 +1814,23 @@ export default function ItemDetails() {
               />
             </View>
 
-            {!isNewItem && <TeamDataSection itemId={id} onSaveRef={teamDataSaveRef} />}
+            {!isNewItem && <TeamDataSection itemId={id} onSaveRef={teamDataSaveRef} onDataChange={handleTeamDataChange} />}
+
+            {/* History Section - Only for existing items and authenticated users */}
+            {!isNewItem && (
+              <View style={styles.fieldContainer}>
+                {user?.signInDetails?.loginId ? (
+                  <ItemHistorySection itemId={id} itemName={item.name || undefined} />
+                ) : (
+                  <View style={styles.historyAuthPrompt}>
+                    <Text style={styles.historyAuthPromptTitle}>Item History</Text>
+                    <Text style={styles.historyAuthPromptText}>
+                      Sign in to view item change history and track modifications.
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
 
               {/* Delete Button - Only for existing items */}
               {!isNewItem && (
@@ -1630,6 +1885,7 @@ export default function ItemDetails() {
                       setOriginalItem(savedItem);
                       setVariations(savedItem.variations || []);
                       setIsEdited(false); // Manually disable prompt
+                      setHasTeamDataChanges(false); // Reset team data changes
                       setIsReadyToNavigate(true); // Signal that we are ready to navigate
                   }
                 }}
@@ -1783,6 +2039,16 @@ export default function ItemDetails() {
               position="top"
               autoClose={true}
               autoCloseTime={2000}
+            />
+
+            {/* Multi-Category Selection Modal */}
+            <MultiCategorySelectionModal
+              visible={showMultiCategoryModal}
+              onClose={() => setShowMultiCategoryModal(false)}
+              availableCategories={availableCategories}
+              selectedCategories={item.categories || []}
+              reportingCategoryId={item.reporting_category_id}
+              onSave={handleMultiCategorySelection}
             />
             
             {/* ACTION MODAL */}
