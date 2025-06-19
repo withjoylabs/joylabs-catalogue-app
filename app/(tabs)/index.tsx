@@ -16,6 +16,7 @@ import {
   Modal,
   Animated, // For swipe action
   Alert, // Added for print feedback
+  Vibration, // Added for haptic feedback
 } from 'react-native';
 import { useRouter, useFocusEffect, Link, useNavigation } from 'expo-router';
 import { useIsFocused, useNavigationState } from '@react-navigation/native';
@@ -85,6 +86,14 @@ const SearchResultsArea = memo(({
   
   // Get authenticated user information
   const { user } = useAuthenticator((context) => [context.user]);
+
+  // Audio/Haptic feedback for reorder actions
+  const playSuccessSound = useCallback(() => {
+    console.log('🔊 SUCCESS - Item added to reorder!');
+    logger.info('SearchResultsArea', 'Playing success feedback for reorder');
+    // Single short vibration for success
+    Vibration.vibrate(100);
+  }, []);
 
   const { lastUpdatedItem, setLastUpdatedItem } = useAppStore();
 
@@ -284,8 +293,17 @@ const SearchResultsArea = memo(({
   }, [printItemLabel, swipeableRefs, setPrintNotificationMessage, setPrintNotificationType, setShowPrintNotification, onPrintSuccessForChaining]);
 
   const handleSwipeReorder = useCallback(async (item: SearchResultItem) => {
+    // IMMEDIATE FEEDBACK - No delays, no awaits, just instant response
+    setReorderNotificationMessage(`"${item.name || 'Item'}" added to reorder list.`);
+    setReorderNotificationType('success');
+    setReorderNotificationItemId(item.id);
+    setShowReorderNotification(true);
+    playSuccessSound();
+    swipeableRefs.current[item.id]?.close();
+    
     logger.info('SearchResultsArea:handleSwipeReorder', 'Reorder triggered for item', { itemId: item.id, name: item.name });
     
+    // Now do all the async work in the background
     // Ensure we have the proper category name
     const categoryName = await ensureCategoryName(item);
     
@@ -321,33 +339,35 @@ const SearchResultsArea = memo(({
       const teamData = await fetchTeamData(item.id);
       const userName = user?.signInDetails?.loginId?.split('@')[0] || 'Unknown User';
       const success = await reorderService.addItem(convertedItem, 1, teamData, userName);
-      if (success) {
-        setReorderNotificationMessage(`"${item.name || 'Item'}" added to reorder list.`);
-        setReorderNotificationType('success');
-        setReorderNotificationItemId(item.id);
-      } else {
+      if (!success) {
+        // Only update notification if there was an error
         setReorderNotificationMessage('Failed to add item to reorder list.');
         setReorderNotificationType('error');
-        setReorderNotificationItemId(item.id);
       }
     } catch (error) {
       logger.error('SearchResultsArea:handleSwipeReorder', 'Error adding item to reorder list', { error });
       setReorderNotificationMessage('An unexpected error occurred while adding to reorder list.');
       setReorderNotificationType('error');
-      setReorderNotificationItemId(item.id);
-    } finally {
-      setShowReorderNotification(true);
-      setTimeout(() => {
-        setShowReorderNotification(false);
-        setReorderNotificationItemId(null);
-      }, 3000);
-      swipeableRefs.current[item.id]?.close(); // Close swipeable row
     }
-  }, [reorderService, swipeableRefs, setReorderNotificationMessage, setReorderNotificationType, setShowReorderNotification, setReorderNotificationItemId, ensureCategoryName, fetchTeamData, user]);
+    
+    // Hide notification after delay
+    setTimeout(() => {
+      setShowReorderNotification(false);
+      setReorderNotificationItemId(null);
+    }, 3000);
+  }, [reorderService, swipeableRefs, setReorderNotificationMessage, setReorderNotificationType, setShowReorderNotification, setReorderNotificationItemId, ensureCategoryName, fetchTeamData, user, playSuccessSound]);
 
   const handleFullSwipeReorder = useCallback(async (item: SearchResultItem) => {
+    // IMMEDIATE FEEDBACK - No delays, no awaits, just instant response
+    setReorderNotificationMessage(`"${item.name || 'Item'}" added to reorder list.`);
+    setReorderNotificationType('success');
+    setReorderNotificationItemId(item.id);
+    setShowReorderNotification(true);
+    playSuccessSound();
+    
     logger.info('SearchResultsArea:handleFullSwipeReorder', 'Full swipe reorder triggered for item', { itemId: item.id, name: item.name });
     
+    // Now do all the async work in the background
     // Ensure we have the proper category name
     const categoryName = await ensureCategoryName(item);
     
@@ -373,28 +393,23 @@ const SearchResultsArea = memo(({
       const teamData = await fetchTeamData(item.id);
       const userName = user?.signInDetails?.loginId?.split('@')[0] || 'Unknown User';
       const success = await reorderService.addItem(convertedItem, 1, teamData, userName);
-      if (success) {
-        setReorderNotificationMessage(`"${item.name || 'Item'}" added to reorder list.`);
-        setReorderNotificationType('success');
-        setReorderNotificationItemId(item.id);
-      } else {
+      if (!success) {
+        // Only update notification if there was an error
         setReorderNotificationMessage('Failed to add item to reorder list.');
         setReorderNotificationType('error');
-        setReorderNotificationItemId(item.id);
       }
     } catch (error) {
       logger.error('SearchResultsArea:handleFullSwipeReorder', 'Error adding item to reorder list', { error });
       setReorderNotificationMessage('An unexpected error occurred while adding to reorder list.');
       setReorderNotificationType('error');
-      setReorderNotificationItemId(item.id);
-    } finally {
-      setShowReorderNotification(true);
-      setTimeout(() => {
-        setShowReorderNotification(false);
-        setReorderNotificationItemId(null);
-      }, 2000); // Shorter timeout for full swipe
     }
-  }, [reorderService, setReorderNotificationMessage, setReorderNotificationType, setShowReorderNotification, setReorderNotificationItemId, ensureCategoryName, fetchTeamData, user]);
+    
+    // Hide notification after delay
+    setTimeout(() => {
+      setShowReorderNotification(false);
+      setReorderNotificationItemId(null);
+    }, 2000); // Shorter timeout for full swipe
+  }, [reorderService, setReorderNotificationMessage, setReorderNotificationType, setShowReorderNotification, setReorderNotificationItemId, ensureCategoryName, fetchTeamData, user, playSuccessSound]);
 
   const renderLeftActions = useCallback((progress: Animated.AnimatedInterpolation<number>, dragX: Animated.AnimatedInterpolation<number>, item: SearchResultItem) => {
     const SWIPE_BUTTON_WIDTH = 100; 
@@ -470,12 +485,10 @@ const SearchResultsArea = memo(({
         onSwipeableRightOpen={() => {
           // Full swipe to the left (revealing right actions) - auto add to reorder
           handleFullSwipeReorder(item);
-          // Close the swipeable after a short delay to reset the gesture
-          setTimeout(() => {
-            swipeableRefs.current[item.id]?.close();
-          }, 50);
+          // Close the swipeable immediately for instant feedback
+          swipeableRefs.current[item.id]?.close();
         }}
-        friction={2}
+        friction={1}
         leftThreshold={40} 
         rightThreshold={40}
         overshootFriction={8} 
