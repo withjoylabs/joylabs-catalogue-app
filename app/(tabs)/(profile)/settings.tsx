@@ -1,15 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, Switch, StyleSheet, ActivityIndicator, Alert, TouchableOpacity, ScrollView, TextInput } from 'react-native';
-import { lightTheme } from '../../../src/themes'; // Corrected path
-import logger from '../../../src/utils/logger'; // Corrected path
-import * as notificationService from '../../../src/services/notificationService'; // Corrected path
-import * as notificationState from '../../../src/services/notificationState'; // Corrected path
-import { useRouter } from 'expo-router'; // Import router for navigation
-import { Ionicons } from '@expo/vector-icons'; // Import icons
-import { useAppStore } from '../../../src/store'; // Corrected path and assuming this is the intended import
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, Switch, ActivityIndicator, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { useAuthenticator } from '@aws-amplify/ui-react-native';
 import { fetchUserAttributes, updateUserAttributes } from 'aws-amplify/auth';
-import { List } from 'react-native-paper';
+import { lightTheme } from '../../../src/themes';
+import { useAppStore } from '../../../src/store';
+import logger from '../../../src/utils/logger';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 const TAG = '[ProfileSettingsScreen]';
 
@@ -21,79 +18,100 @@ interface SettingsState {
 }
 
 const ProfileSettingsScreen = () => {
-  const router = useRouter(); // Initialize router for navigation
   const { user } = useAuthenticator((context) => [context.user]);
-
+  const router = useRouter();
+  
+  // Loading states
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  
+  // Profile editing state
+  const [name, setName] = useState('');
+  const [title, setTitle] = useState('');
+  const [initialName, setInitialName] = useState('');
+  const [initialTitle, setInitialTitle] = useState('');
+  
+  // Settings state
   const [settings, setSettings] = useState<SettingsState>({
     notificationsEnabled: false,
     backgroundSyncEnabled: false,
     darkModeEnabled: false,
     analyticsEnabled: true,
   });
-  // Added state for loading and token management
-  const [isLoading, setIsLoading] = useState(true); // Start true to load initial state
-  const [storedPushToken, setStoredPushToken] = useState<string | null>(null);
-  const [isToggling, setIsToggling] = useState(false); // Separate loading state for toggle action
-
-  // Profile editing state
-  const [name, setName] = useState('');
-  const [title, setTitle] = useState('');
-  const [initialName, setInitialName] = useState('');
-  const [initialTitle, setInitialTitle] = useState('');
-  const [isSavingProfile, setIsSavingProfile] = useState(false);
-
-  // Auto-search settings from the Zustand store
+  
+  // Zustand store integration
   const autoSearchOnEnter = useAppStore((state) => state.autoSearchOnEnter);
   const autoSearchOnTab = useAppStore((state) => state.autoSearchOnTab);
+  const use12HourFormat = useAppStore((state) => state.use12HourFormat);
   const toggleAutoSearchOnEnter = useAppStore((state) => state.toggleAutoSearchOnEnter);
   const toggleAutoSearchOnTab = useAppStore((state) => state.toggleAutoSearchOnTab);
+  const toggleUse12HourFormat = useAppStore((state) => state.toggleUse12HourFormat);
 
-  // Fetch user profile data
-  const handleFetchUserAttributes = async () => {
-    try {
-      const attributes = await fetchUserAttributes();
-      const fetchedName = attributes.name || '';
-      const fetchedTitle = attributes['custom:title'] || '';
-      setName(fetchedName);
-      setTitle(fetchedTitle);
-      setInitialName(fetchedName);
-      setInitialTitle(fetchedTitle);
-      logger.debug(TAG, 'Fetched user attributes', attributes);
-    } catch (error) {
-      logger.error(TAG, 'Error fetching user attributes', { error });
-      Alert.alert('Error', 'Could not load your profile data.');
-    }
-  };
-
-  // Load initial state on mount
+  // Load initial state with proper authentication handling
   useEffect(() => {
     const loadInitialState = async () => {
+      logger.info(TAG, 'Starting settings load...');
       setIsLoading(true);
+      
+      // Add timeout protection
+      const timeoutId = setTimeout(() => {
+        logger.warn(TAG, 'Settings load timeout reached, forcing completion');
+        setIsLoading(false);
+      }, 8000); // 8 second timeout
+      
       try {
-        await handleFetchUserAttributes(); // Fetch profile data
-        const enabled = await notificationState.loadNotificationEnabledStatus();
-        const token = await notificationState.loadPushToken();
-        setSettings({
-          notificationsEnabled: enabled,
-          backgroundSyncEnabled: false,
-          darkModeEnabled: false,
-          analyticsEnabled: true,
-        });
-        setStoredPushToken(token);
-        logger.debug(TAG, 'Loaded initial notification state', { enabled, hasToken: !!token });
+        if (user?.signInDetails?.loginId) {
+          logger.info(TAG, 'User is authenticated, loading profile...');
+          
+          try {
+            const attributes = await fetchUserAttributes();
+            logger.info(TAG, 'User attributes loaded successfully');
+            
+            const fetchedName = attributes.name || '';
+            const fetchedTitle = attributes['custom:title'] || '';
+            setName(fetchedName);
+            setTitle(fetchedTitle);
+            setInitialName(fetchedName);
+            setInitialTitle(fetchedTitle);
+          } catch (attributeError) {
+            logger.error(TAG, 'Failed to load user attributes', { error: attributeError });
+            // Continue with empty values
+          }
+        } else {
+          logger.info(TAG, 'User not authenticated, using default values');
+          // Set default empty values for non-authenticated users
+          setName('');
+          setTitle('');
+          setInitialName('');
+          setInitialTitle('');
+        }
+        
+        logger.info(TAG, 'Settings loaded successfully');
       } catch (error) {
-        logger.error(TAG, 'Failed to load initial notification state', { error });
-        // Keep defaults (false, null)
+        logger.error(TAG, 'Failed to load settings', { error });
       } finally {
+        clearTimeout(timeoutId);
+        logger.info(TAG, 'Setting loading to false');
         setIsLoading(false);
       }
     };
-    if (user) {
-    loadInitialState();
-    }
-  }, [user]);
 
+    logger.info(TAG, 'useEffect triggered', { 
+      hasUser: !!user, 
+      loginId: user?.signInDetails?.loginId,
+      userType: typeof user
+    });
+
+    loadInitialState();
+  }, [user?.signInDetails?.loginId]);
+
+  // Handle profile update
   const handleUpdateProfile = async () => {
+    if (!user?.signInDetails?.loginId) {
+      Alert.alert('Error', 'You must be logged in to update your profile.');
+      return;
+    }
+
     if (name === initialName && title === initialTitle) {
       Alert.alert('No Changes', 'You have not made any changes to your profile.');
       return;
@@ -107,7 +125,7 @@ const ProfileSettingsScreen = () => {
           'custom:title': title,
         },
       });
-      setInitialName(name); // Update initial state to reflect saved changes
+      setInitialName(name);
       setInitialTitle(title);
       Alert.alert('Success', 'Your profile has been updated.');
       logger.info(TAG, 'User profile updated successfully.');
@@ -119,188 +137,62 @@ const ProfileSettingsScreen = () => {
     }
   };
 
-  const handleToggleNotifications = useCallback(async (newValue: boolean) => {
-    setIsToggling(true);
-    const action = newValue ? 'Enabling' : 'Disabling';
-    logger.info(TAG, `${action} notifications...`);
-
-    if (newValue) {
-      // --- Enabling Notifications ---
-      try {
-        const newPushToken = await notificationService.registerForPushNotificationsAsync();
-
-        if (newPushToken) {
-          // Successfully got token (backend registration might have failed, but service returns token)
-          await notificationState.savePushToken(newPushToken);
-          await notificationState.saveNotificationEnabledStatus(true);
-          setStoredPushToken(newPushToken);
-          setSettings({
-            ...settings,
-            notificationsEnabled: true,
-          });
-          Alert.alert('Success', 'Sync notifications enabled.');
-          logger.info(TAG, 'Notifications enabled successfully, token obtained and stored.');
-        } else {
-          // Failed to get permissions or token from Expo/OS
-          Alert.alert('Error', 'Could not enable notifications. Please ensure permissions are granted in system settings.');
-          logger.error(TAG, 'Failed to enable notifications (permission or token retrieval failed).');
-          setSettings({
-            ...settings,
-            notificationsEnabled: false,
-          });
-          await notificationState.saveNotificationEnabledStatus(false); // Ensure stored state is false
-        }
-      } catch (error: any) {
-        // Catch unexpected errors during registration process
-        logger.error(TAG, 'Unexpected error enabling notifications', { error: error.message });
-        Alert.alert('Error', `An unexpected error occurred: ${error.message}`);
-        setSettings({
-          ...settings,
-          notificationsEnabled: false,
-        });
-        await notificationState.saveNotificationEnabledStatus(false);
-      }
-    } else {
-      // --- Disabling Notifications ---
-      logger.info(TAG, 'Disabling notifications and clearing token.');
-      // TODO: Call backend to unregister token if implemented
-      if (storedPushToken) {
-         try {
-            logger.info(TAG, 'Calling backend to unregister token (placeholder)... ');
-            // await notificationService.unregisterPushNotificationsAsync(storedPushToken); // Use placeholder or actual API call
-            // await apiClient.user.unregisterPushToken(storedPushToken); // Example direct call
-            logger.info(TAG, 'Backend token unregistration simulated.');
-         } catch (unregisterError) {
-            logger.error(TAG, 'Failed to unregister token from backend', { unregisterError });
-            // Decide if this should prevent disabling locally - likely not.
-         }
-      }
-      await notificationState.clearPushToken();
-      await notificationState.saveNotificationEnabledStatus(false);
-      setStoredPushToken(null);
-      setSettings({
-        ...settings,
-        notificationsEnabled: false,
-      });
-      Alert.alert('Disabled', 'Sync notifications disabled.');
-    }
-
-    setIsToggling(false);
-  }, [settings, storedPushToken]); // Depend on storedPushToken for disabling logic
-
-  // Handler for navigating to the modal test screen
-  const navigateToModalTest = () => {
-    router.push('/modal-test');
-  };
-
-  // Render loading indicator while fetching initial state
   if (isLoading) {
     return (
-      <View style={[styles.container, styles.centered]}>
+      <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={lightTheme.colors.primary} />
+        <Text style={styles.loadingText}>Loading settings...</Text>
       </View>
     );
   }
 
   const isProfileChanged = name !== initialName || title !== initialTitle;
+  const isAuthenticated = !!user?.signInDetails?.loginId;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      {/* Profile Information Section */}
-      <View style={styles.sectionContent}>
-        <Text style={styles.sectionTitle}>Profile Information</Text>
-        <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Full Name</Text>
-          <TextInput
-            style={styles.input}
-            value={name}
-            onChangeText={setName}
-            placeholder="e.g., Jane Doe"
-            autoCapitalize="words"
-            editable={!isSavingProfile}
-          />
-        </View>
-        <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Job Title</Text>
-          <TextInput
-            style={styles.input}
-            value={title}
-            onChangeText={setTitle}
-            placeholder="e.g., Store Manager"
-            autoCapitalize="words"
-            editable={!isSavingProfile}
-          />
-        </View>
-        <TouchableOpacity
-          style={[styles.saveButton, (!isProfileChanged || isSavingProfile) && styles.saveButtonDisabled]}
-          onPress={handleUpdateProfile}
-          disabled={!isProfileChanged || isSavingProfile}
-        >
-          {isSavingProfile ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <Text style={styles.saveButtonText}>Save Changes</Text>
-          )}
-        </TouchableOpacity>
-      </View>
-
-      {/* App Settings Section */}
-      <View style={styles.sectionContent}>
-        <Text style={styles.sectionTitle}>App Settings</Text>
-        
-        {/* Notifications toggle */}
-        <View style={styles.settingItem}>
-          <View style={styles.settingTextContainer}>
-          <Text style={styles.settingLabel}>Enable Sync Notifications</Text>
-            <Text style={styles.settingDescription}>Receive alerts about inventory changes</Text>
-          </View>
-          {isToggling ? (
-             <ActivityIndicator size="small" color={lightTheme.colors.primary} />
-          ) : (
-            <Switch
-              trackColor={{ false: lightTheme.colors.border, true: lightTheme.colors.primary }}
-              thumbColor={settings.notificationsEnabled ? lightTheme.colors.background : lightTheme.colors.secondary}
-              ios_backgroundColor={lightTheme.colors.border}
-              value={settings.notificationsEnabled}
-              onValueChange={handleToggleNotifications}
-              disabled={isToggling} // Disable while action is in progress
+    <ScrollView style={styles.container}>
+      {/* Profile Information Section - Only show if authenticated */}
+      {isAuthenticated && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Profile Information</Text>
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>Full Name</Text>
+            <TextInput
+              style={styles.input}
+              value={name}
+              onChangeText={setName}
+              placeholder="e.g., Jane Doe"
+              autoCapitalize="words"
+              editable={!isSavingProfile}
             />
-          )}
-        </View>
-        
-        {/* Dark Mode toggle */}
-        <View style={styles.settingItem}>
-          <View style={styles.settingTextContainer}>
-          <Text style={styles.settingLabel}>Dark Mode</Text>
-            <Text style={styles.settingDescription}>Use dark theme throughout the app</Text>
           </View>
-          <Switch
-            trackColor={{ false: lightTheme.colors.border, true: lightTheme.colors.primary }}
-            thumbColor={settings.darkModeEnabled ? lightTheme.colors.background : lightTheme.colors.secondary}
-            ios_backgroundColor={lightTheme.colors.border}
-            value={settings.darkModeEnabled}
-            onValueChange={(newValue) => setSettings({ ...settings, darkModeEnabled: newValue })}
-          />
-        </View>
-        
-        {/* Scan Sound toggle */}
-        <View style={styles.settingItem}>
-          <View style={styles.settingTextContainer}>
-            <Text style={styles.settingLabel}>Scan Sound</Text>
-            <Text style={styles.settingDescription}>Play sound when item is scanned</Text>
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>Job Title</Text>
+            <TextInput
+              style={styles.input}
+              value={title}
+              onChangeText={setTitle}
+              placeholder="e.g., Store Manager"
+              autoCapitalize="words"
+              editable={!isSavingProfile}
+            />
           </View>
-          <Switch
-            trackColor={{ false: lightTheme.colors.border, true: lightTheme.colors.primary }}
-            thumbColor={settings.backgroundSyncEnabled ? lightTheme.colors.background : lightTheme.colors.secondary}
-            ios_backgroundColor={lightTheme.colors.border}
-            value={settings.backgroundSyncEnabled}
-            onValueChange={(newValue) => setSettings({ ...settings, backgroundSyncEnabled: newValue })}
-          />
+          <TouchableOpacity
+            style={[styles.saveButton, (!isProfileChanged || isSavingProfile) && styles.saveButtonDisabled]}
+            onPress={handleUpdateProfile}
+            disabled={!isProfileChanged || isSavingProfile}
+          >
+            {isSavingProfile ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={styles.saveButtonText}>Save Changes</Text>
+            )}
+          </TouchableOpacity>
         </View>
-      </View>
+      )}
 
       {/* Scanner Settings Section */}
-      <View style={styles.sectionContent}>
+      <View style={styles.section}>
         <Text style={styles.sectionTitle}>Scanner Settings</Text>
         
         {/* Auto-search on Enter Key toggle */}
@@ -332,16 +224,66 @@ const ProfileSettingsScreen = () => {
             onValueChange={toggleAutoSearchOnTab}
           />
         </View>
+        
+        {/* 12-hour time format toggle */}
+        <View style={styles.settingItem}>
+          <View style={styles.settingTextContainer}>
+            <Text style={styles.settingLabel}>12-Hour Time Format</Text>
+            <Text style={styles.settingDescription}>Display time in 12-hour format with AM/PM</Text>
+          </View>
+          <Switch
+            trackColor={{ false: lightTheme.colors.border, true: lightTheme.colors.primary }}
+            thumbColor={use12HourFormat ? lightTheme.colors.background : lightTheme.colors.secondary}
+            ios_backgroundColor={lightTheme.colors.border}
+            value={use12HourFormat}
+            onValueChange={toggleUse12HourFormat}
+          />
+        </View>
+      </View>
+
+      {/* App Settings Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>App Settings</Text>
+        
+        {/* Notifications toggle */}
+        <View style={styles.settingItem}>
+          <View style={styles.settingTextContainer}>
+            <Text style={styles.settingLabel}>Enable Sync Notifications</Text>
+            <Text style={styles.settingDescription}>Receive alerts about inventory changes</Text>
+          </View>
+          <Switch
+            trackColor={{ false: lightTheme.colors.border, true: lightTheme.colors.primary }}
+            thumbColor={settings.notificationsEnabled ? lightTheme.colors.background : lightTheme.colors.secondary}
+            ios_backgroundColor={lightTheme.colors.border}
+            value={settings.notificationsEnabled}
+            onValueChange={(newValue) => setSettings({ ...settings, notificationsEnabled: newValue })}
+          />
+        </View>
+        
+        {/* Dark Mode toggle */}
+        <View style={styles.settingItem}>
+          <View style={styles.settingTextContainer}>
+            <Text style={styles.settingLabel}>Dark Mode</Text>
+            <Text style={styles.settingDescription}>Use dark theme throughout the app</Text>
+          </View>
+          <Switch
+            trackColor={{ false: lightTheme.colors.border, true: lightTheme.colors.primary }}
+            thumbColor={settings.darkModeEnabled ? lightTheme.colors.background : lightTheme.colors.secondary}
+            ios_backgroundColor={lightTheme.colors.border}
+            value={settings.darkModeEnabled}
+            onValueChange={(newValue) => setSettings({ ...settings, darkModeEnabled: newValue })}
+          />
+        </View>
       </View>
 
       {/* Developer Options Section */}
-      <View style={styles.sectionContent}>
+      <View style={styles.section}>
         <Text style={styles.sectionTitle}>Developer Options</Text>
         
         {/* Modal Test Navigation Option */}
         <TouchableOpacity
           style={styles.navItem}
-          onPress={navigateToModalTest}
+          onPress={() => router.push('/modal-test')}
         >
           <View style={styles.navItemContent}>
             <Text style={styles.settingLabel}>System Modal Examples</Text>
@@ -352,40 +294,41 @@ const ProfileSettingsScreen = () => {
             />
           </View>
         </TouchableOpacity>
-    </View>
+      </View>
 
+      {/* Authentication Status */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Manage Account</Text>
-        <List.Item
-          title="Edit Profile"
-          onPress={() => router.push('/(profile)/edit-profile')}
-          right={(props) => <List.Icon {...props} icon="chevron-right" />}
-        />
-        <List.Item
-          title="Change Password"
-          onPress={() => router.push('/(auth)/change-password')}
-          right={(props) => <List.Icon {...props} icon="chevron-right" />}
-        />
+        <Text style={styles.sectionTitle}>Account Status</Text>
+        <Text style={styles.text}>
+          Status: {isAuthenticated ? 'Authenticated' : 'Not Authenticated'}
+        </Text>
+        {isAuthenticated && (
+          <Text style={styles.text}>
+            User: {user.signInDetails?.loginId}
+          </Text>
+        )}
       </View>
     </ScrollView>
   );
 };
 
-// Styles for the settings screen
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: lightTheme.colors.background,
   },
-  contentContainer: {
-    paddingBottom: 20,
-  },
-  centered: {
+  loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: lightTheme.colors.background,
   },
-  sectionContent: {
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: lightTheme.colors.text,
+  },
+  section: {
     backgroundColor: 'white',
     borderRadius: 8,
     marginHorizontal: 16,
@@ -402,6 +345,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
     marginBottom: 16,
+  },
+  text: {
+    fontSize: 16,
+    marginBottom: 10,
+    color: lightTheme.colors.text,
   },
   inputContainer: {
     marginBottom: 16,
@@ -427,7 +375,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   saveButtonDisabled: {
-    backgroundColor: '#a0c8ff', // Lighter shade of primary for disabled state
+    backgroundColor: '#a0c8ff',
   },
   saveButtonText: {
     color: 'white',
@@ -463,18 +411,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  section: {
-    backgroundColor: 'white',
-    borderRadius: 8,
-    marginHorizontal: 16,
-    marginTop: 20,
-    paddingVertical: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
   },
 });
 

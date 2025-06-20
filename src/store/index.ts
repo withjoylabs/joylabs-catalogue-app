@@ -66,6 +66,9 @@ interface AppState {
   itemSaveTriggeredAt: number | null;
   addCustomItemTriggeredAt: number | null;
   
+  // Time format setting
+  use12HourFormat: boolean;
+  
   // Square Connection State
   isSquareConnected: boolean;
   
@@ -116,6 +119,9 @@ interface AppState {
   toggleAutoSearchOnTab: () => void;
   triggerItemSave: () => void;
   triggerAddCustomItem: () => void;
+  
+  // Time format toggle
+  toggleUse12HourFormat: () => void;
   
   // Square Connection Action
   setSquareConnected: (isConnected: boolean) => void;
@@ -169,6 +175,9 @@ export const useAppStore = create<AppState>()(
       autoSearchOnTab: false,
       itemSaveTriggeredAt: null,
       addCustomItemTriggeredAt: null,
+      
+      // Time format default
+      use12HourFormat: true,
 
       // Initial Square Connection state
       isSquareConnected: false,
@@ -250,6 +259,9 @@ export const useAppStore = create<AppState>()(
       // Auto-search toggles
       toggleAutoSearchOnEnter: () => set((state) => ({ autoSearchOnEnter: !state.autoSearchOnEnter })),
       toggleAutoSearchOnTab: () => set((state) => ({ autoSearchOnTab: !state.autoSearchOnTab })),
+      
+      // Time format toggle
+      toggleUse12HourFormat: () => set((state) => ({ use12HourFormat: !state.use12HourFormat })),
       triggerItemSave: () => set({ itemSaveTriggeredAt: Date.now() }),
       triggerAddCustomItem: () => set({ addCustomItemTriggeredAt: Date.now() }),
       

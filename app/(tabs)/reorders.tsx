@@ -4,6 +4,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  Pressable,
   FlatList,
   StyleSheet,
   ActivityIndicator,
@@ -200,6 +201,62 @@ const staticStyles = {
   dropdownScrollView: {
     flex: 1,
     maxHeight: 320
+  },
+  customItemContainer: {
+    borderColor: '#007AFF',
+    borderWidth: 2
+  },
+  customItemIndexContainer: {
+    backgroundColor: '#007AFF'
+  },
+  customItemNameInput: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
+    paddingBottom: 4
+  },
+  customItemRowContainer: {
+    flexDirection: 'row' as const,
+    gap: 8,
+    marginTop: 8
+  },
+  customItemFieldInput: {
+    flex: 1,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
+    paddingBottom: 2,
+    fontSize: 12
+  },
+  customItemQtyInput: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
+    textAlign: 'center' as const,
+    minWidth: 40
+  },
+  customItemActionsContainer: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const
+  },
+  customItemCancelButton: {
+    backgroundColor: '#ff3b30',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6
+  },
+  customItemSaveButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6
+  },
+  customItemButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600' as const
+  },
+  itemDetailsContainer: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    flexWrap: 'wrap' as const,
+    marginTop: 2
   }
 };
 
@@ -269,7 +326,7 @@ const QuantityModal: React.FC<QuantityModalProps & { quantity: string; setQuanti
               {keypadButtons.map((row, rowIndex) => (
                 <View key={rowIndex} style={reorderStyles.keypadRow}>
                   {row.map((button) => (
-                    <TouchableOpacity
+                    <Pressable
                       key={button}
                       style={[
                         reorderStyles.keypadButton,
@@ -284,7 +341,7 @@ const QuantityModal: React.FC<QuantityModalProps & { quantity: string; setQuanti
                       ) : (
                         <Text style={reorderStyles.keypadButtonText}>{button}</Text>
                       )}
-                    </TouchableOpacity>
+                    </Pressable>
                   ))}
                 </View>
               ))}
@@ -292,23 +349,23 @@ const QuantityModal: React.FC<QuantityModalProps & { quantity: string; setQuanti
           </View>
 
           <View style={reorderStyles.modalActions}>
-            <TouchableOpacity
+            <Pressable
               style={[reorderStyles.modalButton, reorderStyles.modalButtonSecondary]}
               onPress={onCancel}
             >
               <Text style={[reorderStyles.modalButtonText, reorderStyles.modalButtonTextSecondary]}>
                 Cancel
               </Text>
-            </TouchableOpacity>
+            </Pressable>
             
-            <TouchableOpacity
+            <Pressable
               style={[reorderStyles.modalButton, reorderStyles.modalButtonPrimary]}
               onPress={handleSubmit}
             >
               <Text style={[reorderStyles.modalButtonText, reorderStyles.modalButtonTextPrimary]}>
                 Submit
               </Text>
-            </TouchableOpacity>
+            </Pressable>
           </View>
         </View>
       </View>
@@ -331,7 +388,7 @@ const ItemSelectionModal: React.FC<ItemSelectionModalProps> = ({ visible, items,
 
           <ScrollView style={reorderStyles.selectionList}>
             {items.map((item, index) => (
-              <TouchableOpacity
+              <Pressable
                 key={item.id}
                 style={[
                   reorderStyles.selectionItem,
@@ -343,19 +400,19 @@ const ItemSelectionModal: React.FC<ItemSelectionModalProps> = ({ visible, items,
                 <Text style={reorderStyles.selectionItemDetails}>
                   {item.category} • ${item.price} • {item.barcode}
                 </Text>
-              </TouchableOpacity>
+              </Pressable>
             ))}
           </ScrollView>
 
           <View style={reorderStyles.modalActions}>
-            <TouchableOpacity
+            <Pressable
               style={[reorderStyles.modalButton, reorderStyles.modalButtonSecondary]}
               onPress={onCancel}
             >
               <Text style={[reorderStyles.modalButtonText, reorderStyles.modalButtonTextSecondary]}>
                 Cancel
               </Text>
-            </TouchableOpacity>
+            </Pressable>
           </View>
         </View>
       </View>
@@ -363,7 +420,149 @@ const ItemSelectionModal: React.FC<ItemSelectionModalProps> = ({ visible, items,
   );
 };
 
-// Render dropdown for category/vendor filters
+// Render multi-select dropdown for categories
+const renderCategoryDropdown = (
+  items: Array<{ name: string; count: number }>,
+  selectedValues: string[],
+  onSelect: (values: string[]) => void,
+  placeholder: string
+) => {
+  const toggleCategory = (categoryName: string) => {
+    const isSelected = selectedValues.includes(categoryName);
+    if (isSelected) {
+      onSelect(selectedValues.filter(cat => cat !== categoryName));
+    } else {
+      onSelect([...selectedValues, categoryName]);
+    }
+  };
+
+  const clearAll = () => {
+    onSelect([]);
+  };
+
+  return (
+    <ScrollView style={staticStyles.dropdownScrollView} showsVerticalScrollIndicator={false}>
+      <Pressable
+        style={{
+          paddingHorizontal: 20,
+          paddingVertical: 14,
+          borderBottomWidth: 1,
+          borderBottomColor: '#f0f0f0',
+          backgroundColor: selectedValues.length === 0 ? '#f0f8ff' : 'transparent',
+        }}
+        onPress={clearAll}
+      >
+        <Text style={{
+          fontSize: 15,
+          color: selectedValues.length === 0 ? '#007AFF' : '#333',
+          fontWeight: selectedValues.length === 0 ? '600' : '400',
+        }}        >
+          All Categories
+        </Text>
+      </Pressable>
+      {selectedValues.length > 0 && (
+        <Pressable
+          style={{
+            paddingHorizontal: 20,
+            paddingVertical: 12,
+            borderBottomWidth: 1,
+            borderBottomColor: '#f0f0f0',
+            backgroundColor: '#fff5f5',
+          }}
+          onPress={clearAll}
+        >
+          <Text style={{
+            fontSize: 14,
+            color: '#ff3b30',
+            fontWeight: '600',
+            textAlign: 'center',
+          }}>
+            Clear All ({selectedValues.length} selected)
+          </Text>
+        </Pressable>
+      )}
+      {items.length === 0 ? (
+        <View style={{
+          paddingHorizontal: 20,
+          paddingVertical: 20,
+          alignItems: 'center',
+        }}>
+          <Text style={{
+            fontSize: 14,
+            color: '#999',
+            fontStyle: 'italic',
+          }}>
+            No categories available
+          </Text>
+        </View>
+      ) : (
+        items.map((item, index) => {
+          const isSelected = selectedValues.includes(item.name);
+          return (
+            <Pressable
+              key={`${item.name}-${index}`}
+              style={{
+                paddingHorizontal: 20,
+                paddingVertical: 14,
+                borderBottomWidth: 1,
+                borderBottomColor: '#f0f0f0',
+                backgroundColor: isSelected ? '#f0f8ff' : 'transparent',
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+              onPress={() => toggleCategory(item.name)}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                <View style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: 4,
+                  borderWidth: 2,
+                  borderColor: isSelected ? '#007AFF' : '#ccc',
+                  backgroundColor: isSelected ? '#007AFF' : 'transparent',
+                  marginRight: 12,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}>
+                  {isSelected && (
+                    <Ionicons name="checkmark" size={12} color="#fff" />
+                  )}
+                </View>
+                <Text style={{
+                  fontSize: 15,
+                  color: '#333',
+                  fontWeight: '400',
+                  flex: 1,
+                }}>
+                  {item.name}
+                </Text>
+              </View>
+              <View style={{
+                backgroundColor: isSelected ? '#007AFF' : '#e0e0e0',
+                paddingHorizontal: 8,
+                paddingVertical: 4,
+                borderRadius: 12,
+                minWidth: 24,
+                alignItems: 'center',
+              }}>
+                <Text style={{
+                  fontSize: 12,
+                  color: isSelected ? '#fff' : '#666',
+                  fontWeight: '600',
+                }}>
+                  {item.count}
+                </Text>
+              </View>
+            </Pressable>
+          );
+        })
+      )}
+    </ScrollView>
+  );
+};
+
+// Render dropdown for vendor filters
 const renderDropdown = (
   items: Array<{ name: string; count: number }>,
   selectedValue: string | null,
@@ -372,7 +571,7 @@ const renderDropdown = (
 ) => {
   return (
     <ScrollView style={staticStyles.dropdownScrollView} showsVerticalScrollIndicator={false}>
-      <TouchableOpacity
+      <Pressable
         style={{
           paddingHorizontal: 20,
           paddingVertical: 14,
@@ -389,7 +588,7 @@ const renderDropdown = (
         }}>
           All {placeholder}
         </Text>
-      </TouchableOpacity>
+      </Pressable>
       {items.length === 0 ? (
         <View style={{
           paddingHorizontal: 20,
@@ -406,7 +605,7 @@ const renderDropdown = (
         </View>
       ) : (
         items.map((item, index) => (
-          <TouchableOpacity
+          <Pressable
             key={`${item.name}-${index}`}
             style={{
               paddingHorizontal: 20,
@@ -444,7 +643,7 @@ const renderDropdown = (
                 {item.count}
               </Text>
             </View>
-          </TouchableOpacity>
+          </Pressable>
         ))
       )}
     </ScrollView>
@@ -479,7 +678,7 @@ const ReordersScreen = React.memo(() => {
   const [showSyncStatusPopover, setShowSyncStatusPopover] = useState(false);
   
   // State for filters and sorting
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedVendor, setSelectedVendor] = useState<string | null>(null);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [showVendorDropdown, setShowVendorDropdown] = useState(false);
@@ -496,6 +695,9 @@ const ReordersScreen = React.memo(() => {
 
   // Get authenticated user information
   const { user } = useAuthenticator((context) => [context.user]);
+  
+  // Get 12-hour format setting from store
+  const use12HourFormat = useAppStore((state) => state.use12HourFormat);
 
   // Listen for add custom item trigger from tab bar
   const addCustomItemTriggeredAt = useAppStore((state) => state.addCustomItemTriggeredAt);
@@ -1029,7 +1231,7 @@ const ReordersScreen = React.memo(() => {
       if (currentFilter === 'incomplete' && item.completed) return false;
       
       // Category filter
-      if (selectedCategory && item.itemCategory !== selectedCategory) return false;
+      if (selectedCategories.length > 0 && !selectedCategories.includes(item.itemCategory || 'Uncategorized')) return false;
       
       // Vendor filter
       if (selectedVendor && item.teamData?.vendor !== selectedVendor) return false;
@@ -1054,7 +1256,7 @@ const ReordersScreen = React.memo(() => {
     }
 
     return filtered;
-  }, [reorderItems, currentFilter, selectedCategory, selectedVendor, sortState]);
+  }, [reorderItems, currentFilter, selectedCategories, selectedVendor, sortState]);
 
   // Calculate stats
   const stats = useMemo(() => {
@@ -1072,7 +1274,7 @@ const ReordersScreen = React.memo(() => {
     const isActive = state !== 'off';
     
     return (
-      <TouchableOpacity
+      <Pressable
         style={[
           reorderStyles.filterButton,
           isActive && reorderStyles.filterButtonActive
@@ -1090,7 +1292,7 @@ const ReordersScreen = React.memo(() => {
         ]}>
           {label}{state === 'asc' ? ' ↑' : state === 'desc' ? ' ↓' : ''}
         </Text>
-      </TouchableOpacity>
+      </Pressable>
     );
   }, [sortState]);
 
@@ -1098,37 +1300,37 @@ const ReordersScreen = React.memo(() => {
   const renderFilterButton = useCallback((filter: FilterType, label: string, icon: string) => {
     if (filter === 'category') {
       return (
-        <TouchableOpacity
+        <Pressable
           style={[
             reorderStyles.filterButton,
-            (selectedCategory || showCategoryDropdown) && reorderStyles.filterButtonActive
+            (selectedCategories.length > 0 || showCategoryDropdown) && reorderStyles.filterButtonActive
           ]}
           onPress={() => handleFilterClick(filter)}
         >
           <Ionicons 
             name={icon as any} 
             size={16} 
-            color={(selectedCategory || showCategoryDropdown) ? '#fff' : '#333'} 
+            color={(selectedCategories.length > 0 || showCategoryDropdown) ? '#fff' : '#333'} 
           />
           <Text style={[
             reorderStyles.filterButtonText,
-            (selectedCategory || showCategoryDropdown) && reorderStyles.filterButtonTextActive
+            (selectedCategories.length > 0 || showCategoryDropdown) && reorderStyles.filterButtonTextActive
           ]}>
-            {selectedCategory ? `${selectedCategory} (${filterData.categories.find(c => c.name === selectedCategory)?.count || 0})` : `Categories (${filterData.categories.length})`}
+            {selectedCategories.length > 0 ? `Categories (${selectedCategories.length})` : `Categories (${filterData.categories.length})`}
           </Text>
           <Ionicons 
             name={showCategoryDropdown ? "chevron-up" : "chevron-down"} 
             size={14} 
-            color={(selectedCategory || showCategoryDropdown) ? '#fff' : '#333'} 
+            color={(selectedCategories.length > 0 || showCategoryDropdown) ? '#fff' : '#333'} 
             style={{ marginLeft: 4 }}
           />
-        </TouchableOpacity>
+        </Pressable>
       );
     }
 
     if (filter === 'vendor') {
       return (
-        <TouchableOpacity
+        <Pressable
           style={[
             reorderStyles.filterButton,
             (selectedVendor || showVendorDropdown) && reorderStyles.filterButtonActive
@@ -1152,14 +1354,14 @@ const ReordersScreen = React.memo(() => {
             color={(selectedVendor || showVendorDropdown) ? '#fff' : '#333'} 
             style={{ marginLeft: 4 }}
           />
-        </TouchableOpacity>
+        </Pressable>
       );
     }
 
     // Regular filter button (completed, incomplete, sortConfig)
     const isActive = currentFilter === filter;
     return (
-      <TouchableOpacity
+      <Pressable
         style={[
           reorderStyles.filterButton,
           isActive && reorderStyles.filterButtonActive
@@ -1174,12 +1376,12 @@ const ReordersScreen = React.memo(() => {
         <Text style={[
           reorderStyles.filterButtonText,
           isActive && reorderStyles.filterButtonTextActive
-        ]}>
+        ]}        >
           {label}
         </Text>
-      </TouchableOpacity>
+      </Pressable>
     );
-  }, [filterData, selectedCategory, selectedVendor, showCategoryDropdown, showVendorDropdown, currentFilter]);
+  }, [filterData, selectedCategories, selectedVendor, showCategoryDropdown, showVendorDropdown, currentFilter]);
 
   // Handle sort button clicks (3-state cycle for chronological/alphabetical)
   const handleSortClick = (sortType: 'chronological' | 'alphabetical') => {
@@ -1247,12 +1449,12 @@ const ReordersScreen = React.memo(() => {
                 reorderStyles.deleteButton,
                 { opacity }
               ]}>
-                <TouchableOpacity
+                <Pressable
                   style={reorderStyles.deleteButtonInner}
                   onPress={() => handleDeleteItem(item.id)}
                 >
                   <Ionicons name="trash-outline" size={24} color="#fff" />
-                </TouchableOpacity>
+                </Pressable>
               </Animated.View>
             </View>
           );
@@ -1268,10 +1470,18 @@ const ReordersScreen = React.memo(() => {
           item.isCustom && { borderLeftWidth: 4, borderLeftColor: '#007AFF' }
         ]}>
           {/* Index number - tappable for completion toggle */}
-          <TouchableOpacity
+          <Pressable
             style={[
-              reorderStyles.indexContainer,
-              item.completed && reorderStyles.indexContainerCompleted
+              {
+                // Proper tap target and spacing
+                width: 30,
+                height: 30,
+                borderRadius: 22,
+                backgroundColor: 'transparent',
+                justifyContent: 'center',
+                alignItems: 'center',
+                marginRight: 5,
+              }
             ]}
             onPress={() => {
               const userName = user?.signInDetails?.loginId?.split('@')[0] || 'Unknown User';
@@ -1279,14 +1489,32 @@ const ReordersScreen = React.memo(() => {
             }}
           >
             {item.completed ? (
-              <Ionicons name="checkmark" size={18} color="#fff" />
+              <View style={{
+                width: 20,
+                height: 20,
+                borderRadius: 10,
+                borderWidth: 2,
+                borderColor: '#4CD964',
+                backgroundColor: '#4CD964',
+                justifyContent: 'center',
+                alignItems: 'center'
+              }}>
+                <Ionicons name="checkmark" size={12} color="#fff" />
+              </View>
             ) : (
-              <Text style={reorderStyles.indexText}>{item.index}</Text>
+              <View style={{
+                width: 20,
+                height: 20,
+                borderRadius: 10,
+                borderWidth: 2,
+                borderColor: '#007AFF',
+                backgroundColor: 'transparent'
+              }} />
             )}
-          </TouchableOpacity>
+          </Pressable>
 
           {/* Item content - tappable for quantity editing */}
-          <TouchableOpacity 
+          <Pressable 
             style={reorderStyles.itemContent}
             onPress={() => {
               if (item.isCustom) {
@@ -1303,35 +1531,55 @@ const ReordersScreen = React.memo(() => {
                 <Text style={[
                   reorderStyles.itemName,
                   item.completed && reorderStyles.itemNameCompleted
-                ]} numberOfLines={1}>
+                ]}>
                   {item.itemName}
                 </Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', marginTop: 2 }}>
+                <View style={staticStyles.itemDetailsContainer}>
                   {item.itemCategory && <Text style={reorderStyles.itemCategory}>{item.itemCategory}</Text>}
-                <Text style={reorderStyles.compactDetails}>
+                  <Text style={reorderStyles.compactDetails}>
                     UPC: {item.itemBarcode || 'N/A'}{item.itemBarcode ? ` • SKU: N/A` : ''} • Price: ${item.itemPrice?.toFixed(2) || 'Variable'}{item.teamData?.vendorCost ? ` • Cost: $${item.teamData.vendorCost.toFixed(2)}` : ' • Cost: N/A'}{item.teamData?.vendor ? ` • Vendor: ${item.teamData.vendor}` : ' • Vendor: N/A'}{item.teamData?.discontinued ? ' • DISCONTINUED' : ''}
-                </Text>
+                  </Text>
                 </View>
               </View>
-              <View style={reorderStyles.qtyContainer}>
+              <View style={{
+                alignItems: 'center',
+                justifyContent: 'center',
+                minWidth: 60,
+                paddingHorizontal: 4,
+              }}>
                 <Text style={reorderStyles.qtyLabel}>Qty</Text>
                 <Text style={reorderStyles.qtyNumber}>{item.quantity}</Text>
+                <Text style={{
+                  fontSize: 9,
+                  color: '#999',
+                  marginTop: 2,
+                  textAlign: 'center'
+                }}>
+                  {(() => {
+                    const date = item.timestamp || new Date(item.createdAt);
+                    const dateStr = `${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getDate().toString().padStart(2, '0')}/${date.getFullYear().toString().slice(-2)}`;
+                    
+                    let timeStr: string;
+                    if (use12HourFormat) {
+                      const hours = date.getHours();
+                      const minutes = date.getMinutes();
+                      const ampm = hours >= 12 ? 'PM' : 'AM';
+                      const displayHours = hours % 12 || 12;
+                      timeStr = `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+                    } else {
+                      timeStr = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+                    }
+                    
+                    return `${dateStr}\n${timeStr}`;
+                  })()}
+                </Text>
               </View>
             </View>
-
-            <View style={reorderStyles.timestampContainer}>
-              <Text style={reorderStyles.timestamp}>
-                {(item.timestamp || new Date(item.createdAt)).toLocaleDateString()} {(item.timestamp || new Date(item.createdAt)).toLocaleTimeString()}
-              </Text>
-              <Text style={reorderStyles.addedBy}>
-                By: {item.addedBy || 'Unknown User'}
-              </Text>
-            </View>
-          </TouchableOpacity>
+          </Pressable>
         </View>
       </Swipeable>
     );
-  }, [user, reorderService]);
+  }, [user, use12HourFormat]);
 
   // Render empty state - memoized
   const renderEmptyState = useCallback(() => (
@@ -1434,8 +1682,8 @@ const ReordersScreen = React.memo(() => {
     if (!showAddCustomItem || !customItemEdit) return null;
 
     return (
-      <View style={[reorderStyles.reorderItem, { borderColor: '#007AFF', borderWidth: 2 }]}>
-        <View style={[reorderStyles.indexContainer, { backgroundColor: '#007AFF' }]}>
+      <View style={[reorderStyles.reorderItem, staticStyles.customItemContainer]}>
+        <View style={[reorderStyles.indexContainer, staticStyles.customItemIndexContainer]}>
           <Ionicons name="add" size={18} color="#fff" />
         </View>
 
@@ -1443,34 +1691,22 @@ const ReordersScreen = React.memo(() => {
           <View style={reorderStyles.itemHeader}>
             <View style={reorderStyles.itemNameContainer}>
               <TextInput
-                style={[reorderStyles.itemName, { borderBottomWidth: 1, borderBottomColor: '#ddd', paddingBottom: 4 }]}
+                style={[reorderStyles.itemName, staticStyles.customItemNameInput]}
                 value={customItemEdit.itemName}
                 onChangeText={(text) => setCustomItemEdit(prev => prev ? { ...prev, itemName: text } : null)}
                 placeholder="Enter item name..."
                 autoFocus
                 returnKeyType="next"
               />
-              <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+              <View style={staticStyles.customItemRowContainer}>
                 <TextInput
-                  style={[reorderStyles.compactDetails, { 
-                    flex: 1, 
-                    borderBottomWidth: 1, 
-                    borderBottomColor: '#ddd', 
-                    paddingBottom: 2,
-                    fontSize: 12
-                  }]}
+                  style={[reorderStyles.compactDetails, staticStyles.customItemFieldInput]}
                   value={customItemEdit.itemCategory}
                   onChangeText={(text) => setCustomItemEdit(prev => prev ? { ...prev, itemCategory: text } : null)}
                   placeholder="Category..."
                 />
                 <TextInput
-                  style={[reorderStyles.compactDetails, { 
-                    flex: 1, 
-                    borderBottomWidth: 1, 
-                    borderBottomColor: '#ddd', 
-                    paddingBottom: 2,
-                    fontSize: 12
-                  }]}
+                  style={[reorderStyles.compactDetails, staticStyles.customItemFieldInput]}
                   value={customItemEdit.vendor}
                   onChangeText={(text) => setCustomItemEdit(prev => prev ? { ...prev, vendor: text } : null)}
                   placeholder="Vendor..."
@@ -1480,12 +1716,7 @@ const ReordersScreen = React.memo(() => {
             <View style={reorderStyles.qtyContainer}>
               <Text style={reorderStyles.qtyLabel}>Qty</Text>
               <TextInput
-                style={[reorderStyles.qtyNumber, { 
-                  borderBottomWidth: 1, 
-                  borderBottomColor: '#ddd', 
-                  textAlign: 'center',
-                  minWidth: 40
-                }]}
+                style={[reorderStyles.qtyNumber, staticStyles.customItemQtyInput]}
                 value={customItemEdit.quantity.toString()}
                 onChangeText={(text) => {
                   const qty = parseInt(text) || 1;
@@ -1496,25 +1727,23 @@ const ReordersScreen = React.memo(() => {
             </View>
           </View>
 
-          <View style={[reorderStyles.timestampContainer, { flexDirection: 'row', justifyContent: 'space-between' }]}>
-            <TouchableOpacity
-              style={{ backgroundColor: '#ff3b30', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }}
+          <View style={[reorderStyles.timestampContainer, staticStyles.customItemActionsContainer]}>
+            <Pressable
+              style={staticStyles.customItemCancelButton}
               onPress={handleCancelCustomItem}
             >
-              <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={{ 
-                backgroundColor: customItemEdit.itemName.trim() ? '#007AFF' : '#ccc', 
-                paddingHorizontal: 12, 
-                paddingVertical: 6, 
-                borderRadius: 6 
-              }}
+              <Text style={staticStyles.customItemButtonText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              style={[
+                staticStyles.customItemSaveButton,
+                { backgroundColor: customItemEdit.itemName.trim() ? '#007AFF' : '#ccc' }
+              ]}
               onPress={handleSaveCustomItem}
               disabled={!customItemEdit.itemName.trim()}
             >
-              <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>Save</Text>
-            </TouchableOpacity>
+              <Text style={staticStyles.customItemButtonText}>Save</Text>
+            </Pressable>
           </View>
         </View>
       </View>
@@ -1573,7 +1802,7 @@ const ReordersScreen = React.memo(() => {
           headerShown: true,
           title: 'Reorders',
           headerLeft: () => (
-            <TouchableOpacity 
+            <Pressable 
               style={staticStyles.headerLeftContainer}
               onPress={() => setShowSyncStatusPopover(true)}
             >
@@ -1595,17 +1824,17 @@ const ReordersScreen = React.memo(() => {
                   </Text>
                 </View>
               )}
-            </TouchableOpacity>
+            </Pressable>
           ),
           headerRight: () => (
             <View style={staticStyles.headerRightContainer}>
-              <TouchableOpacity 
+              <Pressable 
                 onPress={handleAddCustomItem}
                 style={{ marginRight: 16 }}
               >
                 <Ionicons name="add" size={24} color="#007AFF" />
-              </TouchableOpacity>
-              <TouchableOpacity 
+              </Pressable>
+              <Pressable 
                 onPress={handleRefresh}
                 style={{ marginRight: 16 }}
                 disabled={isRefreshing}
@@ -1615,7 +1844,7 @@ const ReordersScreen = React.memo(() => {
                   size={24} 
                   color={isRefreshing ? "#999" : "#007AFF"} 
                 />
-              </TouchableOpacity>
+              </Pressable>
               <View style={{ alignItems: 'center', marginRight: 8 }}>
                 <Ionicons 
                   name="scan" 
@@ -1686,9 +1915,8 @@ const ReordersScreen = React.memo(() => {
 
       {/* Inline Dropdown Overlays */}
       {(showCategoryDropdown || showVendorDropdown || showConfigDropdown) && (
-        <TouchableOpacity
+        <Pressable
           style={staticStyles.dropdownOverlay}
-          activeOpacity={1}
           onPress={() => {
             setShowCategoryDropdown(false);
             setShowVendorDropdown(false);
@@ -1701,15 +1929,20 @@ const ReordersScreen = React.memo(() => {
         <View style={staticStyles.dropdownContainer}>
           <View style={staticStyles.dropdownHeader}>
             <Text style={staticStyles.dropdownHeaderText}>
-              Select Category
+              Select Categories
             </Text>
+            <Pressable
+              style={{ position: 'absolute', right: 14, top: 14 }}
+              onPress={() => setShowCategoryDropdown(false)}
+            >
+              <Ionicons name="close" size={20} color="#666" />
+            </Pressable>
           </View>
-          {renderDropdown(
+          {renderCategoryDropdown(
             filterData.categories,
-            selectedCategory,
-            (value) => {
-              setSelectedCategory(value);
-              setShowCategoryDropdown(false);
+            selectedCategories,
+            (categories) => {
+              setSelectedCategories(categories);
             },
             'Categories'
           )}
@@ -1744,7 +1977,7 @@ const ReordersScreen = React.memo(() => {
           </View>
           
           <View style={staticStyles.configDropdownContent}>
-            <TouchableOpacity
+            <Pressable
               style={staticStyles.configToggleButton}
               onPress={() => setSectionByCategory(!sectionByCategory)}
             >
@@ -1759,9 +1992,9 @@ const ReordersScreen = React.memo(() => {
                   <Ionicons name="checkmark" size={16} color="#fff" />
                 )}
               </View>
-            </TouchableOpacity>
+            </Pressable>
             
-            <TouchableOpacity
+            <Pressable
               style={staticStyles.configToggleButtonLast}
               onPress={() => setSectionByVendor(!sectionByVendor)}
             >
@@ -1776,7 +2009,7 @@ const ReordersScreen = React.memo(() => {
                   <Ionicons name="checkmark" size={16} color="#fff" />
                 )}
               </View>
-            </TouchableOpacity>
+            </Pressable>
             
             {sectionByVendor && sectionByCategory && (
               <Text style={staticStyles.configHelpText}>
@@ -1788,9 +2021,8 @@ const ReordersScreen = React.memo(() => {
       )}
 
       {/* Reorder List */}
-      <TouchableOpacity 
+      <Pressable 
         style={reorderStyles.listContainer}
-        activeOpacity={1}
         onPress={() => {
           // Close dropdowns when tapping on the list area
           setShowCategoryDropdown(false);
@@ -1827,7 +2059,7 @@ const ReordersScreen = React.memo(() => {
             // getItemLayout only works with fixed height items
           />
         )}
-      </TouchableOpacity>
+      </Pressable>
 
       {/* Modals */}
       <QuantityModal
@@ -1855,7 +2087,7 @@ const ReordersScreen = React.memo(() => {
 
       {/* Error Modal */}
       <Modal visible={showErrorModal} transparent animationType="fade">
-            <TouchableOpacity 
+            <Pressable 
           style={{
             flex: 1,
             backgroundColor: 'rgba(0,0,0,0.5)',
@@ -1863,7 +2095,6 @@ const ReordersScreen = React.memo(() => {
             alignItems: 'center',
             padding: 20,
           }}
-          activeOpacity={1}
           onPress={() => {
             setShowErrorModal(false);
           }}
@@ -1910,12 +2141,12 @@ const ReordersScreen = React.memo(() => {
               </Text>
       </View>
           </View>
-        </TouchableOpacity>
+        </Pressable>
       </Modal>
 
       {/* Sync Status Popover */}
       <Modal visible={showSyncStatusPopover} transparent animationType="fade">
-        <TouchableOpacity 
+        <Pressable 
           style={{
             flex: 1,
             backgroundColor: 'rgba(0,0,0,0.5)',
@@ -1923,10 +2154,9 @@ const ReordersScreen = React.memo(() => {
             alignItems: 'center',
             padding: 20
           }}
-          activeOpacity={1}
           onPress={() => setShowSyncStatusPopover(false)}
         >
-          <TouchableOpacity 
+          <Pressable 
             style={{
               backgroundColor: '#fff',
               borderRadius: 16,
@@ -1939,7 +2169,6 @@ const ReordersScreen = React.memo(() => {
               shadowRadius: 12,
               elevation: 8,
             }}
-            activeOpacity={1}
             onPress={(e) => e.stopPropagation()}
           >
             <View style={{ alignItems: 'center', marginBottom: 16 }}>
@@ -2018,7 +2247,7 @@ const ReordersScreen = React.memo(() => {
             
             <View style={{ flexDirection: 'row', gap: 12 }}>
               {syncStatus.pendingCount > 0 && (
-                <TouchableOpacity
+                <Pressable
                   style={{
                     flex: 1,
                     backgroundColor: '#007AFF',
@@ -2035,10 +2264,10 @@ const ReordersScreen = React.memo(() => {
                   <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>
                     Sync Now
                   </Text>
-                </TouchableOpacity>
+                </Pressable>
               )}
               
-              <TouchableOpacity
+              <Pressable
                 style={{
                   flex: syncStatus.pendingCount > 0 ? 1 : 2,
                   backgroundColor: '#f0f0f0',
@@ -2052,10 +2281,10 @@ const ReordersScreen = React.memo(() => {
                 <Text style={{ color: '#333', fontSize: 16, fontWeight: '600' }}>
                   Close
                 </Text>
-              </TouchableOpacity>
+              </Pressable>
             </View>
-          </TouchableOpacity>
-        </TouchableOpacity>
+          </Pressable>
+        </Pressable>
       </Modal>
     </SafeAreaView>
   );

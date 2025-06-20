@@ -309,14 +309,14 @@ export default function RootLayout() {
                   <StatusBar style="auto" />
                   <Stack>
                     <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                    <Stack.Screen
+                                        <Stack.Screen
                       name="item/[id]"
-                      options={{
-                        headerShown: true,
-                        headerTitle: 'Item Detail',
+                      options={({ route }) => ({
                         presentation: 'modal',
-                          gestureEnabled: true,
-                        }}
+                        headerShown: true,
+                        headerTitle: (route.params as any)?.id === 'new' ? 'New Item' : 'Edit Item',
+                        gestureEnabled: true,
+                      })}
                     />
                     <Stack.Screen name="debug" options={{
                       presentation: 'modal',

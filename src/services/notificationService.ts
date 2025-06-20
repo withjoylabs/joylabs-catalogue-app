@@ -4,7 +4,7 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import logger from '../utils/logger';
 import config from '../config'; // Assuming config holds expoProjectId
-import apiClient from '../api'; // Use default import
+import { apiClient } from '../api'; // Use named import
 // Import the API client function placeholder we'll create next
 // import { registerPushToken } from '../api'; 
 

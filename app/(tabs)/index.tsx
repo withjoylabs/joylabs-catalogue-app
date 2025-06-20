@@ -6,7 +6,7 @@ import {
   SafeAreaView, 
   StatusBar, 
   Text, 
-  TouchableOpacity, 
+  Pressable, 
   ActivityIndicator, 
   TextInput, 
   // Button, // No longer explicitly needed
@@ -108,6 +108,7 @@ const SearchResultsArea = memo(({
   const [reorderNotificationItemId, setReorderNotificationItemId] = useState<string | null>(null);
 
   const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
+  const [isSearchPending, setIsSearchPending] = useState(false);
   const [searchFilters, setSearchFilters] = useState<SearchFilters>({
     name: true, 
     sku: true,
@@ -156,8 +157,13 @@ const SearchResultsArea = memo(({
   const executeSearch = useCallback(async () => {
     if (searchTopic.trim() === '') {
       setSearchResults([]);
+      setIsSearchPending(false); // Clear pending state for empty search
       return;
     }
+    
+    // Set pending state immediately and clear old results to prevent flash
+    setIsSearchPending(true);
+    setSearchResults([]); // Clear old results immediately
     
     logger.info('SearchResultsArea', 'Executing search for topic:', { topic: searchTopic });
     const rawResults = await performSearch(searchTopic, searchFilters);
@@ -183,6 +189,7 @@ const SearchResultsArea = memo(({
         break;
     }
     setSearchResults(processedResults);
+    setIsSearchPending(false); // Clear pending state when search completes
     onSearchComplete(); // Notify parent that search is done
     // logger.info('SearchResultsArea', 'Search executed, results set.', { count: processedResults.length });
   }, [searchTopic, searchFilters, performSearch, sortOrder, selectedResultCategoryId, setSearchResults, onSearchComplete]);
@@ -422,7 +429,7 @@ const SearchResultsArea = memo(({
     });
 
     return (
-      <TouchableOpacity 
+      <Pressable 
         onPress={() => { 
           handleSwipePrint(item);
         }}
@@ -436,7 +443,7 @@ const SearchResultsArea = memo(({
             <Ionicons name="print-outline" size={24} color="#fff" style={{ marginRight: 8 }} />
             <Text style={styles.swipePrintActionText}>Print</Text>
         </Animated.View>
-      </TouchableOpacity>
+      </Pressable>
     );
   }, [handleSwipePrint, styles]);
 
@@ -450,7 +457,7 @@ const SearchResultsArea = memo(({
     });
 
     return (
-      <TouchableOpacity 
+      <Pressable 
         onPress={() => { 
           handleSwipeReorder(item);
         }}
@@ -462,7 +469,7 @@ const SearchResultsArea = memo(({
         ]}>
             <Text style={styles.swipeReorderActionText}>Reorder</Text>
         </Animated.View>
-      </TouchableOpacity>
+      </Pressable>
     );
   }, [handleSwipeReorder, styles]);
 
@@ -494,7 +501,7 @@ const SearchResultsArea = memo(({
         overshootFriction={8} 
         enableTrackpadTwoFingerGesture
       >
-        <TouchableOpacity style={styles.resultItem} onPress={() => handleResultItemPress(item)} activeOpacity={1}>
+        <Pressable style={styles.resultItem} onPress={() => handleResultItemPress(item)}>
           <View style={styles.resultNumberContainer}>
             <Text style={styles.resultNumberText}>{index + 1}</Text>
           </View>
@@ -517,7 +524,7 @@ const SearchResultsArea = memo(({
               <Text style={styles.inlineNotificationText}>Added to reorder!</Text>
             </View>
           )}
-        </TouchableOpacity>
+        </Pressable>
       </Swipeable>
     );
   }, [handleResultItemPress, renderLeftActions, renderRightActions, styles, swipeableRefs, showReorderNotification, reorderNotificationItemId, reorderNotificationType, handleFullSwipeReorder]);
@@ -532,8 +539,8 @@ const SearchResultsArea = memo(({
         </View>
       );
     }
-    // While searching OR awaiting post-save search, show a spinner.
-    if (catalogIsSearching || isAwaitingPostSaveSearch) {
+    // While searching OR awaiting post-save search OR search is pending, show a spinner.
+    if (catalogIsSearching || isAwaitingPostSaveSearch || isSearchPending) {
       return (
         <View style={styles.emptyContainer}>
           <ActivityIndicator size="large" color={lightTheme.colors.primary} />
@@ -558,30 +565,30 @@ const SearchResultsArea = memo(({
           <Text style={styles.emptyTitle}>No Results Found</Text>
           <Text style={styles.emptyText}>No items found matching "{query}".</Text>
           <View style={styles.createItemButtonsContainer}>
-            <TouchableOpacity 
+            <Pressable 
               style={styles.createItemButton} 
               onPress={() => onCreateNewItem({ name: query })}
             >
               <Text style={styles.createItemButtonText}>Create new item with name "{query}"</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
+            </Pressable>
+            <Pressable 
               style={styles.createItemButton} 
               onPress={() => onCreateNewItem({ sku: query })}
             >
               <Text style={styles.createItemButtonText}>Create new item with SKU "{query}"</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
+            </Pressable>
+            <Pressable 
               style={styles.createItemButton} 
               onPress={() => onCreateNewItem({ barcode: query })}
             >
               <Text style={styles.createItemButtonText}>Create new item with UPC "{query}"</Text>
-            </TouchableOpacity>
+            </Pressable>
           </View>
         </View>
       );
     }
     return null;
-  }, [catalogSearchError, catalogIsSearching, searchTopic, searchResults, styles, lightTheme, onCreateNewItem, isAwaitingPostSaveSearch]);
+  }, [catalogSearchError, catalogIsSearching, searchTopic, searchResults, styles, lightTheme, onCreateNewItem, isAwaitingPostSaveSearch, isSearchPending]);
 
   const renderFilterBadges = useCallback(() => {
     const activeFilters = Object.entries(searchFilters).filter(([key, isEnabled]) => key !== 'category' && isEnabled).map(([key]) => key as keyof SearchFilters);
@@ -686,10 +693,10 @@ const FilterAndSortControls = memo(({
     <View style={styles.controlsContainer}> 
       <View style={styles.filterAndSortInnerContainer}> 
         <View style={styles.filterContainer}>
-          <TouchableOpacity style={[styles.filterButton, searchFilters.name && styles.filterButtonActive]} onPress={() => onToggleFilter('name')}><Text style={[styles.filterButtonText, searchFilters.name && styles.filterButtonTextActive]}>Name</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.filterButton, searchFilters.sku && styles.filterButtonActive]} onPress={() => onToggleFilter('sku')}><Text style={[styles.filterButtonText, searchFilters.sku && styles.filterButtonTextActive]}>SKU</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.filterButton, searchFilters.barcode && styles.filterButtonActive]} onPress={() => onToggleFilter('barcode')}><Text style={[styles.filterButtonText, searchFilters.barcode && styles.filterButtonTextActive]}>UPC</Text></TouchableOpacity>
-          <TouchableOpacity 
+          <Pressable style={[styles.filterButton, searchFilters.name && styles.filterButtonActive]} onPress={() => onToggleFilter('name')}><Text style={[styles.filterButtonText, searchFilters.name && styles.filterButtonTextActive]}>Name</Text></Pressable>
+          <Pressable style={[styles.filterButton, searchFilters.sku && styles.filterButtonActive]} onPress={() => onToggleFilter('sku')}><Text style={[styles.filterButtonText, searchFilters.sku && styles.filterButtonTextActive]}>SKU</Text></Pressable>
+          <Pressable style={[styles.filterButton, searchFilters.barcode && styles.filterButtonActive]} onPress={() => onToggleFilter('barcode')}><Text style={[styles.filterButtonText, searchFilters.barcode && styles.filterButtonTextActive]}>UPC</Text></Pressable>
+          <Pressable 
             style={[styles.filterButton, selectedResultCategoryId && styles.filterButtonActive, { flexDirection: 'row', alignItems: 'center' }]} 
             onPress={() => setCategoryModalVisible(true)}
           >
@@ -697,13 +704,13 @@ const FilterAndSortControls = memo(({
             <Text style={[styles.filterButtonText, selectedResultCategoryId && styles.filterButtonTextActive]}>
               {selectedCategoryName}
             </Text>
-          </TouchableOpacity>
+          </Pressable>
         </View>
         
-        <TouchableOpacity style={styles.sortCycleButton} onPress={handleSortCycle}>
+        <Pressable style={styles.sortCycleButton} onPress={handleSortCycle}>
           <Ionicons name="swap-vertical-outline" size={16} color={lightTheme.colors.text} style={{ marginRight: 5 }} />
           <Text style={styles.sortCycleButtonText}>Sort: {sortLabels[sortOrder]}</Text>
-        </TouchableOpacity>
+        </Pressable>
       </View>
       <Modal
         animationType="slide"
@@ -726,7 +733,7 @@ const FilterAndSortControls = memo(({
                 data={[{ id: null, name: `All Categories` }, ...filteredModalCategories]}
                 keyExtractor={(item) => item.id ?? 'all'}
                 renderItem={({ item }) => (
-                  <TouchableOpacity 
+                  <Pressable 
                       style={styles.categoryModalItem}
                       onPress={() => {
                           onSelectResultCategory(item.id); 
@@ -742,7 +749,7 @@ const FilterAndSortControls = memo(({
                     >
                       {item.name}
                     </Text>
-                  </TouchableOpacity>
+                  </Pressable>
                 )}
                 ListEmptyComponent={() => (
                   <View style={styles.categoryModalEmpty}>
@@ -760,7 +767,7 @@ const FilterAndSortControls = memo(({
                 autoCorrect={false}
               />
               <View style={styles.categoryModalFooter}>
-                  <TouchableOpacity 
+                  <Pressable 
                       style={[styles.categoryModalButton, styles.categoryModalClearButton]} 
                       onPress={() => {
                           onSelectResultCategory(null); 
@@ -769,8 +776,8 @@ const FilterAndSortControls = memo(({
                       }}
                   >
                       <Text style={[styles.categoryModalButtonText, styles.categoryModalClearButtonText]}>Clear Selection</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
+                  </Pressable>
+                  <Pressable 
                       style={[styles.categoryModalButton, styles.categoryModalCloseButton]} 
                       onPress={() => {
                           setCategoryModalVisible(false);
@@ -778,7 +785,7 @@ const FilterAndSortControls = memo(({
                       }}
                   >
                       <Text style={styles.categoryModalButtonText}>Close</Text>
-                  </TouchableOpacity>
+                  </Pressable>
               </View>
             </View>
           </KeyboardAvoidingView>
@@ -820,7 +827,10 @@ function RootLayoutNav() {
 
   const handleClearSearch = useCallback(() => {
     setSearchTopic('');
-    // No longer need to manually focus; the key change + autoFocus handles it.
+    // Focus the input after clearing
+    setTimeout(() => {
+      searchInputRef.current?.focus();
+    }, 100);
   }, []);
 
   useFocusEffect(
@@ -902,10 +912,10 @@ interface FilterButtonsProps {
 const FilterButtonsComponent = memo(({ searchFilters, onToggleFilter }: FilterButtonsProps) => {
   return (
     <View style={styles.filterContainer}>
-      <TouchableOpacity style={[styles.filterButton, searchFilters.name && styles.filterButtonActive]} onPress={() => onToggleFilter('name')}><Text style={[styles.filterButtonText, searchFilters.name && styles.filterButtonTextActive]}>Name</Text></TouchableOpacity>
-      <TouchableOpacity style={[styles.filterButton, searchFilters.sku && styles.filterButtonActive]} onPress={() => onToggleFilter('sku')}><Text style={[styles.filterButtonText, searchFilters.sku && styles.filterButtonTextActive]}>SKU</Text></TouchableOpacity>
-      <TouchableOpacity style={[styles.filterButton, searchFilters.barcode && styles.filterButtonActive]} onPress={() => onToggleFilter('barcode')}><Text style={[styles.filterButtonText, searchFilters.barcode && styles.filterButtonTextActive]}>UPC</Text></TouchableOpacity>
-      <TouchableOpacity style={[styles.filterButton, searchFilters.category && styles.filterButtonActive]} onPress={() => onToggleFilter('category')}><Text style={[styles.filterButtonText, searchFilters.category && styles.filterButtonTextActive]}>Category</Text></TouchableOpacity>
+      <Pressable style={[styles.filterButton, searchFilters.name && styles.filterButtonActive]} onPress={() => onToggleFilter('name')}><Text style={[styles.filterButtonText, searchFilters.name && styles.filterButtonTextActive]}>Name</Text></Pressable>
+      <Pressable style={[styles.filterButton, searchFilters.sku && styles.filterButtonActive]} onPress={() => onToggleFilter('sku')}><Text style={[styles.filterButtonText, searchFilters.sku && styles.filterButtonTextActive]}>SKU</Text></Pressable>
+      <Pressable style={[styles.filterButton, searchFilters.barcode && styles.filterButtonActive]} onPress={() => onToggleFilter('barcode')}><Text style={[styles.filterButtonText, searchFilters.barcode && styles.filterButtonTextActive]}>UPC</Text></Pressable>
+      <Pressable style={[styles.filterButton, searchFilters.category && styles.filterButtonActive]} onPress={() => onToggleFilter('category')}><Text style={[styles.filterButtonText, searchFilters.category && styles.filterButtonTextActive]}>Category</Text></Pressable>
     </View>
   );
 });
@@ -921,8 +931,8 @@ const BottomSearchBarComponent = memo(React.forwardRef<TextInput, BottomSearchBa
   onClearSearch,
 }, ref) => {
   // This state is for UI responsiveness (e.g., showing/hiding clear buttons).
-  // It is NOT used to control the TextInput value, which is the key to the fix.
   const [inputValue, setInputValue] = useState(searchTopic);
+  const inputRef = useRef<TextInput>(null);
 
   // Debounced function to trigger search after user stops typing.
   const debouncedSearch = useCallback(debounce((query: string) => {
@@ -930,12 +940,16 @@ const BottomSearchBarComponent = memo(React.forwardRef<TextInput, BottomSearchBa
   }, 500), [onSearchSubmit]);
 
   // Sync from parent if searchTopic changes externally (e.g., from history).
-  // This ensures the key prop change is respected and state is in sync.
+  // Only update if the values are actually different to prevent unnecessary re-renders
   useEffect(() => {
     if (searchTopic !== inputValue) {
       setInputValue(searchTopic);
+      // Update the actual TextInput value for uncontrolled component
+      if (inputRef.current) {
+        inputRef.current.setNativeProps({ text: searchTopic });
+      }
     }
-  }, [searchTopic]);
+  }, [searchTopic]); // Remove inputValue from dependencies to prevent loops
 
   const handleChangeText = (text: string) => {
     setInputValue(text); // Update local state for UI purposes.
@@ -945,8 +959,22 @@ const BottomSearchBarComponent = memo(React.forwardRef<TextInput, BottomSearchBa
   const handleClear = () => {
     debouncedSearch.cancel();
     setInputValue('');
-    onClearSearch(); // Notify parent to clear search results and re-mount this component.
+    // Clear the uncontrolled TextInput
+    if (inputRef.current) {
+      inputRef.current.setNativeProps({ text: '' });
+    }
+    onClearSearch(); // Notify parent to clear search results
   };
+
+  // Combine refs - use both the forwarded ref and our internal ref
+  const combinedRef = useCallback((instance: TextInput | null) => {
+    inputRef.current = instance;
+    if (typeof ref === 'function') {
+      ref(instance);
+    } else if (ref) {
+      ref.current = instance;
+    }
+  }, [ref]);
 
   const KAV_OFFSET_IOS_internal = 0; 
   const KAV_OFFSET_ANDROID_internal = 0;
@@ -957,22 +985,21 @@ const BottomSearchBarComponent = memo(React.forwardRef<TextInput, BottomSearchBa
       keyboardVerticalOffset={Platform.OS === 'ios' ? KAV_OFFSET_IOS_internal : KAV_OFFSET_ANDROID_internal}
       style={styles.searchBarContainer} 
     >
-      <TouchableOpacity 
+      <Pressable 
         style={[styles.externalClearTextButton, inputValue.length === 0 && styles.externalClearTextButtonDisabled]}
         onPress={handleClear}
         disabled={inputValue.length === 0}
       >
         <Text style={[styles.externalClearButtonText, inputValue.length === 0 && styles.externalClearButtonTextDisabled]}>Clear</Text>
-      </TouchableOpacity>
+      </Pressable>
       <View style={styles.searchInputWrapper}>
         <Ionicons name="search" size={22} color="#888" style={styles.searchIcon} />
         <TextInput
-          key={searchTopic} // *** CRITICAL: Re-mounts component when topic changes, making it uncontrolled.
-          ref={ref}
+          ref={combinedRef}
           style={styles.searchInput}
           placeholder="Scan barcode or search items..."
           placeholderTextColor="#999"
-          defaultValue={searchTopic} // Use defaultValue to make it an UNCONTROLLED component.
+          defaultValue={searchTopic} // Back to uncontrolled for HID scanner
           onChangeText={handleChangeText}
           autoFocus={true}
           autoCapitalize="none"
@@ -981,9 +1008,9 @@ const BottomSearchBarComponent = memo(React.forwardRef<TextInput, BottomSearchBa
           blurOnSubmit={false}
         />
         {inputValue.length > 0 && (
-          <TouchableOpacity style={styles.clearButton} onPress={handleClear}>
+          <Pressable style={styles.clearButton} onPress={handleClear}>
             <Ionicons name="close-circle" size={20} color="#aaa" />
-          </TouchableOpacity>
+          </Pressable>
         )}
       </View>
     </KeyboardAvoidingView>
@@ -999,10 +1026,10 @@ const ScanHistoryButtonComponent = memo(({ count, onNavigate }: ScanHistoryButto
   return (
     <View style={styles.historyButtonContainer}>
       <Link href="/(tabs)/scanHistory" asChild>
-        <TouchableOpacity style={styles.historyButton} onPress={onNavigate}>
+        <Pressable style={styles.historyButton} onPress={onNavigate}>
           <Ionicons name="archive-outline" size={20} color={lightTheme.colors.primary} style={{marginRight: 8}} />
           <Text style={styles.historyButtonText}>View Scan History ({count})</Text>
-        </TouchableOpacity>
+        </Pressable>
       </Link>
     </View>
   );

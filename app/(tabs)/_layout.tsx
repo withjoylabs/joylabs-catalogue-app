@@ -102,10 +102,16 @@ function ReorderIconWithBadge({ color, focused }: { color: string; focused: bool
   const [reorderCount, setReorderCount] = useState(0);
   
   useEffect(() => {
-    setReorderCount(reorderService.getCount());
-    const unsubscribe = reorderService.addListener((items) => {
-      setReorderCount(items.length);
-    });
+    // Count only incomplete items for the badge
+    const updateCount = (items: any[]) => {
+      const incompleteCount = items.filter(item => !item.completed).length;
+      setReorderCount(incompleteCount);
+    };
+    
+    // Set initial count
+    updateCount(reorderService.getItems());
+    
+    const unsubscribe = reorderService.addListener(updateCount);
     return unsubscribe;
   }, []);
 

@@ -59,6 +59,13 @@ export default function ProfileLayout() {
           }} 
         />
         <Stack.Screen 
+          name="settings-debug" 
+          options={{ 
+            title: 'Settings Debug', 
+            // Gets default back button navigating to Profile index
+          }} 
+        />
+        <Stack.Screen 
           name="sync" 
           options={{ 
             title: 'Sync Catalog',

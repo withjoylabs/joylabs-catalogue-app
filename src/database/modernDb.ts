@@ -1383,6 +1383,79 @@ export interface RawSearchResult {
   match_context: string; // e.g., the actual SKU value, category name, etc.
 }
 
+/**
+ * Tokenizes a search string by splitting on whitespace and removing punctuation
+ * @param searchString The input search string
+ * @returns Array of cleaned tokens
+ */
+function tokenizeSearchString(searchString: string): string[] {
+  if (!searchString || typeof searchString !== 'string') {
+    return [];
+  }
+  
+  return searchString
+    .toLowerCase()
+    .trim()
+    // Split on whitespace and common punctuation
+    .split(/[\s\-_,\.\/\\]+/)
+    // Remove empty strings and very short tokens (less than 2 characters)
+    .filter(token => token.length >= 2)
+    // Remove duplicates
+    .filter((token, index, array) => array.indexOf(token) === index);
+}
+
+/**
+ * Performs fuzzy search for name matches using tokenized search terms
+ * All tokens must match somewhere in the item name (in any order)
+ * @param tokens Array of search tokens
+ * @returns Promise<RawSearchResult[]>
+ */
+async function searchNamesFuzzy(tokens: string[]): Promise<RawSearchResult[]> {
+  if (tokens.length === 0) {
+    return [];
+  }
+
+  const db = await getDatabase();
+  
+  // Build a query where ALL tokens must match the name
+  // Each token gets its own LIKE condition joined with AND
+  const tokenConditions = tokens.map(() => 'ci.name LIKE ? COLLATE NOCASE').join(' AND ');
+  
+  const query = `
+    SELECT
+      ci.id,
+      ci.data_json,
+      'name' as match_type,
+      ci.name as match_context
+    FROM catalog_items ci
+    WHERE ci.is_deleted = 0 AND (${tokenConditions})
+    ORDER BY 
+      -- Prioritize exact matches first
+      CASE WHEN ci.name LIKE ? COLLATE NOCASE THEN 1 ELSE 2 END,
+      -- Then prioritize matches where first token appears at start
+      CASE WHEN ci.name LIKE ? COLLATE NOCASE THEN 1 ELSE 2 END,
+      -- Finally sort by name length (shorter names first, likely more relevant)
+      LENGTH(ci.name),
+      ci.name COLLATE NOCASE
+  `;
+  
+  // Prepare parameters: one %token% for each token condition, plus exact match and first token prefix
+  const tokenParams = tokens.map(token => `%${token}%`);
+  const exactMatch = `%${tokens.join(' ')}%`; // Check if original phrase exists
+  const firstTokenPrefix = `${tokens[0]}%`; // Check if first token is at start
+  
+  const params = [...tokenParams, exactMatch, firstTokenPrefix];
+  
+  try {
+    const results = await db.getAllAsync<RawSearchResult>(query, params);
+    logger.debug('searchNamesFuzzy', `Fuzzy name search found ${results.length} results for tokens:`, tokens);
+    return results;
+  } catch (error) {
+    logger.error('searchNamesFuzzy', 'Error in fuzzy name search', { error, tokens });
+    return [];
+  }
+}
+
 export const searchCatalogItems = async (
   searchTerm: string,
   filters: SearchFilters
@@ -1397,7 +1470,43 @@ export const searchCatalogItems = async (
   const params: any[] = [];
   const searchTermLike = `%${searchTerm.trim()}%`;
 
+  // Use fuzzy search for names if name filter is enabled
   if (filters.name) {
+    const tokens = tokenizeSearchString(searchTerm);
+    
+    if (tokens.length > 1) {
+      // Use fuzzy search for multi-token queries
+      logger.debug('searchCatalogItems', 'Using fuzzy search for name with tokens:', tokens);
+      const fuzzyResults = await searchNamesFuzzy(tokens);
+      
+      // Convert fuzzy results to the format expected by the rest of the function
+      if (fuzzyResults.length > 0) {
+        // Add fuzzy results directly to final results since they're already processed
+        const otherResults = await searchCatalogItemsNonName(searchTerm, {
+          ...filters,
+          name: false // Don't search names again
+        });
+        
+        // Combine and deduplicate
+        const allResults = [...fuzzyResults, ...otherResults];
+        const uniqueResults = new Map<string, RawSearchResult>();
+        allResults.forEach(row => {
+          if (row && row.id && row.data_json) {
+            // Prioritize fuzzy name matches over other match types
+            if (!uniqueResults.has(row.id) || row.match_type === 'name') {
+              uniqueResults.set(row.id, row);
+            }
+          }
+        });
+        
+        const finalResults = Array.from(uniqueResults.values());
+        logger.info('searchCatalogItems', `Fuzzy search for '${searchTerm}' found ${finalResults.length} unique items.`);
+        return finalResults;
+      }
+      // If fuzzy search returns no results, fall back to exact search
+    }
+    
+    // Fall back to exact search for single tokens or when fuzzy search fails
     queryParts.push(`
       SELECT
         ci.id,
@@ -1408,7 +1517,7 @@ export const searchCatalogItems = async (
       WHERE ci.name LIKE ? AND ci.is_deleted = 0
     `);
     params.push(searchTermLike);
-    // logger.debug('searchCatalogItems', 'Added name query');
+    logger.debug('searchCatalogItems', 'Using exact search for name');
   }
 
   if (filters.sku) {
@@ -1505,4 +1614,87 @@ export const searchCatalogItems = async (
     logger.error('searchCatalogItems', 'Error executing search query', { error, query: fullQuery });
     throw error; // Re-throw to be handled by the calling hook
   }
-}; 
+};
+
+/**
+ * Helper function to search non-name fields (SKU, barcode, category)
+ * Used when combining with fuzzy name search
+ */
+async function searchCatalogItemsNonName(
+  searchTerm: string,
+  filters: SearchFilters
+): Promise<RawSearchResult[]> {
+  const queryParts: string[] = [];
+  const params: any[] = [];
+  const searchTermLike = `%${searchTerm.trim()}%`;
+
+  if (filters.sku) {
+    queryParts.push(`
+      SELECT
+        iv.item_id as id,
+        ci.data_json,
+        'sku' as match_type,
+        iv.sku as match_context
+      FROM item_variations iv
+      JOIN catalog_items ci ON iv.item_id = ci.id
+      WHERE iv.sku LIKE ? AND iv.is_deleted = 0 AND ci.is_deleted = 0
+    `);
+    params.push(searchTermLike);
+  }
+
+  if (filters.barcode) {
+    queryParts.push(`
+      SELECT
+        iv.item_id as id,
+        ci.data_json,
+        'barcode' as match_type,
+        json_extract(iv.data_json, '$.item_variation_data.upc') as match_context
+      FROM item_variations iv
+      JOIN catalog_items ci ON iv.item_id = ci.id
+      WHERE json_extract(iv.data_json, '$.item_variation_data.upc') LIKE ?
+        AND iv.is_deleted = 0 AND ci.is_deleted = 0
+    `);
+    params.push(searchTermLike);
+  }
+
+  if (filters.category) {
+    queryParts.push(`
+      SELECT
+        ci.id,
+        ci.data_json,
+        'category' as match_type,
+        cat.name as match_context
+      FROM catalog_items ci
+      JOIN categories cat ON ci.category_id = cat.id
+      WHERE cat.name LIKE ? AND ci.is_deleted = 0 AND cat.is_deleted = 0
+    `);
+    params.push(searchTermLike);
+    
+    queryParts.push(`
+      SELECT
+        ci.id,
+        ci.data_json,
+        'category' as match_type,
+        rcat.name as match_context
+      FROM catalog_items ci
+      JOIN categories rcat ON json_extract(ci.data_json, '$.reporting_category.id') = rcat.id
+      WHERE rcat.name LIKE ? AND ci.is_deleted = 0 AND rcat.is_deleted = 0
+    `);
+    params.push(searchTermLike);
+  }
+
+  if (queryParts.length === 0) {
+    return [];
+  }
+
+  const fullQuery = queryParts.join('\n\nUNION\n') + '\nLIMIT 250;';
+  
+  try {
+    const db = await getDatabase();
+    const rawResults = await db.getAllAsync<RawSearchResult>(fullQuery, params);
+    return rawResults.filter(row => row && row.id && row.data_json);
+  } catch (error) {
+    logger.error('searchCatalogItemsNonName', 'Error executing non-name search query', { error });
+    return [];
+  }
+} 

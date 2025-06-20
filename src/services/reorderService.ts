@@ -557,6 +557,11 @@ class ReorderService {
     return this.reorderItems.length;
   }
 
+  // Get incomplete reorder items count (for badge display)
+  getIncompleteCount(): number {
+    return this.reorderItems.filter(item => !item.completed).length;
+  }
+
   // Clear all reorder items
   async clear() {
     try {

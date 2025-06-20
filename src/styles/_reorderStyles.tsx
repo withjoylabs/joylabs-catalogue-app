@@ -112,9 +112,9 @@ export const reorderStyles = StyleSheet.create({
   reorderItem: {
     backgroundColor: '#fff',
     marginHorizontal: 16,
-    marginVertical: 4,
+    marginVertical: 3,
     borderRadius: 8,
-    padding: 12,
+    padding: 6,
     flexDirection: 'row',
     alignItems: 'center',
     shadowColor: '#000',
@@ -153,7 +153,7 @@ export const reorderStyles = StyleSheet.create({
     backgroundColor: '#007AFF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 6,
   },
   
   indexContainerCompleted: {
@@ -273,7 +273,7 @@ export const reorderStyles = StyleSheet.create({
   // New styles for improved compact reorder item layout
   itemNameContainer: {
     flex: 1,
-    marginRight: 12,
+    marginRight: 6,
   },
   
   compactDetails: {

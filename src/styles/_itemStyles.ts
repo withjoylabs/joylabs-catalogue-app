@@ -4,6 +4,14 @@ import { lightTheme } from '../../src/themes';
 // Define interface for the styles
 interface ItemStyles {
   container: any;
+  modalBackground: any;
+  modalOverlay: any;
+  modalContentContainer: any;
+  modalSafeArea: any;
+  modalHeader: any;
+  modalContent: any;
+  grabberContainer: any;
+  safeContent: any;
   content: any;
   scrollContentContainer: any;
   fieldContainer: any;
@@ -163,18 +171,74 @@ export const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: lightTheme.colors.background,
+  },
+  modalBackground: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContentContainer: {
+    flex: 1,
+    backgroundColor: lightTheme.colors.background,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    marginTop: 60,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: -2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  modalSafeArea: {
+    flex: 1,
+  },
+  modalHeader: {
     alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E5E7',
+  },
+  modalContent: {
+    backgroundColor: lightTheme.colors.background,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderTopWidth: 2,
+    borderTopColor: '#D1D1D6',
+    maxHeight: '90%',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: -2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  grabberContainer: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  safeContent: {
+    flex: 1,
   },
   grabber: {
     width: 40,
     height: 5,
     borderRadius: 2.5,
     backgroundColor: '#D1D1D6',
-    marginBottom: 8,
+    marginTop: 3,
+    marginBottom: 3,
   },
   content: {
     flex: 1,
-    width: '100%',
+    backgroundColor: lightTheme.colors.background,
     padding: 16,
   },
   scrollContentContainer: {
