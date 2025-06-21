@@ -140,11 +140,13 @@ export default function ItemDetails() {
   const [printNotificationMessage, setPrintNotificationMessage] = useState('');
   const [printNotificationType, setPrintNotificationType] = useState<'success' | 'error'>('success');
   
-  // NEW: State to safely trigger navigation after state updates.
-  const [isReadyToNavigate, setIsReadyToNavigate] = useState(false);
+  // Removed isReadyToNavigate - navigation now handled directly in handlePostSaveSuccess
 
   // State to track team data changes
   const [hasTeamDataChanges, setHasTeamDataChanges] = useState(false);
+
+  // State for vendor unit cost from team data
+  const [vendorUnitCost, setVendorUnitCost] = useState<number | undefined>(undefined);
 
   // State for variations
   const [variations, setVariations] = useState<ItemVariation[]>([{
@@ -547,13 +549,7 @@ export default function ItemDetails() {
   }, [router]);
 
 
-  const handleSaveSuccessNavigation = (savedItem: ConvertedItem | null) => {
-    if (savedItem) {
-      // Reverting to router.back() to prevent the unacceptable full-screen flash.
-      // The state management will be handled correctly on the search screen.
-      router.back();
-    }
-  };
+  // Removed handleSaveSuccessNavigation - now using handlePostSaveSuccess
 
   const trackItemChanges = useCallback(async (savedItem: ConvertedItem): Promise<void> => {
     // Gracefully handle unauthenticated users
@@ -774,6 +770,42 @@ export default function ItemDetails() {
     }
   };
 
+  // Consolidated function to handle post-save state management and navigation
+  const handlePostSaveSuccess = useCallback((savedItem: ConvertedItem) => {
+    logger.info('ItemDetails:handlePostSaveSuccess', 'Processing post-save state updates', { 
+      itemId: savedItem.id, 
+      isNewItem 
+    });
+    
+    try {
+      // Update all state in a single batch to prevent race conditions
+      setLastUpdatedItem(savedItem);
+      setItem(savedItem);
+      setOriginalItem(savedItem);
+      setVariations(savedItem.variations || []);
+      setHasTeamDataChanges(false);
+      
+      // Clear any loading states that might be active
+      setIsSaving(false);
+      setIsPrinting(false);
+      setIsSavingAndPrinting(false);
+      
+      // Use requestAnimationFrame to ensure all state updates are processed
+      // This is more reliable than setTimeout for state batching
+      requestAnimationFrame(() => {
+        setIsEdited(false);
+        // Navigate after clearing edited state
+        requestAnimationFrame(() => {
+          router.back();
+        });
+      });
+    } catch (error) {
+      logger.error('ItemDetails:handlePostSaveSuccess', 'Error in post-save handler', { error });
+      // Fallback navigation if state updates fail
+      router.back();
+    }
+  }, [router, setLastUpdatedItem, isNewItem, setItem, setOriginalItem, setVariations, setHasTeamDataChanges, setIsEdited, setIsSaving, setIsPrinting, setIsSavingAndPrinting]);
+
   const handleActionSelect = async (action: 'print' | 'save_and_print', selectedVariation: ItemVariation, selectedOverride?: LocationOverrideType) => {
     // For a simple print action, manage its own state.
     if (action === 'print') {
@@ -801,15 +833,9 @@ export default function ItemDetails() {
                 // Step 3: Save the item. Let it manage its own state flags.
                 const savedItem = await handleSaveAction({ manageState: false });
 
-                // Step 4: If saving is successful, update state and set trigger for navigation.
+                // Step 4: If saving is successful, use consolidated post-save handler
                 if (savedItem) {
-                    setLastUpdatedItem(savedItem);
-                    setItem(savedItem);
-                    setOriginalItem(savedItem);
-                    setVariations(savedItem.variations || []);
-                    setIsEdited(false); // Manually disable prompt
-                    setHasTeamDataChanges(false); // Reset team data changes
-                    setIsReadyToNavigate(true); // Signal that we are ready to navigate
+                    handlePostSaveSuccess(savedItem);
                 }
             }
         } catch (e) {
@@ -1322,14 +1348,8 @@ export default function ItemDetails() {
         const triggerSave = async () => {
             const savedItem = await handleSaveAction();
             if (savedItem) {
-                // Update state upon successful save to mark as "not edited"
-                setLastUpdatedItem(savedItem);
-                setItem(savedItem);
-                setOriginalItem(savedItem);
-                setVariations(savedItem.variations || []);
-                setIsEdited(false); // Manually disable prompt
-                setHasTeamDataChanges(false); // Reset team data changes
-                setIsReadyToNavigate(true); // Signal that we are ready to navigate
+                // Use consolidated post-save handler
+                handlePostSaveSuccess(savedItem);
             }
         };
         triggerSave();
@@ -1337,7 +1357,7 @@ export default function ItemDetails() {
         logger.info('ItemDetails', 'Save trigger via bottom tab bar ignored - no changes (modal context)', { isNewItem, isEdited });
       }
     }
-  }, [itemSaveTriggeredAt, isEdited, handleSaveAction, isNewItem, router]);
+  }, [itemSaveTriggeredAt, isEdited, handleSaveAction, isNewItem, router, handlePostSaveSuccess]);
   
   // Effect to set header buttons and options
   useEffect(() => {
@@ -1392,14 +1412,7 @@ export default function ItemDetails() {
     }
   );
 
-  // This effect will now safely handle navigation AFTER the state has been updated.
-  useEffect(() => {
-    // Only navigate if we have explicitly signaled we are ready AND the form is no longer edited.
-    // This prevents the usePreventRemove hook from blocking the navigation.
-    if (isReadyToNavigate && !isEdited) {
-      router.back();
-    }
-  }, [isReadyToNavigate, isEdited, router]);
+  // Navigation is now handled directly in handlePostSaveSuccess to prevent race conditions
 
   // If loading, show spinner
   if (isLoading) {
@@ -1554,7 +1567,14 @@ export default function ItemDetails() {
 
                   {/* Price */}
                   <View style={styles.fieldContainer}>
-                    <Text style={styles.subLabel}>Price</Text>
+                    <View style={styles.priceHeaderContainer}>
+                      <Text style={styles.subLabel}>Price</Text>
+                      {vendorUnitCost !== undefined && (
+                        <Text style={styles.vendorUnitCostHelper}>
+                          Unit Cost: ${vendorUnitCost.toFixed(2)}
+                        </Text>
+                      )}
+                    </View>
                     <View style={styles.priceInputContainer}>
                       <Text style={styles.currencySymbol}>$</Text>
                       <TextInput
@@ -1814,7 +1834,7 @@ export default function ItemDetails() {
               />
             </View>
 
-            {!isNewItem && <TeamDataSection itemId={id} onSaveRef={teamDataSaveRef} onDataChange={handleTeamDataChange} />}
+            <TeamDataSection itemId={id} onSaveRef={teamDataSaveRef} onDataChange={handleTeamDataChange} onVendorUnitCostChange={setVendorUnitCost} isNewItem={isNewItem} />
 
             {/* History Section - Only for existing items and authenticated users */}
             {!isNewItem && (
@@ -1879,14 +1899,8 @@ export default function ItemDetails() {
                 onPress={async () => {
                   const savedItem = await handleSaveAction();
                   if (savedItem) {
-                      // Update state upon successful save to mark as "not edited"
-                      setLastUpdatedItem(savedItem);
-                      setItem(savedItem);
-                      setOriginalItem(savedItem);
-                      setVariations(savedItem.variations || []);
-                      setIsEdited(false); // Manually disable prompt
-                      setHasTeamDataChanges(false); // Reset team data changes
-                      setIsReadyToNavigate(true); // Signal that we are ready to navigate
+                      // Use consolidated post-save handler
+                      handlePostSaveSuccess(savedItem);
                   }
                 }}
                 disabled={isSaving || isPrinting || isSavingAndPrinting || !isEdited} 

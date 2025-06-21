@@ -431,6 +431,35 @@ class ItemHistoryService {
   }
 
   /**
+   * Log vendor unit cost changes (calculated field)
+   */
+  async logVendorUnitCostChange(
+    itemId: string,
+    itemName: string,
+    oldVendorUnitCost: number | undefined,
+    newVendorUnitCost: number | undefined,
+    userName: string
+  ): Promise<boolean> {
+    const oldValueStr = oldVendorUnitCost !== undefined ? `$${oldVendorUnitCost.toFixed(2)}` : 'Not calculated';
+    const newValueStr = newVendorUnitCost !== undefined ? `$${newVendorUnitCost.toFixed(2)}` : 'Not calculated';
+    
+    return this.logItemChange({
+      itemId,
+      changeType: 'CRV_CHANGED', // Reusing CRV_CHANGED type for vendor cost changes
+      changeDescription: `Vendor unit cost changed from ${oldValueStr} to ${newValueStr}`,
+      oldValue: oldValueStr,
+      newValue: newValueStr,
+      userName,
+      additionalData: { 
+        itemName,
+        oldVendorUnitCost,
+        newVendorUnitCost,
+        changeSubtype: 'vendor_unit_cost'
+      }
+    });
+  }
+
+  /**
    * Bulk log multiple changes (useful for imports)
    */
   async logBulkChanges(entries: ItemHistoryEntry[]): Promise<boolean[]> {

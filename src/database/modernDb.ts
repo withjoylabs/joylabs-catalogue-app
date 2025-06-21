@@ -1379,7 +1379,7 @@ export interface SearchFilters {
 export interface RawSearchResult {
   id: string; // This will be the item ID
   data_json: string; // The data_json of the main catalog_item
-  match_type: 'name' | 'sku' | 'barcode' | 'category';
+  match_type: 'name' | 'sku' | 'barcode' | 'category' | 'case_upc';
   match_context: string; // e.g., the actual SKU value, category name, etc.
 }
 
@@ -1550,6 +1550,8 @@ export const searchCatalogItems = async (
         AND iv.is_deleted = 0 AND ci.is_deleted = 0
     `);
     params.push(searchTermLike);
+    // Note: Case UPC search is handled separately via GraphQL in the useCatalogItems hook
+    // since Case UPC data is stored in AWS AppSync/DynamoDB, not in local SQLite
     // logger.debug('searchCatalogItems', 'Added barcode query');
   }
 
@@ -1655,6 +1657,7 @@ async function searchCatalogItemsNonName(
         AND iv.is_deleted = 0 AND ci.is_deleted = 0
     `);
     params.push(searchTermLike);
+    // Note: Case UPC search is handled separately via GraphQL since it's stored in AWS AppSync/DynamoDB
   }
 
   if (filters.category) {

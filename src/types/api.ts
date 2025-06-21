@@ -131,7 +131,7 @@ export interface ConvertedCategory {
 
 // New SearchResultItem type
 export interface SearchResultItem extends ConvertedItem {
-  matchType?: 'name' | 'sku' | 'barcode' | 'category';
+  matchType?: 'name' | 'sku' | 'barcode' | 'category' | 'case_upc';
   matchContext?: string;
   // categoryId and category name should be reliably populated by transformers
 }

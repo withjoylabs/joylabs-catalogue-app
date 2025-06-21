@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, TextInput, Switch, StyleSheet } from 'react-native';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { View, Text, TextInput, Switch, StyleSheet, TouchableOpacity } from 'react-native';
 import { generateClient, type GraphQLResult } from 'aws-amplify/api';
 import { useAuthenticator } from '@aws-amplify/ui-react-native';
+import { Ionicons } from '@expo/vector-icons';
 import * as queries from '../../src/graphql/queries';
 import * as mutations from '../../src/graphql/mutations';
 import type { ItemData, ItemChangeLog, Note } from '../../src/models';
@@ -15,13 +16,67 @@ interface TeamDataSectionProps {
   itemId: string;
   onSaveRef: React.MutableRefObject<(() => Promise<void>) | null>;
   onDataChange?: (hasChanges: boolean) => void;
+  onVendorUnitCostChange?: (vendorUnitCost: number | undefined) => void;
+  isNewItem?: boolean;
 }
 
-export default function TeamDataSection({ itemId, onSaveRef, onDataChange }: TeamDataSectionProps) {
+export default function TeamDataSection({ itemId, onSaveRef, onDataChange, onVendorUnitCostChange, isNewItem = false }: TeamDataSectionProps) {
   const [itemData, setItemData] = useState<Partial<ItemData> | null>(null);
   const [originalItemData, setOriginalItemData] = useState<Partial<ItemData> | null>(null);
   const [changeLogs, setChangeLogs] = useState<(ItemChangeLog | null)[]>([]);
   const { user } = useAuthenticator((context) => [context.user]);
+
+  // Calculate vendor unit cost
+  const vendorUnitCost = useMemo(() => {
+    if (!itemData?.caseCost || !itemData?.caseQuantity || itemData.caseQuantity <= 0) {
+      return undefined;
+    }
+    return itemData.caseCost / itemData.caseQuantity;
+  }, [itemData?.caseCost, itemData?.caseQuantity]);
+
+  // Notify parent component of vendor unit cost changes
+  useEffect(() => {
+    if (onVendorUnitCostChange) {
+      onVendorUnitCostChange(vendorUnitCost);
+    }
+  }, [vendorUnitCost, onVendorUnitCostChange]);
+
+  // Handler for case cost input with cents-based formatting
+  const handleCaseCostChange = useCallback((value: string) => {
+    // Handle potential numeric conversion for case cost (same as main price field)
+    if (value === '' || value === null || value === undefined) {
+      setItemData(prev => ({ ...prev, caseCost: undefined }));
+      return;
+    }
+
+    // Keep only digits
+    const digits = value.replace(/[^0-9]/g, '');
+
+    // If no digits remain, treat as undefined
+    if (digits === '') {
+      setItemData(prev => ({ ...prev, caseCost: undefined }));
+      return;
+    }
+
+    // Parse digits as cents
+    const cents = parseInt(digits, 10);
+
+    // Handle potential parsing errors
+    if (isNaN(cents)) {
+      console.warn('Invalid number parsed for case cost:', digits);
+      setItemData(prev => ({ ...prev, caseCost: undefined }));
+      return;
+    }
+
+    // Calculate price in dollars and update state
+    const dollars = cents / 100;
+    setItemData(prev => ({ ...prev, caseCost: dollars }));
+  }, []);
+
+  // Handler for Case UPC with HID scanner fix (same pattern as main barcode field)
+  const handleCaseUpcChange = useCallback((value: string) => {
+    setItemData(prev => ({ ...prev, caseUpc: value }));
+  }, []);
 
   const hasTeamDataChanges = useCallback((current: Partial<ItemData> | null, original: Partial<ItemData> | null): boolean => {
     if (!current && !original) return false;
@@ -56,7 +111,15 @@ export default function TeamDataSection({ itemId, onSaveRef, onDataChange }: Tea
 
   useEffect(() => {
     const fetchCustomItemData = async () => {
-      if (!itemId) return;
+      // Skip data fetching for new items or if no itemId
+      if (!itemId || isNewItem || itemId === 'new') {
+        logger.info('TeamDataSection:fetchCustomItemData', 'Skipping data fetch for new item', { itemId, isNewItem });
+        // Initialize empty state for new items
+        setItemData(null);
+        setOriginalItemData(null);
+        setChangeLogs([]);
+        return;
+      }
       
       // Skip data fetching if user is not authenticated
       if (!user?.signInDetails?.loginId) {
@@ -97,7 +160,7 @@ export default function TeamDataSection({ itemId, onSaveRef, onDataChange }: Tea
       }
     };
     fetchCustomItemData();
-  }, [itemId, user]);
+  }, [itemId, user, isNewItem]);
 
   const trackTeamDataChanges = useCallback(async (newData: Partial<ItemData>, originalData: Partial<ItemData> | null) => {
     // Gracefully handle unauthenticated users
@@ -115,7 +178,7 @@ export default function TeamDataSection({ itemId, onSaveRef, onDataChange }: Tea
     try {
       const changes: Promise<boolean>[] = [];
       
-      // Track CRV changes (caseCost)
+      // Track CRV changes (caseCost) - now called Vendor Case Cost
       if (originalData?.caseCost !== newData.caseCost) {
         changes.push(
           itemHistoryService.logCRVChange(
@@ -123,6 +186,26 @@ export default function TeamDataSection({ itemId, onSaveRef, onDataChange }: Tea
             itemName,
             originalData?.caseCost || undefined,
             newData.caseCost || undefined,
+            userName
+          )
+        );
+      }
+
+      // Track Vendor Unit Cost changes (calculated field)
+      const oldVendorUnitCost = originalData?.caseCost && originalData?.caseQuantity && originalData.caseQuantity > 0 
+        ? originalData.caseCost / originalData.caseQuantity 
+        : undefined;
+      const newVendorUnitCost = newData.caseCost && newData.caseQuantity && newData.caseQuantity > 0 
+        ? newData.caseCost / newData.caseQuantity 
+        : undefined;
+      
+      if (oldVendorUnitCost !== newVendorUnitCost) {
+        changes.push(
+          itemHistoryService.logVendorUnitCostChange(
+            itemId,
+            itemName,
+            oldVendorUnitCost,
+            newVendorUnitCost,
             userName
           )
         );
@@ -185,7 +268,18 @@ export default function TeamDataSection({ itemId, onSaveRef, onDataChange }: Tea
   }, [user, itemId]);
 
   const saveItemData = useCallback(async () => {
-    if (!itemData || !itemId) return;
+    // Skip saving if no data, no itemId, or it's a new item without actual data
+    if (!itemData || !itemId || (isNewItem && itemId === 'new')) {
+      logger.info('TeamDataSection:saveItemData', 'Skipping save - no data or new item', { itemId, isNewItem, hasItemData: !!itemData });
+      return;
+    }
+
+    // Skip saving if user is not authenticated
+    if (!user?.signInDetails?.loginId) {
+      logger.info('TeamDataSection:saveItemData', 'Skipping save - user not authenticated', { itemId });
+      return;
+    }
+
     try {
       const { __typename, id, createdAt, updatedAt, owner, ...inputData } = itemData as any;
       
@@ -214,7 +308,7 @@ export default function TeamDataSection({ itemId, onSaveRef, onDataChange }: Tea
     } catch (e) {
       logger.error('TeamDataSection:saveItemData', 'Error saving custom item data', e);
     }
-  }, [itemId, itemData, trackTeamDataChanges, originalItemData]);
+  }, [itemId, itemData, trackTeamDataChanges, originalItemData, isNewItem, user]);
   
   useEffect(() => {
     if (onSaveRef) {
@@ -246,23 +340,46 @@ export default function TeamDataSection({ itemId, onSaveRef, onDataChange }: Tea
       
       <View style={styles.fieldContainer}>
         <Text style={styles.label}>Case UPC</Text>
-        <TextInput
-          style={styles.input}
-          value={itemData?.caseUpc || ''}
-          onChangeText={(text) => setItemData((prev: any) => ({ ...prev, caseUpc: text }))}
-          placeholder="Enter case UPC/barcode"
-        />
+        <View style={styles.inputWrapper}>
+          <TextInput
+            style={styles.input}
+            value={itemData?.caseUpc || ''}
+            onChangeText={handleCaseUpcChange}
+            placeholder="Enter case UPC/barcode"
+            placeholderTextColor="#999"
+            keyboardType="numeric"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {(itemData?.caseUpc || '').length > 0 && (
+            <TouchableOpacity onPress={() => handleCaseUpcChange('')} style={styles.clearButton}>
+              <Ionicons name="close-circle" size={20} color="#ccc" />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
+
       <View style={styles.fieldContainer}>
-        <Text style={styles.label}>Case Cost</Text>
-        <TextInput
-          style={styles.input}
-          value={itemData?.caseCost?.toString() || ''}
-          onChangeText={(text) => setItemData((prev: any) => ({ ...prev, caseCost: parseFloat(text) || undefined }))}
-          placeholder="0.00"
-          keyboardType="numeric"
-        />
+        <Text style={styles.label}>Vendor Case Cost</Text>
+        <View style={styles.priceInputContainer}>
+          <Text style={styles.currencySymbol}>$</Text>
+          <TextInput
+            style={styles.priceInput}
+            value={itemData?.caseCost !== undefined && itemData.caseCost !== null ? itemData.caseCost.toFixed(2) : ''}
+            onChangeText={handleCaseCostChange}
+            placeholder="Variable"
+            placeholderTextColor="#999"
+            keyboardType="numeric"
+          />
+          {itemData?.caseCost !== undefined && (
+            <TouchableOpacity onPress={() => setItemData(prev => ({ ...prev, caseCost: undefined }))} style={styles.clearButton}>
+              <Ionicons name="close-circle" size={20} color="#ccc" />
+            </TouchableOpacity>
+          )}
+        </View>
+        <Text style={styles.helperText}>Cost per case from vendor</Text>
       </View>
+
       <View style={styles.fieldContainer}>
         <Text style={styles.label}>Case Quantity</Text>
         <TextInput
@@ -272,7 +389,22 @@ export default function TeamDataSection({ itemId, onSaveRef, onDataChange }: Tea
           placeholder="e.g., 12"
           keyboardType="numeric"
         />
+        <Text style={styles.helperText}>Number of units per case</Text>
       </View>
+
+      {/* Calculated Vendor Unit Cost */}
+      {vendorUnitCost !== undefined && itemData?.caseCost !== undefined && itemData?.caseQuantity !== undefined && itemData.caseCost !== null && itemData.caseQuantity !== null && (
+        <View style={styles.fieldContainer}>
+          <Text style={styles.label}>Vendor Unit Cost (Calculated)</Text>
+          <View style={styles.calculatedValueContainer}>
+            <Text style={styles.calculatedValue}>${vendorUnitCost.toFixed(2)}</Text>
+            <Text style={styles.calculatedFormula}>
+              ${itemData.caseCost.toFixed(2)} ÷ {itemData.caseQuantity} units
+            </Text>
+          </View>
+        </View>
+      )}
+
       <View style={styles.fieldContainer}>
         <Text style={styles.label}>Vendor</Text>
         <TextInput
@@ -324,6 +456,61 @@ const styles = StyleSheet.create({
     fieldContainer: { marginBottom: 20 },
     label: { fontSize: 16, fontWeight: '500', marginBottom: 8, color: '#333' },
     input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 5, backgroundColor: 'white', padding: 12, fontSize: 16 },
+    inputWrapper: { 
+      position: 'relative', 
+      flexDirection: 'row', 
+      alignItems: 'center' 
+    },
+    clearButton: { 
+      position: 'absolute', 
+      right: 12, 
+      padding: 4 
+    },
+    priceInputContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: '#ddd',
+      borderRadius: 5,
+      backgroundColor: 'white',
+      paddingHorizontal: 12,
+      position: 'relative',
+    },
+    currencySymbol: {
+      fontSize: 16,
+      color: '#666',
+      marginRight: 4,
+    },
+    priceInput: {
+      flex: 1,
+      padding: 12,
+      fontSize: 16,
+      paddingLeft: 0,
+    },
+    helperText: {
+      fontSize: 14,
+      color: '#666',
+      marginTop: 4,
+      fontStyle: 'italic',
+    },
+    calculatedValueContainer: {
+      backgroundColor: '#f8f9fa',
+      borderRadius: 5,
+      padding: 12,
+      borderWidth: 1,
+      borderColor: '#e9ecef',
+    },
+    calculatedValue: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: lightTheme.colors.primary,
+      marginBottom: 4,
+    },
+    calculatedFormula: {
+      fontSize: 14,
+      color: '#666',
+      fontStyle: 'italic',
+    },
     textArea: { height: 100, textAlignVertical: 'top' },
     teamDataSection: { marginTop: 24, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#e0e0e0' },
     teamDataTitle: { fontSize: 20, fontWeight: 'bold', color: lightTheme.colors.primary, marginBottom: 16, textAlign: 'center' },

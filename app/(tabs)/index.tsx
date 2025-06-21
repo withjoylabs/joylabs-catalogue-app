@@ -881,7 +881,7 @@ function RootLayoutNav() {
       
         <ConnectionStatusBar 
           connected={isConnected} 
-          message="Square Connection Status" 
+          message="Connection Status" 
         />
         
       <ScanHistoryButtonComponent count={scanHistory.length} onNavigate={navigateToHistory} />

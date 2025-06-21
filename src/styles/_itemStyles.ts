@@ -31,6 +31,8 @@ interface ItemStyles {
   priceInputContainer: any;
   currencySymbol: any;
   priceInput: any;
+  priceHeaderContainer: any;
+  vendorUnitCostHelper: any;
   helperText: any;
   selectorButton: any;
   selectorText: any;
@@ -375,6 +377,18 @@ export const styles = StyleSheet.create({
     flex: 1,
     padding: 12,
     fontSize: 16,
+  },
+  priceHeaderContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  vendorUnitCostHelper: {
+    fontSize: 12,
+    color: lightTheme.colors.primary,
+    fontWeight: '500',
+    fontStyle: 'italic',
   },
   helperText: {
     fontSize: 12,

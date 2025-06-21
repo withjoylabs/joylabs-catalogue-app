@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import api, { apiClient, directSquareApi } from '../api';
+import { apiClient, directSquareApi } from '../api';
 import { useAppStore } from '../store';
 import { CatalogObject, ConvertedItem, SearchResultItem } from '../types/api';
 import { ScanHistoryItem } from '../types';
@@ -16,11 +16,17 @@ import {
 } from '../database/modernDb';
 import { v4 as uuidv4 } from 'uuid';
 import { Platform } from 'react-native';
+import { generateClient } from 'aws-amplify/api';
+import { useAuthenticator } from '@aws-amplify/ui-react-native';
+import * as queries from '../graphql/queries';
 
 // Define a more specific type for raw DB results if possible
 type RawDbRow = any; // Replace 'any' if a better type exists
 
 type CatalogObjectFromApi = any; // Reuse or define specific type
+
+// Initialize GraphQL client
+const client = generateClient();
 
 // Add this helper function at the top level
 const generateIdempotencyKey = () => {
@@ -45,6 +51,9 @@ export const useCatalogItems = () => {
   
   // Get the Square connection status from the API context
   const { isConnected: isSquareConnected } = useApi();
+  
+  // Get authentication status
+  const { user } = useAuthenticator((context) => [context.user]);
   
   const [currentCursor, setCurrentCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
@@ -892,7 +901,7 @@ export const useCatalogItems = () => {
     }
   }, [categoryMapRef]);
 
-  // Function to perform search using local DB
+  // Function to perform search using local DB and GraphQL for Case UPC
   const performSearch = useCallback(async (searchTerm: string, filters: SearchFilters): Promise<SearchResultItem[]> => {
     if (!searchTerm.trim()) {
       setSearchResults([]);
@@ -901,10 +910,72 @@ export const useCatalogItems = () => {
     setIsSearching(true);
     setSearchError(null);
     try {
+      // Start with local SQLite search
       const rawResults = await searchCatalogItems(searchTerm, filters);
-      const finalResults = rawResults
+      const localResults = rawResults
           .map(rawResult => transformDbResultToItem(rawResult))
           .filter((item): item is SearchResultItem => item !== null);
+      
+      // If barcode filter is enabled, also search Case UPC via GraphQL (only if authenticated)
+      let caseUpcResults: SearchResultItem[] = [];
+      if (filters.barcode && isSquareConnected && user?.signInDetails?.loginId) {
+        try {
+          logger.info('useCatalogItems:performSearch', 'Searching Case UPC via GraphQL', { searchTerm, isAuthenticated: true });
+          
+          const caseUpcResponse = await client.graphql({
+            query: queries.itemsByCaseUpc,
+            variables: { 
+              caseUpc: searchTerm.trim(),
+              limit: 50 
+            }
+          }) as any;
+          
+          if (caseUpcResponse.data?.itemsByCaseUpc?.items) {
+            const caseUpcItems = caseUpcResponse.data.itemsByCaseUpc.items;
+            logger.info('useCatalogItems:performSearch', `Found ${caseUpcItems.length} Case UPC matches`);
+            
+            // For each Case UPC match, fetch the corresponding item from local DB
+            for (const caseUpcItem of caseUpcItems) {
+              try {
+                const itemId = caseUpcItem.id;
+                const localItem = await getProductById(itemId);
+                
+                if (localItem) {
+                  caseUpcResults.push({
+                    ...localItem,
+                    matchType: 'case_upc',
+                    matchContext: caseUpcItem.caseUpc,
+                  } as SearchResultItem);
+                }
+              } catch (error) {
+                logger.warn('useCatalogItems:performSearch', 'Error fetching item for Case UPC match', { 
+                  itemId: caseUpcItem.id, 
+                  error 
+                });
+              }
+            }
+          }
+        } catch (error) {
+          logger.error('useCatalogItems:performSearch', 'Error searching Case UPC via GraphQL', { error });
+          // Don't fail the entire search if Case UPC search fails
+        }
+      }
+      
+      // Combine and deduplicate results
+      const allResults = [...localResults, ...caseUpcResults];
+      const uniqueResults = new Map<string, SearchResultItem>();
+      
+      allResults.forEach(item => {
+        if (item && item.id) {
+          // Prioritize case_upc matches if they exist
+          if (!uniqueResults.has(item.id) || item.matchType === 'case_upc') {
+            uniqueResults.set(item.id, item);
+          }
+        }
+      });
+      
+      const finalResults = Array.from(uniqueResults.values());
+      logger.info('useCatalogItems:performSearch', `Search completed: ${localResults.length} local + ${caseUpcResults.length} Case UPC = ${finalResults.length} total unique results`);
       
       setSearchResults(finalResults);
       return finalResults;
@@ -915,7 +986,7 @@ export const useCatalogItems = () => {
     } finally {
       setIsSearching(false);
     }
-  }, [transformDbResultToItem]);
+  }, [transformDbResultToItem, isSquareConnected, getProductById, user]);
 
   return {
     products: storeProducts,
