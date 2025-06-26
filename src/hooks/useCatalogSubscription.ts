@@ -228,14 +228,9 @@ export const useCatalogSubscription = () => {
     
     const setupSubscription = async () => {
       try {
-        // Throttle AppSync requests - minimum 1 second between requests
-        const now = Date.now();
-        const timeSinceLastRequest = now - lastRequestTime;
-        if (timeSinceLastRequest < 1000) {
-          logger.debug('CatalogSubscription', 'AppSync request throttled');
-          return;
-        }
-        setLastRequestTime(now);
+        // 🚨 EMERGENCY FIX: Disable catalog subscription to prevent performance issues
+        logger.warn('CatalogSubscription', '🚨 EMERGENCY FIX: Disabling catalog subscription to prevent performance issues');
+        return;
 
         // Monitor AppSync request
         await appSyncMonitor.beforeRequest('onCatalogUpdate', 'useCatalogSubscription', { owner: merchantId });

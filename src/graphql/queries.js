@@ -104,6 +104,7 @@ export const getReorderItem = /* GraphQL */ `
       itemPrice
       quantity
       completed
+      received
       addedBy
       createdAt
       updatedAt
@@ -128,6 +129,7 @@ export const listReorderItems = /* GraphQL */ `
         itemPrice
         quantity
         completed
+        received
         addedBy
         createdAt
         updatedAt

@@ -162,6 +162,7 @@ export const onCreateReorderItem = /* GraphQL */ `
       itemPrice
       quantity
       completed
+      received
       addedBy
       createdAt
       updatedAt
@@ -184,6 +185,7 @@ export const onUpdateReorderItem = /* GraphQL */ `
       itemPrice
       quantity
       completed
+      received
       addedBy
       createdAt
       updatedAt
@@ -206,6 +208,7 @@ export const onDeleteReorderItem = /* GraphQL */ `
       itemPrice
       quantity
       completed
+      received
       addedBy
       createdAt
       updatedAt

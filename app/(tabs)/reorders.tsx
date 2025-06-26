@@ -664,6 +664,9 @@ const ReordersScreen = React.memo(() => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+
+  // Track last scanned item for smart increment logic
+  const [lastScannedItemId, setLastScannedItemId] = useState<string | null>(null);
   
   // Quantity modal state - for manual editing only
   const [modalQuantity, setModalQuantity] = useState('1');
@@ -676,6 +679,9 @@ const ReordersScreen = React.memo(() => {
   // Sync status state
   const [syncStatus, setSyncStatus] = useState({ isOnline: false, pendingCount: 0, isAuthenticated: false });
   const [showSyncStatusPopover, setShowSyncStatusPopover] = useState(false);
+
+  // List maintenance expanded state
+  const [showMaintenanceButtons, setShowMaintenanceButtons] = useState(false);
   
   // State for filters and sorting
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
@@ -804,37 +810,115 @@ const ReordersScreen = React.memo(() => {
         
         // Check if item already exists in reorder list
         const existingItem = reorderItems.find(item => item.itemId === convertedItem.id);
-        
+
         if (existingItem) {
-          // ADDITIVE SCANNING: Increment existing item quantity by 1
-          logger.info(TAG, `📈 ADDITIVE SCAN: ${convertedItem.name} (${existingItem.quantity} → ${existingItem.quantity + 1})`);
-          
-          try {
-            let teamData: any = undefined;
+          // SMART SCANNING LOGIC: Check if item is at top of CHRONOLOGICAL order (behind the scenes)
+          // Sort items chronologically to determine actual position regardless of GUI filters
+          const chronologicalItems = [...reorderItems].sort((a, b) =>
+            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+          );
+          const chronologicalIndex = chronologicalItems.findIndex(item => item.itemId === convertedItem.id);
+          const isAtTopChronologically = chronologicalIndex === 0;
+
+          if (isAtTopChronologically && !existingItem.completed) {
+            // CASE 1: Item at chronological top scanned again - increment quantity by 1
+            logger.info(TAG, `📈 CHRONOLOGICAL TOP REPEAT SCAN: ${convertedItem.name} (${existingItem.quantity} → ${existingItem.quantity + 1})`);
+
             try {
-              teamData = await reorderService.fetchTeamData(convertedItem.id);
-            } catch (teamDataError) {
-              logger.warn(TAG, 'Failed to fetch team data, proceeding without it', { teamDataError });
+              let teamData: any = undefined;
+              try {
+                teamData = await reorderService.fetchTeamData(convertedItem.id);
+              } catch (teamDataError) {
+                logger.warn(TAG, 'Failed to fetch team data, proceeding without it', { teamDataError });
+              }
+
+              const userName = user?.signInDetails?.loginId?.split('@')[0] || 'Unknown User';
+              const newQuantity = existingItem.quantity + 1;
+
+              // Use overwrite mode with incremented quantity
+              const success = await reorderService.addItem(convertedItem, newQuantity, teamData, userName, true);
+
+              if (success) {
+                playSuccessSound();
+                setLastScannedItemId(convertedItem.id);
+                logger.info(TAG, `✅ Incremented chronologically top item: ${convertedItem.name} to qty ${newQuantity}`);
+              } else {
+                throw new Error('Failed to increment item');
+              }
+            } catch (error) {
+              logger.error(TAG, 'Error incrementing item', { error });
+              playErrorSound();
+              setErrorMessage('Failed to increment item quantity. Please try again.');
+              setShowErrorModal(true);
             }
-            
-            const userName = user?.signInDetails?.loginId?.split('@')[0] || 'Unknown User';
-            const newQuantity = existingItem.quantity + 1;
-            
-            // Use overwrite mode with incremented quantity
-            const success = await reorderService.addItem(convertedItem, newQuantity, teamData, userName, true);
-            
-            if (success) {
-              playSuccessSound();
-              logger.info(TAG, `✅ Incremented item: ${convertedItem.name} to qty ${newQuantity}`);
-    } else {
-              throw new Error('Failed to increment item');
+          } else if (existingItem.completed) {
+            // CASE 2: Completed item scanned - mark as "Received" and create new incomplete entry
+            logger.info(TAG, `📦 COMPLETED ITEM RESCAN: ${convertedItem.name} - marking as Received and creating new entry`);
+
+            try {
+              let teamData: any = undefined;
+              try {
+                teamData = await reorderService.fetchTeamData(convertedItem.id);
+              } catch (teamDataError) {
+                logger.warn(TAG, 'Failed to fetch team data, proceeding without it', { teamDataError });
+              }
+
+              const userName = user?.signInDetails?.loginId?.split('@')[0] || 'Unknown User';
+
+              // Step 1: Mark the existing completed item as "Received"
+              const receivedSuccess = await reorderService.markAsReceived(existingItem.id, userName);
+
+              if (!receivedSuccess) {
+                throw new Error('Failed to mark item as received');
+              }
+
+              // Step 2: Create a new incomplete entry at the top with fresh timestamp
+              const newEntrySuccess = await reorderService.addItem(convertedItem, 1, teamData, userName, true);
+
+              if (newEntrySuccess) {
+                playSuccessSound();
+                setLastScannedItemId(convertedItem.id);
+                logger.info(TAG, `✅ Completed → Received workflow: ${convertedItem.name} (marked as Received, new incomplete entry created)`);
+              } else {
+                throw new Error('Failed to create new incomplete entry');
+              }
+            } catch (error) {
+              logger.error(TAG, 'Error in completed → received workflow', { error });
+              playErrorSound();
+              setErrorMessage('Failed to process completed item. Please try again.');
+              setShowErrorModal(true);
             }
-          } catch (error) {
-            logger.error(TAG, 'Error incrementing item', { error });
-            playErrorSound();
-            setErrorMessage('Failed to increment item quantity. Please try again.');
-            setShowErrorModal(true);
-    }
+          } else {
+            // CASE 3: Existing incomplete item (not at chronological top) - move to chronological top
+            logger.info(TAG, `⬆️ MOVE TO CHRONOLOGICAL TOP: ${convertedItem.name} - updating timestamp (qty: ${existingItem.quantity})`);
+
+            try {
+              let teamData: any = undefined;
+              try {
+                teamData = await reorderService.fetchTeamData(convertedItem.id);
+              } catch (teamDataError) {
+                logger.warn(TAG, 'Failed to fetch team data, proceeding without it', { teamDataError });
+              }
+
+              const userName = user?.signInDetails?.loginId?.split('@')[0] || 'Unknown User';
+
+              // Move item to chronological top by updating timestamp (quantity stays the same)
+              const success = await reorderService.moveItemToTop(existingItem.id, teamData, userName);
+
+              if (success) {
+                playSuccessSound();
+                setLastScannedItemId(convertedItem.id);
+                logger.info(TAG, `✅ Moved item to chronological top: ${convertedItem.name} (qty: ${existingItem.quantity})`);
+              } else {
+                throw new Error('Failed to move item to chronological top');
+              }
+            } catch (error) {
+              logger.error(TAG, 'Error moving item to chronological top', { error });
+              playErrorSound();
+              setErrorMessage('Failed to move item to chronological top. Please try again.');
+              setShowErrorModal(true);
+            }
+          }
         } else {
           // NEW ITEM: Add with default quantity of 1
           logger.info(TAG, `🆕 NEW ITEM SCAN: ${convertedItem.name} (qty: 1)`);
@@ -1074,6 +1158,82 @@ const ReordersScreen = React.memo(() => {
     } finally {
       setIsRefreshing(false);
     }
+  }, []);
+
+  // List maintenance functions
+  const handleMarkCompletedAsReceived = useCallback(async () => {
+    const completedItems = reorderItems.filter(item => item.completed);
+    if (completedItems.length === 0) {
+      Alert.alert('No Completed Items', 'There are no completed items to mark as received.');
+      return;
+    }
+
+    Alert.alert(
+      'Mark Completed as Received',
+      `This will mark ${completedItems.length} completed item(s) as received and remove them from the list. This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Mark as Received',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const userName = user?.signInDetails?.loginId?.split('@')[0] || 'Unknown User';
+
+              // Mark all completed items as received
+              for (const item of completedItems) {
+                await reorderService.markAsReceived(item.id, userName);
+              }
+
+              logger.info(TAG, `✅ Marked ${completedItems.length} completed items as received`);
+              setShowMaintenanceButtons(false);
+            } catch (error) {
+              logger.error(TAG, 'Error marking completed items as received', { error });
+              Alert.alert('Error', 'Failed to mark items as received. Please try again.');
+            }
+          }
+        }
+      ]
+    );
+  }, [reorderItems, user]);
+
+  const handleClearAll = useCallback(async () => {
+    if (reorderItems.length === 0) {
+      Alert.alert('No Items', 'There are no items to clear.');
+      return;
+    }
+
+    Alert.alert(
+      'Clear All Items',
+      `This will remove all ${reorderItems.length} item(s) from the reorder list. This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear All',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await reorderService.clear();
+              logger.info(TAG, '✅ Cleared all reorder items');
+              setShowMaintenanceButtons(false);
+            } catch (error) {
+              logger.error(TAG, 'Error clearing all items', { error });
+              Alert.alert('Error', 'Failed to clear all items. Please try again.');
+            }
+          }
+        }
+      ]
+    );
+  }, [reorderItems]);
+
+  const handleShareExportPDF = useCallback(() => {
+    Alert.alert('Export PDF', 'PDF export functionality coming soon!');
+    setShowMaintenanceButtons(false);
+  }, []);
+
+  const handlePrintList = useCallback(() => {
+    Alert.alert('Print List', 'Print functionality coming soon!');
+    setShowMaintenanceButtons(false);
   }, []);
 
   // Handle custom item creation
@@ -1876,25 +2036,144 @@ const ReordersScreen = React.memo(() => {
 
       {/* Header with stats and filters */}
       <View style={reorderStyles.headerSection}>
-        {/* Stats */}
-        <View style={reorderStyles.statsContainer}>
-          <View style={reorderStyles.statItem}>
-            <Text style={reorderStyles.statNumber}>{stats.total}</Text>
-            <Text style={reorderStyles.statLabel}>Total</Text>
+        {/* Stats / Maintenance Toggle - 5x1 Layout */}
+        {!showMaintenanceButtons ? (
+          // Show Stats with Cog Icon
+          <View style={reorderStyles.statsContainer}>
+            <View style={reorderStyles.statItem}>
+              <View style={reorderStyles.statIconContainer}>
+                <Text style={reorderStyles.statNumber}>{stats.total}</Text>
+              </View>
+              <Text style={reorderStyles.statLabel}>Total</Text>
+            </View>
+            <View style={reorderStyles.statItem}>
+              <View style={reorderStyles.statIconContainer}>
+                <Text style={reorderStyles.statNumber}>{stats.completed}</Text>
+              </View>
+              <Text style={reorderStyles.statLabel}>Completed</Text>
+            </View>
+            <View style={reorderStyles.statItem}>
+              <View style={reorderStyles.statIconContainer}>
+                <Text style={reorderStyles.statNumber}>{stats.incomplete}</Text>
+              </View>
+              <Text style={reorderStyles.statLabel}>Remaining</Text>
+            </View>
+            <View style={reorderStyles.statItem}>
+              <View style={reorderStyles.statIconContainer}>
+                <Text style={reorderStyles.statNumber}>{stats.totalQuantity}</Text>
+              </View>
+              <Text style={reorderStyles.statLabel}>Qty</Text>
+            </View>
+            {/* Cog Icon for Maintenance */}
+            <TouchableOpacity
+              style={reorderStyles.statItem}
+              onPress={() => setShowMaintenanceButtons(true)}
+            >
+              <View style={reorderStyles.statIconContainer}>
+                <Ionicons name="cog" size={20} color="#666" />
+              </View>
+              <Text style={reorderStyles.statLabel}>Options</Text>
+            </TouchableOpacity>
           </View>
-          <View style={reorderStyles.statItem}>
-            <Text style={reorderStyles.statNumber}>{stats.completed}</Text>
-            <Text style={reorderStyles.statLabel}>Completed</Text>
+        ) : (
+          // Show Maintenance Buttons in same 5x1 layout
+          <View style={reorderStyles.statsContainer}>
+            {/* Mark Completed as Received */}
+            <TouchableOpacity
+              style={reorderStyles.statItem}
+              onPress={handleMarkCompletedAsReceived}
+              disabled={stats.completed === 0}
+            >
+              <View style={reorderStyles.statIconContainer}>
+                <Ionicons
+                  name="checkmark-done"
+                  size={20}
+                  color={stats.completed === 0 ? '#ccc' : '#34C759'}
+                />
+              </View>
+              <Text style={[
+                reorderStyles.statLabel,
+                { color: stats.completed === 0 ? '#ccc' : '#34C759' }
+              ]}>
+                Received
+              </Text>
+            </TouchableOpacity>
+
+            {/* Clear All */}
+            <TouchableOpacity
+              style={reorderStyles.statItem}
+              onPress={handleClearAll}
+              disabled={stats.total === 0}
+            >
+              <View style={reorderStyles.statIconContainer}>
+                <Ionicons
+                  name="trash"
+                  size={20}
+                  color={stats.total === 0 ? '#ccc' : '#FF3B30'}
+                />
+              </View>
+              <Text style={[
+                reorderStyles.statLabel,
+                { color: stats.total === 0 ? '#ccc' : '#FF3B30' }
+              ]}>
+                Clear
+              </Text>
+            </TouchableOpacity>
+
+            {/* Share/Export PDF */}
+            <TouchableOpacity
+              style={reorderStyles.statItem}
+              onPress={handleShareExportPDF}
+              disabled={stats.total === 0}
+            >
+              <View style={reorderStyles.statIconContainer}>
+                <Ionicons
+                  name="share"
+                  size={20}
+                  color={stats.total === 0 ? '#ccc' : '#007AFF'}
+                />
+              </View>
+              <Text style={[
+                reorderStyles.statLabel,
+                { color: stats.total === 0 ? '#ccc' : '#007AFF' }
+              ]}>
+                Export
+              </Text>
+            </TouchableOpacity>
+
+            {/* Print List */}
+            <TouchableOpacity
+              style={reorderStyles.statItem}
+              onPress={handlePrintList}
+              disabled={stats.total === 0}
+            >
+              <View style={reorderStyles.statIconContainer}>
+                <Ionicons
+                  name="print"
+                  size={20}
+                  color={stats.total === 0 ? '#ccc' : '#5856D6'}
+                />
+              </View>
+              <Text style={[
+                reorderStyles.statLabel,
+                { color: stats.total === 0 ? '#ccc' : '#5856D6' }
+              ]}>
+                Print
+              </Text>
+            </TouchableOpacity>
+
+            {/* Close Button (X) */}
+            <TouchableOpacity
+              style={reorderStyles.statItem}
+              onPress={() => setShowMaintenanceButtons(false)}
+            >
+              <View style={reorderStyles.statIconContainer}>
+                <Ionicons name="close" size={20} color="#666" />
+              </View>
+              <Text style={reorderStyles.statLabel}>Close</Text>
+            </TouchableOpacity>
           </View>
-          <View style={reorderStyles.statItem}>
-            <Text style={reorderStyles.statNumber}>{stats.incomplete}</Text>
-            <Text style={reorderStyles.statLabel}>Remaining</Text>
-          </View>
-          <View style={reorderStyles.statItem}>
-            <Text style={reorderStyles.statNumber}>{stats.totalQuantity}</Text>
-            <Text style={reorderStyles.statLabel}>Qty</Text>
-          </View>
-        </View>
+        )}
 
         {/* Filter Row */}
         <ScrollView 

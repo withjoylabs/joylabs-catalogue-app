@@ -28,6 +28,7 @@ export interface ReorderItem {
   itemPrice?: number;
   quantity: number;
   completed: boolean;
+  received: boolean;
   addedBy: string;
   createdAt: string;
   updatedAt: string;
@@ -51,6 +52,14 @@ class ReorderService {
   private pendingSyncItems: ReorderItem[] = []; // Items waiting to sync
   private readonly STORAGE_KEY = 'reorder_items_offline';
 
+  // Event-driven sync queue for batched operations
+  private syncQueue: Array<{ operation: string; data: any; timestamp: number; retryCount?: number }> = [];
+  private syncBatchTimeout: NodeJS.Timeout | null = null;
+  private isProcessingQueue = false;
+  private lastServerSync = 0;
+  private readonly BATCH_DELAY = 3000; // 3 seconds to collect operations
+  private readonly MAX_BATCH_SIZE = 10; // Max operations per batch
+
   // Initialize the service
   async initialize(userId?: string) {
     if (this.isInitialized && this.currentUserId === userId) return;
@@ -60,15 +69,19 @@ class ReorderService {
     try {
       // Check authentication status first
       const isAuthenticated = await this.checkAuthStatus();
-      
+
       if (isAuthenticated) {
-        // Load reorder items from server
-        await this.loadReorderItems();
-        
-        // Set up real-time subscriptions
-        this.setupSubscriptions();
+        // Load from local storage first (local-first approach)
+        await this.loadOfflineItems();
+
+        // Set up smart real-time subscriptions (resource-efficient)
+        this.setupSmartSubscriptions();
+
+        // Set up event-driven sync (no polling)
+        this.setupEventDrivenSync();
       } else {
         // Load from offline storage
+        this.isOfflineMode = true;
         await this.loadOfflineItems();
       }
       
@@ -120,6 +133,14 @@ class ReorderService {
     try {
       logger.info('[ReorderService]', '🔄 Manual sync triggered by user');
 
+      // 🚨 EMERGENCY FIX: Warn user about potential data loss
+      if (this.pendingSyncItems.length > 0) {
+        logger.warn('[ReorderService]', `⚠️ WARNING: ${this.pendingSyncItems.length} pending items will be synced to server first`);
+
+        // Sync pending items first to prevent data loss
+        await this.syncPendingItems();
+      }
+
       // Monitor AppSync request
       await appSyncMonitor.beforeRequest('listReorderItems', 'ReorderService:manualSync', { limit: 1000 });
 
@@ -137,13 +158,16 @@ class ReorderService {
           index: index + 1
         }));
 
+        // 🚨 CONFLICT RESOLUTION: Merge server items with local items instead of overwriting
+        const mergedItems = this.mergeServerAndLocalItems(serverItems, this.reorderItems);
+
         // Save to local database
-        await this.saveReorderItemsLocally(serverItems);
+        await this.saveReorderItemsLocally(mergedItems);
 
         // Update in-memory items
-        this.reorderItems = serverItems;
+        this.reorderItems = mergedItems;
 
-        logger.info('[ReorderService]', `✅ Manual sync completed: ${serverItems.length} reorder items`);
+        logger.info('[ReorderService]', `✅ Manual sync completed: ${mergedItems.length} reorder items (merged)`);
 
         // Load team data for all items
         await this.loadTeamDataForItems();
@@ -155,6 +179,26 @@ class ReorderService {
       logger.error('[ReorderService]', '❌ Manual sync failed', { error });
       throw error;
     }
+  }
+
+  // 🚨 EMERGENCY FIX: Add conflict resolution to prevent data loss
+  private mergeServerAndLocalItems(serverItems: ReorderItem[], localItems: ReorderItem[]): ReorderItem[] {
+    const merged = [...serverItems];
+
+    // Add local items that don't exist on server
+    localItems.forEach(localItem => {
+      const existsOnServer = serverItems.find(serverItem =>
+        serverItem.id === localItem.id ||
+        (serverItem.itemId === localItem.itemId && serverItem.createdAt === localItem.createdAt)
+      );
+
+      if (!existsOnServer) {
+        logger.info('[ReorderService]', `🔄 Preserving local item not found on server: ${localItem.itemName}`);
+        merged.push(localItem);
+      }
+    });
+
+    return merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
 
   // Load team data for all reorder items
@@ -171,97 +215,440 @@ class ReorderService {
     }
   }
 
-  // Set up real-time subscriptions
-  private setupSubscriptions() {
+  // Set up event-driven sync (no polling)
+  private setupEventDrivenSync() {
+    // Listen for app state changes to trigger sync
+    if (typeof window !== 'undefined') {
+      // Sync when app comes back into focus
+      window.addEventListener('focus', () => this.triggerBatchSync('APP_FOCUS'));
+
+      // Sync before app goes into background
+      window.addEventListener('blur', () => this.triggerBatchSync('APP_BLUR'));
+    }
+
+    logger.info('[ReorderService]', 'Event-driven sync setup complete');
+  }
+
+  // Trigger batched sync after user interactions
+  private triggerBatchSync(reason: string) {
+    if (this.syncQueue.length === 0) return;
+
+    // Clear existing timeout
+    if (this.syncBatchTimeout) {
+      clearTimeout(this.syncBatchTimeout);
+    }
+
+    // Set new timeout for batching
+    this.syncBatchTimeout = setTimeout(async () => {
+      if (this.isProcessingQueue) return;
+
+      logger.info('[ReorderService]', `Triggering batch sync: ${reason}`, {
+        queueLength: this.syncQueue.length
+      });
+
+      await this.processSyncBatch();
+    }, this.BATCH_DELAY);
+  }
+
+  // Process batched sync operations
+  private async processSyncBatch() {
+    if (this.syncQueue.length === 0 || this.isProcessingQueue) return;
+
+    this.isProcessingQueue = true;
+
     try {
-      // ✅ EMERGENCY MODE: Disable non-critical subscriptions to reduce AppSync usage
-      const EMERGENCY_MODE = process.env.EXPO_PUBLIC_EMERGENCY_MODE === 'true';
-      if (EMERGENCY_MODE) {
-        logger.warn('[ReorderService]', '🚨 Emergency mode: Disabling real-time subscriptions to reduce AppSync usage');
-        return;
-      }
+      // Take a batch of operations
+      const batch = this.syncQueue.splice(0, this.MAX_BATCH_SIZE);
 
-      logger.info('[ReorderService]', 'Setting up real-time subscriptions');
+      logger.info('[ReorderService]', `Processing sync batch: ${batch.length} operations`);
 
-      // Subscribe to ReorderItem creation
-      const createSubscription = this.client.graphql({
-        query: subscriptions.onCreateReorderItem
-      });
+      // Group operations by type for efficient batching
+      const groupedOps = this.groupOperationsByType(batch);
 
-      if ('subscribe' in createSubscription) {
-        const sub = (createSubscription as any).subscribe({
-          next: ({ data }: any) => {
-            if (data?.onCreateReorderItem) {
-              this.handleReorderItemCreated(data.onCreateReorderItem);
+      // Process each group
+      for (const [opType, operations] of Object.entries(groupedOps)) {
+        try {
+          await this.processBatchedOperations(opType, operations);
+        } catch (error) {
+          logger.error('[ReorderService]', `Failed to process batch: ${opType}`, { error });
+
+          // Re-queue failed operations with exponential backoff
+          operations.forEach(op => {
+            const retryDelay = Math.min(5000 * Math.pow(2, op.retryCount || 0), 60000); // Max 1 minute
+            if ((op.retryCount || 0) < 3) { // Max 3 retries
+              setTimeout(() => {
+                this.syncQueue.push({
+                  ...op,
+                  retryCount: (op.retryCount || 0) + 1,
+                  timestamp: Date.now()
+                });
+              }, retryDelay);
             }
-          },
-          error: (error: any) => {
-            logger.error('[ReorderService]', 'Create subscription error', { error });
-          }
-        });
-        this.subscriptions.push(sub);
+          });
+        }
       }
 
-      // Subscribe to ReorderItem updates
+      // If there are more operations, schedule another batch
+      if (this.syncQueue.length > 0) {
+        this.triggerBatchSync('REMAINING_OPERATIONS');
+      }
+
+    } finally {
+      this.isProcessingQueue = false;
+    }
+  }
+
+  // Group operations by type for efficient batching
+  private groupOperationsByType(operations: any[]): Record<string, any[]> {
+    return operations.reduce((groups, op) => {
+      if (!groups[op.operation]) {
+        groups[op.operation] = [];
+      }
+      groups[op.operation].push(op);
+      return groups;
+    }, {} as Record<string, any[]>);
+  }
+
+  // Process batched operations efficiently
+  private async processBatchedOperations(operationType: string, operations: any[]) {
+    switch (operationType) {
+      case 'CREATE_ITEM':
+        // Batch create operations
+        await this.batchCreateItems(operations.map(op => op.data));
+        break;
+      case 'UPDATE_ITEM':
+        // Batch update operations
+        await this.batchUpdateItems(operations.map(op => op.data));
+        break;
+      case 'DELETE_ITEM':
+        // Batch delete operations
+        await this.batchDeleteItems(operations.map(op => op.data));
+        break;
+      case 'TOGGLE_COMPLETION':
+        // Batch completion toggles
+        await this.batchToggleCompletion(operations.map(op => op.data));
+        break;
+      default:
+        logger.warn('[ReorderService]', 'Unknown batch operation', { operationType });
+    }
+  }
+
+  // Batch create multiple items
+  private async batchCreateItems(items: any[]) {
+    logger.info('[ReorderService]', `Batch creating ${items.length} items`);
+
+    // Process in parallel but limit concurrency
+    const promises = items.map(item => this.syncCreateItem(item));
+    await Promise.allSettled(promises);
+  }
+
+  // Batch update multiple items
+  private async batchUpdateItems(items: any[]) {
+    logger.info('[ReorderService]', `Batch updating ${items.length} items`);
+
+    const promises = items.map(item => this.syncUpdateItem(item));
+    await Promise.allSettled(promises);
+  }
+
+  // Batch delete multiple items
+  private async batchDeleteItems(items: any[]) {
+    logger.info('[ReorderService]', `Batch deleting ${items.length} items`);
+
+    const promises = items.map(item => this.syncDeleteItem(item));
+    await Promise.allSettled(promises);
+  }
+
+  // Batch toggle completion for multiple items
+  private async batchToggleCompletion(items: any[]) {
+    logger.info('[ReorderService]', `Batch toggling completion for ${items.length} items`);
+
+    const promises = items.map(item => this.syncToggleCompletion(item));
+    await Promise.allSettled(promises);
+  }
+
+  // Set up smart real-time subscriptions (resource-efficient)
+  private setupSmartSubscriptions() {
+    try {
+      // Only subscribe to changes from OTHER users (not our own changes)
+      this.subscribeToOtherUsersChanges();
+    } catch (error) {
+      logger.error('[ReorderService]', 'Failed to setup smart subscriptions', { error });
+    }
+  }
+
+  // Subscribe only to changes from other users
+  private subscribeToOtherUsersChanges() {
+    try {
+      // Subscribe to reorder item updates from other users
       const updateSubscription = this.client.graphql({
-        query: subscriptions.onUpdateReorderItem
+        query: subscriptions.onUpdateReorderItem,
+        variables: {
+          filter: {
+            addedBy: {
+              ne: this.currentUserId // Only changes from other users
+            }
+          }
+        }
+      }).subscribe({
+        next: (result: any) => {
+          const updatedItem = result.data?.onUpdateReorderItem;
+          if (updatedItem && updatedItem.addedBy !== this.currentUserId) {
+            this.handleExternalUpdate(updatedItem);
+          }
+        },
+        error: (error: any) => {
+          logger.error('[ReorderService]', 'Subscription error', { error });
+        }
       });
 
-      if ('subscribe' in updateSubscription) {
-        const sub = (updateSubscription as any).subscribe({
-          next: ({ data }: any) => {
-            if (data?.onUpdateReorderItem) {
-              this.handleReorderItemUpdated(data.onUpdateReorderItem);
+      this.subscriptions.push(updateSubscription);
+      logger.info('[ReorderService]', 'Smart subscriptions setup complete');
+    } catch (error) {
+      logger.error('[ReorderService]', 'Failed to setup subscriptions', { error });
+    }
+  }
+
+  // Handle updates from other users
+  private async handleExternalUpdate(updatedItem: any) {
+    try {
+      // Check if this conflicts with local data
+      const localItem = this.reorderItems.find(item => item.id === updatedItem.id);
+
+      if (localItem && localItem.updatedAt > updatedItem.updatedAt) {
+        // Local data is newer - show conflict resolution dialog
+        await this.showConflictResolutionDialog(localItem, updatedItem);
+      } else {
+        // Server data is newer or no conflict - update locally
+        await this.updateLocalItemFromServer(updatedItem);
+      }
+    } catch (error) {
+      logger.error('[ReorderService]', 'Failed to handle external update', { error });
+    }
+  }
+
+  // Queue sync operation and trigger batching
+  private queueBackgroundSync(operation: string, data: any) {
+    if (this.isOfflineMode) {
+      logger.info('[ReorderService]', `Queuing operation for later sync: ${operation}`);
+      return;
+    }
+
+    this.syncQueue.push({
+      operation,
+      data,
+      timestamp: Date.now(),
+      retryCount: 0
+    });
+
+    logger.debug('[ReorderService]', `Queued sync operation: ${operation}`, { queueLength: this.syncQueue.length });
+
+    // Trigger batched sync after user interaction
+    this.triggerBatchSync('USER_INTERACTION');
+  }
+
+  // Force immediate sync (for manual sync button)
+  async forceSyncNow(): Promise<void> {
+    if (this.syncQueue.length === 0) {
+      logger.info('[ReorderService]', 'No pending operations to sync');
+      return;
+    }
+
+    logger.info('[ReorderService]', 'Force syncing pending operations immediately');
+
+    // Clear any pending batch timeout
+    if (this.syncBatchTimeout) {
+      clearTimeout(this.syncBatchTimeout);
+      this.syncBatchTimeout = null;
+    }
+
+    // Process immediately
+    await this.processSyncBatch();
+  }
+
+  // Background sync methods
+  private async syncCreateItem(data: any) {
+    try {
+      const response = await this.client.graphql({
+        query: mutations.createReorderItem,
+        variables: {
+          input: data
+        }
+      }) as any;
+
+      if (response.data?.createReorderItem) {
+        logger.info('[ReorderService]', `✅ Background sync: Created item on server`, { itemId: data.itemId });
+      }
+    } catch (error) {
+      logger.error('[ReorderService]', 'Failed to sync create item', { error, data });
+      throw error;
+    }
+  }
+
+  private async syncUpdateItem(data: any) {
+    try {
+      const response = await this.client.graphql({
+        query: mutations.updateReorderItem,
+        variables: {
+          input: data
+        }
+      }) as any;
+
+      if (response.data?.updateReorderItem) {
+        logger.info('[ReorderService]', `✅ Background sync: Updated item on server`, { itemId: data.id });
+      }
+    } catch (error) {
+      logger.error('[ReorderService]', 'Failed to sync update item', { error, data });
+      throw error;
+    }
+  }
+
+  private async syncDeleteItem(data: any) {
+    try {
+      const response = await this.client.graphql({
+        query: mutations.deleteReorderItem,
+        variables: {
+          input: { id: data.id }
+        }
+      }) as any;
+
+      if (response.data?.deleteReorderItem) {
+        logger.info('[ReorderService]', `✅ Background sync: Deleted item on server`, { itemId: data.id });
+      }
+    } catch (error) {
+      logger.error('[ReorderService]', 'Failed to sync delete item', { error, data });
+      throw error;
+    }
+  }
+
+  private async syncToggleCompletion(data: any) {
+    try {
+      const response = await this.client.graphql({
+        query: mutations.updateReorderItem,
+        variables: {
+          input: {
+            id: data.id,
+            completed: data.completed,
+            updatedAt: data.updatedAt
+          }
+        }
+      }) as any;
+
+      if (response.data?.updateReorderItem) {
+        logger.info('[ReorderService]', `✅ Background sync: Toggled completion on server`, { itemId: data.id, completed: data.completed });
+      }
+    } catch (error) {
+      logger.error('[ReorderService]', 'Failed to sync toggle completion', { error, data });
+      throw error;
+    }
+  }
+
+  // Show conflict resolution dialog
+  private async showConflictResolutionDialog(localItem: ReorderItem, serverItem: any): Promise<void> {
+    return new Promise((resolve) => {
+      // Import Alert from react-native
+      const { Alert } = require('react-native');
+
+      Alert.alert(
+        'Sync Conflict Detected',
+        `Item "${localItem.itemName}" has been modified by another user.\n\nLocal: qty ${localItem.quantity}, updated ${new Date(localItem.updatedAt).toLocaleTimeString()}\nServer: qty ${serverItem.quantity}, updated ${new Date(serverItem.updatedAt).toLocaleTimeString()}\n\nWhat would you like to do?`,
+        [
+          {
+            text: 'Keep Local',
+            onPress: () => {
+              logger.info('[ReorderService]', 'User chose to keep local version');
+              // Queue local version to overwrite server
+              this.queueBackgroundSync('UPDATE_ITEM', {
+                id: localItem.id,
+                quantity: localItem.quantity,
+                completed: localItem.completed,
+                updatedAt: new Date().toISOString()
+              });
+              resolve();
             }
           },
-          error: (error: any) => {
-            logger.error('[ReorderService]', 'Update subscription error', { error });
-          }
-        });
-        this.subscriptions.push(sub);
-      }
-
-      // Subscribe to ReorderItem deletion
-      const deleteSubscription = this.client.graphql({
-        query: subscriptions.onDeleteReorderItem
-      });
-
-      if ('subscribe' in deleteSubscription) {
-        const sub = (deleteSubscription as any).subscribe({
-          next: ({ data }: any) => {
-            if (data?.onDeleteReorderItem) {
-              this.handleReorderItemDeleted(data.onDeleteReorderItem);
+          {
+            text: 'Use Server',
+            onPress: async () => {
+              logger.info('[ReorderService]', 'User chose to use server version');
+              await this.updateLocalItemFromServer(serverItem);
+              resolve();
             }
           },
-          error: (error: any) => {
-            logger.error('[ReorderService]', 'Delete subscription error', { error });
-          }
-        });
-        this.subscriptions.push(sub);
-      }
+          {
+            text: 'Merge',
+            onPress: () => {
+              logger.info('[ReorderService]', 'User chose to merge versions');
+              // Merge by taking higher quantity and more recent completion status
+              const mergedItem = {
+                ...localItem,
+                quantity: Math.max(localItem.quantity, serverItem.quantity),
+                completed: serverItem.updatedAt > localItem.updatedAt ? serverItem.completed : localItem.completed,
+                updatedAt: new Date().toISOString()
+              };
 
-      // Subscribe to ItemData updates for team data
-      const teamDataSubscription = this.client.graphql({
-        query: subscriptions.onUpdateItemData
-      });
+              // Update local item
+              const itemIndex = this.reorderItems.findIndex(item => item.id === localItem.id);
+              if (itemIndex >= 0) {
+                this.reorderItems[itemIndex] = mergedItem;
+                this.notifyListeners();
+              }
 
-      if ('subscribe' in teamDataSubscription) {
-        const sub = (teamDataSubscription as any).subscribe({
-          next: ({ data }: any) => {
-            if (data?.onUpdateItemData) {
-              this.handleTeamDataUpdate(data.onUpdateItemData);
+              // Queue merged version to server
+              this.queueBackgroundSync('UPDATE_ITEM', {
+                id: mergedItem.id,
+                quantity: mergedItem.quantity,
+                completed: mergedItem.completed,
+                updatedAt: mergedItem.updatedAt
+              });
+
+              resolve();
             }
           },
-          error: (error: any) => {
-            logger.error('[ReorderService]', 'Team data subscription error', { error });
+          {
+            text: 'Cancel',
+            style: 'cancel',
+            onPress: () => {
+              logger.info('[ReorderService]', 'User cancelled conflict resolution');
+              resolve();
+            }
           }
+        ],
+        { cancelable: false }
+      );
+    });
+  }
+
+  // Update local item from server data
+  private async updateLocalItemFromServer(serverItem: any): Promise<void> {
+    try {
+      const itemIndex = this.reorderItems.findIndex(item => item.id === serverItem.id);
+
+      if (itemIndex >= 0) {
+        // Update existing item
+        this.reorderItems[itemIndex] = {
+          ...this.reorderItems[itemIndex],
+          ...serverItem,
+          timestamp: new Date(serverItem.createdAt),
+          index: itemIndex + 1
+        };
+      } else {
+        // Add new item from server
+        this.reorderItems.push({
+          ...serverItem,
+          timestamp: new Date(serverItem.createdAt),
+          index: this.reorderItems.length + 1
         });
-        this.subscriptions.push(sub);
       }
 
-      logger.info('[ReorderService]', 'Real-time subscriptions set up');
-    } catch (error: any) {
-      logger.error('[ReorderService]', 'Failed to set up subscriptions', { error });
+      // Save to local database
+      await this.saveOfflineItems();
+
+      // Notify listeners
+      this.notifyListeners();
+
+      logger.info('[ReorderService]', `Updated local item from server: ${serverItem.itemName}`);
+    } catch (error) {
+      logger.error('[ReorderService]', 'Failed to update local item from server', { error });
     }
   }
 
@@ -463,7 +850,7 @@ class ReorderService {
     this.listeners.forEach(listener => listener([...this.reorderItems]));
   }
 
-  // Clean up subscriptions
+  // Clean up subscriptions and timers
   cleanup() {
     this.subscriptions.forEach(sub => {
       if (sub && typeof sub.unsubscribe === 'function') {
@@ -471,7 +858,14 @@ class ReorderService {
       }
     });
     this.subscriptions = [];
-    logger.info('[ReorderService]', 'Subscriptions cleaned up');
+
+    // Clean up sync timeout
+    if (this.syncBatchTimeout) {
+      clearTimeout(this.syncBatchTimeout);
+      this.syncBatchTimeout = null;
+    }
+
+    logger.info('[ReorderService]', 'Subscriptions and timers cleaned up');
   }
 
   // Add item to reorder list using GraphQL
@@ -482,123 +876,9 @@ class ReorderService {
         reorderItem => reorderItem.itemId === item.id
       );
 
-      if (this.isOfflineMode) {
-        // Handle offline mode - add/update locally
-        if (existingItemIndex >= 0) {
-          // Update quantity for existing item
-          const existingItem = this.reorderItems[existingItemIndex];
-          if (overwriteMode) {
-            existingItem.quantity = quantity; // Overwrite instead of add
-          } else {
-            existingItem.quantity += quantity; // Add to existing quantity
-          }
-          existingItem.updatedAt = new Date().toISOString();
-          
-          // Add to pending sync
-          const existingPendingIndex = this.pendingSyncItems.findIndex(pending => pending.id === existingItem.id);
-          if (existingPendingIndex >= 0) {
-            this.pendingSyncItems[existingPendingIndex] = { ...existingItem };
-          } else {
-            this.pendingSyncItems.push({ ...existingItem });
-          }
-        } else {
-          // Add new item locally
-          const newReorderItem: ReorderItem = {
-            id: `offline-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            itemId: item.id,
-            itemName: item.name || 'Unknown Item',
-            itemBarcode: item.barcode || undefined,
-            itemCategory: item.category || undefined,
-            itemPrice: item.price,
-            quantity,
-            completed: false,
-            addedBy: addedBy,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            teamData,
-            timestamp: new Date(),
-            index: this.reorderItems.length + 1
-          };
-          
-          this.reorderItems.push(newReorderItem);
-          this.pendingSyncItems.push({ ...newReorderItem });
-        }
-        
-        await this.saveOfflineItems();
-        this.notifyListeners();
-        
-        logger.info('[ReorderService]', `Added item locally: ${item.name}`, {
-          itemId: item.id,
-          quantity,
-          isOffline: true
-        });
-        return true;
-      }
-
-      // Try to add/update on server
+      // 🚀 LOCAL-FIRST: Always work locally first for instant responsiveness
       if (existingItemIndex >= 0) {
-        // Update quantity if item already exists
-        const existingItem = this.reorderItems[existingItemIndex];
-        const newQuantity = overwriteMode ? quantity : existingItem.quantity + quantity;
-        
-        const response = await this.client.graphql({
-          query: mutations.updateReorderItem,
-          variables: {
-            input: {
-              id: existingItem.id,
-              quantity: newQuantity
-            }
-          }
-        }) as any;
-
-        if (response.data?.updateReorderItem) {
-          logger.info('[ReorderService]', `Updated quantity for existing item: ${item.name}`, {
-            itemId: item.id,
-            newQuantity
-          });
-          return true;
-        }
-      } else {
-        // Add new item to reorder list
-        const response = await this.client.graphql({
-          query: mutations.createReorderItem,
-          variables: {
-            input: {
-              itemId: item.id,
-              itemName: item.name,
-              itemBarcode: item.barcode || undefined,
-              itemCategory: item.category || undefined,
-              itemPrice: item.price,
-              quantity,
-              completed: false,
-              addedBy: addedBy
-            }
-          }
-        }) as any;
-
-        if (response.data?.createReorderItem) {
-          logger.info('[ReorderService]', `Added new item to reorder list: ${item.name}`, {
-            itemId: item.id,
-            quantity
-          });
-          return true;
-        }
-      }
-
-      return false;
-    } catch (error) {
-      logger.error('[ReorderService]', 'Failed to add item to reorder list, falling back to offline mode', { error, itemId: item.id });
-      
-      // Fallback to offline mode
-      this.isOfflineMode = true;
-      
-      // Check if item already exists in reorder list
-      const existingItemIndex = this.reorderItems.findIndex(
-        reorderItem => reorderItem.itemId === item.id
-      );
-
-      if (existingItemIndex >= 0) {
-        // Update quantity for existing item
+        // Update quantity for existing item locally
         const existingItem = this.reorderItems[existingItemIndex];
         if (overwriteMode) {
           existingItem.quantity = quantity; // Overwrite instead of add
@@ -606,18 +886,19 @@ class ReorderService {
           existingItem.quantity += quantity; // Add to existing quantity
         }
         existingItem.updatedAt = new Date().toISOString();
-        
-        // Add to pending sync
-        const existingPendingIndex = this.pendingSyncItems.findIndex(pending => pending.id === existingItem.id);
-        if (existingPendingIndex >= 0) {
-          this.pendingSyncItems[existingPendingIndex] = { ...existingItem };
-        } else {
-          this.pendingSyncItems.push({ ...existingItem });
-        }
+
+        // Queue background sync
+        this.queueBackgroundSync('UPDATE_ITEM', {
+          id: existingItem.id,
+          quantity: existingItem.quantity,
+          updatedAt: existingItem.updatedAt
+        });
+
+        logger.info('[ReorderService]', `✅ Updated item locally: ${existingItem.itemName} (qty: ${existingItem.quantity})`);
       } else {
         // Add new item locally
         const newReorderItem: ReorderItem = {
-          id: `offline-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          id: `local-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           itemId: item.id,
           itemName: item.name || 'Unknown Item',
           itemBarcode: item.barcode || undefined,
@@ -625,27 +906,39 @@ class ReorderService {
           itemPrice: item.price,
           quantity,
           completed: false,
-          addedBy: addedBy || 'Unknown User',
+          received: false,
+          addedBy: addedBy,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           teamData,
           timestamp: new Date(),
           index: this.reorderItems.length + 1
         };
-        
+
         this.reorderItems.push(newReorderItem);
-        this.pendingSyncItems.push({ ...newReorderItem });
+
+        // Queue background sync
+        this.queueBackgroundSync('CREATE_ITEM', {
+          itemId: item.id,
+          itemName: item.name,
+          itemBarcode: item.barcode || undefined,
+          itemCategory: item.category || undefined,
+          itemPrice: item.price,
+          quantity,
+          completed: false,
+          addedBy: addedBy
+        });
+
+        logger.info('[ReorderService]', `✅ Added item locally: ${item.name} (qty: ${quantity})`);
       }
-      
+
       await this.saveOfflineItems();
       this.notifyListeners();
-      
-      logger.info('[ReorderService]', `Added item locally after error: ${item.name}`, {
-        itemId: item.id,
-        quantity,
-        isOfflineFallback: true
-      });
+
       return true;
+    } catch (error) {
+      logger.error('[ReorderService]', 'Failed to add item', { error, itemId: item.id });
+      return false;
     }
   }
 
@@ -664,83 +957,185 @@ class ReorderService {
     return this.reorderItems.filter(item => !item.completed).length;
   }
 
-  // Clear all reorder items
+  // Clear all reorder items - LOCAL-FIRST
   async clear() {
     try {
-      // Delete all items from server
-      for (const item of this.reorderItems) {
-        await this.client.graphql({
-          query: mutations.deleteReorderItem,
-          variables: {
-            input: { id: item.id }
-          }
+      const itemCount = this.reorderItems.length;
+
+      // 🚀 LOCAL-FIRST: Clear locally first for instant responsiveness
+      const itemsToDelete = [...this.reorderItems]; // Copy for background sync
+
+      // Clear local arrays immediately
+      this.reorderItems = [];
+
+      // Queue background deletion for each item
+      itemsToDelete.forEach(item => {
+        this.queueBackgroundSync('DELETE_ITEM', {
+          id: item.id
         });
-      }
-      logger.info('[ReorderService]', 'Cleared all reorder items');
+      });
+
+      // Save empty state locally
+      await this.saveOfflineItems();
+      this.notifyListeners();
+
+      logger.info('[ReorderService]', `✅ Cleared ${itemCount} items locally (background sync queued)`);
+      return true;
     } catch (error) {
-      logger.error('[ReorderService]', 'Failed to clear reorder items', { error });
+      logger.error('[ReorderService]', 'Failed to clear reorder items locally', { error });
+      return false;
     }
   }
 
-  // Remove specific item
-  async removeItem(itemId: string) {
+  // Remove specific item - LOCAL-FIRST
+  async removeItem(itemId: string): Promise<boolean> {
     try {
-      if (this.isOfflineMode) {
-        // Remove from local storage
-        const itemIndex = this.reorderItems.findIndex(item => item.id === itemId);
-        if (itemIndex >= 0) {
-          const removedItem = this.reorderItems[itemIndex];
-          this.reorderItems.splice(itemIndex, 1);
-          
-          // Remove from pending sync if it exists there
-          this.pendingSyncItems = this.pendingSyncItems.filter(item => item.id !== itemId);
-          
-          // Re-index remaining items
-          this.reorderItems.forEach((item, index) => {
-            item.index = index + 1;
-          });
-          
-          await this.saveOfflineItems();
-          this.notifyListeners();
-          
-          logger.info('[ReorderService]', `Removed item locally: ${itemId}`);
-        }
-        return;
-      }
-
-      // Try to remove from server
-      const response = await this.client.graphql({
-        query: mutations.deleteReorderItem,
-        variables: {
-          input: { id: itemId }
-        }
-      }) as any;
-
-      if (response.data?.deleteReorderItem) {
-        logger.info('[ReorderService]', `Removed reorder item: ${itemId}`);
-      }
-    } catch (error) {
-      logger.error('[ReorderService]', 'Failed to remove reorder item, falling back to offline mode', { error, itemId });
-      
-      // Fallback to offline mode
-      this.isOfflineMode = true;
       const itemIndex = this.reorderItems.findIndex(item => item.id === itemId);
-      if (itemIndex >= 0) {
-        this.reorderItems.splice(itemIndex, 1);
-        
-        // Remove from pending sync if it exists there
-        this.pendingSyncItems = this.pendingSyncItems.filter(item => item.id !== itemId);
-        
-        // Re-index remaining items
-        this.reorderItems.forEach((item, index) => {
-          item.index = index + 1;
-        });
-        
-        await this.saveOfflineItems();
-        this.notifyListeners();
-        
-        logger.info('[ReorderService]', `Removed item locally after error: ${itemId}`);
+      if (itemIndex === -1) {
+        logger.warn('[ReorderService]', 'Item not found for removal', { itemId });
+        return false;
       }
+
+      const removedItem = this.reorderItems[itemIndex];
+
+      // 🚀 LOCAL-FIRST: Remove locally first for instant responsiveness
+      this.reorderItems.splice(itemIndex, 1);
+
+      // Re-index remaining items
+      this.reorderItems.forEach((item, index) => {
+        item.index = index + 1;
+      });
+
+      // Queue background deletion
+      this.queueBackgroundSync('DELETE_ITEM', {
+        id: itemId
+      });
+
+      await this.saveOfflineItems();
+      this.notifyListeners();
+
+      logger.info('[ReorderService]', `✅ Removed item locally: ${removedItem.itemName} (background sync queued)`);
+      return true;
+    } catch (error) {
+      logger.error('[ReorderService]', 'Failed to remove reorder item locally', { error, itemId });
+      return false;
+    }
+  }
+
+  // Move item to chronological top by updating timestamp (independent of GUI filters/sorting)
+  async moveItemToTop(itemId: string, teamData?: TeamData, userName: string = 'Unknown User'): Promise<boolean> {
+    try {
+      const itemIndex = this.reorderItems.findIndex(item => item.id === itemId);
+      if (itemIndex === -1) {
+        logger.error('[ReorderService]', 'Item not found for moveItemToTop', { itemId });
+        return false;
+      }
+
+      const existingItem = this.reorderItems[itemIndex];
+
+      // 🚀 LOCAL-FIRST: Update timestamp to bring to chronological top (behind the scenes)
+      const now = new Date().toISOString();
+
+      // Update item with new timestamp - this makes it chronologically most recent
+      // regardless of how the GUI is filtering/sorting the display
+      existingItem.updatedAt = now;
+      existingItem.timestamp = new Date(now);
+      existingItem.completed = false; // Reset to incomplete
+      if (teamData) {
+        existingItem.teamData = teamData;
+      }
+
+      // Queue background sync
+      this.queueBackgroundSync('UPDATE_ITEM', {
+        id: itemId,
+        completed: false,
+        updatedAt: now
+      });
+
+      // Keep internal data sorted chronologically (most recent first)
+      // This ensures scanning logic works correctly regardless of GUI display
+      this.reorderItems.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+      // Re-index items
+      this.reorderItems.forEach((item, index) => {
+        item.index = index + 1;
+      });
+
+      await this.saveOfflineItems();
+      this.notifyListeners();
+
+      logger.info('[ReorderService]', `Moved item to chronological top: ${existingItem.itemName}`, {
+        itemId,
+        newTimestamp: now,
+        note: 'Chronological position independent of GUI filters'
+      });
+      return true;
+    } catch (error) {
+      logger.error('[ReorderService]', 'Failed to move item to top', { error, itemId });
+      return false;
+    }
+  }
+
+  // Mark item as received by deleting from reorder list and logging in item history
+  async markAsReceived(itemId: string, userName: string = 'Unknown User'): Promise<boolean> {
+    try {
+      const itemIndex = this.reorderItems.findIndex(item => item.id === itemId);
+      if (itemIndex === -1) {
+        logger.error('[ReorderService]', 'Item not found for markAsReceived', { itemId });
+        return false;
+      }
+
+      const reorderItem = this.reorderItems[itemIndex];
+      const squareItemId = reorderItem.itemId;
+
+      // Step 1: Log the reorder completion in item history (using itemHistoryService)
+      try {
+        // Import itemHistoryService if not already imported
+        const { itemHistoryService } = await import('./itemHistoryService');
+
+        await itemHistoryService.logReorder(
+          squareItemId,
+          reorderItem.itemName || 'Unknown Item',
+          reorderItem.quantity,
+          userName
+        );
+
+        logger.info('[ReorderService]', `Logged reorder completion in item history: ${squareItemId}`, {
+          itemName: reorderItem.itemName,
+          quantity: reorderItem.quantity
+        });
+      } catch (historyError) {
+        logger.error('[ReorderService]', 'Failed to log reorder completion in item history', {
+          error: historyError,
+          itemId: squareItemId
+        });
+        // Continue with deletion even if history logging fails
+      }
+
+      // Step 2: 🚀 LOCAL-FIRST: Delete locally first, then sync in background
+      // Remove from active reorder list
+      this.reorderItems.splice(itemIndex, 1);
+
+      // Re-index remaining items
+      this.reorderItems.forEach((item, index) => {
+        item.index = index + 1;
+      });
+
+      // Queue background deletion
+      this.queueBackgroundSync('DELETE_ITEM', {
+        id: itemId
+      });
+
+      await this.saveOfflineItems();
+      this.notifyListeners();
+
+      logger.info('[ReorderService]', `✅ Deleted received item locally: ${itemId}`, {
+        itemName: reorderItem.itemName
+      });
+      return true;
+    } catch (error) {
+      logger.error('[ReorderService]', 'Failed to mark item as received', { error, itemId });
+      return false;
     }
   }
 
@@ -752,96 +1147,27 @@ class ReorderService {
 
       const newCompletedState = !item.completed;
 
-      // Track reorder history if the item is being marked as completed (reordered)
-      if (newCompletedState && item.itemId && item.itemId !== item.id) { // Only track for real items, not custom ones
-        try {
-          await itemHistoryService.logReorder(
-            item.itemId,
-            item.itemName || 'Unknown Item',
-            item.quantity,
-            userName
-          );
-        } catch (historyError) {
-          logger.error('[ReorderService]', 'Failed to track reorder history', { historyError, itemId });
-          // Don't fail the reorder operation if history tracking fails
-        }
-      }
+      // Note: We don't log reorder history here anymore - only when item is received (markAsReceived)
 
-      if (this.isOfflineMode) {
-        // Update locally
-        item.completed = newCompletedState;
-        item.updatedAt = new Date().toISOString();
-        
-        // Add to pending sync if not already there
-        const existingPendingIndex = this.pendingSyncItems.findIndex(pending => pending.id === itemId);
-        if (existingPendingIndex >= 0) {
-          this.pendingSyncItems[existingPendingIndex] = { ...item };
-        } else {
-          this.pendingSyncItems.push({ ...item });
-        }
-        
-        await this.saveOfflineItems();
-        this.notifyListeners();
-        
-        logger.info('[ReorderService]', `Toggled completion locally for item: ${itemId}`, { 
-          completed: newCompletedState 
-        });
-        return;
-      }
+      // 🚀 LOCAL-FIRST: Update locally first for instant responsiveness
+      item.completed = newCompletedState;
+      item.updatedAt = new Date().toISOString();
 
-      // Try to update on server
-      const response = await this.client.graphql({
-        query: mutations.updateReorderItem,
-        variables: {
-          input: {
-            id: itemId,
-            completed: newCompletedState
-          }
-        }
-      }) as any;
+      // Queue background sync
+      this.queueBackgroundSync('TOGGLE_COMPLETION', {
+        id: itemId,
+        completed: newCompletedState,
+        updatedAt: item.updatedAt
+      });
 
-      if (response.data?.updateReorderItem) {
-        logger.info('[ReorderService]', `Toggled completion for item: ${itemId}`, { 
-          completed: newCompletedState 
-        });
-      }
+      await this.saveOfflineItems();
+      this.notifyListeners();
+
+      logger.info('[ReorderService]', `Toggled completion locally for item: ${itemId}`, {
+        completed: newCompletedState
+      });
     } catch (error) {
-      logger.error('[ReorderService]', 'Failed to toggle completion, falling back to offline mode', { error, itemId });
-      
-      // Fallback to offline mode
-      this.isOfflineMode = true;
-      const item = this.reorderItems.find(item => item.id === itemId);
-      if (item) {
-        const newCompletedState = !item.completed;
-        
-        // Track reorder history if being marked as completed
-        if (newCompletedState && item.itemId && item.itemId !== item.id) {
-          try {
-            await itemHistoryService.logReorder(
-              item.itemId,
-              item.itemName || 'Unknown Item',
-              item.quantity,
-              userName
-            );
-          } catch (historyError) {
-            logger.error('[ReorderService]', 'Failed to track reorder history (offline)', { historyError, itemId });
-          }
-        }
-        
-        item.completed = newCompletedState;
-        item.updatedAt = new Date().toISOString();
-        
-        // Add to pending sync
-        const existingPendingIndex = this.pendingSyncItems.findIndex(pending => pending.id === itemId);
-        if (existingPendingIndex >= 0) {
-          this.pendingSyncItems[existingPendingIndex] = { ...item };
-        } else {
-          this.pendingSyncItems.push({ ...item });
-        }
-        
-        await this.saveOfflineItems();
-        this.notifyListeners();
-      }
+      logger.error('[ReorderService]', 'Failed to toggle completion', { error, itemId });
     }
   }
 
@@ -932,6 +1258,7 @@ class ReorderService {
         itemPrice: undefined,
         quantity: customItem.quantity,
         completed: false,
+        received: false,
         addedBy: customItem.addedBy,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -940,58 +1267,11 @@ class ReorderService {
         teamData: customItem.vendor ? { vendor: customItem.vendor } : undefined
       };
 
-      if (this.isOfflineMode) {
-        // Add to local storage and pending sync
-        this.reorderItems.unshift(newItem);
-        this.pendingSyncItems.push(newItem);
-        await this.saveOfflineItems();
-        this.notifyListeners();
-        
-        logger.info('[ReorderService]', `Added custom item to offline storage: ${customItem.itemName}`, {
-          itemId: customId,
-          quantity: customItem.quantity
-        });
-        return true;
-      } else {
-        // Try to add to server
-        const response = await this.client.graphql({
-          query: mutations.createReorderItem,
-          variables: {
-            input: {
-              itemId: customId,
-              itemName: customItem.itemName,
-              itemBarcode: undefined,
-              itemCategory: customItem.itemCategory || 'Custom',
-              itemPrice: undefined,
-              quantity: customItem.quantity,
-              completed: false,
-              addedBy: customItem.addedBy
-            }
-          }
-        }) as any;
+      // 🚀 LOCAL-FIRST: Add locally first for instant responsiveness
+      this.reorderItems.unshift(newItem);
 
-        if (response.data?.createReorderItem) {
-          logger.info('[ReorderService]', `Added custom item to server: ${customItem.itemName}`, {
-            itemId: customId,
-            quantity: customItem.quantity
-          });
-          return true;
-        }
-      }
-
-      return false;
-    } catch (error) {
-      logger.error('[ReorderService]', 'Failed to add custom item, falling back to offline mode', { 
-        error, 
-        itemName: customItem.itemName 
-      });
-      
-      // Fallback to offline mode
-      this.isOfflineMode = true;
-      const customId = `custom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      
-      const newItem: ReorderItem = {
-        id: customId,
+      // Queue background sync
+      this.queueBackgroundSync('CREATE_ITEM', {
         itemId: customId,
         itemName: customItem.itemName,
         itemBarcode: undefined,
@@ -999,20 +1279,23 @@ class ReorderService {
         itemPrice: undefined,
         quantity: customItem.quantity,
         completed: false,
-        addedBy: customItem.addedBy,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        timestamp: new Date(),
-        index: this.reorderItems.length + 1,
-        teamData: customItem.vendor ? { vendor: customItem.vendor } : undefined
-      };
+        addedBy: customItem.addedBy
+      });
 
-      this.reorderItems.unshift(newItem);
-      this.pendingSyncItems.push(newItem);
       await this.saveOfflineItems();
       this.notifyListeners();
-      
-      return true; // Return true since we saved locally
+
+      logger.info('[ReorderService]', `✅ Added custom item locally: ${customItem.itemName} (background sync queued)`, {
+        itemId: customId,
+        quantity: customItem.quantity
+      });
+      return true;
+    } catch (error) {
+      logger.error('[ReorderService]', 'Failed to add custom item locally', {
+        error,
+        itemName: customItem.itemName
+      });
+      return false;
     }
   }
 
@@ -1095,10 +1378,10 @@ class ReorderService {
         itemPrice: row.item_price,
         quantity: row.quantity,
         completed: row.completed === 1,
+        received: false,
         addedBy: row.added_by,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
-        owner: row.owner,
         timestamp: new Date(row.created_at),
         index: 0 // Will be set later
       }));
@@ -1117,8 +1400,8 @@ class ReorderService {
         for (const item of items) {
           await db.runAsync(`
             INSERT OR REPLACE INTO reorder_items
-            (id, item_id, item_name, item_barcode, item_category, item_price, quantity, completed, added_by, created_at, updated_at, last_sync_at, owner, pending_sync)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, item_id, item_name, item_barcode, item_category, item_price, quantity, completed, added_by, created_at, updated_at, last_sync_at, pending_sync)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `, [
             item.id,
             item.itemId,
@@ -1132,7 +1415,6 @@ class ReorderService {
             item.createdAt,
             item.updatedAt,
             now,
-            item.owner,
             0 // not pending sync
           ]);
         }

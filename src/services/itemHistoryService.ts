@@ -282,7 +282,7 @@ class ItemHistoryService {
   }
 
   /**
-   * Log reorder/repurchase
+   * Log reorder completion (when item completes the full reorder cycle: added → completed → received)
    */
   async logReorder(
     itemId: string,
@@ -293,7 +293,7 @@ class ItemHistoryService {
     return this.logItemChange({
       itemId,
       changeType: 'REORDERED',
-      changeDescription: `Item "${itemName}" reordered (quantity: ${quantity})`,
+      changeDescription: `Item "${itemName}" reorder completed (quantity: ${quantity})`,
       newValue: quantity.toString(),
       userName,
       additionalData: { itemName, quantity }

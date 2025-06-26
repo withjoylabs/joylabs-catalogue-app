@@ -184,6 +184,7 @@ export const updateReorderItem = /* GraphQL */ `
       itemPrice
       quantity
       completed
+      received
       addedBy
       createdAt
       updatedAt

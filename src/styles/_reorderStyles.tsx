@@ -57,22 +57,31 @@ export const reorderStyles = StyleSheet.create({
   // Stats section
   statsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
     paddingVertical: 8,
     backgroundColor: '#f8f8f8',
     marginBottom: 12,
+    borderRadius: 8,
+    marginHorizontal: 4,
   },
   
   statItem: {
     alignItems: 'center',
+    flex: 1,
   },
-  
+
+  statIconContainer: {
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: 24,
+  },
+
   statNumber: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#007AFF',
   },
-  
+
   statLabel: {
     fontSize: 12,
     color: '#666',
@@ -622,4 +631,6 @@ export const reorderStyles = StyleSheet.create({
     color: '#007AFF',
     fontWeight: '600',
   },
+
+
 });

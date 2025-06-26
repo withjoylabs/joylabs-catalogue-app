@@ -233,6 +233,7 @@ export async function initializeSchema(dbInstance?: SQLiteDatabase): Promise<voi
           item_price REAL,
           quantity INTEGER DEFAULT 1,
           completed INTEGER DEFAULT 0,
+          received INTEGER DEFAULT 0,
           added_by TEXT,
           created_at TEXT DEFAULT CURRENT_TIMESTAMP,
           updated_at TEXT DEFAULT CURRENT_TIMESTAMP,

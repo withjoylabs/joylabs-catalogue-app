@@ -43,21 +43,22 @@ type ItemChangeLog @model @auth(rules: [{ allow: owner }]) {
 # Model for reorder items with real-time sync across devices
 type ReorderItem @model @auth(rules: [{ allow: owner }]) {
   id: ID!
-  
+
   # Reference to the Square Item ID
   itemId: ID! @index(name: "byItemId", queryField: "reordersByItemId")
-  
+
   # Item details (denormalized for performance)
   itemName: String!
   itemBarcode: String
   itemCategory: String
   itemPrice: Float
-  
+
   # Reorder specific data
   quantity: Int!
   completed: Boolean!
+  received: Boolean!
   addedBy: String!
-  
+
   # Timestamps
   createdAt: AWSDateTime!
   updatedAt: AWSDateTime!
