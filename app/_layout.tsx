@@ -110,14 +110,15 @@ const linking = {
   config: {
     screens: {
       '(tabs)': {
-    initialRouteName: 'index',
-    screens: {
-      index: '',
-          search: 'search',
-      labels: 'labels',
-          profile: 'profile',
+        initialRouteName: '(scan)',
+        screens: {
+          '(scan)': '',
+          reorders: 'reorders',
+          labels: 'labels',
+          '(profile)': 'profile',
         }
       },
+
       'item/:id': 'item/:id',
       'auth/success': 'auth/success',
       debug: 'debug',
@@ -227,12 +228,69 @@ export default function RootLayout() {
     logger.info('[Notifications]', 'Setting up notification handlers...');
     Notifications.setNotificationHandler({
       handleNotification: async (notification): Promise<NotificationBehavior> => {
-        logger.info('[Notifications]', 'Notification received while app running/foregrounded', notification.request.content);
-        
+        logger.info('[Notifications]', '🔔 PUSH NOTIFICATION RECEIVED!', {
+          title: notification.request.content.title,
+          body: notification.request.content.body,
+          data: notification.request.content.data,
+          timestamp: new Date().toISOString(),
+          fullNotification: JSON.stringify(notification, null, 2)
+        });
+
+        // Check if this is a catalog update notification
+        const notificationData = notification.request.content.data;
+        const isCatalogUpdate = notificationData?.type === 'catalog_updated' ||
+                               notificationData?.eventType?.startsWith('catalog.');
+
+        logger.info('[Notifications]', 'Notification data analysis', {
+          hasData: !!notificationData,
+          dataType: notificationData?.type,
+          eventType: notificationData?.eventType,
+          isCatalogUpdate,
+          allDataKeys: notificationData ? Object.keys(notificationData) : []
+        });
+
+        if (isCatalogUpdate) {
+          logger.info('[Notifications]', '✅ Catalog update push notification detected - triggering webhook sync');
+
+          // Add a visible notification that sync is being triggered
+          import('../src/services/notificationService').then(({ default: NotificationService }) => {
+            NotificationService.addNotification({
+              type: 'webhook_catalog_update',
+              title: '📱 Push Notification Received!',
+              message: `Received push notification from Square - triggering sync for catalog update`,
+              priority: 'high',
+              source: 'push'
+            });
+          });
+
+          // Trigger webhook sync in background
+          try {
+            const syncService = CatalogSyncService.getInstance();
+            syncService.runIncrementalSync().catch(error => {
+              logger.error('[Notifications]', 'Failed to trigger sync from push notification', { error });
+            });
+          } catch (error) {
+            logger.error('[Notifications]', 'Error setting up sync from push notification', { error });
+          }
+
+          // Show the notification for catalog updates
+          return {
+            shouldShowAlert: true,
+            shouldPlaySound: true,
+            shouldSetBadge: true,
+          } as NotificationBehavior;
+        } else {
+          logger.warn('[Notifications]', '⚠️ Non-catalog notification received - not triggering sync', {
+            dataType: notificationData?.type,
+            eventType: notificationData?.eventType
+          });
+        }
+
+        // For non-catalog notifications, show them normally
         return {
-          shouldShowAlert: false, 
-            shouldPlaySound: false,
-            shouldSetBadge: false,
+          shouldShowAlert: true,
+          shouldPlaySound: false,
+          shouldSetBadge: true,
         } as NotificationBehavior;
       },
       handleSuccess: (notificationId) => {
@@ -246,10 +304,33 @@ export default function RootLayout() {
     });
     responseListenerSubscription = Notifications.addNotificationResponseReceivedListener(response => {
       if (!isMounted) return;
-      logger.info('[Notifications]', 'Notification response received', { response });
+      logger.info('[Notifications]', 'Notification response received (user tapped notification)', {
+        title: response.notification.request.content.title,
+        data: response.notification.request.content.data
+      });
+
+      // Handle URL navigation if provided
       const url = response.notification.request.content.data?.url as string | undefined;
       if (url) {
         logger.info('[Notifications]', `Attempting to navigate to URL from notification: ${url}`);
+        router.push(url);
+      }
+
+      // Handle catalog update notifications when user taps them
+      const notificationData = response.notification.request.content.data;
+      const isCatalogUpdate = notificationData?.type === 'catalog_updated' ||
+                             notificationData?.eventType?.startsWith('catalog.');
+
+      if (isCatalogUpdate) {
+        logger.info('[Notifications]', 'User tapped catalog update notification - triggering sync');
+        try {
+          const syncService = CatalogSyncService.getInstance();
+          syncService.runIncrementalSync().catch(error => {
+            logger.error('[Notifications]', 'Failed to trigger sync from tapped notification', { error });
+          });
+        } catch (error) {
+          logger.error('[Notifications]', 'Error setting up sync from tapped notification', { error });
+        }
       }
     });
     logger.info('[Notifications]', 'Notification handlers set.');
@@ -277,21 +358,7 @@ export default function RootLayout() {
 
   const router = useRouter();
 
-  useEffect(() => {
-    // Other notification setup...
-
-    // Listener for when a user taps on a notification
-    const responseSubscription = Notifications.addNotificationResponseReceivedListener(response => {
-      const url = response.notification.request.content.data.url;
-      if (typeof url === 'string') {
-        router.push(url);
-      }
-    });
-
-    return () => {
-      responseSubscription.remove();
-    };
-  }, [router]);
+  // Notification response handling is now consolidated in the main notification setup above
 
   if (!isAppReady || authLoading) {
     return <ActivityIndicator size="large" style={{ flex: 1, justifyContent: 'center' }} />;
@@ -305,17 +372,16 @@ export default function RootLayout() {
                   <DatabaseProvider>
               <PaperProvider theme={paperTheme}>
                 <MenuProvider>
-                  <CatalogSubscriptionManager />
                   <StatusBar style="auto" />
                   <Stack>
                     <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                                        <Stack.Screen
+                    <Stack.Screen
                       name="item/[id]"
                       options={({ route }) => ({
                         presentation: 'modal',
                         headerShown: true,
                         headerTitle: (route.params as any)?.id === 'new' ? 'New Item' : 'Edit Item',
-                        gestureEnabled: true,
+                          gestureEnabled: true,
                       })}
                     />
                     <Stack.Screen name="debug" options={{
@@ -348,12 +414,16 @@ export default function RootLayout() {
                       headerShown: true,
                       headerTitle: 'Sign In'
                     }} />
+
                       </Stack>
                   <GlobalSuccessModal />
                 </MenuProvider>
               </PaperProvider>
             </DatabaseProvider>
           </ApiProvider>
+
+          {/* Background AppSync listener for catch-up signals when returning from offline */}
+          <CatalogSubscriptionManager />
         </Authenticator.Provider>
       </ActionSheetProvider>
       </GestureHandlerRootView>

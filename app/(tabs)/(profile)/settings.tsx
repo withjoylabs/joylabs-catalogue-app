@@ -11,7 +11,6 @@ import { Ionicons } from '@expo/vector-icons';
 const TAG = '[ProfileSettingsScreen]';
 
 interface SettingsState {
-  notificationsEnabled: boolean;
   backgroundSyncEnabled: boolean;
   darkModeEnabled: boolean;
   analyticsEnabled: boolean;
@@ -33,7 +32,6 @@ const ProfileSettingsScreen = () => {
   
   // Settings state
   const [settings, setSettings] = useState<SettingsState>({
-    notificationsEnabled: false,
     backgroundSyncEnabled: false,
     darkModeEnabled: false,
     analyticsEnabled: true,
@@ -245,20 +243,23 @@ const ProfileSettingsScreen = () => {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>App Settings</Text>
         
-        {/* Notifications toggle */}
-        <View style={styles.settingItem}>
+        {/* Notification Settings Navigation */}
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => router.push('/(tabs)/(profile)/notification-settings')}
+        >
+          <View style={styles.navItemContent}>
           <View style={styles.settingTextContainer}>
-            <Text style={styles.settingLabel}>Enable Sync Notifications</Text>
-            <Text style={styles.settingDescription}>Receive alerts about inventory changes</Text>
+              <Text style={styles.settingLabel}>Notification Settings</Text>
+              <Text style={styles.settingDescription}>Configure which notifications you receive</Text>
           </View>
-          <Switch
-            trackColor={{ false: lightTheme.colors.border, true: lightTheme.colors.primary }}
-            thumbColor={settings.notificationsEnabled ? lightTheme.colors.background : lightTheme.colors.secondary}
-            ios_backgroundColor={lightTheme.colors.border}
-            value={settings.notificationsEnabled}
-            onValueChange={(newValue) => setSettings({ ...settings, notificationsEnabled: newValue })}
+            <Ionicons 
+              name="chevron-forward" 
+              size={20} 
+              color={lightTheme.colors.text} 
           />
         </View>
+        </TouchableOpacity>
         
         {/* Dark Mode toggle */}
         <View style={styles.settingItem}>

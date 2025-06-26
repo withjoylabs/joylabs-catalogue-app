@@ -6,6 +6,27 @@ export const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
+  headerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: lightTheme.colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E5EA',
+  },
+  logoText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: lightTheme.colors.primary,
+    letterSpacing: 1,
+  },
+  headerRightContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   mainContent: {
     flex: 1,
     // Removed marginBottom: 10, as the SearchBar in index.tsx might have different spacing needs

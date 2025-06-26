@@ -33,7 +33,7 @@ export default function CatalogueScreen() {
     } else {
       const searchLower = search.toLowerCase();
       const filtered = products.filter(
-        item => item.name.toLowerCase().includes(searchLower) || 
+        item => (item.name || '').toLowerCase().includes(searchLower) || 
                (item.description || '').toLowerCase().includes(searchLower) ||
                (item.sku || '').toLowerCase().includes(searchLower)
       );
@@ -74,11 +74,11 @@ export default function CatalogueScreen() {
   const sortedItems = [...filteredItems].sort((a, b) => {
     switch (sortOrder) {
       case 'newest':
-        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+        return new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime();
       case 'oldest':
-        return new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
+        return new Date(a.updatedAt || 0).getTime() - new Date(b.updatedAt || 0).getTime();
       case 'name':
-        return a.name.localeCompare(b.name);
+        return (a.name || '').localeCompare(b.name || '');
       case 'price':
         if (a.price === undefined && b.price === undefined) return 0;
         if (a.price === undefined) return 1;
@@ -225,6 +225,8 @@ export default function CatalogueScreen() {
         onChangeText={setSearch}
         onSubmit={handleSearch}
         onClear={handleClearSearch}
+        autoSearchOnEnter={true}
+        autoSearchOnTab={false}
       />
       
       <View style={styles.sortHeader}>

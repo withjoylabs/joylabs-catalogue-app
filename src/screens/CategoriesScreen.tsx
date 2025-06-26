@@ -13,7 +13,6 @@ import * as modernDb from '../database/modernDb';
 import NetInfo from '@react-native-community/netinfo';
 import tokenService from '../services/tokenService';
 import { useWebhooks } from '../hooks/useWebhooks';
-import { useCatalogSubscription } from '../hooks/useCatalogSubscription';
 import logger from '../utils/logger';
 
 // Define category interface to match the hook
@@ -40,7 +39,6 @@ const CategoriesScreen: React.FC = () => {
   
   // Integrate webhook system for real-time updates
   const { isWebhookActive, merchantId } = useWebhooks();
-  const { isSubscribed } = useCatalogSubscription();
   
   // Check sync status when screen loads
   useEffect(() => {
@@ -257,7 +255,7 @@ Choose "Reset Sync State" to fix this.
         <View style={styles.header}>
           <Text style={styles.title}>Categories</Text>
           <View style={styles.statusContainer}>
-            {isSubscribed && isWebhookActive ? (
+            {isWebhookActive ? (
               <View style={styles.statusBadge}>
                 <Ionicons name="cloud-done" size={16} color={lightTheme.colors.secondary} />
                 <Text style={[styles.statusText, { color: lightTheme.colors.secondary }]}>
@@ -286,7 +284,7 @@ Choose "Reset Sync State" to fix this.
         <View style={styles.header}>
           <Text style={styles.title}>Categories</Text>
           <View style={styles.statusContainer}>
-            {isSubscribed && isWebhookActive ? (
+            {isWebhookActive ? (
               <View style={styles.statusBadge}>
                 <Ionicons name="cloud-done" size={16} color={lightTheme.colors.secondary} />
                 <Text style={[styles.statusText, { color: lightTheme.colors.secondary }]}>
@@ -319,7 +317,7 @@ Choose "Reset Sync State" to fix this.
         <View style={styles.header}>
           <Text style={styles.title}>Categories</Text>
           <View style={styles.statusContainer}>
-            {isSubscribed && isWebhookActive ? (
+            {isWebhookActive ? (
               <View style={styles.statusBadge}>
                 <Ionicons name="cloud-done" size={16} color={lightTheme.colors.secondary} />
                 <Text style={[styles.statusText, { color: lightTheme.colors.secondary }]}>
@@ -353,7 +351,7 @@ Choose "Reset Sync State" to fix this.
       <View style={styles.header}>
         <Text style={styles.title}>Categories</Text>
         <View style={styles.statusContainer}>
-          {isSubscribed && isWebhookActive ? (
+          {isWebhookActive ? (
             <View style={styles.statusBadge}>
               <Ionicons name="cloud-done" size={16} color={lightTheme.colors.secondary} />
               <Text style={[styles.statusText, { color: lightTheme.colors.secondary }]}>

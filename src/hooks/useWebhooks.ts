@@ -1,8 +1,8 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useState } from 'react';
 import * as Notifications from 'expo-notifications';
 import { useAuthenticator } from '@aws-amplify/ui-react-native';
 import { CatalogSyncService } from '../database/catalogSync';
-import { useCatalogSubscription } from './useCatalogSubscription';
+import { fetchUserAttributes } from 'aws-amplify/auth';
 import logger from '../utils/logger';
 
 /**
@@ -12,7 +12,35 @@ import logger from '../utils/logger';
  */
 export const useWebhooks = () => {
   const { user } = useAuthenticator();
-  const { isSubscribed, merchantId } = useCatalogSubscription();
+  const [merchantId, setMerchantId] = useState<string | null>(null);
+
+  // Get merchant ID from user attributes (same logic as useCatalogSubscription)
+  useEffect(() => {
+    const getMerchantId = async () => {
+      if (!user) {
+        setMerchantId(null);
+        return;
+      }
+
+      try {
+        const attributes = await fetchUserAttributes();
+        const merchantIdFromAttributes = attributes['custom:square_merchant_id'];
+
+        if (merchantIdFromAttributes) {
+          setMerchantId(merchantIdFromAttributes);
+          logger.debug('useWebhooks', 'Merchant ID retrieved from user attributes', { merchantId: merchantIdFromAttributes });
+        } else {
+          logger.warn('useWebhooks', 'No merchant ID found in user attributes');
+          setMerchantId(null);
+        }
+      } catch (error) {
+        logger.error('useWebhooks', 'Failed to fetch user attributes for merchant ID', { error });
+        setMerchantId(null);
+      }
+    };
+
+    getMerchantId();
+  }, [user]);
 
   // Handle push notifications when app is backgrounded or foreground
   const handlePushNotification = useCallback(async (notification: Notifications.Notification) => {
@@ -55,39 +83,12 @@ export const useWebhooks = () => {
     }
   }, []);
 
-  // Set up push notification listeners
-  useEffect(() => {
-    if (!user?.signInDetails?.loginId) {
-      logger.debug('WebhookHandler', 'User not authenticated, skipping notification setup');
-      return;
-    }
-
-    logger.info('WebhookHandler', 'Setting up webhook notification handlers', { 
-      isSubscribed,
-      merchantId 
-    });
-
-    // Foreground notification listener
-    const foregroundSubscription = Notifications.addNotificationReceivedListener(handlePushNotification);
-
-    // Background notification listener (handled by TaskManager in _layout.tsx)
-    // This is for when user taps on notification
-    const responseSubscription = Notifications.addNotificationResponseReceivedListener(response => {
-      logger.info('WebhookHandler', 'User tapped on notification', { 
-        data: response.notification.request.content.data 
-      });
-      handlePushNotification(response.notification);
-    });
-
-    return () => {
-      logger.info('WebhookHandler', 'Cleaning up webhook notification handlers');
-      foregroundSubscription.remove();
-      responseSubscription.remove();
-    };
-  }, [user, isSubscribed, merchantId, handlePushNotification]);
+  // Note: Push notification listeners are now handled centrally in _layout.tsx
+  // to avoid conflicts and ensure proper notification handling.
+  // This hook now only provides webhook status and utility functions.
 
   return {
-    isWebhookActive: isSubscribed,
+    isWebhookActive: !!merchantId, // Active if we have a merchant ID
     merchantId,
     handlePushNotification
   };

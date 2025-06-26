@@ -193,6 +193,9 @@ export default function ItemDetails() {
   
   const teamDataSaveRef = useRef<(() => Promise<void>) | null>(null);
 
+  // Add state to track the real item ID after save (fixes team data save bug for new items)
+  const [realItemId, setRealItemId] = useState<string>(id);
+
   // Callback to handle team data changes
   const handleTeamDataChange = useCallback((hasChanges: boolean) => {
     setHasTeamDataChanges(hasChanges);
@@ -747,6 +750,9 @@ export default function ItemDetails() {
         // Track item changes in history
         await trackItemChanges(savedItem);
         
+        // Update the real item ID for team data save (fixes new item bug)
+        setRealItemId(savedItem.id);
+        
         if (teamDataSaveRef.current) {
           await teamDataSaveRef.current();
         }
@@ -995,6 +1001,8 @@ export default function ItemDetails() {
             setItem(definitiveItem);
             setOriginalItem(definitiveItem);
             setVariations(itemVariations);
+            // Update real item ID for existing items too
+            setRealItemId(definitiveItem.id);
             
           } else {
             setError('Item not found');
@@ -1234,7 +1242,7 @@ export default function ItemDetails() {
       const found = availableCategories.find(c => c.id === categoryId);
       if (found) {
         if (originalItem?.reporting_category_id !== categoryId) {
-          addRecentCategoryId(categoryId);
+             addRecentCategoryId(categoryId);
         }
         return found.name;
       } else {
@@ -1568,7 +1576,7 @@ export default function ItemDetails() {
                   {/* Price */}
                   <View style={styles.fieldContainer}>
                     <View style={styles.priceHeaderContainer}>
-                      <Text style={styles.subLabel}>Price</Text>
+                    <Text style={styles.subLabel}>Price</Text>
                       {vendorUnitCost !== undefined && (
                         <Text style={styles.vendorUnitCostHelper}>
                           Unit Cost: ${vendorUnitCost.toFixed(2)}
@@ -1834,7 +1842,7 @@ export default function ItemDetails() {
               />
             </View>
 
-            <TeamDataSection itemId={id} onSaveRef={teamDataSaveRef} onDataChange={handleTeamDataChange} onVendorUnitCostChange={setVendorUnitCost} isNewItem={isNewItem} />
+            <TeamDataSection itemId={realItemId} onSaveRef={teamDataSaveRef} onDataChange={handleTeamDataChange} onVendorUnitCostChange={setVendorUnitCost} isNewItem={isNewItem} />
 
             {/* History Section - Only for existing items and authenticated users */}
             {!isNewItem && (

@@ -51,7 +51,7 @@ export default function ScanHistoryScreen() {
       
       {/* Header for Scan History Page */}
       <View style={styles.headerContainer}>
-        <Link href="../" asChild>
+        <Link href="/(tabs)/(scan)" asChild>
           <TouchableOpacity style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color={lightTheme.colors.primary} />
           </TouchableOpacity>

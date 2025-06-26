@@ -6,7 +6,7 @@ import { transformCatalogItemToItem } from '../utils/catalogTransformers';
 
 // Constants
 const DATABASE_NAME = 'joylabs.db';
-const DATABASE_VERSION = 2; // Increment version due to schema change
+const DATABASE_VERSION = 3; // Increment version for team data and reorder tables
 let db: SQLiteDatabase | null = null;
 let dbInitPromise: Promise<SQLiteDatabase> | null = null;
 
@@ -163,6 +163,9 @@ export async function initializeSchema(dbInstance?: SQLiteDatabase): Promise<voi
       logger.info('Schema Init', 'Dropping existing tables (part of update)...');
       try {
         await db.runAsync('DROP TABLE IF EXISTS sync_status');
+        await db.runAsync('DROP TABLE IF EXISTS team_data');
+        await db.runAsync('DROP TABLE IF EXISTS reorder_items');
+        await db.runAsync('DROP TABLE IF EXISTS item_change_logs');
         await db.runAsync('DROP TABLE IF EXISTS categories');
         await db.runAsync('DROP TABLE IF EXISTS catalog_items');
         await db.runAsync('DROP TABLE IF EXISTS item_variations');
@@ -199,7 +202,62 @@ export async function initializeSchema(dbInstance?: SQLiteDatabase): Promise<voi
         )`);
         await db.runAsync(`INSERT INTO sync_status (id) VALUES (1)`);
         logger.debug('Schema Init', 'Created sync_status table.');
-        
+
+        // Create team_data table for local storage of AppSync ItemData
+        await db.runAsync(`CREATE TABLE team_data (
+          item_id TEXT PRIMARY KEY NOT NULL,
+          case_upc TEXT,
+          case_cost REAL,
+          case_quantity INTEGER,
+          vendor TEXT,
+          discontinued INTEGER DEFAULT 0,
+          notes TEXT,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          last_sync_at TEXT,
+          owner TEXT
+        )`);
+        logger.debug('Schema Init', 'Created team_data table.');
+
+        // Create index for case UPC searches
+        await db.runAsync(`CREATE INDEX idx_team_data_case_upc ON team_data(case_upc)`);
+        logger.debug('Schema Init', 'Created case UPC index.');
+
+        // Create reorder_items table for local storage of AppSync ReorderItems
+        await db.runAsync(`CREATE TABLE reorder_items (
+          id TEXT PRIMARY KEY NOT NULL,
+          item_id TEXT NOT NULL,
+          item_name TEXT,
+          item_barcode TEXT,
+          item_category TEXT,
+          item_price REAL,
+          quantity INTEGER DEFAULT 1,
+          completed INTEGER DEFAULT 0,
+          added_by TEXT,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          last_sync_at TEXT,
+          owner TEXT,
+          pending_sync INTEGER DEFAULT 0
+        )`);
+        logger.debug('Schema Init', 'Created reorder_items table.');
+
+        // Create item_change_logs table for local storage of AppSync ItemChangeLogs
+        await db.runAsync(`CREATE TABLE item_change_logs (
+          id TEXT PRIMARY KEY NOT NULL,
+          item_id TEXT NOT NULL,
+          author_id TEXT,
+          author_name TEXT,
+          timestamp TEXT,
+          change_type TEXT,
+          change_details TEXT,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          last_sync_at TEXT,
+          owner TEXT
+        )`);
+        logger.debug('Schema Init', 'Created item_change_logs table.');
+
         // Create categories table
         await db.runAsync(`CREATE TABLE categories (
           id TEXT PRIMARY KEY NOT NULL,
@@ -1301,6 +1359,133 @@ export async function updateLastIncrementalSyncCursor(cursor: string | null): Pr
   }
 }
 
+// ===== TEAM DATA FUNCTIONS =====
+
+export interface TeamData {
+  itemId: string;
+  caseUpc?: string;
+  caseCost?: number;
+  caseQuantity?: number;
+  vendor?: string;
+  discontinued?: boolean;
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  lastSyncAt?: string;
+  owner?: string;
+}
+
+/**
+ * Upsert team data to local SQLite database
+ */
+export async function upsertTeamData(teamData: TeamData): Promise<void> {
+  const db = await getDatabase();
+  const now = new Date().toISOString();
+
+  await db.runAsync(`
+    INSERT OR REPLACE INTO team_data
+    (item_id, case_upc, case_cost, case_quantity, vendor, discontinued, notes, updated_at, last_sync_at, owner)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, [
+    teamData.itemId,
+    teamData.caseUpc || null,
+    teamData.caseCost || null,
+    teamData.caseQuantity || null,
+    teamData.vendor || null,
+    teamData.discontinued ? 1 : 0,
+    teamData.notes || null,
+    now,
+    teamData.lastSyncAt || now,
+    teamData.owner || null
+  ]);
+
+  logger.debug('Database', 'Upserted team data', { itemId: teamData.itemId });
+}
+
+/**
+ * Get team data for a specific item from local SQLite
+ */
+export async function getTeamData(itemId: string): Promise<TeamData | null> {
+  const db = await getDatabase();
+  const result = await db.getFirstAsync<any>(`
+    SELECT * FROM team_data WHERE item_id = ?
+  `, [itemId]);
+
+  if (!result) return null;
+
+  return {
+    itemId: result.item_id,
+    caseUpc: result.case_upc,
+    caseCost: result.case_cost,
+    caseQuantity: result.case_quantity,
+    vendor: result.vendor,
+    discontinued: result.discontinued === 1,
+    notes: result.notes,
+    createdAt: result.created_at,
+    updatedAt: result.updated_at,
+    lastSyncAt: result.last_sync_at,
+    owner: result.owner
+  };
+}
+
+/**
+ * Search items by case UPC locally
+ */
+export async function searchItemsByCaseUpc(caseUpc: string): Promise<ConvertedItem[]> {
+  const db = await getDatabase();
+
+  logger.info('Database', 'Searching items by case UPC locally', { caseUpc });
+
+  const results = await db.getAllAsync<any>(`
+    SELECT
+      ci.id as item_id,
+      ci.name,
+      ci.description,
+      ci.category_id,
+      ci.data_json as item_data_json,
+      td.case_upc,
+      td.case_cost,
+      td.case_quantity,
+      td.vendor,
+      td.discontinued,
+      td.notes
+    FROM catalog_items ci
+    LEFT JOIN team_data td ON ci.id = td.item_id
+    WHERE td.case_upc = ? AND ci.is_deleted = 0
+    ORDER BY ci.name COLLATE NOCASE ASC
+  `, [caseUpc]);
+
+  logger.info('Database', `Found ${results.length} items with case UPC ${caseUpc}`);
+
+  return results.map(row => {
+    // Parse the item data JSON to get full item details
+    const itemData = row.item_data_json ? JSON.parse(row.item_data_json) : {};
+
+    return transformCatalogItemToItem({
+      ...itemData,
+      id: row.item_id,
+      item_data: {
+        ...itemData.item_data,
+        name: row.name,
+        description: row.description,
+        category_id: row.category_id
+      },
+      // Add team data
+      team_data: {
+        case_upc: row.case_upc,
+        case_cost: row.case_cost,
+        case_quantity: row.case_quantity,
+        vendor: row.vendor,
+        discontinued: row.discontinued === 1,
+        notes: row.notes
+      }
+    });
+  });
+}
+
+// ✅ REMOVED: getTeamDataLastSync function - no time-based polling needed
+// Data syncs only via webhooks/AppSync or CRUD operations
+
 // --- New Function for Deleting Objects ---
 
 /**
@@ -1616,7 +1801,7 @@ export const searchCatalogItems = async (
     logger.error('searchCatalogItems', 'Error executing search query', { error, query: fullQuery });
     throw error; // Re-throw to be handled by the calling hook
   }
-};
+}; 
 
 /**
  * Helper function to search non-name fields (SKU, barcode, category)

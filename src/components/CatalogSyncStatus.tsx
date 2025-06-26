@@ -8,6 +8,7 @@ import { useSquareAuth } from '../hooks/useSquareAuth';
 import api, { directSquareApi } from '../api';
 import logger from '../utils/logger';
 import * as FileSystem from 'expo-file-system';
+import dataRecoveryService from '../services/dataRecoveryService';
 
 interface SyncStatus {
   lastSyncTime: string | null;
@@ -684,6 +685,38 @@ export default function CatalogSyncStatus() {
                 <Text style={styles.buttonText}>Reset ENTIRE Database</Text>
               )}
             </TouchableOpacity>
+
+            {/* Data Recovery Button */}
+            <TouchableOpacity
+              style={[styles.debugActionButton, { backgroundColor: '#FF6B6B' }]}
+              onPress={async () => {
+                try {
+                  Alert.alert(
+                    'Force Data Recovery',
+                    'This will attempt to recover your team data and reorder items from DynamoDB. Continue?',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Recover',
+                        style: 'destructive',
+                        onPress: async () => {
+                          try {
+                            await dataRecoveryService.forceRecovery();
+                            Alert.alert('Success', 'Data recovery completed! Please restart the app to see recovered data.');
+                          } catch (error) {
+                            Alert.alert('Error', `Recovery failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                          }
+                        }
+                      }
+                    ]
+                  );
+                } catch (error) {
+                  Alert.alert('Error', `Failed to start recovery: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                }
+              }}
+            >
+              <Text style={styles.buttonText}>🔄 Force Data Recovery</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -751,6 +784,14 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   statusValue: {
+    fontWeight: '600',
+    color: '#333',
+  },
+  label: {
+    fontWeight: '400',
+    color: '#333',
+  },
+  value: {
     fontWeight: '600',
     color: '#333',
   },

@@ -1973,6 +1973,95 @@ const directSquareApi = {
       return handleDirectSquareError(error, 'Failed to fetch catalog page');
     }
   },
+
+  /**
+   * Directly calls Square's SearchCatalogObjects endpoint for catch-up sync.
+   * Uses begin_time to fetch changes since a specific timestamp.
+   * @param beginTime Optional timestamp to search for changes since this date
+   * @param cursor Optional pagination cursor for subsequent pages
+   */
+  async searchCatalogObjects(beginTime?: string, cursor?: string): Promise<ApiResponse> {
+    const url = `${SQUARE_BASE_URL}/v2/catalog/search`;
+    const method = 'POST';
+
+    // Format request body according to Square SearchCatalogObjects API documentation
+    // Note: SearchCatalogObjects does NOT use idempotency keys (only write operations do)
+    const requestBody: any = {
+      object_types: [
+        'ITEM',
+        'ITEM_VARIATION',
+        'CATEGORY',
+        'TAX',
+        'DISCOUNT',
+        'MODIFIER_LIST',
+        'MODIFIER'
+      ],
+      include_deleted_objects: true,
+      include_related_objects: true,
+      limit: 200
+    };
+
+    // Add cursor for pagination if provided
+    if (cursor) {
+      requestBody.cursor = cursor;
+    }
+
+    // Add begin_time if provided (for catch-up sync)
+    if (beginTime) {
+      requestBody.begin_time = beginTime;
+      logger.debug('API:DirectSquare:searchCatalogObjects', 'Using begin_time for catch-up sync', {
+        beginTime,
+        beginTimeFormat: 'RFC3339/ISO8601'
+      });
+    }
+
+    logger.debug('API:DirectSquare:searchCatalogObjects', `Request: ${method} ${url}`, {
+      hasBeginTime: !!beginTime,
+      hasCursor: !!cursor,
+      objectTypes: requestBody.object_types.length
+    });
+
+    try {
+      const response = await axios.post(url, requestBody, {
+        headers: {
+          ...(await tokenService.getAuthHeaders()),
+          'Square-Version': SQUARE_API_VERSION,
+          'Content-Type': 'application/json',
+        },
+        timeout: config.api.timeout,
+      });
+
+      logger.debug('API:DirectSquare:searchCatalogObjects', `Response: ${response.status} ${url}`, {
+        objectCount: response.data.objects?.length ?? 0,
+        hasNextPage: !!response.data.cursor
+      });
+
+      // Handle potential errors returned in the response body (Square format)
+      if (response.data.errors && response.data.errors.length > 0) {
+        logger.error('API:DirectSquare:searchCatalogObjects', 'Square API returned errors in search response', {
+          errors: response.data.errors
+        });
+        const errorMessage = `Square API error during search: ${response.data.errors[0]?.detail || 'Unknown error'}`;
+        return { success: false, error: new ApiError(errorMessage, 'SQUARE_API_ERROR', response.status, response.data.errors) };
+      }
+
+      // Return objects and cursor at the top level to match ApiResponse expectation in sync service
+      return {
+        success: true,
+        objects: response.data.objects || [],
+        cursor: response.data.cursor
+      };
+    } catch (error) {
+      logger.error('API:DirectSquare:searchCatalogObjects', `Error in ${method} ${url}`, {
+        error: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        responseData: error.response?.data,
+        requestBody: JSON.stringify(requestBody, null, 2)
+      });
+      return handleDirectSquareError(error, 'Failed to search catalog objects');
+    }
+  },
 };
 
 // --- New API Function for Incremental Sync ---
@@ -1994,49 +2083,67 @@ interface SearchCatalogChangesResponse {
  * Uses the cursor for pagination.
  * 
  * @param cursor The pagination cursor from the previous search response. Null/undefined for the first page.
+ * @param beginTime Optional timestamp to search for changes since this date (for webhook-triggered sync)
  * @returns Promise<SearchCatalogChangesResponse>
  */
 export const searchCatalogChanges = async (
-  cursor?: string | null
+  cursor?: string | null,
+  beginTime?: string | null
 ): Promise<SearchCatalogChangesResponse> => {
   const tag = 'API:searchCatalogChanges';
-  logger.info(tag, 'Searching for catalog changes', { cursor: cursor ? '******' : null });
+  logger.info(tag, 'Searching for catalog changes', { 
+    cursor: cursor ? '******' : null,
+    beginTime: beginTime || null
+  });
 
-  const requestBody = {
-    cursor: cursor || undefined, // Omit cursor if null/undefined/empty
-    object_types: [
-      'ITEM',
-      'ITEM_VARIATION',
-      'CATEGORY',
-      'TAX',
-      'DISCOUNT',
-      'MODIFIER_LIST',
-      'MODIFIER'
-      // Add other types if needed, e.g., 'IMAGE'
-    ],
-    include_deleted_objects: true,
-    limit: 200 // Adjust limit as needed
+  // Generate idempotency key for the request
+  const idempotencyKey = `search-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+  // Format request body according to Square SearchCatalogObjects API documentation
+  const requestBody: any = {
+    idempotency_key: idempotencyKey,
+    object: {
+      object_types: [
+        'ITEM',
+        'ITEM_VARIATION',
+        'CATEGORY',
+        'TAX',
+        'DISCOUNT',
+        'MODIFIER_LIST',
+        'MODIFIER'
+      ],
+      include_deleted_objects: true,
+      include_related_objects: true,
+      limit: 200
+    }
   };
 
+  // Add cursor for pagination if provided
+  if (cursor) {
+    requestBody.object.cursor = cursor;
+  }
+
+  // Add begin_time if provided (for webhook-triggered sync)
+  if (beginTime) {
+    requestBody.object.begin_time = beginTime;
+    logger.debug(tag, 'Using begin_time for targeted sync', { beginTime });
+  }
+
   try {
-    // Using apiClientInstance which includes base URL and auth interceptor
-    // The specific endpoint path /v2/catalog/search is appended to the base URL
+    // Use the correct SearchCatalogObjects endpoint
     const response = await apiClientInstance.post<SearchCatalogChangesResponse>(
-      '/v2/catalog/search',
+      '/v2/catalog/search-objects',
       requestBody
     );
     
     logger.debug(tag, 'Received catalog changes response', {
       objectCount: response.data.objects?.length ?? 0,
       hasNextPage: !!response.data.cursor,
-      // Avoid logging full objects unless necessary for deep debugging
-      // objects: response.data.objects
     });
 
     // Handle potential errors returned in the response body (Square format)
     if (response.data.errors && response.data.errors.length > 0) {
       logger.error(tag, 'Square API returned errors in search response', { errors: response.data.errors });
-      // Throw a specific error or return a structured error
       throw new Error(`Square API error during search: ${response.data.errors[0]?.detail || 'Unknown error'}`);
     }
 
@@ -2047,7 +2154,7 @@ export const searchCatalogChanges = async (
     logger.error(tag, 'Error searching catalog changes via proxy', { 
         errorMessage: error.message,
         errorDetails: errorDetails,
-        requestBody // Log what was sent (sensitive data might be included!)
+        requestBody
     });
     // Re-throw the error for the caller (sync process) to handle
     throw error;

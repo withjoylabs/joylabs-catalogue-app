@@ -3,6 +3,7 @@ import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { SQLiteProvider } from 'expo-sqlite';
 import * as modernDb from '../database/modernDb';
 import logger from '../utils/logger';
+import dataRecoveryService from '../services/dataRecoveryService';
 
 interface DatabaseProviderProps {
   children: React.ReactNode;
@@ -20,10 +21,15 @@ const DatabaseProviderComponent: React.FC<DatabaseProviderProps> = ({ children }
       try {
         logger.info('DatabaseProviderComponent', 'EFFECT: Calling modernDb.initDatabase()...');
         await modernDb.initDatabase();
+
+        // ✅ CRITICAL: Check and recover data from DynamoDB after database initialization
+        logger.info('DatabaseProviderComponent', 'EFFECT: Starting data recovery check...');
+        await dataRecoveryService.checkAndRecoverData();
+
         setIsInitialized(true);
-        logger.info('DatabaseProviderComponent', 'EFFECT: Database initialized successfully, setIsInitialized(true)');
+        logger.info('DatabaseProviderComponent', 'EFFECT: Database initialized and data recovery completed successfully');
       } catch (err: any) {
-        logger.error('DatabaseProviderComponent', 'EFFECT: Error initializing database:', err);
+        logger.error('DatabaseProviderComponent', 'EFFECT: Error initializing database or recovering data:', err);
         setError(err);
       }
     }

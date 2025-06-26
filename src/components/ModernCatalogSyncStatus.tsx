@@ -9,7 +9,6 @@ import logger from '../utils/logger';
 import { CatalogSyncService, SyncStatus } from '../database/catalogSync';
 import catalogRepository from '../database/catalogRepository';
 import { useWebhooks } from '../hooks/useWebhooks';
-import { useCatalogSubscription } from '../hooks/useCatalogSubscription';
 
 const ModernCatalogSyncStatus: React.FC = () => {
   const db = useSQLiteContext();
@@ -24,7 +23,6 @@ const ModernCatalogSyncStatus: React.FC = () => {
   // Initialize the sync service and webhook handlers
   const syncService = CatalogSyncService.getInstance();
   const { isWebhookActive, merchantId } = useWebhooks();
-  const { isSubscribed } = useCatalogSubscription();
 
   // Fetch sync status
   const fetchSyncStatus = useCallback(async () => {
@@ -216,13 +214,11 @@ const ModernCatalogSyncStatus: React.FC = () => {
           <Text style={styles.statusLabel}>Real-time:</Text>
           <Text style={[
             styles.statusValue,
-            isSubscribed && isWebhookActive ? styles.connected : styles.disconnected
+            isWebhookActive ? styles.connected : styles.disconnected
           ]}>
-            {isSubscribed && isWebhookActive
+            {isWebhookActive
               ? '🟢 Connected'
-              : isSubscribed
-                ? '🟡 Connecting...'
-                : '🔴 Offline'
+              : '🔴 Offline'
             }
           </Text>
         </View>
@@ -257,11 +253,9 @@ const ModernCatalogSyncStatus: React.FC = () => {
             <View style={styles.statusRow}>
               <Text style={styles.statusLabel}>Webhook:</Text>
               <Text style={styles.statusValue}>
-                {isSubscribed && isWebhookActive 
+                {isWebhookActive
                   ? `✅ Active (${merchantId?.split('@')[0] || 'user'})`
-                  : isSubscribed 
-                    ? '🔄 Connecting...'
-                    : '❌ Offline'
+                  : '❌ Offline'
                 }
               </Text>
             </View>

@@ -4,16 +4,42 @@ import { useAuthenticator } from '@aws-amplify/ui-react-native';
 
 interface ConnectionStatusBarProps {
   connected: boolean;
-  message: string;
+  message?: string; // Made optional since we're making it compact
+  compact?: boolean; // Add compact mode
 }
 
 const ConnectionStatusBar: React.FC<ConnectionStatusBarProps> = ({
   connected,
-  message
+  message,
+  compact = false
 }) => {
   const { user } = useAuthenticator((context) => [context.user]);
   const isAuthenticated = !!user?.signInDetails?.loginId;
 
+  if (compact) {
+    // Compact horizontal layout for header
+    return (
+      <View style={styles.compactContainer}>
+        {/* Square Status Badge */}
+        <View style={[
+          styles.compactBadge, 
+          { backgroundColor: connected ? '#4CD964' : '#FF3B30' }
+        ]}>
+          <Text style={styles.compactBadgeText}>SQ</Text>
+        </View>
+        
+        {/* Auth Status Badge */}
+        <View style={[
+          styles.compactBadge, 
+          { backgroundColor: isAuthenticated ? '#4CD964' : '#FF8C00' }
+        ]}>
+          <Text style={styles.compactBadgeText}>AU</Text>
+        </View>
+      </View>
+    );
+  }
+
+  // Original layout for other uses
   return (
     <View style={styles.container}>
       <Text style={styles.statusText}>
@@ -23,13 +49,13 @@ const ConnectionStatusBar: React.FC<ConnectionStatusBarProps> = ({
         {/* Square Connection Status */}
         <View style={styles.statusGroup}>
           <Text style={styles.statusLabel}>Square</Text>
-          <View style={[
-            styles.statusIndicator, 
-            { backgroundColor: connected ? '#4CD964' : '#FF3B30' }
-          ]}>
-            <Text style={styles.statusIndicatorText}>
-              {connected ? 'OK' : 'X'}
-            </Text>
+      <View style={[
+        styles.statusIndicator, 
+        { backgroundColor: connected ? '#4CD964' : '#FF3B30' }
+      ]}>
+        <Text style={styles.statusIndicatorText}>
+          {connected ? 'OK' : 'X'}
+        </Text>
           </View>
         </View>
         
@@ -91,6 +117,24 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: 'bold',
     fontSize: 12,
+  },
+  // Compact mode styles
+  compactContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  compactBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  compactBadgeText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 10,
   },
 });
 

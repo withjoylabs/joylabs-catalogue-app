@@ -29,8 +29,8 @@ const ModernSyncProgressBar: React.FC<SyncProgressBarProps> = ({ showWhenComplet
           setTotalItems(status.totalItems || 0);
           
           // Calculate progress
-          const calculatedProgress = status.totalItems > 0 
-            ? status.syncedItems / status.totalItems 
+          const calculatedProgress = (status.totalItems || 0) > 0 
+            ? (status.syncedItems || 0) / (status.totalItems || 0) 
             : 0;
           setProgress(calculatedProgress);
           
@@ -55,8 +55,8 @@ const ModernSyncProgressBar: React.FC<SyncProgressBarProps> = ({ showWhenComplet
       setTotalItems(status.totalItems || 0);
       
       // Calculate progress
-      const calculatedProgress = status.totalItems > 0 
-        ? status.syncedItems / status.totalItems 
+      const calculatedProgress = (status.totalItems || 0) > 0 
+        ? (status.syncedItems || 0) / (status.totalItems || 0) 
         : 0;
       setProgress(calculatedProgress);
       

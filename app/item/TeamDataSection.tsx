@@ -268,9 +268,9 @@ export default function TeamDataSection({ itemId, onSaveRef, onDataChange, onVen
   }, [user, itemId]);
 
   const saveItemData = useCallback(async () => {
-    // Skip saving if no data, no itemId, or it's a new item without actual data
-    if (!itemData || !itemId || (isNewItem && itemId === 'new')) {
-      logger.info('TeamDataSection:saveItemData', 'Skipping save - no data or new item', { itemId, isNewItem, hasItemData: !!itemData });
+    // Skip saving if no data or invalid itemId (but allow real IDs for new items after save)
+    if (!itemData || !itemId || itemId === 'new') {
+      logger.info('TeamDataSection:saveItemData', 'Skipping save - invalid itemId or no data', { itemId, hasItemData: !!itemData });
       return;
     }
 
@@ -304,7 +304,11 @@ export default function TeamDataSection({ itemId, onSaveRef, onDataChange, onVen
       }
 
       setOriginalItemData({ ...itemData });
-      logger.info('TeamDataSection:saveItemData', 'Team data saved successfully', { itemId });
+      logger.info('TeamDataSection:saveItemData', 'Team data saved successfully', { 
+        itemId, 
+        hasData: !!itemData,
+        dataKeys: itemData ? Object.keys(itemData) : []
+      });
     } catch (e) {
       logger.error('TeamDataSection:saveItemData', 'Error saving custom item data', e);
     }
@@ -341,11 +345,11 @@ export default function TeamDataSection({ itemId, onSaveRef, onDataChange, onVen
       <View style={styles.fieldContainer}>
         <Text style={styles.label}>Case UPC</Text>
         <View style={styles.inputWrapper}>
-          <TextInput
-            style={styles.input}
-            value={itemData?.caseUpc || ''}
+        <TextInput
+          style={styles.input}
+          value={itemData?.caseUpc || ''}
             onChangeText={handleCaseUpcChange}
-            placeholder="Enter case UPC/barcode"
+          placeholder="Enter case UPC/barcode"
             placeholderTextColor="#999"
             keyboardType="numeric"
             autoCapitalize="none"
@@ -363,14 +367,14 @@ export default function TeamDataSection({ itemId, onSaveRef, onDataChange, onVen
         <Text style={styles.label}>Vendor Case Cost</Text>
         <View style={styles.priceInputContainer}>
           <Text style={styles.currencySymbol}>$</Text>
-          <TextInput
+        <TextInput
             style={styles.priceInput}
             value={itemData?.caseCost !== undefined && itemData.caseCost !== null ? itemData.caseCost.toFixed(2) : ''}
             onChangeText={handleCaseCostChange}
             placeholder="Variable"
             placeholderTextColor="#999"
-            keyboardType="numeric"
-          />
+          keyboardType="numeric"
+        />
           {itemData?.caseCost !== undefined && (
             <TouchableOpacity onPress={() => setItemData(prev => ({ ...prev, caseCost: undefined }))} style={styles.clearButton}>
               <Ionicons name="close-circle" size={20} color="#ccc" />

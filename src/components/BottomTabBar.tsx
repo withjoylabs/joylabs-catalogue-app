@@ -37,10 +37,10 @@ export default function BottomTabBar({ activeTab, setActiveTab, setActiveScreen 
 
   // Force-navigate home with extra options
   const navigateToHome = () => {
-    console.log("NAV_EVENT - DIAGNOSTIC: Attempting to PUSH HOME ('/') from pathname:", pathname, "via BottomTabBar");
-    setActiveTab('scan'); 
+    console.log("NAV_EVENT - DIAGNOSTIC: Attempting to PUSH HOME ('/(tabs)/(scan)') from pathname:", pathname, "via BottomTabBar");
+    setActiveTab('scan');
     setActiveScreen('index');
-    router.push('/'); // DIAGNOSTIC CHANGE
+    router.push('/(tabs)/(scan)'); // Updated to new scan location
   };
   
   const navigateToSearch = () => {

@@ -19,10 +19,10 @@ const SQUARE_ACCESS_TOKEN_KEY = 'square_access_token';
 const ProfileIndexBackButton = () => {
   const router = useRouter();
   return (
-    <TouchableOpacity 
+    <TouchableOpacity
       onPress={() => {
-        logger.info('ProfileLayout', "Custom back button on profile index pressed, replacing with app root '/'");
-        router.replace('/');
+        logger.info('ProfileLayout', "Custom back button on profile index pressed, replacing with scan home");
+        router.replace('/(tabs)/(scan)');
       }}
       style={{ marginLeft: Platform.OS === 'ios' ? 10 : 0, padding: 5 }} // Adjust styling as needed
     >

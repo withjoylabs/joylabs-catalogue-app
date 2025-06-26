@@ -21,26 +21,27 @@ import {
 import { useRouter, useFocusEffect, Link, useNavigation } from 'expo-router';
 import { useIsFocused, useNavigationState } from '@react-navigation/native';
 import { Swipeable } from 'react-native-gesture-handler'; // Added for swipe actions
-import ConnectionStatusBar from '../../src/components/ConnectionStatusBar';
-import { ConvertedItem, SearchResultItem } from '../../src/types/api';
+import ConnectionStatusBar from '../../../src/components/ConnectionStatusBar';
+import NotificationBell from '../../../src/components/NotificationBell'; // Added for notifications access
+import { ConvertedItem, SearchResultItem } from '../../../src/types/api';
 import { Ionicons } from '@expo/vector-icons';
-import { useApi } from '../../src/providers/ApiProvider';
-import { useAppStore } from '../../src/store';
-import { apiClientInstance } from '../../src/api';
-import logger from '../../src/utils/logger';
-import { DatabaseProvider } from '../../src/components/DatabaseProvider';
-import { transformCatalogItemToItem } from '../../src/utils/catalogTransformers';
+import { useApi } from '../../../src/providers/ApiProvider';
+import { useAppStore } from '../../../src/store';
+import { apiClientInstance } from '../../../src/api';
+import logger from '../../../src/utils/logger';
+import { DatabaseProvider } from '../../../src/components/DatabaseProvider';
+import { transformCatalogItemToItem } from '../../../src/utils/catalogTransformers';
 import { v4 as uuidv4 } from 'uuid';
-import { lightTheme } from '../../src/themes';
-import * as modernDb from '../../src/database/modernDb';
-import { useCatalogItems } from '../../src/hooks/useCatalogItems';
-import { styles } from '../../src/styles/_indexStyles'; // Updated import
-import { SearchFilters } from '../../src/database/modernDb'; // For search filters type
-import { printItemLabel, LabelData } from '../../src/utils/printLabel'; // Added for printing
-import SystemModal from '../../src/components/SystemModal'; // Added for notifications
-import { reorderService, TeamData } from '../../src/services/reorderService'; // Added for reorder functionality
+import { lightTheme } from '../../../src/themes';
+import * as modernDb from '../../../src/database/modernDb';
+import { useCatalogItems } from '../../../src/hooks/useCatalogItems';
+import { styles } from '../../../src/styles/_indexStyles'; // Updated import
+import { SearchFilters } from '../../../src/database/modernDb'; // For search filters type
+import { printItemLabel, LabelData } from '../../../src/utils/printLabel'; // Added for printing
+import SystemModal from '../../../src/components/SystemModal'; // Added for notifications
+import { reorderService, TeamData } from '../../../src/services/reorderService'; // Added for reorder functionality
 import { generateClient } from 'aws-amplify/api';
-import * as queries from '../../src/graphql/queries';
+import * as queries from '../../../src/graphql/queries';
 import { useAuthenticator } from '@aws-amplify/ui-react-native';
 
 const client = generateClient();
@@ -358,10 +359,10 @@ const SearchResultsArea = memo(({
     }
     
     // Hide notification after delay
-    setTimeout(() => {
-      setShowReorderNotification(false);
-      setReorderNotificationItemId(null);
-    }, 3000);
+      setTimeout(() => {
+        setShowReorderNotification(false);
+        setReorderNotificationItemId(null);
+      }, 3000);
   }, [reorderService, swipeableRefs, setReorderNotificationMessage, setReorderNotificationType, setShowReorderNotification, setReorderNotificationItemId, ensureCategoryName, fetchTeamData, user, playSuccessSound]);
 
   const handleFullSwipeReorder = useCallback(async (item: SearchResultItem) => {
@@ -412,10 +413,10 @@ const SearchResultsArea = memo(({
     }
     
     // Hide notification after delay
-    setTimeout(() => {
-      setShowReorderNotification(false);
-      setReorderNotificationItemId(null);
-    }, 2000); // Shorter timeout for full swipe
+      setTimeout(() => {
+        setShowReorderNotification(false);
+        setReorderNotificationItemId(null);
+      }, 2000); // Shorter timeout for full swipe
   }, [reorderService, setReorderNotificationMessage, setReorderNotificationType, setShowReorderNotification, setReorderNotificationItemId, ensureCategoryName, fetchTeamData, user, playSuccessSound]);
 
   const renderLeftActions = useCallback((progress: Animated.AnimatedInterpolation<number>, dragX: Animated.AnimatedInterpolation<number>, item: SearchResultItem) => {
@@ -493,7 +494,7 @@ const SearchResultsArea = memo(({
           // Full swipe to the left (revealing right actions) - auto add to reorder
           handleFullSwipeReorder(item);
           // Close the swipeable immediately for instant feedback
-          swipeableRefs.current[item.id]?.close();
+            swipeableRefs.current[item.id]?.close();
         }}
         friction={1}
         leftThreshold={40} 
@@ -879,11 +880,18 @@ function RootLayoutNav() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={lightTheme.colors.background} />
       
-        <ConnectionStatusBar 
-          connected={isConnected} 
-          message="Connection Status" 
-        />
-        
+      {/* Header with JOYLABS Logo and Status/Notification */}
+      <View style={styles.headerContainer}>
+        <Text style={styles.logoText}>JOYLABS</Text>
+        <View style={styles.headerRightContainer}>
+          <ConnectionStatusBar 
+            connected={isConnected} 
+            compact={true}
+          />
+          <NotificationBell />
+        </View>
+      </View>
+
       <ScanHistoryButtonComponent count={scanHistory.length} onNavigate={navigateToHistory} />
 
       <SearchResultsArea 
@@ -947,7 +955,7 @@ const BottomSearchBarComponent = memo(React.forwardRef<TextInput, BottomSearchBa
       // Update the actual TextInput value for uncontrolled component
       if (inputRef.current) {
         inputRef.current.setNativeProps({ text: searchTopic });
-      }
+    }
     }
   }, [searchTopic]); // Remove inputValue from dependencies to prevent loops
 
@@ -976,8 +984,8 @@ const BottomSearchBarComponent = memo(React.forwardRef<TextInput, BottomSearchBa
     }
   }, [ref]);
 
-  const KAV_OFFSET_IOS_internal = 0; 
-  const KAV_OFFSET_ANDROID_internal = 0;
+  const KAV_OFFSET_IOS_internal = 62; // Should be 62 for iPhone. Increased for tab bar + safe area
+  const KAV_OFFSET_ANDROID_internal = 20;
 
   return (
     <KeyboardAvoidingView 

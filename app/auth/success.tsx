@@ -5,6 +5,7 @@ import { useSquareAuth } from '../../src/hooks/useSquareAuth';
 import * as SecureStore from 'expo-secure-store';
 import logger from '../../src/utils/logger';
 import tokenService from '../../src/services/tokenService';
+import { CatalogSyncService } from '../../src/database/catalogSync';
 
 export default function AuthSuccess() {
   const router = useRouter();
@@ -105,10 +106,10 @@ export default function AuthSuccess() {
           setStatus('No valid auth data');
           setError('Missing or invalid authentication data');
           
-          // Redirect to profile after a short delay to allow logging
+          // Redirect to scan tab after a short delay to allow logging
           setTimeout(() => {
             requestAnimationFrame(() => {
-              router.replace('/profile');
+              router.replace('/');
             });
           }, 1000);
           return;
@@ -151,7 +152,7 @@ export default function AuthSuccess() {
           
           setTimeout(() => {
             requestAnimationFrame(() => {
-              router.replace('/profile');
+              router.replace('/');
             });
           }, 2000);
           return;
@@ -171,13 +172,10 @@ export default function AuthSuccess() {
           setStatus('State validation failed');
           setError('Invalid authentication state');
           
-          // Instead of throwing, just redirect to profile with error
+          // Instead of throwing, just redirect to scan tab with error
           setTimeout(() => {
             requestAnimationFrame(() => {
-              router.replace({
-                pathname: '/profile',
-                params: { error: 'Invalid authentication state' }
-              });
+              router.replace('/');
             });
           }, 2000);
           return;
@@ -206,7 +204,7 @@ export default function AuthSuccess() {
           setError('Authentication process timed out');
           
           requestAnimationFrame(() => {
-            router.replace('/profile');
+            router.replace('/');
           });
         }, 30000); // 30 second timeout (increased from 5s)
         
@@ -227,10 +225,26 @@ export default function AuthSuccess() {
           console.log('AUTH SUCCESS - processCallback completed successfully:', result);
           setStatus('Authentication successful');
           
+          // Trigger catch-up sync after successful Square authentication
+          try {
+            logger.info('AuthSuccess', 'Triggering catch-up sync after Square OAuth success...');
+            const syncService = CatalogSyncService.getInstance();
+            
+            // Run catch-up sync in background (don't await to avoid blocking navigation)
+            syncService.checkAndRunCatchUpSync().catch(error => {
+              logger.error('AuthSuccess', 'Catch-up sync failed after OAuth', { error });
+            });
+            
+            logger.info('AuthSuccess', 'Catch-up sync initiated after OAuth success');
+          } catch (syncError) {
+            // Don't fail navigation if sync fails
+            logger.error('AuthSuccess', 'Failed to initiate catch-up sync after OAuth', { syncError });
+          }
+          
           // Add a small delay before redirecting to ensure logs are processed
           setTimeout(() => {
             requestAnimationFrame(() => {
-              router.replace('/profile');
+              router.replace('/');
             });
           }, 1000);
         } catch (error: any) {
@@ -251,13 +265,10 @@ export default function AuthSuccess() {
         setStatus('Authentication failed');
         setError(errorMessage);
         
-        // Redirect to profile with error state after a small delay
+        // Redirect to scan tab with error state after a small delay
         setTimeout(() => {
           requestAnimationFrame(() => {
-            router.replace({
-              pathname: '/profile',
-              params: { error: 'Failed to process authentication' }
-            });
+            router.replace('/');
           });
         }, 2000);
       }
@@ -269,7 +280,7 @@ export default function AuthSuccess() {
       setStatus('Timeout - redirecting to profile');
       
       requestAnimationFrame(() => {
-        router.replace('/profile');
+        router.replace('/');
       });
     }, 60000); // 60 second global timeout (increased from 10s)
     

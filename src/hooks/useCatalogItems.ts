@@ -14,6 +14,7 @@ import {
   SearchFilters,
   RawSearchResult
 } from '../database/modernDb';
+import * as modernDb from '../database/modernDb';
 import { v4 as uuidv4 } from 'uuid';
 import { Platform } from 'react-native';
 import { generateClient } from 'aws-amplify/api';
@@ -916,47 +917,36 @@ export const useCatalogItems = () => {
           .map(rawResult => transformDbResultToItem(rawResult))
           .filter((item): item is SearchResultItem => item !== null);
       
-      // If barcode filter is enabled, also search Case UPC via GraphQL (only if authenticated)
+      // If barcode filter is enabled, search Case UPC locally (LOCAL-FIRST ARCHITECTURE)
       let caseUpcResults: SearchResultItem[] = [];
-      if (filters.barcode && isSquareConnected && user?.signInDetails?.loginId) {
+      if (filters.barcode && isSquareConnected) {
         try {
-          logger.info('useCatalogItems:performSearch', 'Searching Case UPC via GraphQL', { searchTerm, isAuthenticated: true });
-          
-          const caseUpcResponse = await client.graphql({
-            query: queries.itemsByCaseUpc,
-            variables: { 
-              caseUpc: searchTerm.trim(),
-              limit: 50 
-            }
-          }) as any;
-          
-          if (caseUpcResponse.data?.itemsByCaseUpc?.items) {
-            const caseUpcItems = caseUpcResponse.data.itemsByCaseUpc.items;
-            logger.info('useCatalogItems:performSearch', `Found ${caseUpcItems.length} Case UPC matches`);
-            
-            // For each Case UPC match, fetch the corresponding item from local DB
-            for (const caseUpcItem of caseUpcItems) {
-              try {
-                const itemId = caseUpcItem.id;
-                const localItem = await getProductById(itemId);
-                
-                if (localItem) {
-                  caseUpcResults.push({
-                    ...localItem,
-                    matchType: 'case_upc',
-                    matchContext: caseUpcItem.caseUpc,
-                  } as SearchResultItem);
-                }
-              } catch (error) {
-                logger.warn('useCatalogItems:performSearch', 'Error fetching item for Case UPC match', { 
-                  itemId: caseUpcItem.id, 
-                  error 
-                });
-              }
-            }
+          logger.info('useCatalogItems:performSearch', '🔍 Searching Case UPC locally (LOCAL-FIRST)', { searchTerm });
+
+          // ✅ CRITICAL FIX: Search local SQLite database instead of AppSync
+          const localCaseUpcItems = await modernDb.searchItemsByCaseUpc(searchTerm.trim());
+
+          if (localCaseUpcItems && localCaseUpcItems.length > 0) {
+            logger.info('useCatalogItems:performSearch', `✅ Found ${localCaseUpcItems.length} Case UPC matches locally`);
+
+            // Transform local results to SearchResultItem format
+            caseUpcResults = localCaseUpcItems.map(item => ({
+              id: item.id,
+              name: item.name || 'Unknown Item',
+              description: item.description || '',
+              category_id: item.category_id || '',
+              variations: item.variations || [],
+              matchType: 'case_upc',
+              matchContext: item.team_data?.case_upc || searchTerm.trim(),
+              team_data: item.team_data
+            } as SearchResultItem));
+
+            logger.info('useCatalogItems:performSearch', `✅ Transformed ${caseUpcResults.length} local case UPC matches`);
+          } else {
+            logger.info('useCatalogItems:performSearch', '📭 No local case UPC matches found');
           }
         } catch (error) {
-          logger.error('useCatalogItems:performSearch', 'Error searching Case UPC via GraphQL', { error });
+          logger.error('useCatalogItems:performSearch', '❌ Local case UPC search failed', { error });
           // Don't fail the entire search if Case UPC search fails
         }
       }

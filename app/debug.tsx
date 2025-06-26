@@ -20,6 +20,7 @@ import * as FileSystem from 'expo-file-system';
 import * as Device from 'expo-device';
 import * as Sharing from 'expo-sharing';
 import { useApi } from '../src/providers/ApiProvider';
+import NotificationTester from '../src/utils/testNotifications';
 
 // Format timestamp to a readable date
 const formatTimestamp = (timestamp: number): string => {
@@ -454,6 +455,24 @@ export default function DebugScreen() {
             </View>
           )}
         </View>
+        
+        <TouchableOpacity 
+          style={styles.button}
+          onPress={async () => {
+            try {
+              await NotificationTester.runAllTests();
+              Alert.alert(
+                'Notification Tests Complete',
+                'Check the notification center (bell icon) to see test notifications.\n\n' +
+                NotificationTester.getTestInstructions()
+              );
+            } catch (error) {
+              Alert.alert('Error', 'Failed to run notification tests');
+            }
+          }}
+        >
+          <Text style={styles.buttonText}>Test Notifications</Text>
+        </TouchableOpacity>
         
         <TouchableOpacity 
           style={[styles.button, styles.dangerButton]}

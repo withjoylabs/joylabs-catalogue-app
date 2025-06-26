@@ -4,8 +4,9 @@ import * as FileSystem from 'expo-file-system';
 import logger from '../utils/logger';
 import * as modernDb from './modernDb';
 import * as SecureStore from 'expo-secure-store';
-import { directSquareApi, searchCatalogChanges } from '../api';
+import { directSquareApi } from '../api';
 import tokenService from '../services/tokenService';
+import NotificationService from '../services/notificationService';
 
 // Constants for token storage to check validity
 const SQUARE_ACCESS_TOKEN_KEY = 'square_access_token';
@@ -29,6 +30,9 @@ export interface SyncStatus {
   lastSyncAttempt: string | null;
   syncAttemptCount: number;
   last_page_cursor?: string | null;
+  // Legacy properties for backwards compatibility
+  syncedItems?: number;
+  totalItems?: number;
 }
 
 // --- Define CatalogObjectFromApi locally ---
@@ -59,6 +63,7 @@ export class CatalogSyncService {
   private db: SQLiteDatabase | null = null;
   private syncTimer: NodeJS.Timeout | null = null;
   private autoSyncEnabled: boolean = false; // Default to no automatic syncing
+  private listeners: Map<string, (status: SyncStatus) => void> = new Map();
   
   /**
    * Get the singleton instance of the CatalogSyncService
@@ -580,7 +585,11 @@ export class CatalogSyncService {
       // 5. Loop through pages of changes
       do {
         logger.debug(syncTag, `Fetching changes page with cursor: ${currentCursor ? '******' : 'None'}`);
-        const response = await searchCatalogChanges(currentCursor); // Use the new API function
+        const response = await directSquareApi.searchCatalogObjects(undefined, currentCursor || undefined); // Use direct Square API
+
+        if (!response.success) {
+          throw new Error(`Direct Square API error: ${response.error?.message || 'Unknown error'}`);
+        }
 
         const objects = response.objects ?? [];
         const receivedCursor = response.cursor; // Cursor for the *next* page
@@ -673,6 +682,633 @@ export class CatalogSyncService {
     }
   }
   // --- End: runIncrementalSync ---
+  
+  // --- New Method: runIncrementalSyncFromTimestamp ---
+  /**
+   * Run incremental sync using a specific timestamp from webhook
+   * This follows Square's recommended approach for webhook-triggered sync
+   */
+  public async runIncrementalSyncFromTimestamp(webhookTimestamp: string): Promise<void> {
+    const syncTag = 'CatalogSync:WebhookSync';
+    logger.info(syncTag, 'Starting webhook-triggered sync...', { webhookTimestamp });
+
+    // 1. Check authentication and network
+    try {
+      await this.checkAuthentication();
+      const networkState = await Network.getNetworkStateAsync();
+      if (!networkState.isConnected || !networkState.isInternetReachable) {
+        logger.warn(syncTag, 'No internet connection. Webhook sync pending.');
+        
+        // Notify user that sync is pending due to no internet
+        NotificationService.notifySyncPending(1); // 1 indicates webhook event waiting
+        throw new Error('No internet connection - sync pending');
+      }
+    } catch (authError: any) {
+       logger.error(syncTag, 'Authentication or network check failed', { error: authError.message });
+      return; // Stop execution
+    }
+
+    // 2. Check if another sync is already running
+    const currentStatus = await this.getSyncStatus();
+    if (currentStatus.isSyncing) {
+      logger.warn(syncTag, 'Another sync operation is already in progress. Skipping.');
+      return;
+    }
+
+    // 3. Mark sync as started
+    const syncStartTime = new Date().toISOString();
+    await this.updateSyncStatus({
+      isSyncing: true,
+      syncType: 'webhook',
+      syncError: null,
+      syncProgress: 0,
+      syncTotal: 0,
+      lastSyncAttempt: syncStartTime,
+      syncAttemptCount: (currentStatus.syncAttemptCount || 0) + 1,
+    });
+    logger.info(syncTag, 'Sync status updated to indicate start.');
+
+    let processedObjectCount = 0;
+
+    try {
+      // 4. Get the last sync timestamp from our records
+      const lastSyncTimestamp = await this.getLastSyncTimestamp();
+      
+      // Use the earlier of our last sync or the webhook timestamp for begin_time
+      // This ensures we don't miss any changes between our last sync and the webhook
+      const beginTime = lastSyncTimestamp && lastSyncTimestamp < webhookTimestamp 
+        ? lastSyncTimestamp 
+        : webhookTimestamp;
+      
+      logger.info(syncTag, 'Using timestamp range for sync', { 
+        beginTime, 
+        webhookTimestamp,
+        lastSyncTimestamp 
+      });
+
+      // 5. Fetch changes using direct Square API with begin_time approach
+      const response = await directSquareApi.searchCatalogObjects(beginTime);
+      
+      if (!response.success) {
+        throw new Error(`Direct Square API error: ${response.error?.message || 'Unknown error'}`);
+      }
+      
+      const objects = response.objects ?? [];
+
+      logger.info(syncTag, `Received ${objects.length} objects from webhook sync`);
+
+      if (objects.length > 0) {
+        // Separate deletes and upserts
+        const toDelete: CatalogObjectFromApi[] = [];
+        const toUpsert: CatalogObjectFromApi[] = [];
+
+        objects.forEach((obj: CatalogObjectFromApi) => {
+          if (!obj || !obj.id) { 
+             logger.warn(syncTag, 'Skipping invalid object received from API', { obj });
+             return;
+          }
+          if (obj.is_deleted) {
+            toDelete.push(obj);
+          } else {
+            toUpsert.push(obj);
+          }
+        });
+
+        // Process deletions
+        if (toDelete.length > 0) {
+          logger.info(syncTag, `Processing ${toDelete.length} deletions...`);
+          for (const obj of toDelete) {
+            try {
+               await modernDb.deleteCatalogObjectById(obj.id);
+            } catch (deleteError) {
+               logger.error(syncTag, `Failed to delete object ${obj.id}`, { deleteError });
+            }
+          }
+        }
+
+        // Process upserts
+        if (toUpsert.length > 0) {
+          logger.info(syncTag, `Processing ${toUpsert.length} upserts...`);
+          try {
+             await modernDb.upsertCatalogObjects(toUpsert);
+          } catch (upsertError) {
+             logger.error(syncTag, `Failed to upsert batch of ${toUpsert.length} objects`, { upsertError });
+             throw new Error('Failed during object upsert batch.');
+          }
+        }
+
+        processedObjectCount = objects.length;
+      }
+
+      // 6. Update our sync timestamp to the webhook timestamp
+      await this.updateLastSyncTimestamp(webhookTimestamp);
+
+      // 7. Sync completed successfully
+      logger.info(syncTag, `Webhook sync completed successfully. Processed ${processedObjectCount} objects.`);
+      await this.updateSyncStatus({
+        isSyncing: false,
+        syncError: null,
+        lastSyncTime: new Date().toISOString(),
+        syncAttemptCount: 0,
+        syncProgress: processedObjectCount,
+      });
+
+      // 8. Send notification with specific feedback
+      if (processedObjectCount > 0) {
+        // Detailed notification about what was synced
+        const message = `${processedObjectCount} item${processedObjectCount > 1 ? 's' : ''} synced from Square`;
+        NotificationService.addNotification({
+          type: 'sync_complete',
+          title: 'Square Sync Complete',
+          message,
+          priority: 'normal',
+          source: 'webhook'
+        });
+      } else {
+        // No changes but sync was successful
+        NotificationService.addNotification({
+          type: 'webhook_catalog_update',
+          title: 'Square Update Received',
+          message: 'Catalog checked - no changes to sync',
+          priority: 'low',
+          source: 'webhook'
+        });
+      }
+
+    } catch (error: any) {
+      logger.error(syncTag, 'Webhook sync failed', { error: error.message, errorDetails: error });
+      await this.updateSyncStatus({
+        isSyncing: false,
+        syncError: `Webhook sync failed: ${error.message || 'Unknown error'}`,
+      });
+    } finally {
+      logger.info(syncTag, 'Webhook sync process finished.');
+      const finalStatus = await this.getSyncStatus();
+      if (finalStatus.isSyncing) {
+         logger.warn(syncTag, 'Syncing flag was still true in finally block, setting to false.');
+         await this.updateSyncStatus({ isSyncing: false });
+      }
+    }
+  }
+  
+  /**
+   * Get the last sync timestamp from our records
+   */
+  private async getLastSyncTimestamp(): Promise<string | null> {
+    try {
+      if (!this.db) {
+        this.db = await modernDb.getDatabase();
+      }
+      
+      const result = await this.db.getFirstAsync<{ value: string }>(`
+        SELECT value FROM app_metadata WHERE key = 'last_webhook_sync_timestamp'
+      `);
+      
+      return result?.value || null;
+    } catch (error) {
+      logger.error('CatalogSync', 'Failed to get last sync timestamp', { error });
+      return null;
+    }
+  }
+  
+  /**
+   * Update the last sync timestamp in our records
+   */
+  private async updateLastSyncTimestamp(timestamp: string): Promise<void> {
+    try {
+      if (!this.db) {
+        this.db = await modernDb.getDatabase();
+      }
+      
+      await this.db.runAsync(`
+        INSERT OR REPLACE INTO app_metadata (key, value) 
+        VALUES ('last_webhook_sync_timestamp', ?)
+      `, [timestamp]);
+      
+      logger.debug('CatalogSync', 'Updated last sync timestamp', { timestamp });
+    } catch (error) {
+      logger.error('CatalogSync', 'Failed to update last sync timestamp', { error });
+    }
+  }
+  // --- End: runIncrementalSyncFromTimestamp ---
+  
+  // --- New Method: checkAndRunCatchUpSync ---
+  /**
+   * Check if we need to run a catch-up sync on app startup
+   * This handles cases where the app was closed/offline and missed webhook events
+   */
+  public async checkAndRunCatchUpSync(): Promise<void> {
+    const syncTag = 'CatalogSync:CatchUp';
+    logger.info(syncTag, 'Checking if catch-up sync is needed...');
+    
+    // Add notification to show intelligent catch-up sync check is starting
+    NotificationService.addNotification({
+      type: 'sync_pending',
+      title: 'Intelligent Sync Check',
+      message: 'Checking if any webhook events were missed (webhook-first architecture)...',
+      priority: 'low',
+      source: 'internal'
+    });
+
+    try {
+      // 1. Get the last time we successfully synced
+      const lastWebhookSync = await this.getLastSyncTimestamp();
+      const status = await this.getSyncStatus();
+      const lastRegularSync = status.lastSyncTime;
+
+      // 2. Get the last time the app was opened
+      const lastAppOpen = await this.getLastAppOpenTime();
+      const currentTime = new Date().toISOString();
+      
+      // Update the current app open time
+      await this.updateLastAppOpenTime(currentTime);
+
+      logger.debug(syncTag, 'Catch-up sync timestamps', {
+        lastWebhookSync,
+        lastRegularSync,
+        lastAppOpen,
+        currentTime
+      });
+
+      // 3. Determine if we need to catch up
+      let needsCatchUp = false;
+      let catchUpReason = '';
+
+      // If we've never synced before, we definitely need a full sync (not catch-up)
+      if (!lastRegularSync && !lastWebhookSync) {
+        logger.info(syncTag, 'No previous sync found - full sync needed, not catch-up');
+        return;
+      }
+
+      // Only run catch-up if we have a valid reason to believe we missed webhook events
+      // This prevents unnecessary API calls when webhooks are working properly
+      
+      // Check if we have any pending webhook events that failed to process
+      const hasPendingWebhookEvents = await this.checkForPendingWebhookEvents();
+      
+      if (hasPendingWebhookEvents) {
+        needsCatchUp = true;
+        catchUpReason = 'Pending webhook events detected - processing missed updates';
+      } else if (!lastAppOpen) {
+        // First time opening app after install - we definitely need initial sync
+        needsCatchUp = true;
+        catchUpReason = 'First app launch - initial sync required';
+      } else if (lastWebhookSync && lastAppOpen) {
+        // Check if app was closed during a time when webhooks might have been sent
+        // Only check if we were closed for a significant period (>30 minutes)
+        // AND we haven't received any webhook updates recently
+        const timeSinceLastOpen = new Date(currentTime).getTime() - new Date(lastAppOpen).getTime();
+        const timeSinceLastWebhook = new Date(currentTime).getTime() - new Date(lastWebhookSync).getTime();
+        const thirtyMinutes = 30 * 60 * 1000;
+        const sixHours = 6 * 60 * 60 * 1000;
+        
+        if (timeSinceLastOpen > thirtyMinutes && timeSinceLastWebhook > sixHours) {
+          needsCatchUp = true;
+          catchUpReason = `App was closed for ${Math.round(timeSinceLastOpen / (60 * 1000))} minutes and no webhooks received for ${Math.round(timeSinceLastWebhook / (60 * 60 * 1000))} hours`;
+        }
+      }
+
+      // 4. If no catch-up needed, exit early
+      if (!needsCatchUp) {
+        logger.info(syncTag, 'No catch-up sync needed - app was recently active');
+        
+        // Add notification that no catch-up was needed
+        NotificationService.addNotification({
+          type: 'sync_complete',
+          title: 'Webhooks Working Properly',
+          message: 'No missed webhook events detected - catalog is up to date',
+          priority: 'low',
+          source: 'internal'
+        });
+        return;
+      }
+
+      logger.info(syncTag, `Catch-up sync needed: ${catchUpReason}`);
+      
+      // Add notification explaining why catch-up sync is needed
+      NotificationService.addNotification({
+        type: 'sync_pending',
+        title: 'Running Catch-up Sync',
+        message: `${catchUpReason} - syncing missed changes...`,
+        priority: 'normal',
+        source: 'internal'
+      });
+
+      // 5. Determine the best timestamp to use for catch-up
+      let catchUpTimestamp: string | null = null;
+
+      // Use the most recent of our sync timestamps as the starting point
+      if (lastWebhookSync && lastRegularSync) {
+        catchUpTimestamp = lastWebhookSync > lastRegularSync ? lastWebhookSync : lastRegularSync;
+      } else if (lastWebhookSync) {
+        catchUpTimestamp = lastWebhookSync;
+      } else if (lastRegularSync) {
+        catchUpTimestamp = lastRegularSync;
+      }
+
+      // 6. Run the catch-up sync
+      if (catchUpTimestamp) {
+        logger.info(syncTag, 'Running catch-up sync from timestamp', { catchUpTimestamp });
+        await this.runCatchUpSyncFromTimestamp(catchUpTimestamp);
+      } else {
+        logger.warn(syncTag, 'No valid timestamp found for catch-up - running regular incremental sync');
+        await this.runIncrementalSync();
+      }
+
+    } catch (error) {
+      logger.error(syncTag, 'Catch-up sync check failed', { error });
+      // Don't throw - this is a background operation
+    }
+  }
+
+  /**
+   * Run a catch-up sync from a specific timestamp
+   * Similar to webhook sync but optimized for app startup
+   */
+  private async runCatchUpSyncFromTimestamp(timestamp: string): Promise<void> {
+    const syncTag = 'CatalogSync:CatchUpSync';
+    logger.info(syncTag, 'Starting catch-up sync...', { timestamp });
+
+    // 1. Check authentication and network FIRST (before marking sync as started)
+    try {
+      await this.checkAuthentication();
+      const networkState = await Network.getNetworkStateAsync();
+      if (!networkState.isConnected || !networkState.isInternetReachable) {
+        logger.warn(syncTag, 'No internet connection. Deferring catch-up sync.');
+        
+        // Add notification about deferred sync
+        NotificationService.addNotification({
+          type: 'sync_error',
+          title: 'Catch-up Sync Deferred',
+          message: 'No internet connection - catch-up sync will retry when connection is restored',
+          priority: 'normal',
+          source: 'internal'
+        });
+        return;
+      }
+    } catch (authError: any) {
+       logger.error(syncTag, 'Authentication or network check failed', { error: authError.message });
+       
+       // Add notification about authentication failure
+       NotificationService.addNotification({
+         type: 'sync_error',
+         title: 'Catch-up Sync Failed',
+         message: `Authentication failed: ${authError.message}`,
+         priority: 'high',
+         source: 'internal'
+       });
+       return; // Stop execution
+    }
+
+    // 2. Check if another sync is already running
+    const currentStatus = await this.getSyncStatus();
+    if (currentStatus.isSyncing) {
+      logger.warn(syncTag, 'Another sync operation is already in progress. Skipping catch-up.');
+      
+      // Add notification that sync was skipped due to another sync running
+      NotificationService.addNotification({
+        type: 'sync_pending',
+        title: 'Sync Already Running',
+        message: `${currentStatus.syncType || 'Another'} sync is already in progress - skipping catch-up`,
+        priority: 'low',
+        source: 'internal'
+      });
+      return;
+    }
+
+    // 3. Mark sync as started (only after authentication check passes)
+    await this.updateSyncStatus({
+      isSyncing: true,
+      syncType: 'catchup',
+      syncError: null,
+      syncProgress: 0,
+      syncTotal: 0,
+      lastSyncAttempt: new Date().toISOString(),
+      syncAttemptCount: (currentStatus.syncAttemptCount || 0) + 1,
+    });
+
+    let processedObjectCount = 0;
+
+    try {
+
+      // Fetch changes using direct Square API with begin_time approach
+      logger.info(syncTag, 'Fetching changes since last sync via direct Square API', { beginTime: timestamp });
+      const response = await directSquareApi.searchCatalogObjects(timestamp);
+      
+      if (!response.success) {
+        throw new Error(`Direct Square API error: ${response.error?.message || 'Unknown error'}`);
+      }
+      
+      const objects = response.objects ?? [];
+
+      logger.info(syncTag, `Found ${objects.length} objects to catch up on`);
+
+      if (objects.length > 0) {
+        // Process the changes (same logic as webhook sync)
+        const toDelete: CatalogObjectFromApi[] = [];
+        const toUpsert: CatalogObjectFromApi[] = [];
+
+        objects.forEach((obj: CatalogObjectFromApi) => {
+          if (!obj || !obj.id) { 
+             logger.warn(syncTag, 'Skipping invalid object', { obj });
+             return;
+          }
+          if (obj.is_deleted) {
+            toDelete.push(obj);
+          } else {
+            toUpsert.push(obj);
+          }
+        });
+
+        // Process deletions
+        if (toDelete.length > 0) {
+          logger.info(syncTag, `Processing ${toDelete.length} deletions...`);
+          for (const obj of toDelete) {
+            try {
+               await modernDb.deleteCatalogObjectById(obj.id);
+            } catch (deleteError) {
+               logger.error(syncTag, `Failed to delete object ${obj.id}`, { deleteError });
+            }
+          }
+        }
+
+        // Process upserts
+        if (toUpsert.length > 0) {
+          logger.info(syncTag, `Processing ${toUpsert.length} upserts...`);
+          try {
+             await modernDb.upsertCatalogObjects(toUpsert);
+          } catch (upsertError) {
+             logger.error(syncTag, `Failed to upsert batch`, { upsertError });
+             throw new Error('Failed during catch-up upsert batch.');
+          }
+        }
+
+        processedObjectCount = objects.length;
+      }
+
+      // Update our sync timestamp to current time
+      await this.updateLastSyncTimestamp(new Date().toISOString());
+
+      // Mark sync as completed
+      logger.info(syncTag, `Catch-up sync completed successfully. Processed ${processedObjectCount} objects.`);
+      await this.updateSyncStatus({
+        isSyncing: false,
+        syncError: null,
+        lastSyncTime: new Date().toISOString(),
+        syncAttemptCount: 0,
+        syncProgress: processedObjectCount,
+      });
+
+      // Add notifications for catch-up sync results
+      if (processedObjectCount > 0) {
+        // Detailed notification about what was synced during catch-up
+        const message = `${processedObjectCount} item${processedObjectCount > 1 ? 's' : ''} synced during catch-up`;
+        NotificationService.addNotification({
+          type: 'sync_complete',
+          title: 'Catch-up Sync Complete',
+          message,
+          priority: 'normal',
+          source: 'internal'
+        });
+      } else {
+        // No changes found during catch-up
+        NotificationService.addNotification({
+          type: 'sync_complete',
+          title: 'Catch-up Check Complete',
+          message: 'No new changes found since last sync',
+          priority: 'low',
+          source: 'internal'
+        });
+      }
+
+    } catch (error: any) {
+      logger.error(syncTag, 'Catch-up sync failed', { error: error.message });
+      
+      // Check if this is a 403 authorization error
+      const is403Error = error.message?.includes('403') || error.status === 403 || error.response?.status === 403;
+      const errorMessage = `Catch-up sync failed: ${error.message || 'Unknown error'}`;
+      
+      await this.updateSyncStatus({
+        isSyncing: false,
+        syncError: errorMessage,
+      });
+      
+      // Add specific notification based on error type
+      if (is403Error) {
+        NotificationService.addNotification({
+          type: 'sync_error',
+          title: 'Authorization Error (403)',
+          message: 'Square API access denied. Your authentication token may have expired. Try reconnecting to Square.',
+          priority: 'high',
+          source: 'internal'
+        });
+      } else {
+        NotificationService.addNotification({
+          type: 'sync_error',
+          title: 'Catch-up Sync Failed',
+          message: errorMessage,
+          priority: 'high',
+          source: 'internal'
+        });
+      }
+    } finally {
+      logger.info(syncTag, 'Catch-up sync process finished.');
+      const finalStatus = await this.getSyncStatus();
+      if (finalStatus.isSyncing) {
+         logger.warn(syncTag, 'Syncing flag was still true in finally block, setting to false.');
+         await this.updateSyncStatus({ isSyncing: false });
+      }
+    }
+  }
+
+  /**
+   * Check if there are any pending webhook events that failed to process
+   * This helps determine if we need catch-up sync due to missed webhooks
+   */
+  private async checkForPendingWebhookEvents(): Promise<boolean> {
+    try {
+      // This could check AppSync for unprocessed webhook events
+      // For now, we'll return false since we don't have a reliable way to detect this
+      // In the future, this could query the backend for webhook delivery failures
+      return false;
+    } catch (error) {
+      logger.error('CatalogSync', 'Failed to check for pending webhook events', { error });
+      return false;
+    }
+  }
+
+  /**
+   * Get the last time the app was opened
+   */
+  private async getLastAppOpenTime(): Promise<string | null> {
+    try {
+      if (!this.db) {
+        this.db = await modernDb.getDatabase();
+      }
+      
+      const result = await this.db.getFirstAsync<{ value: string }>(`
+        SELECT value FROM app_metadata WHERE key = 'last_app_open_time'
+      `);
+      
+      return result?.value || null;
+    } catch (error) {
+      logger.error('CatalogSync', 'Failed to get last app open time', { error });
+      return null;
+    }
+  }
+  
+  /**
+   * Update the last app open time
+   */
+  private async updateLastAppOpenTime(timestamp: string): Promise<void> {
+    try {
+      if (!this.db) {
+        this.db = await modernDb.getDatabase();
+      }
+      
+      await this.db.runAsync(`
+        INSERT OR REPLACE INTO app_metadata (key, value) 
+        VALUES ('last_app_open_time', ?)
+      `, [timestamp]);
+      
+      logger.debug('CatalogSync', 'Updated last app open time', { timestamp });
+    } catch (error) {
+      logger.error('CatalogSync', 'Failed to update last app open time', { error });
+    }
+  }
+  
+  /**
+   * Register a listener for sync status changes
+   */
+  public registerListener(id: string, listener: (status: SyncStatus) => void): void {
+    this.listeners.set(id, listener);
+  }
+  
+  /**
+   * Unregister a listener
+   */
+  public unregisterListener(id: string): void {
+    this.listeners.delete(id);
+  }
+  
+  /**
+   * Notify all listeners of status changes
+   */
+  private async notifyListeners(): Promise<void> {
+    try {
+      const status = await this.getSyncStatus();
+      this.listeners.forEach(listener => {
+        try {
+          listener(status);
+        } catch (error) {
+          logger.error('CatalogSync', 'Error in sync status listener', { error });
+        }
+      });
+    } catch (error) {
+      logger.error('CatalogSync', 'Failed to notify listeners', { error });
+    }
+  }
+  // --- End: checkAndRunCatchUpSync ---
 }
 
 // Export the singleton instance

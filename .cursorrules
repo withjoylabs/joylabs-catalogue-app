@@ -18,3 +18,4 @@ IMPORTANT Guidelines MUST BE RESPECTED:
 •	Do NOT run an EAS build without my explicit request.
 •	Do NOT commit and push to git without my explicit request.
     DO NOT RUN NPM START.
+    Follow best practices to keep our codebase efficient and within size limits. No file should be over 750-900 lines of code. That means using to the best of your knowledge memoization techniques, splitting code into logical components for re-use or for better refactoring and keeping our individual files manageable.

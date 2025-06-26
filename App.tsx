@@ -4,6 +4,7 @@ import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import logger from './src/utils/logger';
+import { CatalogSyncService } from './src/database/catalogSync';
 
 // IMPORTANT: This must be called at the root of the app for AuthSession to work
 WebBrowser.maybeCompleteAuthSession();
@@ -67,10 +68,32 @@ class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasErr
 export default function App() {
   const [appState, setAppState] = useState(AppState.currentState);
   
-  // Set up app state change listener
+  // Set up app state change listener with catch-up sync
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextAppState => {
       logger.debug('App', `App state changed from ${appState} to ${nextAppState}`);
+      
+      // Only trigger catch-up sync when app comes to foreground if we have reason to believe we missed webhooks
+      // This prevents unnecessary API calls on every foreground transition
+      if (appState === 'background' && nextAppState === 'active') {
+        logger.info('App', 'App came to foreground from background - checking if catch-up sync is needed');
+        
+        try {
+          const syncService = CatalogSyncService.getInstance();
+          
+          // Use intelligent detection to only sync if we actually missed webhook events
+          // This prevents wasteful API calls when webhooks are working properly
+          syncService.checkAndRunCatchUpSync().catch(error => {
+            logger.error('App', 'Catch-up sync check failed during foreground transition', { error });
+          });
+          
+          logger.info('App', 'Intelligent catch-up sync check initiated during foreground transition');
+        } catch (syncError) {
+          // Don't fail app state transition if sync fails
+          logger.error('App', 'Failed to initiate catch-up sync check during foreground transition', { syncError });
+        }
+      }
+      
       setAppState(nextAppState);
     });
 

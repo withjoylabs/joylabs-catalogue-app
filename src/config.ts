@@ -34,6 +34,7 @@ const config = {
       catalogItems: `${API_BASE_URL}/v2/catalog/list`,
       catalogItem: `${API_BASE_URL}/v2/catalog/item`,
       catalogSearch: `${API_BASE_URL}/v2/catalog/search`,
+      catalogSearchObjects: `${API_BASE_URL}/v2/catalog/search-objects`,
       catalogCategories: `${API_BASE_URL}/v2/catalog/categories`,
       catalogList: `${API_BASE_URL}/v2/catalog/list`,
       catalogListCategories: `${API_BASE_URL}/v2/catalog/list-categories`,

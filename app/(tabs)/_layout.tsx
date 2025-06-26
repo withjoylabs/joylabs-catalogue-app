@@ -130,7 +130,7 @@ function ReorderIconWithBadge({ color, focused }: { color: string; focused: bool
 export default function MainTabsLayout() {
   return (
     <Tabs
-      initialRouteName="index"
+      initialRouteName="(scan)"
       screenOptions={{
         headerShown: false, 
         tabBarActiveTintColor: '#007AFF',
@@ -150,9 +150,10 @@ export default function MainTabsLayout() {
       }}
     >
       <Tabs.Screen
-        name="index"
+        name="(scan)"
         options={{
           title: 'Scan',
+          headerShown: false,
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'barcode' : 'barcode-outline'} size={24} color={color} />
           ),
@@ -198,7 +199,7 @@ export default function MainTabsLayout() {
           ),
         }}
       />
-      <Tabs.Screen 
+      <Tabs.Screen
         name="scanHistory"
         options={{ href: null }}
       />

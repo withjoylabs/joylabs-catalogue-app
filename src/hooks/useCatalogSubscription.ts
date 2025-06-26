@@ -3,7 +3,10 @@ import { generateClient } from 'aws-amplify/api';
 import { useAuthenticator } from '@aws-amplify/ui-react-native';
 import { fetchUserAttributes } from 'aws-amplify/auth';
 import { useCatalogItems } from './useCatalogItems';
+import catalogSyncService from '../database/catalogSync';
+import NotificationService from '../services/notificationService';
 import logger from '../utils/logger';
+import appSyncMonitor from '../services/appSyncMonitor';
 
 // GraphQL subscription for catalog updates - updated to match new schema
 const CATALOG_UPDATE_SUBSCRIPTION = `
@@ -41,6 +44,8 @@ export const useCatalogSubscription = () => {
   const { refreshProducts } = useCatalogItems();
   const client = generateClient();
   const [merchantId, setMerchantId] = useState<string | null>(null);
+  const [reconnectAttempts, setReconnectAttempts] = useState(0);
+  const [lastRequestTime, setLastRequestTime] = useState(0);
 
   const handleCatalogUpdate = useCallback(async (event: CatalogUpdateEvent) => {
     logger.info('CatalogSubscription', `Received catalog update: ${event.eventType}`, { 
@@ -60,8 +65,62 @@ export const useCatalogSubscription = () => {
       
       // Catalog events
       case 'catalog.version.updated':
-        logger.info('CatalogSubscription', 'Catalog version updated, full refresh needed');
+        logger.info('CatalogSubscription', 'Catalog version updated, triggering webhook sync');
+        
+        // Create PROMINENT notification that webhook was received from Square
+        NotificationService.addNotification({
+          type: 'webhook_catalog_update',
+          title: '🔔 Square Webhook Received!',
+          message: `Webhook event: ${event.eventType} | Event ID: ${event.eventId.substring(0, 8)}... | Processing catalog changes...`,
+          priority: 'high',
+          source: 'webhook'
+        });
+        
+        // Extract the updated_at timestamp from the webhook data
+        let webhookTimestamp: string | null = null;
+        if (event.data?.object?.catalog_version?.updated_at) {
+          webhookTimestamp = event.data.object.catalog_version.updated_at;
+        } else if (event.timestamp) {
+          webhookTimestamp = event.timestamp;
+        }
+        
+        if (webhookTimestamp) {
+          // Trigger the proper webhook sync method that handles notifications
+          try {
+            await catalogSyncService.runIncrementalSyncFromTimestamp(webhookTimestamp);
+            
+            // Add success notification for webhook processing
+            NotificationService.addNotification({
+              type: 'sync_complete',
+              title: '✅ Webhook Sync Complete',
+              message: `Successfully processed Square webhook ${event.eventId.substring(0, 8)}... | Catalog updated with latest changes`,
+              priority: 'normal',
+              source: 'webhook'
+            });
+          } catch (error) {
+            logger.error('CatalogSubscription', 'Webhook sync failed', { error });
+            NotificationService.addNotification({
+              type: 'sync_error',
+              title: '❌ Webhook Sync Failed',
+              message: `Failed to process webhook ${event.eventId.substring(0, 8)}...: ${error instanceof Error ? error.message : 'Unknown error'}`,
+              priority: 'high',
+              source: 'webhook'
+            });
+          }
+        } else {
+          logger.warn('CatalogSubscription', 'No timestamp found in webhook data, falling back to product refresh');
+          
+          // Add notification for fallback behavior
+          NotificationService.addNotification({
+            type: 'webhook_catalog_update',
+            title: '⚠️ Webhook Data Issue',
+            message: `Webhook ${event.eventId.substring(0, 8)}... missing timestamp - using fallback refresh`,
+            priority: 'normal',
+            source: 'webhook'
+          });
+          
         await refreshProducts();
+        }
         break;
       
       // Item events
@@ -69,6 +128,15 @@ export const useCatalogSubscription = () => {
       case 'catalog.item.updated':
       case 'catalog.item.deleted':
         logger.info('CatalogSubscription', `Item ${event.eventType.split('.').pop()}, refreshing products`);
+        
+        NotificationService.addNotification({
+          type: 'webhook_catalog_update',
+          title: 'Square Item Update',
+          message: `Item ${event.eventType.split('.').pop()} - refreshing catalog`,
+          priority: 'low',
+          source: 'webhook'
+        });
+        
         await refreshProducts();
         break;
       
@@ -77,6 +145,15 @@ export const useCatalogSubscription = () => {
       case 'catalog.category.updated':
       case 'catalog.category.deleted':
         logger.info('CatalogSubscription', `Category ${event.eventType.split('.').pop()}, refreshing products`);
+        
+        NotificationService.addNotification({
+          type: 'webhook_catalog_update',
+          title: 'Square Category Update',
+          message: `Category ${event.eventType.split('.').pop()} - refreshing catalog`,
+          priority: 'low',
+          source: 'webhook'
+        });
+        
         await refreshProducts();
         break;
       
@@ -85,6 +162,15 @@ export const useCatalogSubscription = () => {
       case 'catalog.item_variation.updated':
       case 'catalog.item_variation.deleted':
         logger.info('CatalogSubscription', `Item variation ${event.eventType.split('.').pop()}, refreshing products`);
+        
+        NotificationService.addNotification({
+          type: 'webhook_catalog_update',
+          title: 'Square Variation Update',
+          message: `Item variation ${event.eventType.split('.').pop()} - refreshing catalog`,
+          priority: 'low',
+          source: 'webhook'
+        });
+        
         await refreshProducts();
         break;
       
@@ -131,17 +217,29 @@ export const useCatalogSubscription = () => {
 
   useEffect(() => {
     if (!merchantId) {
-      logger.debug('CatalogSubscription', 'Merchant ID not available, skipping catalog subscription');
+      logger.debug('CatalogSubscription', 'Merchant ID not available, skipping AppSync catch-up listener');
       return;
     }
 
-    logger.info('CatalogSubscription', 'Setting up catalog update subscription', { merchantId });
+    logger.debug('CatalogSubscription', 'Setting up AppSync catch-up listener', { merchantId });
 
     // Set up AppSync subscription using the correct API
     let subscription: any;
     
     const setupSubscription = async () => {
       try {
+        // Throttle AppSync requests - minimum 1 second between requests
+        const now = Date.now();
+        const timeSinceLastRequest = now - lastRequestTime;
+        if (timeSinceLastRequest < 1000) {
+          logger.debug('CatalogSubscription', 'AppSync request throttled');
+          return;
+        }
+        setLastRequestTime(now);
+
+        // Monitor AppSync request
+        await appSyncMonitor.beforeRequest('onCatalogUpdate', 'useCatalogSubscription', { owner: merchantId });
+
         const sub = client.graphql({
           query: CATALOG_UPDATE_SUBSCRIPTION,
           variables: { owner: merchantId }
@@ -152,24 +250,50 @@ export const useCatalogSubscription = () => {
           subscription = (sub as any).subscribe({
             next: (data: any) => {
               if (data?.data?.onCatalogUpdate) {
+                logger.info('CatalogSubscription', 'Received catch-up signal from AppSync', {
+                  data: data.data.onCatalogUpdate
+                });
+
+                // Show notification only when we actually receive catch-up data
+                NotificationService.addNotification({
+                  type: 'general_info',
+                  title: '🔄 Catch-up Sync Triggered',
+                  message: 'Syncing missed changes while offline...',
+                  priority: 'low',
+                  source: 'internal'
+                });
+
                 handleCatalogUpdate(data.data.onCatalogUpdate);
               }
             },
             error: (error: any) => {
-              logger.error('CatalogSubscription', 'Catalog subscription error', { 
+              logger.debug('CatalogSubscription', 'AppSync subscription error (background reconnection)', {
                 error: error.message || error,
-                merchantId 
+                merchantId,
+                reconnectAttempts
               });
-              
-              // Attempt to reconnect after a delay
-              setTimeout(() => {
-                logger.info('CatalogSubscription', 'Attempting to reconnect catalog subscription');
-                setupSubscription();
-              }, 5000);
+
+              // Exponential backoff with max attempts to prevent infinite loops
+              setReconnectAttempts(prev => {
+                const newAttempts = prev + 1;
+                if (newAttempts < 3) {
+                  const delay = Math.min(30000 * Math.pow(2, newAttempts), 300000); // Max 5 minutes
+                  logger.debug('CatalogSubscription', `Reconnecting in ${delay}ms (attempt ${newAttempts}/3)`);
+                  setTimeout(() => {
+                    setupSubscription();
+                  }, delay);
+                } else {
+                  logger.warn('CatalogSubscription', 'Max reconnection attempts reached, stopping reconnections');
+                }
+                return newAttempts;
+              });
             }
           });
           
-          logger.info('CatalogSubscription', 'Catalog subscription established successfully');
+          logger.debug('CatalogSubscription', 'AppSync subscription established (background catch-up listener)');
+
+          // No notifications - this is just a silent background listener for catch-up metadata
+          // The real webhook flow is Lambda → Push Notifications → Direct Square API sync
         } else {
           // Handle as promise if not subscribable
           const result = await sub;
@@ -195,7 +319,6 @@ export const useCatalogSubscription = () => {
   }, [merchantId, client, handleCatalogUpdate]);
 
   return {
-    isSubscribed: !!merchantId,
     merchantId
   };
 }; 

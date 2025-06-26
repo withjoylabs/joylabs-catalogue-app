@@ -6,6 +6,8 @@ import * as queries from '../graphql/queries';
 import * as subscriptions from '../graphql/subscriptions';
 import * as mutations from '../graphql/mutations';
 import { itemHistoryService } from './itemHistoryService';
+import * as modernDb from '../database/modernDb';
+import appSyncMonitor from './appSyncMonitor';
 
 export interface TeamData {
   vendor?: string;
@@ -87,32 +89,71 @@ class ReorderService {
     }
   }
 
-  // Load reorder items from AppSync
+  // Load reorder items from local database first (LOCAL-FIRST ARCHITECTURE)
   private async loadReorderItems() {
     try {
-      logger.info('[ReorderService]', 'Loading reorder items from server');
-      
+      logger.info('[ReorderService]', '🔍 Loading reorder items locally (LOCAL-FIRST)');
+
+      // ✅ CRITICAL FIX: Load from local SQLite first
+      const localReorderItems = await this.loadLocalReorderItems();
+
+      if (localReorderItems && localReorderItems.length > 0) {
+        this.reorderItems = localReorderItems;
+        logger.info('[ReorderService]', `✅ Loaded ${this.reorderItems.length} reorder items from local database`);
+
+        // Load team data for all items
+        await this.loadTeamDataForItems();
+
+        // ✅ NO TIME-BASED POLLING: Data syncs only via webhooks/AppSync or CRUD operations
+      } else {
+        logger.info('[ReorderService]', '📭 No local reorder items found - attempting initial recovery from DynamoDB');
+        // ✅ INITIAL RECOVERY: When local data is missing, recover from DynamoDB once
+        await this.recoverFromDynamoDB();
+      }
+    } catch (error) {
+      logger.error('[ReorderService]', '❌ Failed to load reorder items', { error });
+    }
+  }
+
+  // Manual sync function for explicit user-triggered syncs only
+  async manualSync() {
+    try {
+      logger.info('[ReorderService]', '🔄 Manual sync triggered by user');
+
+      // Monitor AppSync request
+      await appSyncMonitor.beforeRequest('listReorderItems', 'ReorderService:manualSync', { limit: 1000 });
+
       const response = await this.client.graphql({
         query: queries.listReorderItems,
         variables: {
           limit: 1000 // Adjust as needed
         }
       }) as any;
-      
+
       if (response.data?.listReorderItems?.items) {
-        this.reorderItems = response.data.listReorderItems.items.map((item: any, index: number) => ({
+        const serverItems = response.data.listReorderItems.items.map((item: any, index: number) => ({
           ...item,
           timestamp: new Date(item.createdAt),
           index: index + 1
         }));
-        
-        logger.info('[ReorderService]', `Loaded ${this.reorderItems.length} reorder items from server`);
-        
+
+        // Save to local database
+        await this.saveReorderItemsLocally(serverItems);
+
+        // Update in-memory items
+        this.reorderItems = serverItems;
+
+        logger.info('[ReorderService]', `✅ Manual sync completed: ${serverItems.length} reorder items`);
+
         // Load team data for all items
         await this.loadTeamDataForItems();
+
+        // Notify listeners of updated data
+        this.notifyListeners();
       }
     } catch (error) {
-      logger.error('[ReorderService]', 'Failed to load reorder items', { error });
+      logger.error('[ReorderService]', '❌ Manual sync failed', { error });
+      throw error;
     }
   }
 
@@ -133,6 +174,15 @@ class ReorderService {
   // Set up real-time subscriptions
   private setupSubscriptions() {
     try {
+      // ✅ EMERGENCY MODE: Disable non-critical subscriptions to reduce AppSync usage
+      const EMERGENCY_MODE = process.env.EXPO_PUBLIC_EMERGENCY_MODE === 'true';
+      if (EMERGENCY_MODE) {
+        logger.warn('[ReorderService]', '🚨 Emergency mode: Disabling real-time subscriptions to reduce AppSync usage');
+        return;
+      }
+
+      logger.info('[ReorderService]', 'Setting up real-time subscriptions');
+
       // Subscribe to ReorderItem creation
       const createSubscription = this.client.graphql({
         query: subscriptions.onCreateReorderItem
@@ -294,7 +344,7 @@ class ReorderService {
     }
   }
 
-  // Enhanced team data fetching with caching
+  // LOCAL-FIRST team data fetching with caching
   async fetchTeamData(itemId: string): Promise<TeamData | undefined> {
     // Check cache first
     const cached = this.teamDataCache.get(itemId);
@@ -303,16 +353,56 @@ class ReorderService {
     }
 
     try {
-      const response = await this.client.graphql({ 
-        query: queries.getItemData, 
+      logger.info('[ReorderService]', '🔍 Fetching team data locally (LOCAL-FIRST)', { itemId });
+
+      // ✅ CRITICAL FIX: Get from local SQLite only - NO AppSync calls
+      const localTeamData = await modernDb.getTeamData(itemId);
+
+      if (localTeamData) {
+        const teamData: TeamData = {
+          vendor: localTeamData.vendor,
+          vendorCost: localTeamData.caseCost && localTeamData.caseQuantity ?
+            localTeamData.caseCost / localTeamData.caseQuantity : undefined,
+          caseUpc: localTeamData.caseUpc,
+          caseCost: localTeamData.caseCost,
+          caseQuantity: localTeamData.caseQuantity,
+          discontinued: localTeamData.discontinued,
+          notes: localTeamData.notes,
+        };
+
+        // Update cache
+        this.teamDataCache.set(itemId, { data: teamData, timestamp: Date.now() });
+        logger.info('[ReorderService]', '✅ Team data loaded from local database', { itemId });
+        return teamData;
+      } else {
+        logger.info('[ReorderService]', '📭 No local team data found - attempting recovery from DynamoDB', { itemId });
+        // ✅ INITIAL RECOVERY: When local data is missing, try to recover from DynamoDB once
+        return await this.recoverTeamDataFromDynamoDB(itemId);
+      }
+    } catch (error: any) {
+      logger.error('[ReorderService]', '❌ Error fetching local team data', { error, itemId });
+      return undefined;
+    }
+  }
+
+  // ✅ INITIAL RECOVERY: Recover team data from DynamoDB when local data is missing
+  private async recoverTeamDataFromDynamoDB(itemId: string): Promise<TeamData | undefined> {
+    try {
+      logger.info('[ReorderService]', '🔄 Recovering team data from DynamoDB (initial recovery)', { itemId });
+
+      // Monitor AppSync request
+      await appSyncMonitor.beforeRequest('getItemData', 'ReorderService:teamDataRecovery', { id: itemId });
+
+      const response = await this.client.graphql({
+        query: queries.getItemData,
         variables: { id: itemId }
       }) as any;
-      
+
       if (response.data?.getItemData) {
         const itemData = response.data.getItemData;
         const teamData: TeamData = {
           vendor: itemData.vendor,
-          vendorCost: itemData.caseCost && itemData.caseQuantity ? 
+          vendorCost: itemData.caseCost && itemData.caseQuantity ?
             itemData.caseCost / itemData.caseQuantity : undefined,
           caseUpc: itemData.caseUpc,
           caseCost: itemData.caseCost,
@@ -320,20 +410,32 @@ class ReorderService {
           discontinued: itemData.discontinued,
           notes: itemData.notes?.[0]?.content,
         };
-        
+
+        // Save to local database for future use
+        await modernDb.upsertTeamData({
+          itemId: itemId,
+          caseUpc: itemData.caseUpc,
+          caseCost: itemData.caseCost,
+          caseQuantity: itemData.caseQuantity,
+          vendor: itemData.vendor,
+          discontinued: itemData.discontinued,
+          notes: itemData.notes?.[0]?.content,
+          lastSyncAt: new Date().toISOString(),
+          owner: itemData.owner
+        });
+
         // Update cache
         this.teamDataCache.set(itemId, { data: teamData, timestamp: Date.now() });
+        logger.info('[ReorderService]', '✅ Team data recovered from DynamoDB and saved locally', { itemId });
         return teamData;
-      }
-    } catch (error: any) {
-      // Gracefully handle authentication errors
-      if (error?.name === 'NoSignedUser' || error?.underlyingError?.name === 'NotAuthorizedException') {
-        logger.info('[ReorderService]', 'User not signed in, skipping team data fetch', { itemId });
+      } else {
+        logger.info('[ReorderService]', '📭 No team data found in DynamoDB', { itemId });
         return undefined;
       }
-      logger.error('[ReorderService]', 'Error fetching team data', { error, itemId });
+    } catch (error: any) {
+      logger.error('[ReorderService]', '❌ Team data recovery from DynamoDB failed', { error, itemId });
+      return undefined;
     }
-    return undefined;
   }
 
   // Add listener for reorder list changes
@@ -972,6 +1074,118 @@ class ReorderService {
       pendingCount: this.pendingSyncItems.length,
       isAuthenticated: !this.isOfflineMode
     };
+  }
+
+  // Local database functions for reorder items
+  private async loadLocalReorderItems(): Promise<ReorderItem[]> {
+    try {
+      const db = await modernDb.getDatabase();
+      const results = await db.getAllAsync<any>(`
+        SELECT * FROM reorder_items
+        WHERE pending_sync = 0
+        ORDER BY created_at DESC
+      `);
+
+      return results.map(row => ({
+        id: row.id,
+        itemId: row.item_id,
+        itemName: row.item_name,
+        itemBarcode: row.item_barcode,
+        itemCategory: row.item_category,
+        itemPrice: row.item_price,
+        quantity: row.quantity,
+        completed: row.completed === 1,
+        addedBy: row.added_by,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        owner: row.owner,
+        timestamp: new Date(row.created_at),
+        index: 0 // Will be set later
+      }));
+    } catch (error) {
+      logger.error('[ReorderService]', 'Failed to load local reorder items', { error });
+      return [];
+    }
+  }
+
+  private async saveReorderItemsLocally(items: ReorderItem[]): Promise<void> {
+    try {
+      const db = await modernDb.getDatabase();
+      const now = new Date().toISOString();
+
+      await db.withTransactionAsync(async () => {
+        for (const item of items) {
+          await db.runAsync(`
+            INSERT OR REPLACE INTO reorder_items
+            (id, item_id, item_name, item_barcode, item_category, item_price, quantity, completed, added_by, created_at, updated_at, last_sync_at, owner, pending_sync)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `, [
+            item.id,
+            item.itemId,
+            item.itemName,
+            item.itemBarcode,
+            item.itemCategory,
+            item.itemPrice,
+            item.quantity,
+            item.completed ? 1 : 0,
+            item.addedBy,
+            item.createdAt,
+            item.updatedAt,
+            now,
+            item.owner,
+            0 // not pending sync
+          ]);
+        }
+      });
+
+      logger.info('[ReorderService]', `Saved ${items.length} reorder items locally`);
+    } catch (error) {
+      logger.error('[ReorderService]', 'Failed to save reorder items locally', { error });
+    }
+  }
+
+  // ✅ INITIAL RECOVERY: Recover data from DynamoDB when local data is missing
+  private async recoverFromDynamoDB(): Promise<void> {
+    try {
+      logger.info('[ReorderService]', '🔄 Recovering reorder items from DynamoDB (initial recovery)');
+
+      // Monitor AppSync request
+      await appSyncMonitor.beforeRequest('listReorderItems', 'ReorderService:initialRecovery', { limit: 1000 });
+
+      const response = await this.client.graphql({
+        query: queries.listReorderItems,
+        variables: {
+          limit: 1000 // Adjust as needed
+        }
+      }) as any;
+
+      if (response.data?.listReorderItems?.items) {
+        const serverItems = response.data.listReorderItems.items.map((item: any, index: number) => ({
+          ...item,
+          timestamp: new Date(item.createdAt),
+          index: index + 1
+        }));
+
+        // Save to local database
+        await this.saveReorderItemsLocally(serverItems);
+
+        // Update in-memory items
+        this.reorderItems = serverItems;
+
+        logger.info('[ReorderService]', `✅ Initial recovery completed: ${serverItems.length} reorder items recovered from DynamoDB`);
+
+        // Load team data for all items
+        await this.loadTeamDataForItems();
+
+        // Notify listeners of recovered data
+        this.notifyListeners();
+      } else {
+        logger.info('[ReorderService]', '📭 No reorder items found in DynamoDB');
+      }
+    } catch (error) {
+      logger.error('[ReorderService]', '❌ Initial recovery from DynamoDB failed', { error });
+      // Don't throw - this is a recovery operation
+    }
   }
 }
 

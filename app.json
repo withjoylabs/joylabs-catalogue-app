@@ -59,7 +59,15 @@
       "expo-secure-store",
       "expo-font",
       "expo-background-task",
-      "expo-sqlite"
+      "expo-sqlite",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#ffffff",
+          "sounds": []
+        }
+      ]
     ],
     "newArchEnabled": true,
     "runtimeVersion": "1.0.0",

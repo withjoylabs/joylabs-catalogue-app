@@ -220,30 +220,24 @@ class CatalogRepository {
         }
 
         // Execute queries
-        const result = await executeSql(sql, params);
-        const countResult = await executeSql(countSql, countParams);
-        const total = countResult.rows.item(0).total;
+        const result = await this.db!.getAllAsync<any>(sql, params);
+        const countResult = await this.db!.getFirstAsync<{ total: number }>(countSql, countParams);
+        const total = countResult?.total || 0;
 
         // Parse results
         const items: CatalogItem[] = [];
-        for (let i = 0; i < result.rows.length; i++) {
-          const row = result.rows.item(i);
+        for (const row of result) {
           const itemData = JSON.parse(row.item_data || '{}');
 
           items.push({
             id: row.id,
             name: itemData.name || '',
             description: itemData.description || '',
-            sku: itemData.variations?.[0]?.item_variation_data?.sku || '',
-            barcode: itemData.variations?.[0]?.item_variation_data?.upc || '',
             price: this.parsePrice(itemData.variations?.[0]?.item_variation_data?.price_money?.amount),
-            categoryId: itemData.category_id || null,
-            categoryName: row.category_name || null,
-            isDeleted: Boolean(row.is_deleted),
-            updatedAt: row.updated_at,
-            variations: itemData.variations || [],
-            taxes: itemData.tax_ids || [],
-            modifiers: itemData.modifier_list_info || []
+            category_id: itemData.category_id || null,
+            updated_at: row.updated_at,
+            available: !Boolean(row.is_deleted),
+            data: itemData
           });
         }
 
@@ -275,16 +269,11 @@ class CatalogRepository {
               id: obj.id,
               name: obj.item_data.name || '',
               description: obj.item_data.description || '',
-              sku: obj.item_data.variations?.[0]?.item_variation_data?.sku || '',
-              barcode: obj.item_data.variations?.[0]?.item_variation_data?.upc || '',
               price: this.parsePrice(obj.item_data.variations?.[0]?.item_variation_data?.price_money?.amount),
-              categoryId: obj.item_data.category_id || null,
-              categoryName: null, // Need to look up separately
-              isDeleted: Boolean(obj.is_deleted),
-              updatedAt: new Date().toISOString(),
-              variations: obj.item_data.variations || [],
-              taxes: obj.item_data.tax_ids || [],
-              modifiers: obj.item_data.modifier_list_info || []
+              category_id: obj.item_data.category_id || null,
+              available: !Boolean(obj.is_deleted),
+              updated_at: new Date().toISOString(),
+              data: obj.item_data
             });
           }
         }
