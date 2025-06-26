@@ -198,6 +198,13 @@ const staticStyles = {
     justifyContent: 'flex-end' as const,
     paddingRight: 16,
   },
+  swipeReceivedContainer: {
+    flex: 1,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'flex-start' as const,
+    paddingLeft: 16,
+  },
   dropdownScrollView: {
     flex: 1,
     maxHeight: 320
@@ -682,6 +689,9 @@ const ReordersScreen = React.memo(() => {
 
   // List maintenance expanded state
   const [showMaintenanceButtons, setShowMaintenanceButtons] = useState(false);
+
+  // Track swipe state to prevent tap conflicts
+  const [swipingItemId, setSwipingItemId] = useState<string | null>(null);
   
   // State for filters and sorting
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
@@ -1144,6 +1154,16 @@ const ReordersScreen = React.memo(() => {
     }
   };
 
+  // Handle mark as received (swipe left)
+  const handleMarkAsReceived = async (itemId: string) => {
+    try {
+      const userName = user?.signInDetails?.loginId?.split('@')[0] || 'Unknown User';
+      await reorderService.markAsReceived(itemId, userName);
+    } catch (error) {
+      console.error('Error marking item as received:', error);
+    }
+  };
+
   // Handle manual refresh
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -1596,13 +1616,44 @@ const ReordersScreen = React.memo(() => {
         rightThreshold={120}
         overshootLeft={false}
         overshootRight={false}
+        onSwipeableWillOpen={() => {
+          // Track that this item is being swiped
+          setSwipingItemId(item.id);
+        }}
+        onSwipeableClose={() => {
+          // Clear swipe state when swipe ends
+          setSwipingItemId(null);
+        }}
+        renderLeftActions={(progress, dragX) => {
+          const opacity = progress.interpolate({
+            inputRange: [0, 0.7, 0.8],
+            outputRange: [1, 1, 0],
+            extrapolate: 'clamp',
+          });
+
+          return (
+            <View style={staticStyles.swipeReceivedContainer}>
+              <Animated.View style={[
+                reorderStyles.receivedButton,
+                { opacity }
+              ]}>
+                <Pressable
+                  style={reorderStyles.receivedButtonInner}
+                  onPress={() => handleMarkAsReceived(item.id)}
+                >
+                  <Ionicons name="checkmark-done" size={24} color="#fff" />
+                </Pressable>
+              </Animated.View>
+            </View>
+          );
+        }}
         renderRightActions={(progress, dragX) => {
           const opacity = progress.interpolate({
             inputRange: [0, 0.7, 0.8],
             outputRange: [1, 1, 0],
             extrapolate: 'clamp',
           });
-          
+
           return (
             <View style={staticStyles.swipeDeleteContainer}>
               <Animated.View style={[
@@ -1619,8 +1670,12 @@ const ReordersScreen = React.memo(() => {
             </View>
           );
         }}
+        onSwipeableLeftOpen={() => {
+          // Auto-mark-as-received on full left swipe
+          handleMarkAsReceived(item.id);
+        }}
         onSwipeableRightOpen={() => {
-          // Auto-delete on full swipe
+          // Auto-delete on full right swipe
           handleDeleteItem(item.id);
         }}
       >
@@ -1644,6 +1699,11 @@ const ReordersScreen = React.memo(() => {
               }
             ]}
             onPress={() => {
+              // Prevent tap action if item is currently being swiped
+              if (swipingItemId === item.id) {
+                return;
+              }
+
               const userName = user?.signInDetails?.loginId?.split('@')[0] || 'Unknown User';
               reorderService.toggleCompletion(item.id, userName);
             }}
@@ -1674,9 +1734,14 @@ const ReordersScreen = React.memo(() => {
           </Pressable>
 
           {/* Item content - tappable for quantity editing */}
-          <Pressable 
+          <Pressable
             style={reorderStyles.itemContent}
             onPress={() => {
+              // Prevent tap action if item is currently being swiped
+              if (swipingItemId === item.id) {
+                return;
+              }
+
               if (item.isCustom) {
                 handleEditCustomItem(item);
               } else {

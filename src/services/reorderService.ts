@@ -762,8 +762,27 @@ class ReorderService {
         logger.info('[ReorderService]', '✅ Team data loaded from local database', { itemId });
         return teamData;
       } else {
-        logger.info('[ReorderService]', '📭 No local team data found - attempting recovery from DynamoDB', { itemId });
-        // ✅ INITIAL RECOVERY: When local data is missing, try to recover from DynamoDB once
+        logger.info('[ReorderService]', '📭 No local team data found', { itemId });
+
+        // ✅ LOCAL-FIRST: Only attempt recovery if explicitly requested AND online
+        // Don't auto-recover on every scan - this violates local-first philosophy
+        if (this.isOfflineMode) {
+          logger.info('[ReorderService]', '🔒 Offline mode - skipping team data recovery', { itemId });
+          return undefined;
+        }
+
+        // Check if we've already attempted recovery for this item recently
+        const recoveryKey = `recovery_attempted_${itemId}`;
+        const lastAttempt = this.teamDataCache.get(recoveryKey);
+        if (lastAttempt && (Date.now() - lastAttempt.timestamp) < 300000) { // 5 minutes
+          logger.info('[ReorderService]', '⏰ Recent recovery attempt - skipping to avoid spam', { itemId });
+          return undefined;
+        }
+
+        // Mark that we're attempting recovery to prevent spam
+        this.teamDataCache.set(recoveryKey, { data: null, timestamp: Date.now() });
+
+        logger.info('[ReorderService]', '🔄 Attempting one-time team data recovery from DynamoDB', { itemId });
         return await this.recoverTeamDataFromDynamoDB(itemId);
       }
     } catch (error: any) {
@@ -772,10 +791,16 @@ class ReorderService {
     }
   }
 
-  // ✅ INITIAL RECOVERY: Recover team data from DynamoDB when local data is missing
+  // ✅ CONTROLLED RECOVERY: Recover team data from DynamoDB only when appropriate
   private async recoverTeamDataFromDynamoDB(itemId: string): Promise<TeamData | undefined> {
     try {
-      logger.info('[ReorderService]', '🔄 Recovering team data from DynamoDB (initial recovery)', { itemId });
+      // Double-check offline status before making network call
+      if (this.isOfflineMode) {
+        logger.info('[ReorderService]', '🔒 Offline mode detected - aborting team data recovery', { itemId });
+        return undefined;
+      }
+
+      logger.info('[ReorderService]', '🔄 Recovering team data from DynamoDB (controlled recovery)', { itemId });
 
       // Monitor AppSync request
       await appSyncMonitor.beforeRequest('getItemData', 'ReorderService:teamDataRecovery', { id: itemId });
@@ -821,6 +846,13 @@ class ReorderService {
       }
     } catch (error: any) {
       logger.error('[ReorderService]', '❌ Team data recovery from DynamoDB failed', { error, itemId });
+
+      // If it's an authentication error, switch to offline mode to prevent future attempts
+      if (error.name === 'NotAuthorizedException' || error.name === 'NoSignedUser') {
+        logger.warn('[ReorderService]', '🔒 Authentication failed - switching to offline mode', { itemId });
+        this.isOfflineMode = true;
+      }
+
       return undefined;
     }
   }

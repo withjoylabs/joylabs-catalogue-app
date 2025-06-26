@@ -147,8 +147,25 @@ export const reorderStyles = StyleSheet.create({
     height: 60,
     borderRadius: 8,
   },
-  
+
   deleteButtonInner: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  // Received button for swipe action (opposite direction)
+  receivedButton: {
+    backgroundColor: '#34C759',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 80,
+    height: 60,
+    borderRadius: 8,
+  },
+
+  receivedButtonInner: {
     flex: 1,
     width: '100%',
     justifyContent: 'center',
