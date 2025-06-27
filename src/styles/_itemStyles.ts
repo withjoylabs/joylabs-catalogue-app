@@ -27,6 +27,9 @@ interface ItemStyles {
   input: any;
   inputWrapper: any;
   clearButton: any;
+  itemHeaderContainer: any;
+  nameInputContainer: any;
+  itemImage: any;
   textArea: any;
   priceInputContainer: any;
   currencySymbol: any;
@@ -354,6 +357,24 @@ export const styles = StyleSheet.create({
   },
   clearButton: {
     padding: 8,
+  },
+  // New styles for item header with image
+  itemHeaderContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  nameInputContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 5,
+    backgroundColor: 'white',
+  },
+  itemImage: {
+    marginTop: 0,
   },
   textArea: {
     height: 100,

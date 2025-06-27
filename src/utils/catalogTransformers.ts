@@ -1,12 +1,13 @@
-import { 
-  CatalogObject, 
-  CatalogItemData, 
+import {
+  CatalogObject,
+  CatalogItemData,
   CatalogCategoryData,
   ConvertedItem,
   ConvertedCategory,
   CatalogImage
 } from '../types/api';
 import logger from './logger';
+import { imageService } from '../services/imageService';
 
 /**
  * Transforms a raw Square CatalogObject (ITEM type) into a frontend ConvertedItem.
@@ -93,10 +94,11 @@ export function transformCatalogItemToItem(
     null;
   
   // Extract Image Data matching the ConvertedItem structure
+  // Note: Image URLs will be populated by the image cross-referencing service
   const images: { id: string; url: string; name: string }[] = (itemData.image_ids || []).map((imageId: string) => ({
     id: imageId,
-    url: '', // Placeholder: URL lookup needed based on ID
-    name: '', // Placeholder: Name lookup needed based on ID
+    url: '', // Will be populated by imageService.populateImageUrls()
+    name: '', // Will be populated by imageService.populateImageUrls()
   }));
 
   const transformed: ConvertedItem = {
@@ -163,6 +165,21 @@ export const transformCatalogCategoryToCategory = (
     updatedAt: catalogObject.updated_at
   };
 };
+
+/**
+ * Populate image URLs for a transformed ConvertedItem
+ * This should be called after transformCatalogItemToItem to fill in actual image URLs
+ */
+export async function populateItemImages(item: ConvertedItem): Promise<ConvertedItem> {
+  return await imageService.populateImageUrls(item);
+}
+
+/**
+ * Populate image URLs for multiple ConvertedItems efficiently
+ */
+export async function populateItemImagesForItems(items: ConvertedItem[]): Promise<ConvertedItem[]> {
+  return await imageService.populateImageUrlsForItems(items);
+}
 
 /**
  * Transforms a frontend Item model to a Square CatalogObject

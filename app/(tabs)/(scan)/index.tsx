@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import {
-  View, 
-  FlatList, 
+  View,
+  FlatList,
   // StyleSheet, // Will be replaced by indexStyles
-  SafeAreaView, 
-  StatusBar, 
-  Text, 
-  Pressable, 
-  ActivityIndicator, 
-  TextInput, 
+  SafeAreaView,
+  StatusBar,
+  Text,
+  Pressable,
+  ActivityIndicator,
+  TextInput,
   // Button, // No longer explicitly needed
   Platform, // For KeyboardAvoidingView if we re-add it, but SearchBar handles its input.
   KeyboardAvoidingView, // Keep for filter pills for now, may remove if SearchBar covers all
@@ -17,6 +17,7 @@ import {
   Animated, // For swipe action
   Alert, // Added for print feedback
   Vibration, // Added for haptic feedback
+  Image, // Added for item thumbnails
 } from 'react-native';
 import { useRouter, useFocusEffect, Link, useNavigation } from 'expo-router';
 import { useIsFocused, useNavigationState } from '@react-navigation/native';
@@ -506,6 +507,27 @@ const SearchResultsArea = memo(({
           <View style={styles.resultNumberContainer}>
             <Text style={styles.resultNumberText}>{index + 1}</Text>
           </View>
+
+          {/* Item Image Thumbnail */}
+          <View style={(styles as any).resultImageContainer}>
+            {item.images && item.images.length > 0 && item.images[0].url ? (
+              <Image
+                source={{ uri: item.images[0].url }}
+                style={(styles as any).resultImage}
+                onError={() => {
+                  // Handle image load error silently
+                  console.log('Failed to load image for item:', item.id);
+                }}
+              />
+            ) : (
+              <View style={(styles as any).resultImageFallback}>
+                <Text style={(styles as any).resultImageFallbackText}>
+                  {item.name ? item.name.substring(0, 2).toUpperCase() : '📦'}
+                </Text>
+              </View>
+            )}
+          </View>
+
           <View style={styles.resultDetails}>
             <Text style={styles.resultName} numberOfLines={1}>{item.name ?? 'N/A'}</Text>
             <View style={styles.resultMeta}>

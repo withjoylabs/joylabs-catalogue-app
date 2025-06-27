@@ -110,6 +110,33 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 4,
   },
+  resultImageContainer: {
+    width: 40,
+    height: 40,
+    marginRight: 12,
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
+  resultImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 6,
+  },
+  resultImageFallback: {
+    width: 40,
+    height: 40,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  resultImageFallbackText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+  },
   resultNumberText: {
     fontSize: 12,
     color: '#888',

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { View, Text, TextInput, Switch, StyleSheet, TouchableOpacity } from 'react-native';
 import { generateClient, type GraphQLResult } from 'aws-amplify/api';
 import { useAuthenticator } from '@aws-amplify/ui-react-native';
@@ -73,9 +73,26 @@ export default function TeamDataSection({ itemId, onSaveRef, onDataChange, onVen
     setItemData(prev => ({ ...prev, caseCost: dollars }));
   }, []);
 
-  // Handler for Case UPC with HID scanner fix (same pattern as main barcode field)
-  const handleCaseUpcChange = useCallback((value: string) => {
+  // Handler for Case UPC with HID scanner fix (uncontrolled input)
+  const caseUpcInputRef = useRef<TextInput>(null);
+
+  const handleCaseUpcSubmit = useCallback((event: any) => {
+    const value = event.nativeEvent.text?.trim() || '';
+    logger.info('TeamDataSection:handleCaseUpcSubmit', 'Case UPC submitted', { value });
     setItemData(prev => ({ ...prev, caseUpc: value }));
+  }, []);
+
+  const handleCaseUpcChange = useCallback((value: string) => {
+    // For manual typing, update state normally
+    setItemData(prev => ({ ...prev, caseUpc: value }));
+  }, []);
+
+  const clearCaseUpc = useCallback(() => {
+    setItemData(prev => ({ ...prev, caseUpc: '' }));
+    if (caseUpcInputRef.current) {
+      caseUpcInputRef.current.clear();
+      caseUpcInputRef.current.setNativeProps({ text: '' });
+    }
   }, []);
 
   const hasTeamDataChanges = useCallback((current: Partial<ItemData> | null, original: Partial<ItemData> | null): boolean => {
@@ -136,9 +153,19 @@ export default function TeamDataSection({ itemId, onSaveRef, onDataChange, onVen
         if (response.data?.getItemData) {
           setItemData(response.data.getItemData);
           setOriginalItemData(response.data.getItemData);
+
+          // Update the uncontrolled Case UPC input with the loaded value
+          if (caseUpcInputRef.current && response.data.getItemData.caseUpc) {
+            caseUpcInputRef.current.setNativeProps({ text: response.data.getItemData.caseUpc });
+          }
         } else {
           setItemData(null);
           setOriginalItemData(null);
+
+          // Clear the uncontrolled Case UPC input
+          if (caseUpcInputRef.current) {
+            caseUpcInputRef.current.setNativeProps({ text: '' });
+          }
         }
 
         const logResponse = await client.graphql({
@@ -280,6 +307,21 @@ export default function TeamDataSection({ itemId, onSaveRef, onDataChange, onVen
       return;
     }
 
+    // Check if we have any meaningful data to save
+    const hasDataToSave = !!(
+      itemData.caseUpc?.trim() ||
+      itemData.caseCost ||
+      itemData.caseQuantity ||
+      itemData.vendor?.trim() ||
+      itemData.discontinued ||
+      itemData.notes?.[0]?.content?.trim()
+    );
+
+    if (!hasDataToSave) {
+      logger.info('TeamDataSection:saveItemData', 'Skipping save - no meaningful data to save', { itemId });
+      return;
+    }
+
     try {
       const { __typename, id, createdAt, updatedAt, owner, ...inputData } = itemData as any;
       
@@ -346,17 +388,21 @@ export default function TeamDataSection({ itemId, onSaveRef, onDataChange, onVen
         <Text style={styles.label}>Case UPC</Text>
         <View style={styles.inputWrapper}>
         <TextInput
+          ref={caseUpcInputRef}
           style={styles.input}
-          value={itemData?.caseUpc || ''}
-            onChangeText={handleCaseUpcChange}
+          defaultValue={itemData?.caseUpc || ''}
+          onChangeText={handleCaseUpcChange}
+          onSubmitEditing={handleCaseUpcSubmit}
           placeholder="Enter case UPC/barcode"
-            placeholderTextColor="#999"
-            keyboardType="numeric"
-            autoCapitalize="none"
-            autoCorrect={false}
+          placeholderTextColor="#999"
+          keyboardType="numeric"
+          autoCapitalize="none"
+          autoCorrect={false}
+          blurOnSubmit={false}
+          returnKeyType="done"
           />
           {(itemData?.caseUpc || '').length > 0 && (
-            <TouchableOpacity onPress={() => handleCaseUpcChange('')} style={styles.clearButton}>
+            <TouchableOpacity onPress={clearCaseUpc} style={styles.clearButton}>
               <Ionicons name="close-circle" size={20} color="#ccc" />
             </TouchableOpacity>
           )}

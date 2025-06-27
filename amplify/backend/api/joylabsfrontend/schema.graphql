@@ -44,22 +44,15 @@ type ItemChangeLog @model @auth(rules: [{ allow: owner }]) {
 type ReorderItem @model @auth(rules: [{ allow: owner }]) {
   id: ID!
 
-  # Reference to the Square Item ID
+  # Reference to the Square Item ID (cross-reference with local catalog)
   itemId: ID! @index(name: "byItemId", queryField: "reordersByItemId")
 
-  # Item details (denormalized for performance)
-  itemName: String!
-  itemBarcode: String
-  itemCategory: String
-  itemPrice: Float
-
-  # Reorder specific data
+  # Minimal reorder data only - all item details cross-referenced locally
   quantity: Int!
-  completed: Boolean!
-  received: Boolean!
+  status: String!  # 'incomplete' | 'complete' (received status in team data history)
   addedBy: String!
 
-  # Timestamps
+  # Timestamps for chronological ordering
   createdAt: AWSDateTime!
   updatedAt: AWSDateTime!
 }

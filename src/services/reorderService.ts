@@ -8,6 +8,9 @@ import * as mutations from '../graphql/mutations';
 import { itemHistoryService } from './itemHistoryService';
 import * as modernDb from '../database/modernDb';
 import appSyncMonitor from './appSyncMonitor';
+import crossReferenceService from './crossReferenceService';
+import dataConsistencyService, { ConsistencyReport } from './dataConsistencyService';
+import databaseChangeMonitor, { DatabaseChange } from './databaseChangeMonitor';
 
 export interface TeamData {
   vendor?: string;
@@ -19,29 +22,41 @@ export interface TeamData {
   notes?: string;
 }
 
+// Minimal reorder data (stored in AppSync/local DB)
 export interface ReorderItem {
   id: string;
-  itemId: string;
+  itemId: string;           // Reference to Square catalog
+  quantity: number;         // Reorder quantity
+  status: 'incomplete' | 'complete';  // Reorder status (received is in team data history)
+  addedBy: string;          // Who added this item
+  createdAt: string;        // Timestamps for sync
+  updatedAt: string;
+  // Local computed fields
+  timestamp?: Date;         // For chronological ordering
+  index?: number;           // For UI display
+}
+
+// Display item with cross-referenced data (for UI)
+export interface DisplayReorderItem extends ReorderItem {
+  // Cross-referenced from Square catalog
   itemName: string;
   itemBarcode?: string;
   itemCategory?: string;
   itemPrice?: number;
-  quantity: number;
-  completed: boolean;
-  received: boolean;
-  addedBy: string;
-  createdAt: string;
-  updatedAt: string;
-  // Local computed fields
-  item?: ConvertedItem;
+  // Cross-referenced from team data
   teamData?: TeamData;
-  timestamp?: Date;
-  index?: number;
+  // Square catalog item (if available)
+  item?: ConvertedItem;
+  // Status indicators
+  missingSquareData?: boolean;
+  missingTeamData?: boolean;
+  // Custom item flag
+  isCustom?: boolean;
 }
 
 class ReorderService {
   private reorderItems: ReorderItem[] = [];
-  private listeners: Array<(items: ReorderItem[]) => void> = [];
+  private listeners: Array<(items: DisplayReorderItem[]) => void> = [];
   private client = generateClient();
   private teamDataCache = new Map<string, { data: TeamData; timestamp: number }>();
   private subscriptions: any[] = [];
@@ -79,6 +94,9 @@ class ReorderService {
 
         // Set up event-driven sync (no polling)
         this.setupEventDrivenSync();
+
+        // Set up automatic item detail updates (local database monitoring)
+        this.setupDatabaseChangeMonitoring();
       } else {
         // Load from offline storage
         this.isOfflineMode = true;
@@ -114,9 +132,7 @@ class ReorderService {
         this.reorderItems = localReorderItems;
         logger.info('[ReorderService]', `✅ Loaded ${this.reorderItems.length} reorder items from local database`);
 
-        // Load team data for all items
-        await this.loadTeamDataForItems();
-
+        // ✅ CROSS-REFERENCING: Item details and team data loaded on-demand via crossReferenceService
         // ✅ NO TIME-BASED POLLING: Data syncs only via webhooks/AppSync or CRUD operations
       } else {
         logger.info('[ReorderService]', '📭 No local reorder items found - attempting initial recovery from DynamoDB');
@@ -152,9 +168,16 @@ class ReorderService {
       }) as any;
 
       if (response.data?.listReorderItems?.items) {
+        // Map server items to minimal ReorderItem format
         const serverItems = response.data.listReorderItems.items.map((item: any, index: number) => ({
-          ...item,
-          timestamp: new Date(item.createdAt),
+          id: item.id,
+          itemId: item.itemId,              // Reference to Square catalog
+          quantity: item.quantity,          // Reorder quantity
+          status: item.status || 'incomplete', // 'incomplete' | 'complete'
+          addedBy: item.addedBy,           // Who added it
+          createdAt: item.createdAt,       // Timestamps
+          updatedAt: item.updatedAt,
+          timestamp: new Date(item.createdAt), // For chronological ordering
           index: index + 1
         }));
 
@@ -167,13 +190,11 @@ class ReorderService {
         // Update in-memory items
         this.reorderItems = mergedItems;
 
-        logger.info('[ReorderService]', `✅ Manual sync completed: ${mergedItems.length} reorder items (merged)`);
+        logger.info('[ReorderService]', `✅ Manual sync completed: ${mergedItems.length} reorder items (merged, minimal data)`);
 
-        // Load team data for all items
-        await this.loadTeamDataForItems();
-
-        // Notify listeners of updated data
-        this.notifyListeners();
+        // ✅ CROSS-REFERENCING: Item details and team data loaded on-demand via crossReferenceService
+        // Notify listeners of updated data (with cross-referenced display data)
+        await this.notifyListeners();
       }
     } catch (error) {
       logger.error('[ReorderService]', '❌ Manual sync failed', { error });
@@ -193,7 +214,7 @@ class ReorderService {
       );
 
       if (!existsOnServer) {
-        logger.info('[ReorderService]', `🔄 Preserving local item not found on server: ${localItem.itemName}`);
+        logger.info('[ReorderService]', `🔄 Preserving local item not found on server: ${localItem.itemId}`);
         merged.push(localItem);
       }
     });
@@ -201,19 +222,7 @@ class ReorderService {
     return merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
 
-  // Load team data for all reorder items
-  private async loadTeamDataForItems() {
-    for (const item of this.reorderItems) {
-      try {
-        const teamData = await this.fetchTeamData(item.itemId);
-        if (teamData) {
-          item.teamData = teamData;
-        }
-      } catch (error) {
-        logger.warn('[ReorderService]', `Failed to load team data for ${item.itemName}`, { error });
-      }
-    }
-  }
+  // loadTeamDataForItems method removed - now using cross-referencing via crossReferenceService
 
   // Set up event-driven sync (no polling)
   private setupEventDrivenSync() {
@@ -227,6 +236,43 @@ class ReorderService {
     }
 
     logger.info('[ReorderService]', 'Event-driven sync setup complete');
+  }
+
+  // Set up automatic item detail updates via database change monitoring
+  private setupDatabaseChangeMonitoring() {
+    try {
+      // Listen for database changes and automatically refresh affected reorder items
+      const unsubscribe = databaseChangeMonitor.addListener(async (changes: DatabaseChange[]) => {
+        logger.info('[ReorderService]', `Database changes detected: ${changes.length} items updated`);
+
+        // Get affected item IDs
+        const affectedItemIds = [...new Set(changes.map(change => change.itemId))];
+
+        // Check if any of our reorder items are affected
+        const affectedReorderItems = this.reorderItems.filter(item =>
+          affectedItemIds.includes(item.itemId)
+        );
+
+        if (affectedReorderItems.length > 0) {
+          logger.info('[ReorderService]', `${affectedReorderItems.length} reorder items affected by database changes`, {
+            affectedItemIds: affectedReorderItems.map(item => item.itemId)
+          });
+
+          // Notify listeners to refresh cross-referenced data
+          // This will automatically show updated item details (price, name, discontinued status, etc.)
+          await this.notifyListeners();
+
+          logger.info('[ReorderService]', 'Reorder items automatically updated with latest item details');
+        }
+      });
+
+      // Store unsubscribe function for cleanup
+      this.subscriptions.push({ unsubscribe });
+
+      logger.info('[ReorderService]', 'Database change monitoring setup complete - automatic item detail updates enabled');
+    } catch (error) {
+      logger.error('[ReorderService]', 'Failed to setup database change monitoring', { error });
+    }
   }
 
   // Trigger batched sync after user interactions
@@ -324,10 +370,7 @@ class ReorderService {
         // Batch delete operations
         await this.batchDeleteItems(operations.map(op => op.data));
         break;
-      case 'TOGGLE_COMPLETION':
-        // Batch completion toggles
-        await this.batchToggleCompletion(operations.map(op => op.data));
-        break;
+      // TOGGLE_COMPLETION removed - now uses UPDATE_ITEM
       default:
         logger.warn('[ReorderService]', 'Unknown batch operation', { operationType });
     }
@@ -358,13 +401,7 @@ class ReorderService {
     await Promise.allSettled(promises);
   }
 
-  // Batch toggle completion for multiple items
-  private async batchToggleCompletion(items: any[]) {
-    logger.info('[ReorderService]', `Batch toggling completion for ${items.length} items`);
-
-    const promises = items.map(item => this.syncToggleCompletion(item));
-    await Promise.allSettled(promises);
-  }
+  // batchToggleCompletion removed - now uses batchUpdateItems
 
   // Set up smart real-time subscriptions (resource-efficient)
   private setupSmartSubscriptions() {
@@ -520,27 +557,7 @@ class ReorderService {
     }
   }
 
-  private async syncToggleCompletion(data: any) {
-    try {
-      const response = await this.client.graphql({
-        query: mutations.updateReorderItem,
-        variables: {
-          input: {
-            id: data.id,
-            completed: data.completed,
-            updatedAt: data.updatedAt
-          }
-        }
-      }) as any;
-
-      if (response.data?.updateReorderItem) {
-        logger.info('[ReorderService]', `✅ Background sync: Toggled completion on server`, { itemId: data.id, completed: data.completed });
-      }
-    } catch (error) {
-      logger.error('[ReorderService]', 'Failed to sync toggle completion', { error, data });
-      throw error;
-    }
-  }
+  // syncToggleCompletion removed - now uses syncUpdateItem
 
   // Show conflict resolution dialog
   private async showConflictResolutionDialog(localItem: ReorderItem, serverItem: any): Promise<void> {
@@ -550,7 +567,7 @@ class ReorderService {
 
       Alert.alert(
         'Sync Conflict Detected',
-        `Item "${localItem.itemName}" has been modified by another user.\n\nLocal: qty ${localItem.quantity}, updated ${new Date(localItem.updatedAt).toLocaleTimeString()}\nServer: qty ${serverItem.quantity}, updated ${new Date(serverItem.updatedAt).toLocaleTimeString()}\n\nWhat would you like to do?`,
+        `Item "${localItem.itemId}" has been modified by another user.\n\nLocal: qty ${localItem.quantity}, updated ${new Date(localItem.updatedAt).toLocaleTimeString()}\nServer: qty ${serverItem.quantity}, updated ${new Date(serverItem.updatedAt).toLocaleTimeString()}\n\nWhat would you like to do?`,
         [
           {
             text: 'Keep Local',
@@ -560,7 +577,7 @@ class ReorderService {
               this.queueBackgroundSync('UPDATE_ITEM', {
                 id: localItem.id,
                 quantity: localItem.quantity,
-                completed: localItem.completed,
+                status: localItem.status,
                 updatedAt: new Date().toISOString()
               });
               resolve();
@@ -582,7 +599,7 @@ class ReorderService {
               const mergedItem = {
                 ...localItem,
                 quantity: Math.max(localItem.quantity, serverItem.quantity),
-                completed: serverItem.updatedAt > localItem.updatedAt ? serverItem.completed : localItem.completed,
+                status: serverItem.updatedAt > localItem.updatedAt ? serverItem.status : localItem.status,
                 updatedAt: new Date().toISOString()
               };
 
@@ -597,7 +614,7 @@ class ReorderService {
               this.queueBackgroundSync('UPDATE_ITEM', {
                 id: mergedItem.id,
                 quantity: mergedItem.quantity,
-                completed: mergedItem.completed,
+                status: mergedItem.status,
                 updatedAt: mergedItem.updatedAt
               });
 
@@ -646,7 +663,7 @@ class ReorderService {
       // Notify listeners
       this.notifyListeners();
 
-      logger.info('[ReorderService]', `Updated local item from server: ${serverItem.itemName}`);
+      logger.info('[ReorderService]', `Updated local item from server: ${serverItem.itemId}`);
     } catch (error) {
       logger.error('[ReorderService]', 'Failed to update local item from server', { error });
     }
@@ -665,7 +682,7 @@ class ReorderService {
     };
 
     this.reorderItems.push(reorderItem);
-    logger.info('[ReorderService]', `Real-time: Added reorder item ${newItem.itemName}`);
+    logger.info('[ReorderService]', `Real-time: Added reorder item ${newItem.itemId}`);
     this.notifyListeners();
   }
 
@@ -678,7 +695,7 @@ class ReorderService {
         timestamp: new Date(updatedItem.createdAt),
         index: this.reorderItems[index].index
       };
-      logger.info('[ReorderService]', `Real-time: Updated reorder item ${updatedItem.itemName}`);
+      logger.info('[ReorderService]', `Real-time: Updated reorder item ${updatedItem.itemId}`);
       this.notifyListeners();
     }
   }
@@ -693,7 +710,7 @@ class ReorderService {
       this.reorderItems.forEach((item, index) => {
         item.index = index + 1;
       });
-      logger.info('[ReorderService]', `Real-time: Deleted reorder item ${deletedItem.itemName}`);
+      logger.info('[ReorderService]', `Real-time: Deleted reorder item ${deletedItem.itemId}`);
       this.notifyListeners();
     }
   }
@@ -858,18 +875,21 @@ class ReorderService {
   }
 
   // Add listener for reorder list changes
-  addListener(listener: (items: ReorderItem[]) => void) {
+  addListener(listener: (items: DisplayReorderItem[]) => void) {
     this.listeners.push(listener);
     
     // Initialize service when first listener is added
     if (this.listeners.length === 1 && !this.isInitialized) {
-      this.initialize(this.currentUserId || undefined).then(() => {
-        // Notify the listener with current data after initialization
-        listener([...this.reorderItems]);
+      this.initialize(this.currentUserId || undefined).then(async () => {
+        // Notify the listener with current cross-referenced data after initialization
+        const displayItems = await crossReferenceService.buildDisplayItems(this.reorderItems);
+        listener(displayItems);
       });
     } else {
-      // If already initialized, immediately provide current data
-      listener([...this.reorderItems]);
+      // If already initialized, immediately provide current cross-referenced data
+      crossReferenceService.buildDisplayItems(this.reorderItems).then(displayItems => {
+        listener(displayItems);
+      });
     }
     
     return () => {
@@ -877,9 +897,10 @@ class ReorderService {
     };
   }
 
-  // Notify all listeners of changes
-  private notifyListeners() {
-    this.listeners.forEach(listener => listener([...this.reorderItems]));
+  // Notify all listeners of changes with cross-referenced data
+  private async notifyListeners() {
+    const displayItems = await crossReferenceService.buildDisplayItems(this.reorderItems);
+    this.listeners.forEach(listener => listener(displayItems));
   }
 
   // Clean up subscriptions and timers
@@ -897,7 +918,10 @@ class ReorderService {
       this.syncBatchTimeout = null;
     }
 
-    logger.info('[ReorderService]', 'Subscriptions and timers cleaned up');
+    // Stop database change monitoring
+    databaseChangeMonitor.stopMonitoring();
+
+    logger.info('[ReorderService]', 'Subscriptions, timers, and database monitoring cleaned up');
   }
 
   // Add item to reorder list using GraphQL
@@ -926,39 +950,29 @@ class ReorderService {
           updatedAt: existingItem.updatedAt
         });
 
-        logger.info('[ReorderService]', `✅ Updated item locally: ${existingItem.itemName} (qty: ${existingItem.quantity})`);
+        logger.info('[ReorderService]', `✅ Updated item locally: ${item.name} (qty: ${existingItem.quantity})`);
       } else {
-        // Add new item locally
+        // Add new item locally (MINIMAL DATA ONLY)
         const newReorderItem: ReorderItem = {
           id: `local-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          itemId: item.id,
-          itemName: item.name || 'Unknown Item',
-          itemBarcode: item.barcode || undefined,
-          itemCategory: item.category || undefined,
-          itemPrice: item.price,
-          quantity,
-          completed: false,
-          received: false,
-          addedBy: addedBy,
+          itemId: item.id,              // Reference to Square catalog
+          quantity,                     // Reorder quantity
+          status: 'incomplete',         // Initial status
+          addedBy: addedBy,            // Who added it
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-          teamData,
-          timestamp: new Date(),
+          timestamp: new Date(),        // For chronological ordering
           index: this.reorderItems.length + 1
         };
 
         this.reorderItems.push(newReorderItem);
 
-        // Queue background sync
+        // Queue background sync (MINIMAL DATA ONLY)
         this.queueBackgroundSync('CREATE_ITEM', {
-          itemId: item.id,
-          itemName: item.name,
-          itemBarcode: item.barcode || undefined,
-          itemCategory: item.category || undefined,
-          itemPrice: item.price,
-          quantity,
-          completed: false,
-          addedBy: addedBy
+          itemId: item.id,              // Reference to Square catalog
+          quantity,                     // Reorder quantity
+          status: 'incomplete',         // Initial status
+          addedBy: addedBy             // Who added it
         });
 
         logger.info('[ReorderService]', `✅ Added item locally: ${item.name} (qty: ${quantity})`);
@@ -974,9 +988,9 @@ class ReorderService {
     }
   }
 
-  // Get all reorder items
-  getItems(): ReorderItem[] {
-    return [...this.reorderItems];
+  // Get all reorder items with cross-referenced data
+  async getItems(): Promise<DisplayReorderItem[]> {
+    return await crossReferenceService.buildDisplayItems(this.reorderItems);
   }
 
   // Get reorder items count
@@ -986,7 +1000,7 @@ class ReorderService {
 
   // Get incomplete reorder items count (for badge display)
   getIncompleteCount(): number {
-    return this.reorderItems.filter(item => !item.completed).length;
+    return this.reorderItems.filter(item => item.status === 'incomplete').length;
   }
 
   // Clear all reorder items - LOCAL-FIRST
@@ -1046,7 +1060,7 @@ class ReorderService {
       await this.saveOfflineItems();
       this.notifyListeners();
 
-      logger.info('[ReorderService]', `✅ Removed item locally: ${removedItem.itemName} (background sync queued)`);
+      logger.info('[ReorderService]', `✅ Removed item locally: ${removedItem.itemId} (background sync queued)`);
       return true;
     } catch (error) {
       logger.error('[ReorderService]', 'Failed to remove reorder item locally', { error, itemId });
@@ -1072,15 +1086,13 @@ class ReorderService {
       // regardless of how the GUI is filtering/sorting the display
       existingItem.updatedAt = now;
       existingItem.timestamp = new Date(now);
-      existingItem.completed = false; // Reset to incomplete
-      if (teamData) {
-        existingItem.teamData = teamData;
-      }
+      existingItem.status = 'incomplete'; // Reset to incomplete
+      // Note: teamData is now handled via cross-referencing, not stored directly
 
       // Queue background sync
       this.queueBackgroundSync('UPDATE_ITEM', {
         id: itemId,
-        completed: false,
+        status: 'incomplete',
         updatedAt: now
       });
 
@@ -1096,7 +1108,7 @@ class ReorderService {
       await this.saveOfflineItems();
       this.notifyListeners();
 
-      logger.info('[ReorderService]', `Moved item to chronological top: ${existingItem.itemName}`, {
+      logger.info('[ReorderService]', `Moved item to chronological top: ${existingItem.itemId}`, {
         itemId,
         newTimestamp: now,
         note: 'Chronological position independent of GUI filters'
@@ -1120,20 +1132,24 @@ class ReorderService {
       const reorderItem = this.reorderItems[itemIndex];
       const squareItemId = reorderItem.itemId;
 
-      // Step 1: Log the reorder completion in item history (using itemHistoryService)
+      // Step 1: Log the reorder completion in item history (using cross-referenced item name)
       try {
+        // Get item name via cross-referencing
+        const squareItem = await crossReferenceService.getSquareItem(squareItemId);
+        const itemName = squareItem?.name || `Unknown Item (${squareItemId})`;
+
         // Import itemHistoryService if not already imported
         const { itemHistoryService } = await import('./itemHistoryService');
 
         await itemHistoryService.logReorder(
           squareItemId,
-          reorderItem.itemName || 'Unknown Item',
+          itemName,
           reorderItem.quantity,
           userName
         );
 
         logger.info('[ReorderService]', `Logged reorder completion in item history: ${squareItemId}`, {
-          itemName: reorderItem.itemName,
+          itemName: itemName,
           quantity: reorderItem.quantity
         });
       } catch (historyError) {
@@ -1161,8 +1177,9 @@ class ReorderService {
       await this.saveOfflineItems();
       this.notifyListeners();
 
-      logger.info('[ReorderService]', `✅ Deleted received item locally: ${itemId}`, {
-        itemName: reorderItem.itemName
+      logger.info('[ReorderService]', `✅ Marked item as received and deleted locally: ${itemId}`, {
+        squareItemId: squareItemId,
+        quantity: reorderItem.quantity
       });
       return true;
     } catch (error) {
@@ -1171,60 +1188,75 @@ class ReorderService {
     }
   }
 
-  // Toggle item completion
+  // Toggle item status (incomplete <-> complete)
   async toggleCompletion(itemId: string, userName: string = 'Unknown User') {
     try {
       const item = this.reorderItems.find(item => item.id === itemId);
       if (!item) return;
 
-      const newCompletedState = !item.completed;
+      const newStatus = item.status === 'incomplete' ? 'complete' : 'incomplete';
 
       // Note: We don't log reorder history here anymore - only when item is received (markAsReceived)
 
       // 🚀 LOCAL-FIRST: Update locally first for instant responsiveness
-      item.completed = newCompletedState;
+      item.status = newStatus;
       item.updatedAt = new Date().toISOString();
 
       // Queue background sync
-      this.queueBackgroundSync('TOGGLE_COMPLETION', {
+      this.queueBackgroundSync('UPDATE_ITEM', {
         id: itemId,
-        completed: newCompletedState,
+        status: newStatus,
         updatedAt: item.updatedAt
       });
 
       await this.saveOfflineItems();
-      this.notifyListeners();
+      await this.notifyListeners();
 
-      logger.info('[ReorderService]', `Toggled completion locally for item: ${itemId}`, {
-        completed: newCompletedState
+      logger.info('[ReorderService]', `Toggled status locally for item: ${itemId}`, {
+        status: newStatus
       });
     } catch (error) {
       logger.error('[ReorderService]', 'Failed to toggle completion', { error, itemId });
     }
   }
 
-  // Manual refresh - reload from server and sync pending items
+  // Manual refresh - reload from server and sync pending items (optimized for 2-3 second target)
   async refresh() {
+    const startTime = Date.now();
     try {
+      logger.info('[ReorderService]', '🔄 Starting optimized refresh...');
+
       // Check if we can connect to server
       const isAuthenticated = await this.checkAuthStatus();
-      
+
       if (isAuthenticated) {
-        // Sync pending items first
+        // Sync pending items first (minimal data only)
+        const syncStart = Date.now();
         await this.syncPendingItems();
-        
-        // Then reload from server
+        logger.debug('[ReorderService]', `Sync completed in ${Date.now() - syncStart}ms`);
+
+        // Then reload from server (minimal data only)
+        const loadStart = Date.now();
         await this.loadReorderItems();
-        this.notifyListeners();
-        logger.info('[ReorderService]', 'Manual refresh completed with sync');
+        logger.debug('[ReorderService]', `Load completed in ${Date.now() - loadStart}ms`);
+
+        // Cross-reference on-demand (instant local operation)
+        const crossRefStart = Date.now();
+        await this.notifyListeners();
+        logger.debug('[ReorderService]', `Cross-reference completed in ${Date.now() - crossRefStart}ms`);
+
+        const totalTime = Date.now() - startTime;
+        logger.info('[ReorderService]', `✅ Manual refresh completed with sync in ${totalTime}ms`);
       } else {
-        // Still offline, just reload local data
+        // Still offline, just reload local data (instant)
         await this.loadOfflineItems();
-        this.notifyListeners();
-        logger.info('[ReorderService]', 'Manual refresh completed (offline mode)');
+        await this.notifyListeners();
+        const totalTime = Date.now() - startTime;
+        logger.info('[ReorderService]', `✅ Manual refresh completed (offline mode) in ${totalTime}ms`);
       }
     } catch (error) {
-      logger.error('[ReorderService]', 'Manual refresh failed', { error });
+      const totalTime = Date.now() - startTime;
+      logger.error('[ReorderService]', `❌ Manual refresh failed after ${totalTime}ms`, { error });
     }
   }
 
@@ -1242,24 +1274,20 @@ class ReorderService {
           query: mutations.createReorderItem,
           variables: {
             input: {
-              itemId: item.itemId,
-              itemName: item.itemName,
-              itemBarcode: item.itemBarcode,
-              itemCategory: item.itemCategory,
-              itemPrice: item.itemPrice,
-              quantity: item.quantity,
-              completed: item.completed,
-              addedBy: item.addedBy
+              itemId: item.itemId,        // Reference to Square catalog
+              quantity: item.quantity,    // Reorder quantity
+              status: item.status,        // 'incomplete' | 'complete'
+              addedBy: item.addedBy      // Who added it
             }
           }
         }) as any;
 
         if (response.data?.createReorderItem) {
           syncedItems.push(item.id);
-          logger.info('[ReorderService]', `Synced item: ${item.itemName}`);
+          logger.info('[ReorderService]', `Synced item: ${item.itemId}`);
         }
       } catch (error) {
-        logger.error('[ReorderService]', `Failed to sync item: ${item.itemName}`, { error });
+        logger.error('[ReorderService]', `Failed to sync item: ${item.itemId}`, { error });
       }
     }
     
@@ -1281,37 +1309,53 @@ class ReorderService {
     try {
       const customId = `custom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       
+      // Create minimal reorder item (custom items use minimal format too)
       const newItem: ReorderItem = {
         id: customId,
-        itemId: customId,
-        itemName: customItem.itemName,
-        itemBarcode: undefined,
-        itemCategory: customItem.itemCategory || 'Custom',
-        itemPrice: undefined,
-        quantity: customItem.quantity,
-        completed: false,
-        received: false,
-        addedBy: customItem.addedBy,
+        itemId: customId,              // Custom ID for cross-referencing
+        quantity: customItem.quantity, // Reorder quantity
+        status: 'incomplete',          // Initial status
+        addedBy: customItem.addedBy,   // Who added it
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         timestamp: new Date(),
-        index: this.reorderItems.length + 1,
-        teamData: customItem.vendor ? { vendor: customItem.vendor } : undefined
+        index: this.reorderItems.length + 1
       };
+
+      // Store custom item details in team_data table for cross-referencing
+      try {
+        const db = await modernDb.getDatabase();
+        await db.runAsync(`
+          INSERT OR REPLACE INTO team_data
+          (item_id, vendor, notes, last_updated, updated_by, history)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `, [
+          customId,
+          customItem.vendor || 'Custom Item',
+          JSON.stringify({
+            itemName: customItem.itemName,
+            itemCategory: customItem.itemCategory || 'Custom',
+            isCustom: true,
+            customNotes: customItem.notes
+          }),
+          new Date().toISOString(),
+          customItem.addedBy,
+          JSON.stringify([])
+        ]);
+        logger.debug('[ReorderService]', 'Stored custom item details in team_data', { customId });
+      } catch (error) {
+        logger.error('[ReorderService]', 'Failed to store custom item details', { error, customId });
+      }
 
       // 🚀 LOCAL-FIRST: Add locally first for instant responsiveness
       this.reorderItems.unshift(newItem);
 
-      // Queue background sync
+      // Queue background sync (MINIMAL DATA ONLY)
       this.queueBackgroundSync('CREATE_ITEM', {
-        itemId: customId,
-        itemName: customItem.itemName,
-        itemBarcode: undefined,
-        itemCategory: customItem.itemCategory || 'Custom',
-        itemPrice: undefined,
-        quantity: customItem.quantity,
-        completed: false,
-        addedBy: customItem.addedBy
+        itemId: customId,              // Reference (custom items bypass cross-referencing)
+        quantity: customItem.quantity, // Reorder quantity
+        status: 'incomplete',          // Initial status
+        addedBy: customItem.addedBy   // Who added it
       });
 
       await this.saveOfflineItems();
@@ -1401,20 +1445,16 @@ class ReorderService {
         ORDER BY created_at DESC
       `);
 
+      // Map minimal database schema to ReorderItem interface
       return results.map(row => ({
         id: row.id,
-        itemId: row.item_id,
-        itemName: row.item_name,
-        itemBarcode: row.item_barcode,
-        itemCategory: row.item_category,
-        itemPrice: row.item_price,
-        quantity: row.quantity,
-        completed: row.completed === 1,
-        received: false,
-        addedBy: row.added_by,
-        createdAt: row.created_at,
+        itemId: row.item_id,              // Reference to Square catalog
+        quantity: row.quantity,           // Reorder quantity
+        status: row.status || 'incomplete', // 'incomplete' | 'complete'
+        addedBy: row.added_by,           // Who added it
+        createdAt: row.created_at,       // Timestamps
         updatedAt: row.updated_at,
-        timestamp: new Date(row.created_at),
+        timestamp: new Date(row.created_at), // For chronological ordering
         index: 0 // Will be set later
       }));
     } catch (error) {
@@ -1432,27 +1472,23 @@ class ReorderService {
         for (const item of items) {
           await db.runAsync(`
             INSERT OR REPLACE INTO reorder_items
-            (id, item_id, item_name, item_barcode, item_category, item_price, quantity, completed, added_by, created_at, updated_at, last_sync_at, pending_sync)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, item_id, quantity, status, added_by, created_at, updated_at, last_sync_at, pending_sync)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
           `, [
             item.id,
-            item.itemId,
-            item.itemName,
-            item.itemBarcode,
-            item.itemCategory,
-            item.itemPrice,
-            item.quantity,
-            item.completed ? 1 : 0,
-            item.addedBy,
-            item.createdAt,
+            item.itemId,                    // Reference to Square catalog
+            item.quantity,                  // Reorder quantity
+            item.status,                    // 'incomplete' | 'complete'
+            item.addedBy,                   // Who added it
+            item.createdAt,                 // Timestamps
             item.updatedAt,
-            now,
-            0 // not pending sync
+            now,                           // Last sync timestamp
+            0                              // Not pending sync
           ]);
         }
       });
 
-      logger.info('[ReorderService]', `Saved ${items.length} reorder items locally`);
+      logger.info('[ReorderService]', `Saved ${items.length} reorder items locally (minimal data)`);
     } catch (error) {
       logger.error('[ReorderService]', 'Failed to save reorder items locally', { error });
     }
@@ -1488,11 +1524,9 @@ class ReorderService {
 
         logger.info('[ReorderService]', `✅ Initial recovery completed: ${serverItems.length} reorder items recovered from DynamoDB`);
 
-        // Load team data for all items
-        await this.loadTeamDataForItems();
-
-        // Notify listeners of recovered data
-        this.notifyListeners();
+        // ✅ CROSS-REFERENCING: Item details and team data loaded on-demand via crossReferenceService
+        // Notify listeners of recovered data (with cross-referenced display data)
+        await this.notifyListeners();
       } else {
         logger.info('[ReorderService]', '📭 No reorder items found in DynamoDB');
       }
@@ -1500,6 +1534,33 @@ class ReorderService {
       logger.error('[ReorderService]', '❌ Initial recovery from DynamoDB failed', { error });
       // Don't throw - this is a recovery operation
     }
+  }
+
+  // Run data consistency checks
+  async runConsistencyCheck(): Promise<ConsistencyReport> {
+    try {
+      logger.info('[ReorderService]', 'Running data consistency check...');
+      const report = await dataConsistencyService.runConsistencyCheck(this.reorderItems);
+
+      if (report.totalIssues > 0) {
+        logger.warn('[ReorderService]', `Found ${report.totalIssues} consistency issues`, {
+          issuesByType: report.issuesByType,
+          issuesBySeverity: report.issuesBySeverity
+        });
+      } else {
+        logger.info('[ReorderService]', 'No consistency issues found');
+      }
+
+      return report;
+    } catch (error) {
+      logger.error('[ReorderService]', 'Failed to run consistency check', { error });
+      throw error;
+    }
+  }
+
+  // Check if consistency check should be run
+  shouldRunConsistencyCheck(): boolean {
+    return dataConsistencyService.shouldRunCheck();
   }
 }
 

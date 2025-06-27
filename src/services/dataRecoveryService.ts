@@ -28,6 +28,7 @@ class DataRecoveryService {
   /**
    * Check if data recovery is needed and perform it
    * This runs once when the app starts and detects missing local data
+   * LOCAL-FIRST: Only attempts recovery if user is signed in, otherwise gracefully continues
    */
   async checkAndRecoverData(): Promise<void> {
     try {
@@ -35,7 +36,7 @@ class DataRecoveryService {
 
       // Check if we've already attempted recovery for this version
       const recoveryStatus = await this.getRecoveryStatus();
-      
+
       if (recoveryStatus.recoveryVersion === this.RECOVERY_VERSION) {
         logger.info('DataRecovery', '✅ Data recovery already completed for this version');
         return;
@@ -43,26 +44,44 @@ class DataRecoveryService {
 
       // Check if local data is missing
       const needsRecovery = await this.checkIfRecoveryNeeded();
-      
+
       if (!needsRecovery) {
         logger.info('DataRecovery', '✅ Local data exists, no recovery needed');
         await this.markRecoveryComplete();
         return;
       }
 
-      logger.info('DataRecovery', '🔄 Local data missing, starting recovery from DynamoDB...');
-      
-      // Perform recovery
-      await this.performDataRecovery();
-      
-      // Mark recovery as complete
-      await this.markRecoveryComplete();
-      
-      logger.info('DataRecovery', '✅ Data recovery completed successfully');
-      
+      logger.info('DataRecovery', '🔄 Local data missing, checking if recovery is possible...');
+
+      // LOCAL-FIRST: Check if user is signed in before attempting AppSync recovery
+      try {
+        // Attempt a simple test query to see if we can connect
+        await this.testAppSyncConnection();
+
+        // If we get here, user is signed in and we can attempt recovery
+        logger.info('DataRecovery', '🔄 User signed in, starting recovery from DynamoDB...');
+        await this.performDataRecovery();
+        await this.markRecoveryComplete();
+        logger.info('DataRecovery', '✅ Data recovery completed successfully');
+
+      } catch (connectionError) {
+        // User not signed in or offline - this is OK for local-first
+        logger.info('DataRecovery', '🔒 User not signed in or offline - continuing with local-only mode', { connectionError });
+
+        // Mark recovery as attempted so we don't keep trying
+        await this.markRecoveryComplete();
+        logger.info('DataRecovery', '✅ Local-first mode enabled - app will work with local data only');
+      }
+
     } catch (error) {
       logger.error('DataRecovery', '❌ Data recovery failed', { error });
       // Don't throw - this is a background operation
+      // Mark as complete so we don't keep failing
+      try {
+        await this.markRecoveryComplete();
+      } catch (markError) {
+        logger.error('DataRecovery', 'Failed to mark recovery complete', { markError });
+      }
     }
   }
 
@@ -99,6 +118,27 @@ class DataRecoveryService {
     } catch (error) {
       logger.error('DataRecovery', 'Error checking if recovery needed', { error });
       return true; // Assume recovery needed if we can't check
+    }
+  }
+
+  /**
+   * Test if we can connect to AppSync (user signed in)
+   */
+  private async testAppSyncConnection(): Promise<void> {
+    try {
+      // Simple test query with minimal data
+      const response = await this.client.graphql({
+        query: queries.listItemDatas,
+        variables: {
+          limit: 1
+        }
+      }) as any;
+
+      // If we get here without error, connection works
+      logger.debug('DataRecovery', 'AppSync connection test successful');
+    } catch (error) {
+      logger.debug('DataRecovery', 'AppSync connection test failed', { error });
+      throw error;
     }
   }
 
@@ -199,22 +239,18 @@ class DataRecoveryService {
           for (const item of reorderItems) {
             try {
               await db.runAsync(`
-                INSERT OR REPLACE INTO reorder_items 
-                (id, item_id, item_name, item_barcode, item_category, item_price, quantity, completed, added_by, created_at, updated_at, last_sync_at, owner, pending_sync)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT OR REPLACE INTO reorder_items
+                (id, item_id, quantity, status, added_by, created_at, updated_at, last_sync_at, owner, pending_sync)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
               `, [
                 item.id,
-                item.itemId,
-                item.itemName,
-                item.itemBarcode,
-                item.itemCategory,
-                item.itemPrice,
-                item.quantity,
-                item.completed ? 1 : 0,
-                item.addedBy,
-                item.createdAt,
+                item.itemId,                    // Reference to Square catalog
+                item.quantity,                  // Reorder quantity
+                item.status || 'incomplete',    // 'incomplete' | 'complete'
+                item.addedBy,                   // Who added it
+                item.createdAt,                 // Timestamps
                 item.updatedAt,
-                now,
+                now,                           // Last sync timestamp
                 item.owner,
                 0 // not pending sync
               ]);

@@ -3,7 +3,7 @@ import { apiClient, directSquareApi } from '../api';
 import { useAppStore } from '../store';
 import { CatalogObject, ConvertedItem, SearchResultItem } from '../types/api';
 import { ScanHistoryItem } from '../types';
-import { transformCatalogItemToItem } from '../utils/catalogTransformers';
+import { transformCatalogItemToItem, populateItemImagesForItems, populateItemImages } from '../utils/catalogTransformers';
 import { useApi } from '../providers/ApiProvider';
 import logger from '../utils/logger';
 import {
@@ -111,7 +111,7 @@ export const useCatalogItems = () => {
       // We get raw CatalogObjects back, transform them
       // **FIXED: Get objects from top level**
       const itemObjects: CatalogObject[] = response.objects;
-      const transformedItems = itemObjects
+      let transformedItems = itemObjects
         .map((item: CatalogObject) => transformCatalogItemToItem(item))
         .filter((item: ConvertedItem | null): item is ConvertedItem => item !== null)
         // Map additional fields if needed (category name was here before, might need adjustment)
@@ -125,6 +125,9 @@ export const useCatalogItems = () => {
           barcode: item.barcode || '',
           abbreviation: item.abbreviation || '', // Ensure abbreviation is mapped
         }));
+
+      // Populate image URLs for all transformed items
+      transformedItems = await populateItemImagesForItems(transformedItems);
       
       if (currentCursor) {
         setProducts([...storeProducts, ...transformedItems]);
@@ -417,8 +420,10 @@ export const useCatalogItems = () => {
             logger.warn('CatalogItems::getProductById', 'Failed to add location names to overrides', { error: locError });
           }
         }
-        
-        return transformedItem;
+
+        // Populate image URLs before returning
+        const itemWithImages = await populateItemImages(transformedItem);
+        return itemWithImages;
       } else {
          logger.warn('CatalogItems::getProductById', 'Failed to transform item fetched from DB', { id });
         return null;
@@ -966,9 +971,12 @@ export const useCatalogItems = () => {
       
       const finalResults = Array.from(uniqueResults.values());
       logger.info('useCatalogItems:performSearch', `Search completed: ${localResults.length} local + ${caseUpcResults.length} Case UPC = ${finalResults.length} total unique results`);
-      
-      setSearchResults(finalResults);
-      return finalResults;
+
+      // Populate image URLs for search results
+      const resultsWithImages = await populateItemImagesForItems(finalResults);
+
+      setSearchResults(resultsWithImages);
+      return resultsWithImages;
     } catch (err) {
       logger.error('useCatalogItems', 'Error during search', { error: err });
       setSearchError(err instanceof Error ? err.message : 'An unknown error occurred.');

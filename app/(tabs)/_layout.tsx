@@ -104,13 +104,17 @@ function ReorderIconWithBadge({ color, focused }: { color: string; focused: bool
   useEffect(() => {
     // Count only incomplete items for the badge
     const updateCount = (items: any[]) => {
-      const incompleteCount = items.filter(item => !item.completed).length;
+      const incompleteCount = items.filter(item => item.status === 'incomplete').length;
       setReorderCount(incompleteCount);
     };
-    
-    // Set initial count
-    updateCount(reorderService.getItems());
-    
+
+    // Set initial count asynchronously
+    const initializeCount = async () => {
+      const items = await reorderService.getItems();
+      updateCount(items);
+    };
+    initializeCount();
+
     const unsubscribe = reorderService.addListener(updateCount);
     return unsubscribe;
   }, []);

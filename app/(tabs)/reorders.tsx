@@ -6,38 +6,29 @@ import {
   TouchableOpacity,
   Pressable,
   FlatList,
-  StyleSheet,
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
   SafeAreaView,
-  Image,
   Modal,
   Alert,
   ScrollView,
   Animated,
   RefreshControl,
-  Vibration,
-  Keyboard
+  Vibration
 } from 'react-native';
-import { Stack, useRouter, useFocusEffect } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 import { useCatalogItems } from '../../src/hooks/useCatalogItems';
 import { BarcodeScanner } from '../../src/components/BarcodeScanner';
 import * as modernDb from '../../src/database/modernDb';
 import { ConvertedItem } from '../../src/types/api';
-import { lightTheme } from '../../src/themes';
 import logger from '../../src/utils/logger';
-import { styles } from '../../src/styles/_indexStyles'; // Use styles from index
 import { reorderStyles } from '../../src/styles/_reorderStyles';
-import { reorderService, ReorderItem as ServiceReorderItem } from '../../src/services/reorderService';
+import { reorderService, ReorderItem as ServiceReorderItem, DisplayReorderItem } from '../../src/services/reorderService';
+import crossReferenceService from '../../src/services/crossReferenceService';
 import { generateClient } from 'aws-amplify/api';
-import * as queries from '../../src/graphql/queries';
 import { useAuthenticator } from '@aws-amplify/ui-react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAppStore } from '../../src/store';
-import { itemHistoryService } from '../../src/services/itemHistoryService';
 
 const client = generateClient();
 
@@ -59,7 +50,7 @@ interface CustomItemEdit {
 
 interface QuantityModalProps {
   visible: boolean;
-  item: ReorderItem | null;
+  item: DisplayReorderItem | null;
   onSubmit: (quantity: number) => void;
   onCancel: () => void;
 }
@@ -662,11 +653,11 @@ const ReordersScreen = React.memo(() => {
   const { products: catalogItems, isProductsLoading: loading } = useCatalogItems();
   
   // State management
-  const [reorderItems, setReorderItems] = useState<ReorderItem[]>([]);
+  const [reorderItems, setReorderItems] = useState<DisplayReorderItem[]>([]);
   const [currentFilter, setCurrentFilter] = useState<FilterType | null>(null);
   const [showQuantityModal, setShowQuantityModal] = useState(false);
   const [showSelectionModal, setShowSelectionModal] = useState(false);
-  const [currentEditingItem, setCurrentEditingItem] = useState<ReorderItem | null>(null);
+  const [currentEditingItem, setCurrentEditingItem] = useState<DisplayReorderItem | null>(null);
   const [multipleItems, setMultipleItems] = useState<ConvertedItem[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
@@ -830,7 +821,7 @@ const ReordersScreen = React.memo(() => {
           const chronologicalIndex = chronologicalItems.findIndex(item => item.itemId === convertedItem.id);
           const isAtTopChronologically = chronologicalIndex === 0;
 
-          if (isAtTopChronologically && !existingItem.completed) {
+          if (isAtTopChronologically && existingItem.status === 'incomplete') {
             // CASE 1: Item at chronological top scanned again - increment quantity by 1
             logger.info(TAG, `📈 CHRONOLOGICAL TOP REPEAT SCAN: ${convertedItem.name} (${existingItem.quantity} → ${existingItem.quantity + 1})`);
 
@@ -861,7 +852,7 @@ const ReordersScreen = React.memo(() => {
               setErrorMessage('Failed to increment item quantity. Please try again.');
               setShowErrorModal(true);
             }
-          } else if (existingItem.completed) {
+          } else if (existingItem.status === 'complete') {
             // CASE 2: Completed item scanned - mark as "Received" and create new incomplete entry
             logger.info(TAG, `📦 COMPLETED ITEM RESCAN: ${convertedItem.name} - marking as Received and creating new entry`);
 
@@ -1021,17 +1012,17 @@ const ReordersScreen = React.memo(() => {
     }
 
     try {
-      // For manual editing, we need to convert the ReorderItem back to ConvertedItem format
+      // Convert DisplayReorderItem (with cross-referenced data) back to ConvertedItem format
       const convertedItem: ConvertedItem = {
         id: currentEditingItem.itemId,
-        name: currentEditingItem.itemName,
-        sku: '', // ReorderItem doesn't store SKU
-        barcode: currentEditingItem.itemBarcode || '',
-        price: currentEditingItem.itemPrice || 0,
-        category: currentEditingItem.itemCategory || '',
-        categoryId: '', // ReorderItem doesn't store categoryId
-        reporting_category_id: '', // ReorderItem doesn't store reporting_category_id
-        description: '', // ReorderItem doesn't store description
+        name: currentEditingItem.itemName,        // Cross-referenced from Square catalog
+        sku: '', // Not stored in reorder data
+        barcode: currentEditingItem.itemBarcode || '',  // Cross-referenced from Square catalog
+        price: currentEditingItem.itemPrice || 0,       // Cross-referenced from Square catalog
+        category: currentEditingItem.itemCategory || '', // Cross-referenced from Square catalog
+        categoryId: '', // Not stored in reorder data
+        reporting_category_id: '', // Not stored in reorder data
+        description: '', // Not stored in reorder data
         isActive: true,
         images: [],
         createdAt: currentEditingItem.createdAt,
@@ -1182,7 +1173,7 @@ const ReordersScreen = React.memo(() => {
 
   // List maintenance functions
   const handleMarkCompletedAsReceived = useCallback(async () => {
-    const completedItems = reorderItems.filter(item => item.completed);
+    const completedItems = reorderItems.filter(item => item.status === 'complete');
     if (completedItems.length === 0) {
       Alert.alert('No Completed Items', 'There are no completed items to mark as received.');
       return;
@@ -1256,6 +1247,38 @@ const ReordersScreen = React.memo(() => {
     setShowMaintenanceButtons(false);
   }, []);
 
+  // Debug cross-referencing
+  const handleDebugCrossReference = useCallback(() => {
+    if (reorderItems.length === 0) {
+      Alert.alert('No Items', 'Add some items to the reorder list first to test cross-referencing.');
+      return;
+    }
+
+    const firstItem = reorderItems[0];
+    Alert.alert(
+      'Debug Cross-Reference',
+      `Testing cross-reference for item: ${firstItem.itemId}\n\nCheck the logs for detailed results.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel'
+        },
+        {
+          text: 'Test',
+          onPress: async () => {
+            try {
+              await crossReferenceService.debugCrossReference(firstItem.itemId);
+              Alert.alert('Debug Complete', 'Check the logs for cross-reference results.');
+            } catch (error) {
+              Alert.alert('Debug Failed', `Error: ${error}`);
+            }
+          }
+        }
+      ]
+    );
+    setShowMaintenanceButtons(false);
+  }, [reorderItems]);
+
   // Handle custom item creation
   const handleAddCustomItem = useCallback(() => {
     const newCustomItem: CustomItemEdit = {
@@ -1304,7 +1327,7 @@ const ReordersScreen = React.memo(() => {
   }, [customItemEdit, user]);
 
   // Handle custom item edit
-  const handleEditCustomItem = useCallback((item: ReorderItem) => {
+  const handleEditCustomItem = useCallback((item: DisplayReorderItem) => {
     if (!item.isCustom) return;
     
     const editItem: CustomItemEdit = {
@@ -1313,7 +1336,7 @@ const ReordersScreen = React.memo(() => {
       itemCategory: item.itemCategory || '',
       vendor: item.teamData?.vendor || '',
       quantity: item.quantity,
-      notes: item.notes || ''
+      notes: item.teamData?.notes || ''
     };
     
     setCustomItemEdit(editItem);
@@ -1345,8 +1368,23 @@ const ReordersScreen = React.memo(() => {
 
   // Set up reorder service listener and cleanup
   useEffect(() => {
-    const unsubscribe = reorderService.addListener(setReorderItems);
-    
+    const unsubscribe = reorderService.addListener((displayItems: DisplayReorderItem[]) => {
+      setReorderItems(displayItems);
+    });
+
+    // 🔧 CRITICAL FIX: Force initial data load in case we missed the initial notification
+    const loadInitialData = async () => {
+      try {
+        const initialItems = await reorderService.getItems();
+        setReorderItems(initialItems);
+      } catch (error) {
+        logger.error(TAG, 'Failed to load initial reorder items', { error });
+      }
+    };
+
+    // Load initial data immediately
+    loadInitialData();
+
     return () => {
       unsubscribe();
       // Cleanup subscriptions when component unmounts
@@ -1366,25 +1404,25 @@ const ReordersScreen = React.memo(() => {
 
   // Generate dynamic filter data with counts - optimized
   const filterData = useMemo(() => {
-    const incompleteItems = reorderItems.filter(item => !item.completed);
+    const incompleteItems = reorderItems.filter(item => item.status === 'incomplete');
     
     // Category counts with better handling
     const categoryMap = new Map<string, number>();
     const vendorMap = new Map<string, number>();
     
-    // Single loop for both category and vendor counting
+    // Single loop for both category and vendor counting (cross-referenced data)
     incompleteItems.forEach(item => {
-      // Category processing
+      // Category processing (from cross-referenced Square catalog)
       let category = item.itemCategory;
-      if (!category || category.trim() === '' || category === 'N/A') {
-        category = 'Uncategorized';
+      if (item.missingSquareData || !category || category.trim() === '' || category === 'N/A') {
+        category = item.missingSquareData ? 'Missing Catalog' : 'Uncategorized';
       }
       categoryMap.set(category, (categoryMap.get(category) || 0) + 1);
-      
-      // Vendor processing
+
+      // Vendor processing (from cross-referenced team data)
       let vendor = item.teamData?.vendor;
-      if (!vendor || vendor.trim() === '' || vendor === 'N/A' || vendor === 'Unknown Vendor') {
-        vendor = 'No Vendor';
+      if (item.missingTeamData || !vendor || vendor.trim() === '' || vendor === 'N/A' || vendor === 'Unknown Vendor') {
+        vendor = item.missingTeamData ? 'Missing Team Data' : 'No Vendor';
       }
       vendorMap.set(vendor, (vendorMap.get(vendor) || 0) + 1);
     });
@@ -1407,14 +1445,26 @@ const ReordersScreen = React.memo(() => {
     // Apply all filters in a single pass for better performance
     filtered = reorderItems.filter(item => {
       // Completion filter
-      if (currentFilter === 'completed' && !item.completed) return false;
-      if (currentFilter === 'incomplete' && item.completed) return false;
+      if (currentFilter === 'completed' && item.status !== 'complete') return false;
+      if (currentFilter === 'incomplete' && item.status !== 'incomplete') return false;
       
-      // Category filter
-      if (selectedCategories.length > 0 && !selectedCategories.includes(item.itemCategory || 'Uncategorized')) return false;
-      
-      // Vendor filter
-      if (selectedVendor && item.teamData?.vendor !== selectedVendor) return false;
+      // Category filter (cross-referenced data)
+      if (selectedCategories.length > 0) {
+        let itemCategory = item.itemCategory;
+        if (item.missingSquareData || !itemCategory || itemCategory.trim() === '' || itemCategory === 'N/A') {
+          itemCategory = item.missingSquareData ? 'Missing Catalog' : 'Uncategorized';
+        }
+        if (!selectedCategories.includes(itemCategory)) return false;
+      }
+
+      // Vendor filter (cross-referenced team data)
+      if (selectedVendor) {
+        let itemVendor = item.teamData?.vendor;
+        if (item.missingTeamData || !itemVendor || itemVendor.trim() === '' || itemVendor === 'N/A' || itemVendor === 'Unknown Vendor') {
+          itemVendor = item.missingTeamData ? 'Missing Team Data' : 'No Vendor';
+        }
+        if (itemVendor !== selectedVendor) return false;
+      }
       
       return true;
     });
@@ -1438,14 +1488,27 @@ const ReordersScreen = React.memo(() => {
     return filtered;
   }, [reorderItems, currentFilter, selectedCategories, selectedVendor, sortState]);
 
-  // Calculate stats
+  // Calculate stats including missing data detection
   const stats = useMemo(() => {
     const total = reorderItems.length;
-    const completed = reorderItems.filter(item => item.completed).length;
+    const completed = reorderItems.filter(item => item.status === 'complete').length;
     const incomplete = total - completed;
     const totalQuantity = reorderItems.reduce((sum, item) => sum + item.quantity, 0);
 
-    return { total, completed, incomplete, totalQuantity };
+    // Missing data detection
+    const missingSquareData = reorderItems.filter(item => item.missingSquareData).length;
+    const missingTeamData = reorderItems.filter(item => item.missingTeamData).length;
+    const customItems = reorderItems.filter(item => item.isCustom).length;
+
+    return {
+      total,
+      completed,
+      incomplete,
+      totalQuantity,
+      missingSquareData,
+      missingTeamData,
+      customItems
+    };
   }, [reorderItems]);
 
   // Render sort button (3-state cycle) - memoized for performance
@@ -1608,7 +1671,7 @@ const ReordersScreen = React.memo(() => {
   };
 
   // Render reorder item - memoized for performance
-  const renderReorderItem = useCallback(({ item }: { item: ReorderItem }) => {
+  const renderReorderItem = useCallback(({ item }: { item: DisplayReorderItem }) => {
     return (
       <Swipeable
         friction={2}
@@ -1681,7 +1744,7 @@ const ReordersScreen = React.memo(() => {
       >
         <View style={[
           reorderStyles.reorderItem,
-          item.completed && reorderStyles.reorderItemCompleted,
+          item.status === 'complete' && reorderStyles.reorderItemCompleted,
           item.isCustom && { borderLeftWidth: 4, borderLeftColor: '#007AFF' }
         ]}>
           {/* Index number - tappable for completion toggle */}
@@ -1708,7 +1771,7 @@ const ReordersScreen = React.memo(() => {
               reorderService.toggleCompletion(item.id, userName);
             }}
           >
-            {item.completed ? (
+            {item.status === 'complete' ? (
               <View style={{
                 width: 20,
                 height: 20,
@@ -1753,16 +1816,51 @@ const ReordersScreen = React.memo(() => {
           >
             <View style={reorderStyles.itemHeader}>
               <View style={reorderStyles.itemNameContainer}>
-                <Text style={[
-                  reorderStyles.itemName,
-                  item.completed && reorderStyles.itemNameCompleted
-                ]}>
-                  {item.itemName}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <Text style={[
+                    reorderStyles.itemName,
+                    item.status === 'complete' && reorderStyles.itemNameCompleted
+                  ]}>
+                    {item.itemName}
+                  </Text>
+                  {/* Missing data indicators */}
+                  {item.missingSquareData && (
+                    <View style={{
+                      backgroundColor: '#FF6B6B',
+                      paddingHorizontal: 6,
+                      paddingVertical: 2,
+                      borderRadius: 4,
+                      marginLeft: 8,
+                    }}>
+                      <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>
+                        NO CATALOG
+                      </Text>
+                    </View>
+                  )}
+                  {item.missingTeamData && (
+                    <View style={{
+                      backgroundColor: '#FFA726',
+                      paddingHorizontal: 6,
+                      paddingVertical: 2,
+                      borderRadius: 4,
+                      marginLeft: 8,
+                    }}>
+                      <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>
+                        NO TEAM DATA
+                      </Text>
+                    </View>
+                  )}
+                </View>
                 <View style={staticStyles.itemDetailsContainer}>
                   {item.itemCategory && <Text style={reorderStyles.itemCategory}>{item.itemCategory}</Text>}
                   <Text style={reorderStyles.compactDetails}>
-                    UPC: {item.itemBarcode || 'N/A'}{item.itemBarcode ? ` • SKU: N/A` : ''} • Price: ${item.itemPrice?.toFixed(2) || 'Variable'}{item.teamData?.vendorCost ? ` • Cost: $${item.teamData.vendorCost.toFixed(2)}` : ' • Cost: N/A'}{item.teamData?.vendor ? ` • Vendor: ${item.teamData.vendor}` : ' • Vendor: N/A'}{item.teamData?.discontinued ? ' • DISCONTINUED' : ''}
+                    {/* Cross-referenced Square catalog data */}
+                    UPC: {item.missingSquareData ? 'Missing Catalog' : (item.itemBarcode || 'N/A')} •
+                    Price: {item.missingSquareData ? 'Unknown' : (item.itemPrice ? `$${item.itemPrice.toFixed(2)}` : 'Variable')}
+                    {/* Cross-referenced team data */}
+                    {item.missingTeamData ? ' • Team Data: Missing' : (
+                      `${item.teamData?.vendorCost ? ` • Cost: $${item.teamData.vendorCost.toFixed(2)}` : ' • Cost: N/A'}${item.teamData?.vendor ? ` • Vendor: ${item.teamData.vendor}` : ' • Vendor: N/A'}${item.teamData?.discontinued ? ' • DISCONTINUED' : ''}`
+                    )}
                   </Text>
                 </View>
               </View>
@@ -1772,32 +1870,67 @@ const ReordersScreen = React.memo(() => {
                 minWidth: 60,
                 paddingHorizontal: 4,
               }}>
-                <Text style={reorderStyles.qtyLabel}>Qty</Text>
-                <Text style={reorderStyles.qtyNumber}>{item.quantity}</Text>
-                <Text style={{
-                  fontSize: 9,
-                  color: '#999',
-                  marginTop: 2,
-                  textAlign: 'center'
-                }}>
-                  {(() => {
-                    const date = item.timestamp || new Date(item.createdAt);
-                    const dateStr = `${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getDate().toString().padStart(2, '0')}/${date.getFullYear().toString().slice(-2)}`;
-                    
-                    let timeStr: string;
-                    if (use12HourFormat) {
-                      const hours = date.getHours();
-                      const minutes = date.getMinutes();
-                      const ampm = hours >= 12 ? 'PM' : 'AM';
-                      const displayHours = hours % 12 || 12;
-                      timeStr = `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-                    } else {
-                      timeStr = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
-                    }
-                    
-                    return `${dateStr}\n${timeStr}`;
-                  })()}
-                </Text>
+                {/* CRITICAL: Show DISCONTINUED indicator instead of quantity for discontinued items */}
+                {item.teamData?.discontinued ? (
+                  <View style={{
+                    backgroundColor: '#FF3B30',
+                    paddingHorizontal: 8,
+                    paddingVertical: 6,
+                    borderRadius: 6,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    minWidth: 60,
+                    minHeight: 50,
+                  }}>
+                    <Text style={{
+                      color: 'white',
+                      fontSize: 10,
+                      fontWeight: 'bold',
+                      textAlign: 'center',
+                      lineHeight: 12,
+                    }}>
+                      DISCONTINUED
+                    </Text>
+                    <Text style={{
+                      color: 'white',
+                      fontSize: 8,
+                      marginTop: 2,
+                      textAlign: 'center',
+                      opacity: 0.9,
+                    }}>
+                      DO NOT BUY
+                    </Text>
+                  </View>
+                ) : (
+                  <>
+                    <Text style={reorderStyles.qtyLabel}>Qty</Text>
+                    <Text style={reorderStyles.qtyNumber}>{item.quantity}</Text>
+                    <Text style={{
+                      fontSize: 9,
+                      color: '#999',
+                      marginTop: 2,
+                      textAlign: 'center'
+                    }}>
+                      {(() => {
+                        const date = item.timestamp || new Date(item.createdAt);
+                        const dateStr = `${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getDate().toString().padStart(2, '0')}/${date.getFullYear().toString().slice(-2)}`;
+
+                        let timeStr: string;
+                        if (use12HourFormat) {
+                          const hours = date.getHours();
+                          const minutes = date.getMinutes();
+                          const ampm = hours >= 12 ? 'PM' : 'AM';
+                          const displayHours = hours % 12 || 12;
+                          timeStr = `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+                        } else {
+                          timeStr = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+                        }
+
+                        return `${dateStr}\n${timeStr}`;
+                      })()}
+                    </Text>
+                  </>
+                )}
               </View>
             </View>
           </Pressable>
@@ -1835,11 +1968,23 @@ const ReordersScreen = React.memo(() => {
     baseData.forEach(item => {
       let key: string;
       if (groupBy === 'vendor') {
-        key = item.teamData?.vendor || 'No Vendor';
+        // Group by vendor (cross-referenced team data)
+        let vendor = item.teamData?.vendor;
+        if (item.missingTeamData || !vendor || vendor.trim() === '' || vendor === 'N/A' || vendor === 'Unknown Vendor') {
+          key = item.missingTeamData ? 'Missing Team Data' : 'No Vendor';
+        } else {
+          key = vendor;
+        }
       } else {
-        key = item.itemCategory || 'Uncategorized';
+        // Group by category (cross-referenced Square catalog)
+        let category = item.itemCategory;
+        if (item.missingSquareData || !category || category.trim() === '' || category === 'N/A') {
+          key = item.missingSquareData ? 'Missing Catalog' : 'Uncategorized';
+        } else {
+          key = category;
+        }
       }
-      
+
       if (!sections[key]) {
         sections[key] = [];
       }
@@ -2206,24 +2351,24 @@ const ReordersScreen = React.memo(() => {
               </Text>
             </TouchableOpacity>
 
-            {/* Print List */}
+            {/* Debug Cross-Reference */}
             <TouchableOpacity
               style={reorderStyles.statItem}
-              onPress={handlePrintList}
+              onPress={handleDebugCrossReference}
               disabled={stats.total === 0}
             >
               <View style={reorderStyles.statIconContainer}>
                 <Ionicons
-                  name="print"
+                  name="bug"
                   size={20}
-                  color={stats.total === 0 ? '#ccc' : '#5856D6'}
+                  color={stats.total === 0 ? '#ccc' : '#FF9500'}
                 />
               </View>
               <Text style={[
                 reorderStyles.statLabel,
-                { color: stats.total === 0 ? '#ccc' : '#5856D6' }
+                { color: stats.total === 0 ? '#ccc' : '#FF9500' }
               ]}>
-                Print
+                Debug
               </Text>
             </TouchableOpacity>
 
@@ -2535,6 +2680,70 @@ const ReordersScreen = React.memo(() => {
             }}>
               {getSyncStatusExplanation().description}
             </Text>
+
+            {/* Missing Data Status - Only show catalog issues for now */}
+            {(stats.missingSquareData > 0 || stats.customItems > 0) && (
+              <View style={{
+                backgroundColor: '#f8f9fa',
+                borderRadius: 8,
+                padding: 12,
+                marginBottom: 16
+              }}>
+                <Text style={{
+                  fontSize: 14,
+                  fontWeight: '600',
+                  color: '#333',
+                  marginBottom: 8,
+                  textAlign: 'center'
+                }}>
+                  Data Status
+                </Text>
+
+                <View style={{ flexDirection: 'row', justifyContent: 'space-around' }}>
+                  {stats.missingSquareData > 0 && (
+                    <View style={{ alignItems: 'center' }}>
+                      <View style={{
+                        backgroundColor: '#FF6B6B',
+                        borderRadius: 12,
+                        minWidth: 24,
+                        height: 24,
+                        justifyContent: 'center',
+                        alignItems: 'center'
+                      }}>
+                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>
+                          {stats.missingSquareData}
+                        </Text>
+                      </View>
+                      <Text style={{ fontSize: 10, color: '#666', marginTop: 4, textAlign: 'center' }}>
+                        Missing{'\n'}Catalog
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Team data status removed - not showing missing team data for now */}
+
+                  {stats.customItems > 0 && (
+                    <View style={{ alignItems: 'center' }}>
+                      <View style={{
+                        backgroundColor: '#007AFF',
+                        borderRadius: 12,
+                        minWidth: 24,
+                        height: 24,
+                        justifyContent: 'center',
+                        alignItems: 'center'
+                      }}>
+                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>
+                          {stats.customItems}
+                        </Text>
+                      </View>
+                      <Text style={{ fontSize: 10, color: '#666', marginTop: 4, textAlign: 'center' }}>
+                        Custom{'\n'}Items
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            )}
             
             <View style={{
               flexDirection: 'row',

@@ -43,6 +43,9 @@ import TeamDataSection from './TeamDataSection';
 import ItemHistorySection from '../../src/components/ItemHistorySection';
 import { itemHistoryService } from '../../src/services/itemHistoryService';
 import MultiCategorySelectionModal from '../../src/components/MultiCategorySelectionModal';
+import ItemImageDisplay from '../../src/components/ItemImageDisplay';
+import ImageManagementModal from '../../src/components/ImageManagementModal';
+import { squareImageService } from '../../src/services/squareImageService';
 
 // Define type for Tax and Modifier List Pickers
 type TaxPickerItem = { id: string; name: string; percentage: string | null };
@@ -144,6 +147,9 @@ export default function ItemDetails() {
 
   // State to track team data changes
   const [hasTeamDataChanges, setHasTeamDataChanges] = useState(false);
+
+  // State for image management modal
+  const [isImageManagementVisible, setIsImageManagementVisible] = useState(false);
 
   // State for vendor unit cost from team data
   const [vendorUnitCost, setVendorUnitCost] = useState<number | undefined>(undefined);
@@ -749,11 +755,16 @@ export default function ItemDetails() {
       if (savedItem) {
         // Track item changes in history
         await trackItemChanges(savedItem);
-        
+
         // Update the real item ID for team data save (fixes new item bug)
         setRealItemId(savedItem.id);
-        
+
+        // Wait for state update to propagate before saving team data
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // Save team data with the correct item ID
         if (teamDataSaveRef.current) {
+          logger.info('ItemDetails:handleSaveAction', 'Saving team data for item', { itemId: savedItem.id });
           await teamDataSaveRef.current();
         }
         setLastUpdatedItem(savedItem);
@@ -1322,7 +1333,89 @@ export default function ItemDetails() {
       { cancelable: true } // Allow dismissing by tapping outside on Android
     );
   }, [item, deleteProduct, router, isNewItem]);
-  
+
+  // Image management handlers
+  const handleImageUpload = async (imageUri: string, imageName: string): Promise<void> => {
+    try {
+      logger.info('ItemDetails', 'Starting image upload', { imageName, itemId: item.id });
+
+      const result = await squareImageService.uploadImage(imageUri, imageName, item.id);
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to upload image');
+      }
+
+      logger.info('ItemDetails', 'Image upload successful', { imageId: result.imageId });
+
+      // Refresh the item to get updated images
+      if (!isNewItem && item.id) {
+        const updatedItem = await getProductById(item.id);
+        if (updatedItem) {
+          setItem(updatedItem);
+          setOriginalItem(updatedItem);
+        }
+      }
+
+    } catch (error) {
+      logger.error('ItemDetails', 'Image upload failed', error);
+      throw error;
+    }
+  };
+
+  const handleImageUpdate = async (imageId: string, imageUri: string, imageName: string): Promise<void> => {
+    try {
+      logger.info('ItemDetails', 'Starting image update', { imageId, imageName });
+
+      const result = await squareImageService.updateImage(imageId, imageUri, imageName);
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update image');
+      }
+
+      logger.info('ItemDetails', 'Image update successful', { imageId });
+
+      // Refresh the item to get updated images
+      if (!isNewItem && item.id) {
+        const updatedItem = await getProductById(item.id);
+        if (updatedItem) {
+          setItem(updatedItem);
+          setOriginalItem(updatedItem);
+        }
+      }
+
+    } catch (error) {
+      logger.error('ItemDetails', 'Image update failed', error);
+      throw error;
+    }
+  };
+
+  const handleImageDelete = async (imageId: string): Promise<void> => {
+    try {
+      logger.info('ItemDetails', 'Starting image deletion', { imageId });
+
+      const result = await squareImageService.deleteImage(imageId, item.id);
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete image');
+      }
+
+      logger.info('ItemDetails', 'Image deletion successful', { imageId });
+
+      // Refresh the item to get updated images
+      if (!isNewItem && item.id) {
+        const updatedItem = await getProductById(item.id);
+        if (updatedItem) {
+          setItem(updatedItem);
+          setOriginalItem(updatedItem);
+        }
+      }
+
+    } catch (error) {
+      logger.error('ItemDetails', 'Image deletion failed', error);
+      throw error;
+    }
+  };
+
   // Render component for matching text in search results
   const highlightMatchingText = (text: string, query: string) => {
     if (!query) return <Text>{text}</Text>;
@@ -1460,22 +1553,36 @@ export default function ItemDetails() {
               keyboardShouldPersistTaps="handled" 
               contentContainerStyle={styles.scrollContentContainer}
             >
-            {/* Item Name */}
+            {/* Item Header with Name and Image */}
             <View style={styles.fieldContainer}>
               <Text style={styles.label}>Item Name</Text>
-              <View style={styles.inputWrapper}>
-              <TextInput
-                style={styles.input}
-                value={item.name || ''}
-                onChangeText={value => handleInputChange('name', value)}
-                placeholder="Enter item name"
-                placeholderTextColor="#999"
-              />
-                {(item.name || '').length > 0 && (
-                  <TouchableOpacity onPress={() => handleInputChange('name', '')} style={styles.clearButton}>
-                    <Ionicons name="close-circle" size={20} color="#ccc" />
-                  </TouchableOpacity>
-                )}
+              <View style={styles.itemHeaderContainer}>
+                <View style={styles.nameInputContainer}>
+                  <TextInput
+                    style={styles.input}
+                    value={item.name || ''}
+                    onChangeText={value => handleInputChange('name', value)}
+                    placeholder="Enter item name"
+                    placeholderTextColor="#999"
+                  />
+                  {(item.name || '').length > 0 && (
+                    <TouchableOpacity onPress={() => handleInputChange('name', '')} style={styles.clearButton}>
+                      <Ionicons name="close-circle" size={20} color="#ccc" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+                <ItemImageDisplay
+                  images={item.images || []}
+                  itemName={item.name || ''}
+                  onImagePress={(image, index) => {
+                    // Handle image press - could open full screen view
+                    console.log('Image pressed:', image, index);
+                  }}
+                  onManageImages={() => {
+                    setIsImageManagementVisible(true);
+                  }}
+                  style={styles.itemImage}
+                />
               </View>
             </View>
 
@@ -2116,6 +2223,18 @@ export default function ItemDetails() {
                 </View>
               </TouchableWithoutFeedback>
             </Modal>
+
+            {/* Image Management Modal */}
+            <ImageManagementModal
+              visible={isImageManagementVisible}
+              onClose={() => setIsImageManagementVisible(false)}
+              images={item.images || []}
+              itemId={item.id}
+              itemName={item.name || ''}
+              onImageUpload={handleImageUpload}
+              onImageUpdate={handleImageUpdate}
+              onImageDelete={handleImageDelete}
+            />
         </View>
       </GestureDetector>
       )}

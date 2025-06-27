@@ -6,7 +6,7 @@ import { transformCatalogItemToItem } from '../utils/catalogTransformers';
 
 // Constants
 const DATABASE_NAME = 'joylabs.db';
-const DATABASE_VERSION = 3; // Increment version for team data and reorder tables
+const DATABASE_VERSION = 4; // Increment version for reorder table schema refactor (minimal data)
 let db: SQLiteDatabase | null = null;
 let dbInitPromise: Promise<SQLiteDatabase> | null = null;
 
@@ -152,19 +152,67 @@ export async function initializeSchema(dbInstance?: SQLiteDatabase): Promise<voi
   if (currentVersion < DATABASE_VERSION) {
     logger.info('Database', `Schema outdated (Current: ${currentVersion}, Required: ${DATABASE_VERSION}). Applying migrations/recreating...`);
     
-    // --- Migration Logic (Simplified: Recreate all tables) ---
-    // In a real app, you'd run specific ALTER TABLE statements based on version diffs.
-    // For now, we drop and recreate everything if version is outdated.
+    // --- Migration Logic ---
     await db.withTransactionAsync(async () => {
       logger.info('Schema Init', 'Starting schema creation/update transaction...');
-      
-      // Drop existing tables (optional, safer to only drop if version is 0 or very old)
-      // For simplicity, we drop them all if outdated
+
+      // Special migration for reorder_items table (v3 -> v4): Convert to minimal data structure
+      if (currentVersion === 3) {
+        logger.info('Schema Migration', 'Migrating reorder_items from v3 to v4 (minimal data structure)...');
+        try {
+          // Check if old reorder_items table exists
+          const tableExists = await db.getAllAsync<{ name: string }>(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='reorder_items'"
+          );
+
+          if (tableExists.length > 0) {
+            // Backup existing data
+            const existingItems = await db.getAllAsync<any>('SELECT * FROM reorder_items');
+            logger.info('Schema Migration', `Found ${existingItems.length} existing reorder items to migrate`);
+
+            // Create new table with minimal schema
+            await db.runAsync('DROP TABLE IF EXISTS reorder_items');
+            await db.runAsync(`CREATE TABLE reorder_items (
+              id TEXT PRIMARY KEY NOT NULL,
+              item_id TEXT NOT NULL,
+              quantity INTEGER DEFAULT 1,
+              status TEXT DEFAULT 'incomplete',
+              added_by TEXT,
+              created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+              updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+              last_sync_at TEXT,
+              owner TEXT,
+              pending_sync INTEGER DEFAULT 0
+            )`);
+
+            // Migrate data to new format (minimal data only)
+            for (const item of existingItems) {
+              const status = item.completed ? 'complete' : 'incomplete';
+              await db.runAsync(
+                `INSERT INTO reorder_items (id, item_id, quantity, status, added_by, created_at, updated_at, last_sync_at, owner, pending_sync)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                item.id, item.item_id, item.quantity, status, item.added_by,
+                item.created_at, item.updated_at, item.last_sync_at, item.owner, item.pending_sync
+              );
+            }
+
+            logger.info('Schema Migration', `Successfully migrated ${existingItems.length} reorder items to minimal format`);
+          }
+        } catch (migrationError) {
+          logger.error('Schema Migration', 'Error migrating reorder_items table', { migrationError });
+          // Continue with full recreation if migration fails
+        }
+      }
+
+      // Drop remaining tables for full recreation (except reorder_items if already migrated)
       logger.info('Schema Init', 'Dropping existing tables (part of update)...');
       try {
         await db.runAsync('DROP TABLE IF EXISTS sync_status');
         await db.runAsync('DROP TABLE IF EXISTS team_data');
-        await db.runAsync('DROP TABLE IF EXISTS reorder_items');
+        // Skip reorder_items if already migrated above
+        if (currentVersion !== 3) {
+          await db.runAsync('DROP TABLE IF EXISTS reorder_items');
+        }
         await db.runAsync('DROP TABLE IF EXISTS item_change_logs');
         await db.runAsync('DROP TABLE IF EXISTS categories');
         await db.runAsync('DROP TABLE IF EXISTS catalog_items');
@@ -223,25 +271,25 @@ export async function initializeSchema(dbInstance?: SQLiteDatabase): Promise<voi
         await db.runAsync(`CREATE INDEX idx_team_data_case_upc ON team_data(case_upc)`);
         logger.debug('Schema Init', 'Created case UPC index.');
 
-        // Create reorder_items table for local storage of AppSync ReorderItems
-        await db.runAsync(`CREATE TABLE reorder_items (
-          id TEXT PRIMARY KEY NOT NULL,
-          item_id TEXT NOT NULL,
-          item_name TEXT,
-          item_barcode TEXT,
-          item_category TEXT,
-          item_price REAL,
-          quantity INTEGER DEFAULT 1,
-          completed INTEGER DEFAULT 0,
-          received INTEGER DEFAULT 0,
-          added_by TEXT,
-          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-          updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-          last_sync_at TEXT,
-          owner TEXT,
-          pending_sync INTEGER DEFAULT 0
-        )`);
-        logger.debug('Schema Init', 'Created reorder_items table.');
+        // Create reorder_items table for minimal reorder data (cross-reference with Square catalog)
+        // Skip if already created during migration
+        if (currentVersion !== 3) {
+          await db.runAsync(`CREATE TABLE reorder_items (
+            id TEXT PRIMARY KEY NOT NULL,
+            item_id TEXT NOT NULL,              -- Reference to Square catalog (cross-reference for item details)
+            quantity INTEGER DEFAULT 1,         -- Reorder quantity
+            status TEXT DEFAULT 'incomplete',   -- 'incomplete' | 'complete' (received is in team data history)
+            added_by TEXT,                      -- Who added this item
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            last_sync_at TEXT,
+            owner TEXT,
+            pending_sync INTEGER DEFAULT 0
+          )`);
+          logger.debug('Schema Init', 'Created reorder_items table.');
+        } else {
+          logger.debug('Schema Init', 'Reorder_items table already migrated, skipping creation.');
+        }
 
         // Create item_change_logs table for local storage of AppSync ItemChangeLogs
         await db.runAsync(`CREATE TABLE item_change_logs (
