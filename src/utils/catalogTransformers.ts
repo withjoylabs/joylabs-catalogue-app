@@ -101,6 +101,15 @@ export function transformCatalogItemToItem(
     name: '', // Will be populated by imageService.populateImageUrls()
   }));
 
+  // Debug logging for image reconstruction
+  if (itemData.image_ids && itemData.image_ids.length > 0) {
+    console.log('CatalogTransformer: Found image_ids in item data', {
+      itemId: catalogObject.id,
+      imageIds: itemData.image_ids,
+      imageCount: images.length
+    });
+  }
+
   const transformed: ConvertedItem = {
     id: catalogObject.id,
     version: catalogObject.version, // Include top-level version

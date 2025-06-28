@@ -46,6 +46,7 @@ import MultiCategorySelectionModal from '../../src/components/MultiCategorySelec
 import ItemImageDisplay from '../../src/components/ItemImageDisplay';
 import ImageManagementModal from '../../src/components/ImageManagementModal';
 import { squareImageService } from '../../src/services/squareImageService';
+import { getDatabase } from '../../src/database/modernDb';
 
 // Define type for Tax and Modifier List Pickers
 type TaxPickerItem = { id: string; name: string; percentage: string | null };
@@ -767,6 +768,17 @@ export default function ItemDetails() {
           logger.info('ItemDetails:handleSaveAction', 'Saving team data for item', { itemId: savedItem.id });
           await teamDataSaveRef.current();
         }
+
+        // Images are now handled independently by the image service
+        // No need to save images here - they're already saved when uploaded
+        if (item.images && item.images.length > 0) {
+          logger.info('ItemDetails:handleSaveAction', 'Images handled independently by image service', {
+            itemId: savedItem.id,
+            imageCount: item.images.length,
+            imageIds: item.images.map(img => img.id)
+          });
+        }
+
         setLastUpdatedItem(savedItem);
         // Reset team data changes flag after successful save
         setHasTeamDataChanges(false);
@@ -789,33 +801,61 @@ export default function ItemDetails() {
 
   // Consolidated function to handle post-save state management and navigation
   const handlePostSaveSuccess = useCallback((savedItem: ConvertedItem) => {
-    logger.info('ItemDetails:handlePostSaveSuccess', 'Processing post-save state updates', { 
-      itemId: savedItem.id, 
-      isNewItem 
+    logger.info('ItemDetails:handlePostSaveSuccess', 'Processing post-save state updates', {
+      itemId: savedItem.id,
+      isNewItem
     });
-    
+
     try {
       // Update all state in a single batch to prevent race conditions
       setLastUpdatedItem(savedItem);
-      setItem(savedItem);
-      setOriginalItem(savedItem);
-      setVariations(savedItem.variations || []);
-      setHasTeamDataChanges(false);
-      
-      // Clear any loading states that might be active
-      setIsSaving(false);
-      setIsPrinting(false);
-      setIsSavingAndPrinting(false);
-      
-      // Use requestAnimationFrame to ensure all state updates are processed
-      // This is more reliable than setTimeout for state batching
-      requestAnimationFrame(() => {
-        setIsEdited(false);
-        // Navigate after clearing edited state
-        requestAnimationFrame(() => {
-          router.back();
+
+      // For existing items with images, don't navigate away - let user see their uploaded images
+      const hasImages = savedItem.images && savedItem.images.length > 0;
+      const shouldStayOnPage = !isNewItem && hasImages;
+
+      if (shouldStayOnPage) {
+        logger.info('ItemDetails:handlePostSaveSuccess', 'Staying on page - item has images', {
+          itemId: savedItem.id,
+          imageCount: savedItem.images?.length || 0
         });
-      });
+
+        // Update item state but preserve the current images in the UI
+        // Don't update originalItem so change detection still works for future changes
+        setItem(savedItem);
+        setVariations(savedItem.variations || []);
+        setHasTeamDataChanges(false);
+
+        // Clear loading states
+        setIsSaving(false);
+        setIsPrinting(false);
+        setIsSavingAndPrinting(false);
+        setIsEdited(false);
+
+        // Show success message
+        Alert.alert('Success', 'Item and images saved successfully!');
+
+      } else {
+        // Original behavior for new items or items without images
+        setItem(savedItem);
+        setOriginalItem(savedItem);
+        setVariations(savedItem.variations || []);
+        setHasTeamDataChanges(false);
+
+        // Clear any loading states that might be active
+        setIsSaving(false);
+        setIsPrinting(false);
+        setIsSavingAndPrinting(false);
+
+        // Use requestAnimationFrame to ensure all state updates are processed
+        requestAnimationFrame(() => {
+          setIsEdited(false);
+          // Navigate after clearing edited state
+          requestAnimationFrame(() => {
+            router.back();
+          });
+        });
+      }
     } catch (error) {
       logger.error('ItemDetails:handlePostSaveSuccess', 'Error in post-save handler', { error });
       // Fallback navigation if state updates fail
@@ -970,7 +1010,14 @@ export default function ItemDetails() {
         if (!isNewItem && typeof id === 'string') {
           const fetchedItem = await getProductById(id);
           if (fetchedItem) {
-            console.log('[ItemDetails] Fetched Item Data:', JSON.stringify(fetchedItem, null, 2)); 
+            console.log('[ItemDetails] Fetched Item Data:', JSON.stringify(fetchedItem, null, 2));
+            logger.info('ItemDetails', 'Item images debug after fetch:', {
+              imageCount: fetchedItem.images?.length || 0,
+              imageIds: fetchedItem.images?.map(img => img.id) || [],
+              imageUrls: fetchedItem.images?.map(img => img.url) || []
+            });
+
+
 
             // Create the canonical 'variations' array first to ensure consistent structure.
             const itemVariations = (fetchedItem.variations && Array.isArray(fetchedItem.variations) && fetchedItem.variations.length > 0
@@ -1118,10 +1165,12 @@ export default function ItemDetails() {
       return true;
     };
 
+    // Images are now handled independently - no need for complex change detection
+
     if (isNewItem) {
       const defaultNewVariations = [{ name: null, sku: '', price: undefined, barcode: '' }];
       const variationsChanged = !areVariationsEqual(variations, defaultNewVariations);
-      
+
       const calculatedIsEdited =
           !!(item.name && item.name.trim()) ||
           !!(item.description && item.description.trim()) ||
@@ -1130,6 +1179,7 @@ export default function ItemDetails() {
         (item.modifierListIds && item.modifierListIds.length > 0) ||
         variationsChanged ||
         hasTeamDataChanges; // Include team data changes
+
       setIsEdited(calculatedIsEdited);
 
     } else if (item && originalItem) {
@@ -1147,6 +1197,7 @@ export default function ItemDetails() {
         modifierIdsChanged ||
         variationsChanged ||
         hasTeamDataChanges; // Include team data changes
+
       setIsEdited(calculatedIsEdited);
     }
   }, [item, originalItem, variations, isNewItem, hasTeamDataChanges]); // Add hasTeamDataChanges to dependencies
@@ -1334,30 +1385,157 @@ export default function ItemDetails() {
     );
   }, [item, deleteProduct, router, isNewItem]);
 
+  // Helper function to save image to local database
+  const saveImageToDatabase = async (imageId: string, imageData: any, itemId: string): Promise<void> => {
+    try {
+      logger.info('ItemDetails', 'Starting database save for image', { imageId, itemId, imageUrl: imageData.url });
+
+      const db = await getDatabase();
+
+      // 1. Save the image to the images table
+      logger.info('ItemDetails', 'Inserting image into images table', { imageId });
+      await db.runAsync(
+        `INSERT OR REPLACE INTO images
+         (id, updated_at, version, is_deleted, name, url, caption, type, data_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          imageId,
+          new Date().toISOString(),
+          '1',
+          0,
+          imageData.name || '',
+          imageData.url || '',
+          imageData.caption || '',
+          'IMAGE',
+          JSON.stringify({
+            name: imageData.name,
+            url: imageData.url,
+            caption: imageData.caption
+          })
+        ]
+      );
+      logger.info('ItemDetails', 'Image inserted into images table successfully', { imageId });
+
+      // 2. Update the item's data to include the image ID
+      // First get the current item data
+      logger.info('ItemDetails', 'Fetching current item data', { itemId });
+      const itemResult = await db.getFirstAsync<{
+        id: string;
+        data_json: string;
+      }>(`SELECT id, data_json FROM catalog_items WHERE id = ?`, [itemId]);
+
+      if (itemResult) {
+        logger.info('ItemDetails', 'Found item in database', { itemId, hasDataJson: !!itemResult.data_json });
+        const currentData = itemResult.data_json ? JSON.parse(itemResult.data_json) : {};
+        const currentImageIds = currentData.image_ids || [];
+
+        logger.info('ItemDetails', 'Current image IDs', { currentImageIds, newImageId: imageId });
+
+        // Add the new image ID if not already present
+        if (!currentImageIds.includes(imageId)) {
+          const updatedData = {
+            ...currentData,
+            image_ids: [...currentImageIds, imageId]
+          };
+
+          logger.info('ItemDetails', 'Updating item with new image ID', {
+            itemId,
+            imageId,
+            updatedImageIds: updatedData.image_ids
+          });
+
+          // Update the item with new image_ids
+          await db.runAsync(
+            `UPDATE catalog_items SET data_json = ?, updated_at = ? WHERE id = ?`,
+            [JSON.stringify(updatedData), new Date().toISOString(), itemId]
+          );
+
+          logger.info('ItemDetails', 'Updated item with new image ID in database', {
+            itemId,
+            imageId,
+            totalImages: updatedData.image_ids.length
+          });
+        } else {
+          logger.info('ItemDetails', 'Image ID already exists in item data', { itemId, imageId });
+        }
+      } else {
+        logger.warn('ItemDetails', 'Item not found in database', { itemId });
+        throw new Error(`Item ${itemId} not found in database`);
+      }
+
+      logger.info('ItemDetails', 'Image saved to database successfully', { imageId, itemId });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown database error';
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      logger.error('ItemDetails', 'Failed to save image to database', {
+        error: errorMessage,
+        errorStack,
+        imageId,
+        itemId,
+        fullError: error
+      });
+      console.error('saveImageToDatabase error:', error);
+      throw error;
+    }
+  };
+
   // Image management handlers
   const handleImageUpload = async (imageUri: string, imageName: string): Promise<void> => {
     try {
-      logger.info('ItemDetails', 'Starting image upload', { imageName, itemId: item.id });
+      const realItemId = item.id || 'new-item-temp';
+      logger.info('ItemDetails', 'Starting independent image upload', { imageName, itemId: realItemId });
 
-      const result = await squareImageService.uploadImage(imageUri, imageName, item.id);
+      // The image service now handles everything: Square upload + database save + item association
+      const result = await squareImageService.uploadImage(imageUri, imageName, realItemId);
 
       if (!result.success) {
         throw new Error(result.error || 'Failed to upload image');
       }
 
-      logger.info('ItemDetails', 'Image upload successful', { imageId: result.imageId });
+      logger.info('ItemDetails', 'Independent image upload successful', { imageId: result.imageId });
 
-      // Refresh the item to get updated images
-      if (!isNewItem && item.id) {
-        const updatedItem = await getProductById(item.id);
-        if (updatedItem) {
-          setItem(updatedItem);
-          setOriginalItem(updatedItem);
-        }
+      // Simply add the image to React state for immediate UI update
+      const newImage = {
+        id: result.imageId,
+        name: imageName,
+        url: result.imageUrl, // Use the URL returned by the service
+        caption: `Image for ${item.name || 'item'}`
+      };
+
+      // Add the image to the current item
+      const updatedItem = {
+        ...item,
+        images: [...(item.images || []), newImage]
+      };
+
+      setItem(updatedItem);
+
+      // For new items, update originalItem so it has a baseline
+      if (isNewItem) {
+        setOriginalItem(updatedItem);
+        // Note: New items will trigger change detection naturally due to other changes
+      } else {
+        // For existing items, image is already saved independently - no save button needed
+        logger.info('ItemDetails', 'Image uploaded and saved independently for existing item', {
+          imageId: result.imageId,
+          itemId: realItemId,
+          note: 'No save button needed - image already persisted'
+        });
       }
 
+      logger.info('ItemDetails', 'Image added to React state', {
+        imageId: result.imageId,
+        imageCount: updatedItem.images.length,
+        isNewItem
+      });
+
     } catch (error) {
-      logger.error('ItemDetails', 'Image upload failed', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('ItemDetails', 'Independent image upload failed', {
+        error: errorMessage,
+        itemId: realItemId,
+        fullError: error
+      });
       throw error;
     }
   };
@@ -1374,17 +1552,26 @@ export default function ItemDetails() {
 
       logger.info('ItemDetails', 'Image update successful', { imageId });
 
+      // Mark item as edited since image was updated
+      setIsEdited(true);
+
       // Refresh the item to get updated images
       if (!isNewItem && item.id) {
         const updatedItem = await getProductById(item.id);
         if (updatedItem) {
           setItem(updatedItem);
-          setOriginalItem(updatedItem);
+          // DON'T update originalItem - we want to track the change!
         }
       }
 
     } catch (error) {
-      logger.error('ItemDetails', 'Image update failed', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('ItemDetails', 'Image update failed', {
+        error: errorMessage,
+        imageId,
+        itemId: realItemId,
+        fullError: error
+      });
       throw error;
     }
   };
@@ -1401,17 +1588,26 @@ export default function ItemDetails() {
 
       logger.info('ItemDetails', 'Image deletion successful', { imageId });
 
+      // Mark item as edited since image was deleted
+      setIsEdited(true);
+
       // Refresh the item to get updated images
       if (!isNewItem && item.id) {
         const updatedItem = await getProductById(item.id);
         if (updatedItem) {
           setItem(updatedItem);
-          setOriginalItem(updatedItem);
+          // DON'T update originalItem - we want to track the change!
         }
       }
 
     } catch (error) {
-      logger.error('ItemDetails', 'Image deletion failed', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('ItemDetails', 'Image deletion failed', {
+        error: errorMessage,
+        imageId,
+        itemId: realItemId,
+        fullError: error
+      });
       throw error;
     }
   };
@@ -1640,43 +1836,44 @@ export default function ItemDetails() {
                     </View>
                   </View>
 
-                  {/* UPC/Barcode */}
-                  <View style={styles.fieldContainer}>
-                    <Text style={styles.subLabel}>UPC / Barcode</Text>
-                    <View style={styles.inputWrapper}>
-                      <TextInput
-                        style={styles.input}
-                        value={variation.barcode || ''}
-                        onChangeText={(value) => handleVariationChange(index, 'barcode', value)}
-                        placeholder="Enter UPC or scan barcode"
-                        placeholderTextColor="#999"
-                          keyboardType="numeric" // Barcodes can be numeric
-                      />
-                      {(variation.barcode || '').length > 0 && (
-                        <TouchableOpacity onPress={() => handleVariationChange(index, 'barcode', '')} style={styles.clearButton}>
-                          <Ionicons name="close-circle" size={20} color="#ccc" />
-                        </TouchableOpacity>
-                      )}
+                  {/* UPC/Barcode and SKU Row */}
+                  <View style={styles.variationRowContainer}>
+                    <View style={[styles.fieldContainer, styles.variationRowField]}>
+                      <Text style={styles.subLabel}>UPC / Barcode</Text>
+                      <View style={styles.inputWrapper}>
+                        <TextInput
+                          style={styles.input}
+                          value={variation.barcode || ''}
+                          onChangeText={(value) => handleVariationChange(index, 'barcode', value)}
+                          placeholder="Enter UPC or scan barcode"
+                          placeholderTextColor="#999"
+                          keyboardType="numeric"
+                        />
+                        {(variation.barcode || '').length > 0 && (
+                          <TouchableOpacity onPress={() => handleVariationChange(index, 'barcode', '')} style={styles.clearButton}>
+                            <Ionicons name="close-circle" size={20} color="#ccc" />
+                          </TouchableOpacity>
+                        )}
+                      </View>
                     </View>
-                  </View>
 
-                  {/* SKU */}
-                  <View style={styles.fieldContainer}>
-                    <Text style={styles.subLabel}>SKU</Text>
-                    <View style={styles.inputWrapper}>
-                    <TextInput
-                      style={styles.input}
-                      value={variation.sku || ''}
-                      onChangeText={(value) => handleVariationChange(index, 'sku', value)}
-                      placeholder="Enter SKU (optional)"
-                      placeholderTextColor="#999"
-                        autoCapitalize="characters" // Keep autoCapitalize for SKU
-                    />
-                      {(variation.sku || '').length > 0 && (
-                        <TouchableOpacity onPress={() => handleVariationChange(index, 'sku', '')} style={styles.clearButton}>
-                          <Ionicons name="close-circle" size={20} color="#ccc" />
-                        </TouchableOpacity>
-                      )}
+                    <View style={[styles.fieldContainer, styles.variationRowField]}>
+                      <Text style={styles.subLabel}>SKU</Text>
+                      <View style={styles.inputWrapper}>
+                        <TextInput
+                          style={styles.input}
+                          value={variation.sku || ''}
+                          onChangeText={(value) => handleVariationChange(index, 'sku', value)}
+                          placeholder="Enter SKU (optional)"
+                          placeholderTextColor="#999"
+                          autoCapitalize="characters"
+                        />
+                        {(variation.sku || '').length > 0 && (
+                          <TouchableOpacity onPress={() => handleVariationChange(index, 'sku', '')} style={styles.clearButton}>
+                            <Ionicons name="close-circle" size={20} color="#ccc" />
+                          </TouchableOpacity>
+                        )}
+                      </View>
                     </View>
                   </View>
 

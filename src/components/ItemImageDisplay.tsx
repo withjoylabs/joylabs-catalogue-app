@@ -9,10 +9,12 @@ import {
   Alert,
   ActivityIndicator,
   Pressable,
-  ScrollView
+  ScrollView,
+  useWindowDimensions
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { lightTheme } from '../themes';
+import CachedImage from './CachedImage';
 
 interface ItemImage {
   id: string;
@@ -35,15 +37,20 @@ const ItemImageDisplay: React.FC<ItemImageDisplayProps> = ({
   onManageImages,
   style
 }) => {
-  const [isModalVisible, setIsModalVisible] = useState(false);
-  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+
   const [imageLoadErrors, setImageLoadErrors] = useState<Set<string>>(new Set());
+  const { width } = useWindowDimensions();
+
+  // Determine if this is an iPad (tablet) based on screen width
+  const isTablet = width >= 768;
+  const imageSize = isTablet ? 240 : 160; // 3x bigger for iPad (80->240), 2x for iPhone (80->160)
 
   // Debug logging
   React.useEffect(() => {
     console.log('ItemImageDisplay: Received images:', images);
     console.log('ItemImageDisplay: Item name:', itemName);
-  }, [images, itemName]);
+    console.log('ItemImageDisplay: Device type:', isTablet ? 'iPad' : 'iPhone', 'Image size:', imageSize);
+  }, [images, itemName, isTablet, imageSize]);
 
   // Get the first valid image or null
   const primaryImage = images && images.length > 0 ? images[0] : null;
@@ -68,13 +75,9 @@ const ItemImageDisplay: React.FC<ItemImageDisplayProps> = ({
     return letters;
   };
 
-  // Handle image press
+  // Handle image press - always go to management modal
   const handleImagePress = () => {
-    if (primaryImage && onImagePress) {
-      onImagePress(primaryImage, 0);
-    } else if (hasMultipleImages) {
-      setIsModalVisible(true);
-    } else if (onManageImages) {
+    if (onManageImages) {
       onManageImages();
     }
   };
@@ -89,28 +92,31 @@ const ItemImageDisplay: React.FC<ItemImageDisplayProps> = ({
 
   // Render fallback when no images or image failed to load
   const renderFallback = () => (
-    <View style={styles.fallbackContainer}>
-      <Text style={styles.fallbackText}>{generateFallbackIcon()}</Text>
+    <View style={[styles.fallbackContainer, { width: imageSize, height: imageSize }]}>
+      <Text style={[styles.fallbackText, { fontSize: imageSize * 0.3 }]}>{generateFallbackIcon()}</Text>
       {onManageImages && (
         <View style={styles.addIconContainer}>
-          <Ionicons name="add-circle" size={20} color={lightTheme.colors.primary} />
+          <Ionicons name="add-circle" size={Math.min(24, imageSize * 0.15)} color={lightTheme.colors.primary} />
         </View>
       )}
     </View>
   );
 
   // Render image with error handling
-  const renderImage = (image: ItemImage, size: number = 80) => {
+  const renderImage = (image: ItemImage, size: number = imageSize) => {
     if (!image.url || hasImageError(image.id)) {
       return renderFallback();
     }
 
     return (
-      <Image
+      <CachedImage
         source={{ uri: image.url }}
         style={[styles.image, { width: size, height: size }]}
+        fallbackStyle={[styles.fallbackContainer, { width: size, height: size }]}
+        fallbackText={generateFallbackIcon()}
         onError={() => handleImageError(image.id)}
         resizeMode="cover"
+        showLoadingIndicator={true}
       />
     );
   };
@@ -147,64 +153,7 @@ const ItemImageDisplay: React.FC<ItemImageDisplayProps> = ({
         </View>
       </TouchableOpacity>
 
-      {/* Image gallery modal */}
-      <Modal
-        visible={isModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setIsModalVisible(false)}
-      >
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setIsModalVisible(false)}
-        >
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Item Images</Text>
-              <TouchableOpacity
-                onPress={() => setIsModalVisible(false)}
-                style={styles.closeButton}
-              >
-                <Ionicons name="close" size={24} color={lightTheme.colors.text} />
-              </TouchableOpacity>
-            </View>
-            
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.imageGallery}
-            >
-              {images.map((image, index) => (
-                <TouchableOpacity
-                  key={image.id}
-                  style={styles.galleryImageContainer}
-                  onPress={() => handleModalImagePress(image, index)}
-                >
-                  {renderImage(image, 120)}
-                  {image.name && (
-                    <Text style={styles.imageName} numberOfLines={2}>
-                      {image.name}
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-            
-            {onManageImages && (
-              <TouchableOpacity
-                style={styles.manageImagesButton}
-                onPress={() => {
-                  setIsModalVisible(false);
-                  onManageImages();
-                }}
-              >
-                <Ionicons name="settings-outline" size={20} color={lightTheme.colors.primary} />
-                <Text style={styles.manageImagesButtonText}>Manage Images</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </Pressable>
-      </Modal>
+
     </>
   );
 };
@@ -223,13 +172,9 @@ const styles = StyleSheet.create({
     borderColor: lightTheme.colors.border,
   },
   image: {
-    width: 80,
-    height: 80,
     borderRadius: 8,
   },
   fallbackContainer: {
-    width: 80,
-    height: 80,
     backgroundColor: lightTheme.colors.surface,
     borderRadius: 8,
     alignItems: 'center',
@@ -325,6 +270,7 @@ const styles = StyleSheet.create({
     color: lightTheme.colors.primary,
     fontWeight: '500',
   },
+
 });
 
 export default ItemImageDisplay;

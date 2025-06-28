@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,8 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { lightTheme } from '../themes';
 import logger from '../utils/logger';
+import CachedImage from './CachedImage';
+import { imageCacheService } from '../services/imageCacheService';
 
 interface ItemImage {
   id: string;
@@ -48,6 +50,18 @@ const ImageManagementModal: React.FC<ImageManagementModalProps> = ({
   const [deletingImageId, setDeletingImageId] = useState<string | null>(null);
   const [updatingImageId, setUpdatingImageId] = useState<string | null>(null);
 
+  // Preload images when modal becomes visible
+  useEffect(() => {
+    if (visible && images.length > 0) {
+      logger.info('ImageManagementModal', 'Preloading images for modal', { count: images.length });
+      images.forEach(image => {
+        if (image.url) {
+          imageCacheService.preloadImage(image.url);
+        }
+      });
+    }
+  }, [visible, images]);
+
   // Request camera/gallery permissions
   const requestPermissions = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -64,24 +78,52 @@ const ImageManagementModal: React.FC<ImageManagementModalProps> = ({
   // Handle image selection from gallery
   const handleSelectImage = async () => {
     try {
-      const hasPermission = await requestPermissions();
-      if (!hasPermission) return;
+      logger.info('ImageManagementModal', 'Starting gallery image selection');
 
+      const hasPermission = await requestPermissions();
+      if (!hasPermission) {
+        logger.warn('ImageManagementModal', 'Gallery permission denied');
+        return;
+      }
+
+      logger.info('ImageManagementModal', 'Launching image library picker');
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ImagePicker.MediaType.Images,
         allowsEditing: true,
-        aspect: [1, 1],
+        aspect: [1, 1], // Square crop
         quality: 0.8,
         base64: false,
       });
 
+      logger.info('ImageManagementModal', 'Image picker result', {
+        canceled: result.canceled,
+        hasAssets: result.assets?.length > 0,
+        firstAsset: result.assets?.[0] ? {
+          uri: result.assets[0].uri,
+          fileName: result.assets[0].fileName,
+          type: result.assets[0].type
+        } : null
+      });
+
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
+        logger.info('ImageManagementModal', 'Processing selected image', {
+          uri: asset.uri,
+          fileName: asset.fileName
+        });
         await handleUploadImage(asset.uri, asset.fileName || 'image.jpg');
+      } else {
+        logger.info('ImageManagementModal', 'Image selection canceled or no asset');
       }
     } catch (error) {
-      logger.error('ImageManagementModal', 'Error selecting image', error);
-      Alert.alert('Error', 'Failed to select image. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('ImageManagementModal', 'Error selecting image', {
+        error: errorMessage,
+        fullError: error,
+        errorType: typeof error,
+        errorKeys: error ? Object.keys(error) : []
+      });
+      Alert.alert('Error', `Failed to select image: ${errorMessage}`);
     }
   };
 
@@ -102,7 +144,7 @@ const ImageManagementModal: React.FC<ImageManagementModalProps> = ({
 
       const result = await ImagePicker.launchCameraAsync({
         allowsEditing: true,
-        aspect: [1, 1],
+        aspect: [1, 1], // Square crop
         quality: 0.8,
         base64: false,
       });
@@ -127,10 +169,15 @@ const ImageManagementModal: React.FC<ImageManagementModalProps> = ({
     setIsUploading(true);
     try {
       await onImageUpload(imageUri, imageName);
+
+      // Preload the uploaded image for better performance
+      imageCacheService.preloadImage(imageUri);
+
       Alert.alert('Success', 'Image uploaded successfully!');
     } catch (error) {
-      logger.error('ImageManagementModal', 'Error uploading image', error);
-      Alert.alert('Error', 'Failed to upload image. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('ImageManagementModal', 'Error uploading image', { error: errorMessage, fullError: error });
+      Alert.alert('Error', `Failed to upload image: ${errorMessage}`);
     } finally {
       setIsUploading(false);
     }
@@ -148,9 +195,9 @@ const ImageManagementModal: React.FC<ImageManagementModalProps> = ({
       if (!hasPermission) return;
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ImagePicker.MediaType.Images,
         allowsEditing: true,
-        aspect: [1, 1],
+        aspect: [1, 1], // Square crop
         quality: 0.8,
         base64: false,
       });
@@ -161,10 +208,15 @@ const ImageManagementModal: React.FC<ImageManagementModalProps> = ({
         
         try {
           await onImageUpdate(imageId, asset.uri, asset.fileName || 'updated_image.jpg');
+
+          // Preload the updated image for better performance
+          imageCacheService.preloadImage(asset.uri);
+
           Alert.alert('Success', 'Image updated successfully!');
         } catch (error) {
-          logger.error('ImageManagementModal', 'Error updating image', error);
-          Alert.alert('Error', 'Failed to update image. Please try again.');
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          logger.error('ImageManagementModal', 'Error updating image', { error: errorMessage, fullError: error });
+          Alert.alert('Error', `Failed to update image: ${errorMessage}`);
         } finally {
           setUpdatingImageId(null);
         }
@@ -230,7 +282,7 @@ const ImageManagementModal: React.FC<ImageManagementModalProps> = ({
   return (
     <Modal
       visible={visible}
-      animationType="slide"
+      animationType="fade"
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
@@ -303,7 +355,14 @@ const ImageManagementModal: React.FC<ImageManagementModalProps> = ({
                     style={styles.imageItem}
                     onPress={() => showImageOptions(image)}
                   >
-                    <Image source={{ uri: image.url }} style={styles.imagePreview} />
+                    <CachedImage
+                      source={{ uri: image.url }}
+                      style={styles.imagePreview}
+                      fallbackStyle={styles.imagePreviewFallback}
+                      fallbackText={image.name ? image.name.substring(0, 2).toUpperCase() : '📷'}
+                      showLoadingIndicator={true}
+                      resizeMode="cover"
+                    />
                     <Text style={styles.imageName} numberOfLines={2}>
                       {image.name || `Image ${index + 1}`}
                     </Text>
@@ -456,6 +515,16 @@ const styles = StyleSheet.create({
     aspectRatio: 1,
     borderRadius: 4,
     backgroundColor: lightTheme.colors.border,
+  },
+  imagePreviewFallback: {
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: 4,
+    backgroundColor: '#f5f5f5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
   },
   imageName: {
     fontSize: 12,

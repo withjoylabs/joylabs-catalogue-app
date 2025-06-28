@@ -2,6 +2,9 @@ import logger from '../utils/logger';
 import { directSquareApi } from '../api';
 import * as FileSystem from 'expo-file-system';
 import { v4 as uuidv4 } from 'uuid';
+import { getDatabase } from '../database/modernDb';
+import tokenService from '../services/tokenService';
+import { imageService } from '../services/imageService';
 
 export interface SquareImageUploadResult {
   success: boolean;
@@ -19,10 +22,21 @@ export interface SquareImageDeleteResult {
  * Service for managing Square catalog images
  * Handles upload, update, and delete operations with Square API
  */
+interface ImageData {
+  id: string;
+  name: string;
+  url: string;
+  squareUrl?: string;
+  caption?: string;
+  itemId: string;
+}
+
 class SquareImageService {
   
   /**
-   * Upload a new image to Square and associate it with an item
+   * Upload a new image with different behavior for existing vs new items
+   * - Existing items: Complete CRUD operation immediately
+   * - New items: Just return image data for React state (save on item save)
    */
   async uploadImage(
     imageUri: string,
@@ -30,59 +44,102 @@ class SquareImageService {
     itemId: string
   ): Promise<SquareImageUploadResult> {
     try {
-      logger.info('SquareImageService', 'Starting image upload', { imageName, itemId });
+      const isNewItem = itemId === 'new-item-temp' || !itemId;
 
-      // 1. First, create the image object in Square's catalog
-      const imageObject = {
-        type: 'IMAGE',
-        id: `#${uuidv4()}`, // Temporary ID for new objects
-        image_data: {
-          name: imageName,
-          caption: `Image for ${imageName}`
-        }
-      };
-
-      // 2. Create the catalog image object
-      const createResponse = await directSquareApi.upsertCatalogObject(
-        imageObject,
-        uuidv4() // idempotency key
-      );
-
-      if (!createResponse.success || !createResponse.data?.catalog_object) {
-        throw new Error(`Failed to create image object: ${createResponse.error?.message || 'Unknown error'}`);
-      }
-
-      const createdImageId = createResponse.data.catalog_object.id;
-      logger.info('SquareImageService', 'Created image object', { imageId: createdImageId });
-
-      // 3. Upload the actual image file
-      const uploadResult = await this.uploadImageFile(createdImageId, imageUri);
-      
-      if (!uploadResult.success) {
-        // If file upload fails, we should clean up the created image object
-        await this.deleteImage(createdImageId);
-        throw new Error(`Failed to upload image file: ${uploadResult.error}`);
-      }
-
-      // 4. Update the item to include this image
-      await this.addImageToItem(itemId, createdImageId);
-
-      logger.info('SquareImageService', 'Image upload completed successfully', {
-        imageId: createdImageId,
-        imageUrl: uploadResult.imageUrl
+      logger.info('SquareImageService', 'Starting image upload', {
+        imageName,
+        itemId,
+        isNewItem,
+        strategy: isNewItem ? 'defer-until-save' : 'immediate-crud'
       });
 
-      return {
-        success: true,
-        imageId: createdImageId,
-        imageUrl: uploadResult.imageUrl
-      };
+      // Generate image ID and placeholder URL
+      const imageId = `placeholder-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const squareImageUrl = `https://placeholder-images.example.com/${imageId}.jpg`;
+
+      if (isNewItem) {
+        // NEW ITEMS: Just return image data for React state
+        // Actual upload will happen when item is saved
+        logger.info('SquareImageService', 'New item - deferring upload until item save', {
+          imageId,
+          itemId
+        });
+
+        return {
+          success: true,
+          imageId,
+          imageUrl: imageUri // Return local URI for immediate display
+        };
+
+      } else {
+        // EXISTING ITEMS: Complete CRUD operation immediately
+        logger.info('SquareImageService', 'Existing item - performing immediate CRUD', {
+          imageId,
+          itemId
+        });
+
+        // Step 1: Create image in Square (upload file)
+        logger.info('SquareImageService', 'Step 1: Creating image in Square', {
+          imageId,
+          itemId
+        });
+
+        const squareUploadResult = await this.uploadImageToSquare(imageUri, imageName, imageId, itemId);
+        if (!squareUploadResult.success) {
+          throw new Error(`Square image creation failed: ${squareUploadResult.error}`);
+        }
+
+        const actualSquareImageId = squareUploadResult.imageId!;
+        const actualSquareImageUrl = squareUploadResult.imageUrl!;
+        logger.info('SquareImageService', 'Step 1 completed: Image created in Square', {
+          actualSquareImageId,
+          squareImageUrl: actualSquareImageUrl,
+          originalUri: imageUri
+        });
+
+        // Step 2: Save to local database
+        // Note: Image is already attached to item via object_id + is_primary in CreateCatalogImage
+        await this.saveImageToDatabase(actualSquareImageId, {
+          id: actualSquareImageId,
+          name: imageName,
+          url: imageUri, // Use local URI for immediate display
+          squareUrl: actualSquareImageUrl, // Store actual Square URL
+          caption: `Image for item ${itemId}`,
+          itemId: itemId
+        });
+
+        // Step 3: Associate with item in local database
+        await this.associateImageWithItem(actualSquareImageId, itemId);
+
+        // Step 4: Clear image service cache to ensure fresh data is loaded
+        imageService.clearCache();
+        logger.info('SquareImageService', 'Image service cache cleared');
+
+        logger.info('SquareImageService', 'Complete CRUD operation successful', {
+          actualSquareImageId,
+          itemId,
+          localUri: imageUri,
+          squareUrl: actualSquareImageUrl
+        });
+
+        return {
+          success: true,
+          imageId: actualSquareImageId,
+          imageUrl: imageUri // Return local URI for immediate display
+        };
+      }
 
     } catch (error) {
-      logger.error('SquareImageService', 'Image upload failed', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('SquareImageService', 'Image upload failed', {
+        error: errorMessage,
+        imageName,
+        itemId,
+        fullError: error
+      });
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: errorMessage
       };
     }
   }
@@ -165,35 +222,84 @@ class SquareImageService {
   /**
    * Upload image file to Square using the CreateCatalogImage endpoint
    */
-  private async uploadImageFile(imageId: string, imageUri: string): Promise<SquareImageUploadResult> {
+  private async uploadImageToSquare(imageUri: string, imageName: string, imageId: string, itemId: string): Promise<{ success: boolean; imageId?: string; imageUrl?: string; error?: string }> {
     try {
+      logger.info('SquareImageService', 'Starting Square CreateCatalogImage API call', { imageId, imageUri });
+
       // Read the image file
       const fileInfo = await FileSystem.getInfoAsync(imageUri);
       if (!fileInfo.exists) {
         throw new Error('Image file does not exist');
       }
 
-      // TODO: Implement actual Square CreateCatalogImage API call
-      // This requires multipart/form-data upload with:
-      // - JSON part with idempotency_key, object_id, image metadata
-      // - File part with the actual image data
-      // Example: https://developer.squareup.com/reference/square/catalog-api/create-catalog-image
-      // For now, we'll return a placeholder to allow the UI to work
+      // Use FileSystem.uploadAsync for proper multipart upload
+      const authHeaders = await tokenService.getAuthHeaders();
 
-      logger.info('SquareImageService', 'Image file upload - using placeholder implementation', { imageId, imageUri });
+      // JSON part with image metadata - Upload AND attach in one call
+      const imageRequest = {
+        idempotency_key: uuidv4(),
+        object_id: itemId, // Attach to item immediately
+        image: {
+          id: "#TEMP_ID", // Square expects this for new images
+          type: 'IMAGE',
+          image_data: {
+            name: imageName,
+            caption: `Uploaded via JoyLabs app`
+          }
+        },
+        is_primary: true // Make this the primary image
+      };
 
-      // Simulate upload delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      logger.info('SquareImageService', 'Using FileSystem.uploadAsync for multipart upload', {
+        imageUri,
+        imageName,
+        requestData: imageRequest
+      });
 
-      // Return success with a placeholder URL
-      // In real implementation, this would be the actual Square image URL from the API response
+      const squareResponse = await FileSystem.uploadAsync(
+        'https://connect.squareup.com/v2/catalog/images',
+        imageUri,
+        {
+          httpMethod: 'POST',
+          uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+          fieldName: 'file',
+          headers: {
+            ...authHeaders,
+            'Square-Version': '2025-04-16',
+          },
+          parameters: {
+            request: JSON.stringify(imageRequest)
+          }
+        }
+      );
+
+      if (squareResponse.status !== 200) {
+        throw new Error(`Square API error: ${squareResponse.status} ${squareResponse.body}`);
+      }
+
+      const result = JSON.parse(squareResponse.body);
+
+      if (!result.image || !result.image.image_data) {
+        throw new Error('Invalid response from Square CreateCatalogImage API');
+      }
+
+      const actualImageId = result.image.id;
+      const squareImageUrl = result.image.image_data.url;
+
+      logger.info('SquareImageService', 'Square CreateCatalogImage successful', {
+        actualImageId,
+        squareImageUrl,
+        placeholderImageId: imageId
+      });
+
       return {
         success: true,
-        imageUrl: `https://square-catalog-sandbox.s3.amazonaws.com/files/placeholder-${imageId}/original.png`
+        imageId: actualImageId, // Return the actual Square-generated image ID
+        imageUrl: squareImageUrl
       };
 
     } catch (error) {
-      logger.error('SquareImageService', 'Image file upload failed', error);
+      logger.error('SquareImageService', 'Square CreateCatalogImage failed', { error, imageId });
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'
@@ -202,9 +308,9 @@ class SquareImageService {
   }
 
   /**
-   * Add an image to an item's image_ids array
+   * Add an image to a Square item's image_ids array
    */
-  private async addImageToItem(itemId: string, imageId: string): Promise<void> {
+  async addImageToSquareItem(imageId: string, itemId: string): Promise<void> {
     try {
       // 1. Retrieve the current item
       const itemResponse = await directSquareApi.retrieveCatalogObject(itemId, false);
@@ -236,11 +342,15 @@ class SquareImageService {
           throw new Error('Failed to update item with new image');
         }
 
-        logger.info('SquareImageService', 'Successfully added image to item', { itemId, imageId });
+        logger.info('SquareImageService', 'Successfully added image to Square item', {
+          itemId,
+          imageId,
+          totalImages: updatedItem.item_data.image_ids.length
+        });
       }
 
     } catch (error) {
-      logger.error('SquareImageService', 'Failed to add image to item', error);
+      logger.error('SquareImageService', 'Failed to add image to Square item', { error, itemId, imageId });
       throw error;
     }
   }
@@ -332,6 +442,123 @@ class SquareImageService {
       throw error;
     }
   }
+
+  /**
+   * Save image data to local database
+   */
+  private async saveImageToDatabase(imageId: string, imageData: ImageData): Promise<void> {
+    try {
+      logger.info('SquareImageService', 'Saving image to local database', { imageId, itemId: imageData.itemId });
+
+      const db = await getDatabase();
+
+      // Save to images table
+      await db.runAsync(
+        `INSERT OR REPLACE INTO images
+         (id, updated_at, version, is_deleted, name, url, caption, type, data_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          imageId,
+          new Date().toISOString(),
+          '1',
+          0,
+          imageData.name || '',
+          imageData.url || '',
+          imageData.caption || '',
+          'IMAGE',
+          JSON.stringify({
+            name: imageData.name,
+            url: imageData.url,
+            squareUrl: imageData.squareUrl,
+            caption: imageData.caption,
+            itemId: imageData.itemId
+          })
+        ]
+      );
+
+      logger.info('SquareImageService', 'Image saved to database successfully', { imageId });
+
+      // Verify the save by reading it back
+      const verifyResult = await db.getFirstAsync<{ id: string; url: string; name: string }>(
+        `SELECT id, url, name FROM images WHERE id = ?`, [imageId]
+      );
+      logger.info('SquareImageService', 'Database save verification', {
+        imageId,
+        found: !!verifyResult,
+        url: verifyResult?.url,
+        name: verifyResult?.name
+      });
+    } catch (error) {
+      logger.error('SquareImageService', 'Failed to save image to database', { error, imageId });
+      throw error;
+    }
+  }
+
+  /**
+   * Associate image with item in database
+   */
+  private async associateImageWithItem(imageId: string, itemId: string): Promise<void> {
+    try {
+      logger.info('SquareImageService', 'Associating image with item', { imageId, itemId });
+
+      const db = await getDatabase();
+
+      // Get current item data
+      const itemResult = await db.getFirstAsync<{
+        id: string;
+        data_json: string;
+      }>(`SELECT id, data_json FROM catalog_items WHERE id = ?`, [itemId]);
+
+      if (itemResult) {
+        const currentData = itemResult.data_json ? JSON.parse(itemResult.data_json) : {};
+        const currentImageIds = currentData.image_ids || [];
+
+        // Add the new image ID if not already present
+        if (!currentImageIds.includes(imageId)) {
+          const updatedData = {
+            ...currentData,
+            image_ids: [...currentImageIds, imageId]
+          };
+
+          // Update the item with new image_ids
+          await db.runAsync(
+            `UPDATE catalog_items SET data_json = ?, updated_at = ? WHERE id = ?`,
+            [JSON.stringify(updatedData), new Date().toISOString(), itemId]
+          );
+
+          logger.info('SquareImageService', 'Image associated with item successfully', {
+            itemId,
+            imageId,
+            totalImages: updatedData.image_ids.length
+          });
+
+          // Verify the association by reading it back
+          const verifyResult = await db.getFirstAsync<{ id: string; data_json: string }>(
+            `SELECT id, data_json FROM catalog_items WHERE id = ?`, [itemId]
+          );
+          if (verifyResult) {
+            const verifyData = JSON.parse(verifyResult.data_json || '{}');
+            logger.info('SquareImageService', 'Item association verification', {
+              itemId,
+              imageId,
+              currentImageIds: verifyData.image_ids || [],
+              imageFound: (verifyData.image_ids || []).includes(imageId)
+            });
+          }
+        } else {
+          logger.info('SquareImageService', 'Image already associated with item', { itemId, imageId });
+        }
+      } else {
+        logger.warn('SquareImageService', 'Item not found in database', { itemId });
+        throw new Error(`Item ${itemId} not found in database`);
+      }
+    } catch (error) {
+      logger.error('SquareImageService', 'Failed to associate image with item', { error, imageId, itemId });
+      throw error;
+    }
+  }
+
+
 }
 
 // Export singleton instance

@@ -5,6 +5,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAppStore } from '../../src/store';
 import logger from '../../src/utils/logger';
 import { reorderService } from '../../src/services/reorderService';
+import { imageCacheService } from '../../src/services/imageCacheService';
+import '../../src/utils/debugImageCache'; // Initialize debug utilities
 
 // Styles for the custom FAB, extracted from original BottomTabBar.tsx logic
 // Note: These were previously in app/_layout.tsx
@@ -132,6 +134,13 @@ function ReorderIconWithBadge({ color, focused }: { color: string; focused: bool
 }
 
 export default function MainTabsLayout() {
+  // Initialize image cache service on app startup
+  useEffect(() => {
+    imageCacheService.initialize().catch(error => {
+      logger.error('MainTabsLayout', 'Failed to initialize image cache', error);
+    });
+  }, []);
+
   return (
     <Tabs
       initialRouteName="(scan)"

@@ -30,6 +30,8 @@ interface ItemStyles {
   itemHeaderContainer: any;
   nameInputContainer: any;
   itemImage: any;
+  variationRowContainer: any;
+  variationRowField: any;
   textArea: any;
   priceInputContainer: any;
   currencySymbol: any;
@@ -375,6 +377,14 @@ export const styles = StyleSheet.create({
   },
   itemImage: {
     marginTop: 0,
+  },
+  // New styles for variation row layout
+  variationRowContainer: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  variationRowField: {
+    flex: 1,
   },
   textArea: {
     height: 100,

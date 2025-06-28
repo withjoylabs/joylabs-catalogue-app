@@ -315,7 +315,9 @@ export const useCatalogItems = () => {
           item_data: {
             ...(itemData.item_data || {}), // Spread item_data fields
             // Explicitly add reporting_category from the raw item data
-            reporting_category: itemData?.item_data?.reporting_category, 
+            reporting_category: itemData?.item_data?.reporting_category,
+            // CRITICAL FIX: Include image_ids from root level of itemData
+            image_ids: itemData.image_ids || [],
           // Include ALL variations for transformer
           variations: variations.map(v => ({
             id: v.id,

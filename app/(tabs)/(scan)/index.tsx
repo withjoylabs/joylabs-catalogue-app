@@ -44,6 +44,8 @@ import { reorderService, TeamData } from '../../../src/services/reorderService';
 import { generateClient } from 'aws-amplify/api';
 import * as queries from '../../../src/graphql/queries';
 import { useAuthenticator } from '@aws-amplify/ui-react-native';
+import CachedImage from '../../../src/components/CachedImage';
+import { imageCacheService } from '../../../src/services/imageCacheService';
 
 const client = generateClient();
 
@@ -193,6 +195,14 @@ const SearchResultsArea = memo(({
     setSearchResults(processedResults);
     setIsSearchPending(false); // Clear pending state when search completes
     onSearchComplete(); // Notify parent that search is done
+
+    // Preload images for better performance
+    processedResults.forEach(item => {
+      if (item.images && item.images.length > 0 && item.images[0].url) {
+        imageCacheService.preloadImage(item.images[0].url);
+      }
+    });
+
     // logger.info('SearchResultsArea', 'Search executed, results set.', { count: processedResults.length });
   }, [searchTopic, searchFilters, performSearch, sortOrder, selectedResultCategoryId, setSearchResults, onSearchComplete]);
 
@@ -511,9 +521,12 @@ const SearchResultsArea = memo(({
           {/* Item Image Thumbnail */}
           <View style={(styles as any).resultImageContainer}>
             {item.images && item.images.length > 0 && item.images[0].url ? (
-              <Image
+              <CachedImage
                 source={{ uri: item.images[0].url }}
                 style={(styles as any).resultImage}
+                fallbackStyle={(styles as any).resultImageFallback}
+                fallbackText={item.name ? item.name.substring(0, 2).toUpperCase() : '📦'}
+                showLoadingIndicator={false}
                 onError={() => {
                   // Handle image load error silently
                   console.log('Failed to load image for item:', item.id);
