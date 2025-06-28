@@ -4,6 +4,7 @@ import {
   Text,
   Modal,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   StyleSheet,
   ScrollView,
   Alert,
@@ -32,7 +33,7 @@ interface ImageManagementModalProps {
   itemId: string;
   itemName: string;
   onImageUpload?: (imageUri: string, imageName: string) => Promise<void>;
-  onImageUpdate?: (imageId: string, imageUri: string, imageName: string) => Promise<void>;
+  onImageMakePrimary?: (imageId: string) => Promise<void>;
   onImageDelete?: (imageId: string) => Promise<void>;
 }
 
@@ -43,12 +44,14 @@ const ImageManagementModal: React.FC<ImageManagementModalProps> = ({
   itemId,
   itemName,
   onImageUpload,
-  onImageUpdate,
+  onImageMakePrimary,
   onImageDelete
 }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [deletingImageId, setDeletingImageId] = useState<string | null>(null);
-  const [updatingImageId, setUpdatingImageId] = useState<string | null>(null);
+  const [makingPrimaryImageId, setMakingPrimaryImageId] = useState<string | null>(null);
+  const [confirmDeleteImageId, setConfirmDeleteImageId] = useState<string | null>(null);
+  const [confirmPrimaryImageId, setConfirmPrimaryImageId] = useState<string | null>(null);
 
   // Preload images when modal becomes visible
   useEffect(() => {
@@ -88,7 +91,7 @@ const ImageManagementModal: React.FC<ImageManagementModalProps> = ({
 
       logger.info('ImageManagementModal', 'Launching image library picker');
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaType.Images,
+        mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1], // Square crop
         quality: 0.8,
@@ -130,9 +133,11 @@ const ImageManagementModal: React.FC<ImageManagementModalProps> = ({
   // Handle camera capture
   const handleTakePhoto = async () => {
     try {
-      const hasPermission = await requestPermissions();
-      if (!hasPermission) return;
+      // Need gallery permission to access saved photos
+      const hasGalleryPermission = await requestPermissions();
+      if (!hasGalleryPermission) return;
 
+      // Need camera permission to take photos
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert(
@@ -143,6 +148,7 @@ const ImageManagementModal: React.FC<ImageManagementModalProps> = ({
       }
 
       const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1], // Square crop
         quality: 0.8,
@@ -173,7 +179,7 @@ const ImageManagementModal: React.FC<ImageManagementModalProps> = ({
       // Preload the uploaded image for better performance
       imageCacheService.preloadImage(imageUri);
 
-      Alert.alert('Success', 'Image uploaded successfully!');
+      // No success popup - user can see the image was added to the list
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       logger.error('ImageManagementModal', 'Error uploading image', { error: errorMessage, fullError: error });
@@ -183,101 +189,42 @@ const ImageManagementModal: React.FC<ImageManagementModalProps> = ({
     }
   };
 
-  // Handle image update
-  const handleUpdateImage = async (imageId: string) => {
-    if (!onImageUpdate) {
-      Alert.alert('Error', 'Image update not available');
+  // Handle making image primary
+  const handleMakePrimary = async (imageId: string) => {
+    if (!onImageMakePrimary) {
       return;
     }
 
+    setMakingPrimaryImageId(imageId);
     try {
-      const hasPermission = await requestPermissions();
-      if (!hasPermission) return;
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaType.Images,
-        allowsEditing: true,
-        aspect: [1, 1], // Square crop
-        quality: 0.8,
-        base64: false,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        const asset = result.assets[0];
-        setUpdatingImageId(imageId);
-        
-        try {
-          await onImageUpdate(imageId, asset.uri, asset.fileName || 'updated_image.jpg');
-
-          // Preload the updated image for better performance
-          imageCacheService.preloadImage(asset.uri);
-
-          Alert.alert('Success', 'Image updated successfully!');
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          logger.error('ImageManagementModal', 'Error updating image', { error: errorMessage, fullError: error });
-          Alert.alert('Error', `Failed to update image: ${errorMessage}`);
-        } finally {
-          setUpdatingImageId(null);
-        }
-      }
+      await onImageMakePrimary(imageId);
     } catch (error) {
-      logger.error('ImageManagementModal', 'Error selecting image for update', error);
-      Alert.alert('Error', 'Failed to select image. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('ImageManagementModal', 'Error making image primary', { error: errorMessage, fullError: error });
+      Alert.alert('Error', `Failed to make image primary: ${errorMessage}`);
+    } finally {
+      setMakingPrimaryImageId(null);
     }
   };
 
   // Handle image deletion
   const handleDeleteImage = async (imageId: string) => {
     if (!onImageDelete) {
-      Alert.alert('Error', 'Image deletion not available');
       return;
     }
 
-    Alert.alert(
-      'Delete Image',
-      'Are you sure you want to delete this image? This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            setDeletingImageId(imageId);
-            try {
-              await onImageDelete(imageId);
-              Alert.alert('Success', 'Image deleted successfully!');
-            } catch (error) {
-              logger.error('ImageManagementModal', 'Error deleting image', error);
-              Alert.alert('Error', 'Failed to delete image. Please try again.');
-            } finally {
-              setDeletingImageId(null);
-            }
-          }
-        }
-      ]
-    );
+    setDeletingImageId(imageId);
+    try {
+      await onImageDelete(imageId);
+    } catch (error) {
+      logger.error('ImageManagementModal', 'Error deleting image', { error, imageId });
+      Alert.alert('Error', 'Failed to delete image. Please try again.');
+    } finally {
+      setDeletingImageId(null);
+    }
   };
 
-  // Show action options for image
-  const showImageOptions = (image: ItemImage) => {
-    Alert.alert(
-      'Image Options',
-      `What would you like to do with this image?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Update',
-          onPress: () => handleUpdateImage(image.id)
-        },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => handleDeleteImage(image.id)
-        }
-      ]
-    );
-  };
+
 
   return (
     <Modal
@@ -349,44 +296,152 @@ const ImageManagementModal: React.FC<ImageManagementModalProps> = ({
               </View>
             ) : (
               <View style={styles.imagesGrid}>
-                {images.map((image, index) => (
-                  <TouchableOpacity
-                    key={image.id}
-                    style={styles.imageItem}
-                    onPress={() => showImageOptions(image)}
-                  >
-                    <CachedImage
-                      source={{ uri: image.url }}
-                      style={styles.imagePreview}
-                      fallbackStyle={styles.imagePreviewFallback}
-                      fallbackText={image.name ? image.name.substring(0, 2).toUpperCase() : '📷'}
-                      showLoadingIndicator={true}
-                      resizeMode="cover"
-                    />
-                    <Text style={styles.imageName} numberOfLines={2}>
-                      {image.name || `Image ${index + 1}`}
-                    </Text>
-                    
-                    {/* Loading overlay */}
-                    {(deletingImageId === image.id || updatingImageId === image.id) && (
-                      <View style={styles.imageLoadingOverlay}>
-                        <ActivityIndicator size="small" color="white" />
+                {images.map((image, index) => {
+                  const isPrimary = index === 0;
+                  const isLoading = deletingImageId === image.id || makingPrimaryImageId === image.id;
+
+                  return (
+                    <View key={image.id} style={styles.imageItem}>
+                      <View style={styles.imageContainer}>
+                        <CachedImage
+                          source={{ uri: image.url }}
+                          style={styles.imagePreview}
+                          fallbackStyle={styles.imagePreviewFallback}
+                          fallbackText={image.name ? image.name.substring(0, 2).toUpperCase() : '📷'}
+                          showLoadingIndicator={true}
+                          resizeMode="cover"
+                        />
+
+                        {/* Action icons overlay */}
+                        {!isLoading && (
+                          <View style={styles.imageActionsOverlay}>
+                            {/* Make Primary icon (bottom left) - only show if not already primary */}
+                            {!isPrimary && (
+                              <TouchableOpacity
+                                style={[styles.actionIcon, styles.primaryIcon]}
+                                onPress={() => setConfirmPrimaryImageId(image.id)}
+                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                              >
+                                <Ionicons name="star" size={20} color="white" />
+                              </TouchableOpacity>
+                            )}
+
+                            {/* Spacer for primary images to push delete icon to the right */}
+                            {isPrimary && <View style={{ flex: 1 }} />}
+
+                            {/* Delete icon (bottom right) - always show */}
+                            <TouchableOpacity
+                              style={[styles.actionIcon, styles.deleteIcon]}
+                              onPress={() => setConfirmDeleteImageId(image.id)}
+                              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            >
+                              <Ionicons name="trash-outline" size={20} color="white" />
+                            </TouchableOpacity>
+                          </View>
+                        )}
+
+                        {/* Primary badge (bottom left) */}
+                        {isPrimary && (
+                          <View style={styles.primaryBadge}>
+                            <Ionicons name="star" size={20} color="#FFD700" />
+                          </View>
+                        )}
+
+                        {/* Loading overlay */}
+                        {isLoading && (
+                          <View style={styles.imageLoadingOverlay}>
+                            <ActivityIndicator size="small" color="white" />
+                          </View>
+                        )}
                       </View>
-                    )}
-                    
-                    {/* Primary image indicator */}
-                    {index === 0 && (
-                      <View style={styles.primaryIndicator}>
-                        <Text style={styles.primaryIndicatorText}>Primary</Text>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                ))}
+                    </View>
+                  );
+                })}
               </View>
             )}
           </View>
         </ScrollView>
       </SafeAreaView>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        visible={confirmDeleteImageId !== null}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setConfirmDeleteImageId(null)}
+      >
+        <TouchableWithoutFeedback onPress={() => setConfirmDeleteImageId(null)}>
+          <View style={styles.confirmModalOverlay}>
+            <TouchableWithoutFeedback onPress={() => {}}>
+              <View style={styles.confirmModalContent}>
+                <Text style={styles.confirmModalTitle}>Delete Image</Text>
+                <Text style={styles.confirmModalMessage}>
+                  Are you sure you want to delete this image? This action cannot be undone.
+                </Text>
+                <View style={styles.confirmModalButtons}>
+                  <TouchableOpacity
+                    style={[styles.confirmModalButton, styles.confirmModalCancelButton]}
+                    onPress={() => setConfirmDeleteImageId(null)}
+                  >
+                    <Text style={styles.confirmModalCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.confirmModalButton, styles.confirmModalDeleteButton]}
+                    onPress={() => {
+                      if (confirmDeleteImageId) {
+                        handleDeleteImage(confirmDeleteImageId);
+                        setConfirmDeleteImageId(null);
+                      }
+                    }}
+                  >
+                    <Text style={styles.confirmModalDeleteText}>Delete</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* Make Primary Confirmation Modal */}
+      <Modal
+        visible={confirmPrimaryImageId !== null}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setConfirmPrimaryImageId(null)}
+      >
+        <TouchableWithoutFeedback onPress={() => setConfirmPrimaryImageId(null)}>
+          <View style={styles.confirmModalOverlay}>
+            <TouchableWithoutFeedback onPress={() => {}}>
+              <View style={styles.confirmModalContent}>
+                <Text style={styles.confirmModalTitle}>Make Primary Image</Text>
+                <Text style={styles.confirmModalMessage}>
+                  Set this image as the primary image for this item?
+                </Text>
+                <View style={styles.confirmModalButtons}>
+                  <TouchableOpacity
+                    style={[styles.confirmModalButton, styles.confirmModalCancelButton]}
+                    onPress={() => setConfirmPrimaryImageId(null)}
+                  >
+                    <Text style={styles.confirmModalCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.confirmModalButton, styles.confirmModalPrimaryButton]}
+                    onPress={() => {
+                      if (confirmPrimaryImageId) {
+                        handleMakePrimary(confirmPrimaryImageId);
+                        setConfirmPrimaryImageId(null);
+                      }
+                    }}
+                  >
+                    <Text style={styles.confirmModalPrimaryText}>Make Primary</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </Modal>
   );
 };
@@ -505,32 +560,23 @@ const styles = StyleSheet.create({
   },
   imageItem: {
     width: '48%',
-    backgroundColor: lightTheme.colors.surface,
-    borderRadius: 8,
-    padding: 8,
+    marginBottom: 16,
+  },
+  imageContainer: {
     position: 'relative',
   },
   imagePreview: {
     width: '100%',
     aspectRatio: 1,
-    borderRadius: 4,
-    backgroundColor: lightTheme.colors.border,
+    borderRadius: 8,
   },
   imagePreviewFallback: {
     width: '100%',
     aspectRatio: 1,
-    borderRadius: 4,
-    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    backgroundColor: lightTheme.colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-  },
-  imageName: {
-    fontSize: 12,
-    color: lightTheme.colors.textSecondary,
-    marginTop: 8,
-    textAlign: 'center',
   },
   imageLoadingOverlay: {
     position: 'absolute',
@@ -543,19 +589,107 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  primaryIndicator: {
+  imageActionsOverlay: {
     position: 'absolute',
-    top: 12,
-    right: 12,
-    backgroundColor: lightTheme.colors.primary,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    bottom: 8,
+    left: 8,
+    right: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
   },
-  primaryIndicatorText: {
-    fontSize: 10,
-    color: 'white',
+  actionIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  primaryIcon: {
+    // Additional styles for primary icon if needed
+  },
+  deleteIcon: {
+    // Additional styles for delete icon if needed
+  },
+  primaryBadge: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  confirmModalContent: {
+    backgroundColor: lightTheme.colors.background,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    padding: 24,
+    paddingBottom: 34, // Extra padding for safe area
+  },
+  confirmModalTitle: {
+    fontSize: 18,
     fontWeight: '600',
+    color: lightTheme.colors.text,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  confirmModalMessage: {
+    fontSize: 16,
+    color: lightTheme.colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  confirmModalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  confirmModalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  confirmModalCancelButton: {
+    backgroundColor: lightTheme.colors.surface,
+    borderWidth: 1,
+    borderColor: lightTheme.colors.border,
+  },
+  confirmModalDeleteButton: {
+    backgroundColor: '#FF3B30',
+  },
+  confirmModalPrimaryButton: {
+    backgroundColor: lightTheme.colors.primary,
+  },
+  confirmModalCancelText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: lightTheme.colors.text,
+  },
+  confirmModalDeleteText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: 'white',
+  },
+  confirmModalPrimaryText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: 'white',
   },
 });
 

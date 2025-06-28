@@ -1540,33 +1540,56 @@ export default function ItemDetails() {
     }
   };
 
-  const handleImageUpdate = async (imageId: string, imageUri: string, imageName: string): Promise<void> => {
+  const handleImageMakePrimary = async (imageId: string): Promise<void> => {
     try {
-      logger.info('ItemDetails', 'Starting image update', { imageId, imageName });
+      logger.info('ItemDetails', 'Starting make image primary', { imageId });
 
-      const result = await squareImageService.updateImage(imageId, imageUri, imageName);
+      // Reorder the images array to put the selected image first
+      const currentImages = [...(item.images || [])];
+      const imageIndex = currentImages.findIndex(img => img.id === imageId);
+
+      if (imageIndex === -1) {
+        throw new Error('Image not found in current images');
+      }
+
+      if (imageIndex === 0) {
+        logger.info('ItemDetails', 'Image is already primary', { imageId });
+        return; // Already primary
+      }
+
+      // Move the selected image to the front
+      const [selectedImage] = currentImages.splice(imageIndex, 1);
+      const reorderedImages = [selectedImage, ...currentImages];
+
+      // Update the item's image_ids array in the database
+      const imageIds = reorderedImages.map(img => img.id);
+
+      // Update the local item state immediately for UI responsiveness
+      setItem(prev => ({
+        ...prev,
+        images: reorderedImages
+      }));
+
+      // Update the database with the new image order
+      const result = await squareImageService.reorderImages(item.id, imageIds);
 
       if (!result.success) {
-        throw new Error(result.error || 'Failed to update image');
+        // Revert the UI change if database update failed
+        setItem(prev => ({
+          ...prev,
+          images: currentImages
+        }));
+        throw new Error(result.error || 'Failed to reorder images');
       }
 
-      logger.info('ItemDetails', 'Image update successful', { imageId });
+      logger.info('ItemDetails', 'Image made primary successfully', { imageId });
 
-      // Mark item as edited since image was updated
+      // Mark item as edited since image order was changed
       setIsEdited(true);
-
-      // Refresh the item to get updated images
-      if (!isNewItem && item.id) {
-        const updatedItem = await getProductById(item.id);
-        if (updatedItem) {
-          setItem(updatedItem);
-          // DON'T update originalItem - we want to track the change!
-        }
-      }
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('ItemDetails', 'Image update failed', {
+      logger.error('ItemDetails', 'Make image primary failed', {
         error: errorMessage,
         imageId,
         itemId: realItemId,
@@ -2429,7 +2452,7 @@ export default function ItemDetails() {
               itemId={item.id}
               itemName={item.name || ''}
               onImageUpload={handleImageUpload}
-              onImageUpdate={handleImageUpdate}
+              onImageMakePrimary={handleImageMakePrimary}
               onImageDelete={handleImageDelete}
             />
         </View>

@@ -199,14 +199,35 @@ class SquareImageService {
         await this.removeImageFromItem(itemId, imageId);
       }
 
-      // 2. Delete the image object from Square
-      const deleteResponse = await directSquareApi.deleteCatalogObject(imageId);
-      
-      if (!deleteResponse.success) {
-        throw new Error(`Failed to delete image: ${deleteResponse.error?.message || 'Unknown error'}`);
+      // 2. Check if this is a placeholder ID (from failed uploads)
+      const isPlaceholder = imageId.startsWith('placeholder-');
+
+      if (isPlaceholder) {
+        logger.info('SquareImageService', 'Skipping Square deletion for placeholder ID', { imageId });
+      } else {
+        // 3. Delete the image object from Square (only for real Square IDs)
+        logger.info('SquareImageService', 'Deleting real Square image', { imageId });
+        const deleteResponse = await directSquareApi.deleteCatalogObject(imageId);
+
+        if (!deleteResponse.success) {
+          throw new Error(`Failed to delete image from Square: ${deleteResponse.error?.message || 'Unknown error'}`);
+        }
+
+        logger.info('SquareImageService', 'Square image deletion successful', { imageId });
       }
 
-      logger.info('SquareImageService', 'Image deletion completed successfully', { imageId });
+      // 4. Delete from local database (always, regardless of placeholder status)
+      await this.deleteImageFromDatabase(imageId);
+
+      // 5. Clear image service cache to ensure fresh data is loaded
+      imageService.clearCache();
+      logger.info('SquareImageService', 'Image service cache cleared after deletion');
+
+      logger.info('SquareImageService', 'Image deletion completed successfully', {
+        imageId,
+        wasPlaceholder: isPlaceholder,
+        deletedFromSquare: !isPlaceholder
+      });
 
       return { success: true };
 
@@ -246,8 +267,8 @@ class SquareImageService {
             name: imageName,
             caption: `Uploaded via JoyLabs app`
           }
-        },
-        is_primary: true // Make this the primary image
+        }
+        // Note: NOT setting is_primary - let Square add to end of image_ids array
       };
 
       logger.info('SquareImageService', 'Using FileSystem.uploadAsync for multipart upload', {
@@ -558,6 +579,117 @@ class SquareImageService {
     }
   }
 
+  /**
+   * Reorder images for an item (used for making an image primary)
+   * According to Square's API: the first image in image_ids array is the primary image
+   */
+  async reorderImages(itemId: string, newImageIds: string[]): Promise<SquareImageUploadResult> {
+    try {
+      logger.info('SquareImageService', 'Starting image reorder to make image primary', { itemId, newImageIds });
+
+      // 1. First get the current item from Square to get the real image_ids order
+      const itemResponse = await directSquareApi.retrieveCatalogObject(itemId, false);
+
+      if (!itemResponse.success || !itemResponse.data?.object) {
+        throw new Error('Failed to retrieve current item from Square');
+      }
+
+      const currentSquareItem = itemResponse.data.object;
+      const currentSquareImageIds = currentSquareItem.item_data?.image_ids || [];
+
+      logger.info('SquareImageService', 'Current Square image order vs requested order', {
+        currentSquareImageIds,
+        requestedNewOrder: newImageIds
+      });
+
+      // 2. Filter out placeholder IDs for Square (but keep them for local database)
+      const realSquareImageIds = newImageIds.filter(id => !id.startsWith('placeholder-'));
+
+      logger.info('SquareImageService', 'Updating image order in Square', {
+        itemId,
+        allImageIds: newImageIds,
+        realSquareImageIds,
+        filteredOutPlaceholders: newImageIds.filter(id => id.startsWith('placeholder-'))
+      });
+
+      // 3. Update Square with the new image order (only real Square IDs)
+      const updatePayload = {
+        type: 'ITEM',
+        id: itemId,
+        version: currentSquareItem.version,
+        item_data: {
+          ...currentSquareItem.item_data,
+          image_ids: realSquareImageIds // Only send real Square IDs in new order
+        }
+      };
+
+      const squareResponse = await directSquareApi.upsertCatalogObject(updatePayload, uuidv4());
+
+      if (!squareResponse.success) {
+        throw new Error(`Failed to update image order in Square: ${squareResponse.error?.message || 'Unknown error'}`);
+      }
+
+      logger.info('SquareImageService', 'Square image order update successful', {
+        itemId,
+        newSquareOrder: realSquareImageIds
+      });
+
+      // 4. Update the local database to match the new order (including placeholders)
+      const db = await getDatabase();
+      const currentLocalItem = await db.getFirstAsync<{ data_json: string }>(
+        `SELECT data_json FROM catalog_items WHERE id = ? AND is_deleted = 0`,
+        [itemId]
+      );
+
+      if (!currentLocalItem) {
+        throw new Error(`Item ${itemId} not found in local database`);
+      }
+
+      const localItemData = JSON.parse(currentLocalItem.data_json || '{}');
+      localItemData.image_ids = newImageIds; // Store ALL image IDs including placeholders
+
+      await db.runAsync(
+        `UPDATE catalog_items SET data_json = ?, updated_at = ? WHERE id = ?`,
+        [JSON.stringify(localItemData), new Date().toISOString(), itemId]
+      );
+
+      logger.info('SquareImageService', 'Image reorder completed successfully', {
+        itemId,
+        newLocalOrder: newImageIds,
+        newSquareOrder: realSquareImageIds,
+        primaryImageId: newImageIds[0]
+      });
+
+      return { success: true };
+
+    } catch (error) {
+      logger.error('SquareImageService', 'Failed to reorder images', { itemId, imageIds, error });
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
+  /**
+   * Delete an image from the local database
+   */
+  private async deleteImageFromDatabase(imageId: string): Promise<void> {
+    try {
+      logger.info('SquareImageService', 'Deleting image from local database', { imageId });
+
+      const db = await getDatabase();
+
+      // Mark image as deleted (soft delete)
+      await db.runAsync(
+        `UPDATE images SET is_deleted = 1, updated_at = ? WHERE id = ?`,
+        [new Date().toISOString(), imageId]
+      );
+
+      logger.info('SquareImageService', 'Image deleted from local database successfully', { imageId });
+
+    } catch (error) {
+      logger.error('SquareImageService', 'Failed to delete image from database', { imageId, error });
+      throw error;
+    }
+  }
 
 }
 
