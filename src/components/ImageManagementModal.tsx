@@ -9,16 +9,14 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
-  Image,
-  Pressable,
   SafeAreaView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
 import { lightTheme } from '../themes';
 import logger from '../utils/logger';
 import CachedImage from './CachedImage';
 import { imageCacheService } from '../services/imageCacheService';
+import InstagramStyleImagePicker from './InstagramStyleImagePicker';
 
 interface ItemImage {
   id: string;
@@ -52,6 +50,7 @@ const ImageManagementModal: React.FC<ImageManagementModalProps> = ({
   const [makingPrimaryImageId, setMakingPrimaryImageId] = useState<string | null>(null);
   const [confirmDeleteImageId, setConfirmDeleteImageId] = useState<string | null>(null);
   const [confirmPrimaryImageId, setConfirmPrimaryImageId] = useState<string | null>(null);
+  const [instagramPickerVisible, setInstagramPickerVisible] = useState(false);
 
   // Preload images when modal becomes visible
   useEffect(() => {
@@ -65,103 +64,20 @@ const ImageManagementModal: React.FC<ImageManagementModalProps> = ({
     }
   }, [visible, images]);
 
-  // Request camera/gallery permissions
-  const requestPermissions = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert(
-        'Permission Required',
-        'Sorry, we need camera roll permissions to upload images.'
-      );
-      return false;
-    }
-    return true;
+
+
+  // Handle opening Instagram-style image picker
+  const handleAddImage = () => {
+    setInstagramPickerVisible(true);
   };
 
-  // Handle image selection from gallery
-  const handleSelectImage = async () => {
+  // Handle image selection from Instagram-style picker
+  const handleImageSelected = async (imageUri: string, imageName: string) => {
     try {
-      logger.info('ImageManagementModal', 'Starting gallery image selection');
-
-      const hasPermission = await requestPermissions();
-      if (!hasPermission) {
-        logger.warn('ImageManagementModal', 'Gallery permission denied');
-        return;
-      }
-
-      logger.info('ImageManagementModal', 'Launching image library picker');
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [1, 1], // Square crop
-        quality: 0.8,
-        base64: false,
-      });
-
-      logger.info('ImageManagementModal', 'Image picker result', {
-        canceled: result.canceled,
-        hasAssets: result.assets?.length > 0,
-        firstAsset: result.assets?.[0] ? {
-          uri: result.assets[0].uri,
-          fileName: result.assets[0].fileName,
-          type: result.assets[0].type
-        } : null
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        const asset = result.assets[0];
-        logger.info('ImageManagementModal', 'Processing selected image', {
-          uri: asset.uri,
-          fileName: asset.fileName
-        });
-        await handleUploadImage(asset.uri, asset.fileName || 'image.jpg');
-      } else {
-        logger.info('ImageManagementModal', 'Image selection canceled or no asset');
-      }
+      await handleUploadImage(imageUri, imageName);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('ImageManagementModal', 'Error selecting image', {
-        error: errorMessage,
-        fullError: error,
-        errorType: typeof error,
-        errorKeys: error ? Object.keys(error) : []
-      });
-      Alert.alert('Error', `Failed to select image: ${errorMessage}`);
-    }
-  };
-
-  // Handle camera capture
-  const handleTakePhoto = async () => {
-    try {
-      // Need gallery permission to access saved photos
-      const hasGalleryPermission = await requestPermissions();
-      if (!hasGalleryPermission) return;
-
-      // Need camera permission to take photos
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert(
-          'Permission Required',
-          'Sorry, we need camera permissions to take photos.'
-        );
-        return;
-      }
-
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [1, 1], // Square crop
-        quality: 0.8,
-        base64: false,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        const asset = result.assets[0];
-        await handleUploadImage(asset.uri, `${itemName}_photo_${Date.now()}.jpg`);
-      }
-    } catch (error) {
-      logger.error('ImageManagementModal', 'Error taking photo', error);
-      Alert.alert('Error', 'Failed to take photo. Please try again.');
+      logger.error('ImageManagementModal', 'Failed to upload selected image', error);
+      Alert.alert('Error', 'Failed to upload image. Please try again.');
     }
   };
 
@@ -188,6 +104,8 @@ const ImageManagementModal: React.FC<ImageManagementModalProps> = ({
       setIsUploading(false);
     }
   };
+
+
 
   // Handle making image primary
   const handleMakePrimary = async (imageId: string) => {
@@ -251,36 +169,12 @@ const ImageManagementModal: React.FC<ImageManagementModalProps> = ({
             <Text style={styles.itemId}>ID: {itemId}</Text>
           </View>
 
-          {/* Add Image Buttons */}
-          <View style={styles.addImageSection}>
-            <Text style={styles.sectionTitle}>Add New Image</Text>
-            <View style={styles.addImageButtons}>
-              <TouchableOpacity
-                style={styles.addImageButton}
-                onPress={handleTakePhoto}
-                disabled={isUploading}
-              >
-                <Ionicons name="camera" size={24} color={lightTheme.colors.primary} />
-                <Text style={styles.addImageButtonText}>Take Photo</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={styles.addImageButton}
-                onPress={handleSelectImage}
-                disabled={isUploading}
-              >
-                <Ionicons name="image" size={24} color={lightTheme.colors.primary} />
-                <Text style={styles.addImageButtonText}>Choose from Gallery</Text>
-              </TouchableOpacity>
+          {isUploading && (
+            <View style={styles.uploadingContainer}>
+              <ActivityIndicator size="small" color={lightTheme.colors.primary} />
+              <Text style={styles.uploadingText}>Uploading image...</Text>
             </View>
-            
-            {isUploading && (
-              <View style={styles.uploadingContainer}>
-                <ActivityIndicator size="small" color={lightTheme.colors.primary} />
-                <Text style={styles.uploadingText}>Uploading image...</Text>
-              </View>
-            )}
-          </View>
+          )}
 
           {/* Existing Images */}
           <View style={styles.existingImagesSection}>
@@ -290,7 +184,7 @@ const ImageManagementModal: React.FC<ImageManagementModalProps> = ({
             
             {images.length === 0 ? (
               <View style={styles.noImagesContainer}>
-                <Ionicons name="image-outline" size={48} color={lightTheme.colors.textSecondary} />
+                <Ionicons name="image-outline" size={48} color={lightTheme.colors.secondary} />
                 <Text style={styles.noImagesText}>No images yet</Text>
                 <Text style={styles.noImagesSubtext}>Add your first image using the buttons above</Text>
               </View>
@@ -361,6 +255,15 @@ const ImageManagementModal: React.FC<ImageManagementModalProps> = ({
             )}
           </View>
         </ScrollView>
+
+        {/* Floating Add Photo Button */}
+        <TouchableOpacity
+          style={styles.floatingAddButton}
+          onPress={handleAddImage}
+          disabled={isUploading}
+        >
+          <Ionicons name="add" size={24} color="white" />
+        </TouchableOpacity>
       </SafeAreaView>
 
       {/* Delete Confirmation Modal */}
@@ -442,6 +345,14 @@ const ImageManagementModal: React.FC<ImageManagementModalProps> = ({
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+
+      {/* Instagram-Style Image Picker */}
+      <InstagramStyleImagePicker
+        visible={instagramPickerVisible}
+        onClose={() => setInstagramPickerVisible(false)}
+        onImageSelected={handleImageSelected}
+        itemName={itemName}
+      />
     </Modal>
   );
 };
@@ -478,7 +389,7 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   itemInfo: {
-    backgroundColor: lightTheme.colors.surface,
+    backgroundColor: lightTheme.colors.card,
     padding: 16,
     borderRadius: 8,
     marginBottom: 24,
@@ -491,7 +402,7 @@ const styles = StyleSheet.create({
   },
   itemId: {
     fontSize: 14,
-    color: lightTheme.colors.textSecondary,
+    color: lightTheme.colors.secondary,
   },
   addImageSection: {
     marginBottom: 32,
@@ -510,7 +421,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     padding: 16,
-    backgroundColor: lightTheme.colors.surface,
+    backgroundColor: lightTheme.colors.card,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: lightTheme.colors.border,
@@ -530,7 +441,7 @@ const styles = StyleSheet.create({
   },
   uploadingText: {
     fontSize: 14,
-    color: lightTheme.colors.textSecondary,
+    color: lightTheme.colors.secondary,
   },
   existingImagesSection: {
     flex: 1,
@@ -538,18 +449,18 @@ const styles = StyleSheet.create({
   noImagesContainer: {
     alignItems: 'center',
     padding: 32,
-    backgroundColor: lightTheme.colors.surface,
+    backgroundColor: lightTheme.colors.card,
     borderRadius: 8,
   },
   noImagesText: {
     fontSize: 16,
     fontWeight: '500',
-    color: lightTheme.colors.textSecondary,
+    color: lightTheme.colors.secondary,
     marginTop: 12,
   },
   noImagesSubtext: {
     fontSize: 14,
-    color: lightTheme.colors.textSecondary,
+    color: lightTheme.colors.secondary,
     textAlign: 'center',
     marginTop: 4,
   },
@@ -574,7 +485,7 @@ const styles = StyleSheet.create({
     width: '100%',
     aspectRatio: 1,
     borderRadius: 8,
-    backgroundColor: lightTheme.colors.surface,
+    backgroundColor: lightTheme.colors.card,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -649,7 +560,7 @@ const styles = StyleSheet.create({
   },
   confirmModalMessage: {
     fontSize: 16,
-    color: lightTheme.colors.textSecondary,
+    color: lightTheme.colors.secondary,
     textAlign: 'center',
     marginBottom: 24,
     lineHeight: 22,
@@ -666,7 +577,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   confirmModalCancelButton: {
-    backgroundColor: lightTheme.colors.surface,
+    backgroundColor: lightTheme.colors.card,
     borderWidth: 1,
     borderColor: lightTheme.colors.border,
   },
@@ -690,6 +601,55 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: 'white',
+  },
+  buttonIconContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  enhanceIcon: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+  },
+  enhanceHint: {
+    fontSize: 12,
+    color: lightTheme.colors.secondary,
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  addPhotoButton: {
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: lightTheme.colors.primary,
+    borderRadius: 12,
+    marginHorizontal: 16,
+  },
+  addPhotoButtonText: {
+    fontSize: 16,
+    color: 'white',
+    fontWeight: '600',
+    marginTop: 8,
+  },
+  floatingAddButton: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: lightTheme.colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    zIndex: 1000, // Ensure it appears above other content
   },
 });
 
