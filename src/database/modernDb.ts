@@ -1478,6 +1478,40 @@ export async function getTeamData(itemId: string): Promise<TeamData | null> {
 }
 
 /**
+ * Get team data statistics for debugging
+ */
+export async function getTeamDataStats(): Promise<{
+  totalItems: number;
+  itemsWithCaseUpc: number;
+  itemsWithVendor: number;
+}> {
+  const db = await getDatabase();
+
+  try {
+    const totalResult = await db.getFirstAsync<{ count: number }>(
+      'SELECT COUNT(*) as count FROM team_data'
+    );
+
+    const caseUpcResult = await db.getFirstAsync<{ count: number }>(
+      'SELECT COUNT(*) as count FROM team_data WHERE case_upc IS NOT NULL AND case_upc != ""'
+    );
+
+    const vendorResult = await db.getFirstAsync<{ count: number }>(
+      'SELECT COUNT(*) as count FROM team_data WHERE vendor IS NOT NULL AND vendor != ""'
+    );
+
+    return {
+      totalItems: totalResult?.count || 0,
+      itemsWithCaseUpc: caseUpcResult?.count || 0,
+      itemsWithVendor: vendorResult?.count || 0,
+    };
+  } catch (error) {
+    logger.error('Database', 'Error getting team data stats', { error });
+    return { totalItems: 0, itemsWithCaseUpc: 0, itemsWithVendor: 0 };
+  }
+}
+
+/**
  * Search items by case UPC locally
  */
 export async function searchItemsByCaseUpc(caseUpc: string): Promise<ConvertedItem[]> {
@@ -1485,51 +1519,78 @@ export async function searchItemsByCaseUpc(caseUpc: string): Promise<ConvertedIt
 
   logger.info('Database', 'Searching items by case UPC locally', { caseUpc });
 
-  const results = await db.getAllAsync<any>(`
-    SELECT
-      ci.id as item_id,
-      ci.name,
-      ci.description,
-      ci.category_id,
-      ci.data_json as item_data_json,
-      td.case_upc,
-      td.case_cost,
-      td.case_quantity,
-      td.vendor,
-      td.discontinued,
-      td.notes
-    FROM catalog_items ci
-    LEFT JOIN team_data td ON ci.id = td.item_id
-    WHERE td.case_upc = ? AND ci.is_deleted = 0
-    ORDER BY ci.name COLLATE NOCASE ASC
-  `, [caseUpc]);
+  try {
+    // First check if team_data table has any data
+    const teamDataCount = await db.getFirstAsync<{ count: number }>(
+      'SELECT COUNT(*) as count FROM team_data WHERE case_upc IS NOT NULL'
+    );
 
-  logger.info('Database', `Found ${results.length} items with case UPC ${caseUpc}`);
+    if (!teamDataCount || teamDataCount.count === 0) {
+      logger.info('Database', 'No team data with case UPC found - table empty or user not signed in');
+      return [];
+    }
 
-  return results.map(row => {
-    // Parse the item data JSON to get full item details
-    const itemData = row.item_data_json ? JSON.parse(row.item_data_json) : {};
+    // Fixed query: Use INNER JOIN instead of LEFT JOIN to ensure team_data exists
+    // and handle NULL case_upc values properly
+    const results = await db.getAllAsync<any>(`
+      SELECT
+        ci.id as item_id,
+        ci.name,
+        ci.description,
+        ci.category_id,
+        ci.data_json as item_data_json,
+        td.case_upc,
+        td.case_cost,
+        td.case_quantity,
+        td.vendor,
+        td.discontinued,
+        td.notes
+      FROM catalog_items ci
+      INNER JOIN team_data td ON ci.id = td.item_id
+      WHERE td.case_upc = ? AND ci.is_deleted = 0 AND td.case_upc IS NOT NULL
+      ORDER BY ci.name COLLATE NOCASE ASC
+    `, [caseUpc]);
 
-    return transformCatalogItemToItem({
-      ...itemData,
-      id: row.item_id,
-      item_data: {
-        ...itemData.item_data,
-        name: row.name,
-        description: row.description,
-        category_id: row.category_id
-      },
-      // Add team data
-      team_data: {
-        case_upc: row.case_upc,
-        case_cost: row.case_cost,
-        case_quantity: row.case_quantity,
-        vendor: row.vendor,
-        discontinued: row.discontinued === 1,
-        notes: row.notes
+    logger.info('Database', `Found ${results.length} items with case UPC ${caseUpc}`);
+
+    return results.map(row => {
+      try {
+        // Parse the item data JSON to get full item details
+        const itemData = row.item_data_json ? JSON.parse(row.item_data_json) : {};
+
+        return transformCatalogItemToItem({
+          ...itemData,
+          id: row.item_id,
+          item_data: {
+            ...itemData.item_data,
+            name: row.name,
+            description: row.description,
+            category_id: row.category_id
+          },
+          // Add team data
+          team_data: {
+            case_upc: row.case_upc,
+            case_cost: row.case_cost,
+            case_quantity: row.case_quantity,
+            vendor: row.vendor,
+            discontinued: row.discontinued === 1,
+            notes: row.notes
+          }
+        });
+      } catch (parseError) {
+        logger.error('Database', 'Failed to parse case UPC search result', {
+          itemId: row.item_id,
+          error: parseError
+        });
+        return null;
       }
-    });
-  });
+    }).filter((item): item is ConvertedItem => item !== null);
+
+  } catch (error) {
+    logger.error('Database', 'Error searching items by case UPC', { error, caseUpc });
+    // Return empty array instead of throwing to prevent search failures
+    return [];
+  }
 }
 
 // ✅ REMOVED: getTeamDataLastSync function - no time-based polling needed

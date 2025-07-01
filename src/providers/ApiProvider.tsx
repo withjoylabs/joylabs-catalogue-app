@@ -21,6 +21,7 @@ interface ApiContextType {
   disconnectFromSquare: () => Promise<void>;
   refreshData: (dataType?: 'categories' | 'items' | 'all') => Promise<void>;
   verifyConnection: () => Promise<boolean>;
+  testConnection: () => Promise<{success: boolean, data?: any, error?: string, tokenStatus?: any}>;
 }
 
 const ApiContext = createContext<ApiContextType>({
@@ -32,6 +33,7 @@ const ApiContext = createContext<ApiContextType>({
   disconnectFromSquare: async () => {},
   refreshData: async () => {},
   verifyConnection: async () => false,
+  testConnection: async () => ({ success: false, error: 'Not implemented' }),
 });
 
 export const useApi = () => useContext(ApiContext);
@@ -46,13 +48,14 @@ const ApiProviderComponent: React.FC<{ children: React.ReactNode }> = ({ childre
   });
   const MIN_REFRESH_INTERVAL = 5 * 60 * 1000;
   const { setProducts, setCategories } = useAppStore();
-  const { 
-    isConnected, 
-    merchantId, 
-    isConnecting: isLoading, 
+  const {
+    isConnected,
+    merchantId,
+    isConnecting: isLoading,
     error: authError,
     connect,
     disconnect,
+    testConnection,
   } = useSquareAuth();
   
   useEffect(() => {
@@ -162,6 +165,7 @@ const ApiProviderComponent: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, []);
   
+  // Optimize context value to reduce re-renders
   const contextValue = useMemo(() => ({
     isConnected,
     merchantId,
@@ -171,15 +175,14 @@ const ApiProviderComponent: React.FC<{ children: React.ReactNode }> = ({ childre
     disconnectFromSquare: disconnect,
     refreshData,
     verifyConnection,
+    testConnection,
   }), [
-    isConnected, 
-    merchantId, 
-    isLoading, 
-    authError, 
-    connect, 
-    disconnect, 
-    refreshData,
-    verifyConnection
+    isConnected,
+    merchantId,
+    isLoading,
+    authError?.message, // Only depend on error message, not the entire error object
+    // connect, disconnect, and testConnection are stable functions from useSquareAuth
+    // refreshData and verifyConnection are defined in this component and stable
   ]);
   
   return (

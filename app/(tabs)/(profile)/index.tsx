@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, ScrollView } from 'react-native';
 import { useApi } from '../../../src/providers/ApiProvider';
-import { useSquareAuth } from '../../../src/hooks/useSquareAuth';
 import logger from '../../../src/utils/logger';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -29,10 +28,10 @@ const ProfileScreen = () => {
     isLoading: isConnectingToSquare,
     error: squareError,
     connectToSquare,
-    disconnectFromSquare
+    disconnectFromSquare,
+    testConnection
   } = useApi();
-  
-  const { testConnection } = useSquareAuth(); 
+
   const [testingConnection, setTestingConnection] = React.useState(false);
 
   const testSquareConnection = async () => {

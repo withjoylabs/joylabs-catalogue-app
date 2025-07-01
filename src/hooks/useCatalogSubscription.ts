@@ -8,6 +8,13 @@ import NotificationService from '../services/notificationService';
 import logger from '../utils/logger';
 import appSyncMonitor from '../services/appSyncMonitor';
 
+// Extend window type for debugging flags
+declare global {
+  interface Window {
+    _catalogSubscriptionLoggedNoMerchant?: boolean;
+  }
+}
+
 // GraphQL subscription for catalog updates - updated to match new schema
 const CATALOG_UPDATE_SUBSCRIPTION = `
   subscription OnCatalogUpdate($owner: String!) {
@@ -217,7 +224,11 @@ export const useCatalogSubscription = () => {
 
   useEffect(() => {
     if (!merchantId) {
-      logger.debug('CatalogSubscription', 'Merchant ID not available, skipping AppSync catch-up listener');
+      // Reduce console spam by only logging once per session
+      if (!window._catalogSubscriptionLoggedNoMerchant) {
+        logger.debug('CatalogSubscription', 'Merchant ID not available, skipping AppSync catch-up listener');
+        window._catalogSubscriptionLoggedNoMerchant = true;
+      }
       return;
     }
 

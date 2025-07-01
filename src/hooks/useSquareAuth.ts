@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Linking } from 'react-native';
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
@@ -13,6 +13,15 @@ import api from '../api';
 
 // Initialize WebBrowser
 WebBrowser.maybeCompleteAuthSession();
+
+// Extend global for debugging flags
+declare global {
+  interface Window {
+    _squareAuthLoggedDeepLink?: boolean;
+    _squareAuthLoggedSetup?: boolean;
+    _squareAuthLoggedMount?: boolean;
+  }
+}
 
 // Constants for secure storage keys
 // DEPRECATED: Use TOKEN_KEYS from tokenService instead
@@ -123,8 +132,11 @@ export const useSquareAuth = (): UseSquareAuthResult => {
   const [error, setError] = useState<Error | null>(null);
   const [merchantId, setMerchantId] = useState<string | null>(null);
   const [businessName, setBusinessName] = useState<string | null>(null);
-  
+
   const { setSquareConnected } = useAppStore();
+
+  // Use ref to store processCallback to avoid dependency issues
+  const processCallbackRef = useRef<((url: string) => Promise<any>) | null>(null);
 
   // Moved processCallback earlier to resolve linter errors
   const processCallback = async (url: string): Promise<any> => {
@@ -217,11 +229,18 @@ export const useSquareAuth = (): UseSquareAuthResult => {
     }
   };
 
+  // Store processCallback in ref for stable access in deep link handler
+  processCallbackRef.current = processCallback;
+
   // Check for existing Square connection on mount
   useEffect(() => {
     const checkExistingConnection = async () => {
       try {
-        logger.debug('SquareAuth', 'Checking for existing Square connection');
+        // Reduce console spam by only logging mount once per session
+        if (!window._squareAuthLoggedMount) {
+          logger.debug('SquareAuth', 'Checking for existing Square connection');
+          window._squareAuthLoggedMount = true;
+        }
         
         // Use tokenService to check for tokens
         const tokenInfo = await tokenService.getTokenInfo();
@@ -278,7 +297,7 @@ export const useSquareAuth = (): UseSquareAuthResult => {
     }, 2000);
     
     return () => clearTimeout(verifyTimer);
-  }, [setSquareConnected]);
+  }, []); // Remove setSquareConnected dependency to prevent re-runs
   
   // Handle deep link callback
   useEffect(() => {
@@ -286,24 +305,36 @@ export const useSquareAuth = (): UseSquareAuthResult => {
     
     const setupDeepLinkHandling = async () => {
       try {
-        logger.debug('SquareAuth', 'Setting up deep link handler');
+        // Reduce console spam by only logging setup once per session
+        if (!window._squareAuthLoggedSetup) {
+          logger.debug('SquareAuth', 'Setting up deep link handler');
+          window._squareAuthLoggedSetup = true;
+        }
         
         // Define the deep link handler as a standalone function
         const handleDeepLink = async (event: { url: string }) => {
-          logger.debug('SquareAuth', 'Received deep link', { url: event.url });
-          
-          // Only process Square callback URLs
+          // Reduce console spam by only logging non-Square URLs once per session
           if (!event.url.includes('square-callback')) {
-            logger.debug('SquareAuth', 'Ignoring non-Square callback URL');
+            if (!window._squareAuthLoggedDeepLink) {
+              logger.debug('SquareAuth', 'Received deep link', { url: event.url });
+              logger.debug('SquareAuth', 'Ignoring non-Square callback URL');
+              window._squareAuthLoggedDeepLink = true;
+            }
             return;
           }
+
+          logger.debug('SquareAuth', 'Received Square callback deep link', { url: event.url });
           
           logger.info('SquareAuth', '🔍 Processing Square callback URL');
           
           try {
-            // Ensure processCallback is awaited and errors are caught
-            await processCallback(event.url); // Pass event.url to processCallback
-            logger.info('SquareAuth', '✅ Deep link processing completed successfully via event listener.');
+            // Use ref to access current processCallback function
+            if (processCallbackRef.current) {
+              await processCallbackRef.current(event.url);
+              logger.info('SquareAuth', '✅ Deep link processing completed successfully via event listener.');
+            } else {
+              logger.error('SquareAuth', '❌ processCallback not available in deep link handler');
+            }
           } catch (procError) {
             logger.error('SquareAuth', '❌ Error processing deep link via event listener', procError);
             setError(procError as Error); // Update error state
@@ -313,10 +344,14 @@ export const useSquareAuth = (): UseSquareAuthResult => {
         
         // @ts-ignore
         globalThis._joylabs_handleSquareDeepLink = handleDeepLink;
-        logger.debug('SquareAuth', 'Assigned handleDeepLink to globalThis._joylabs_handleSquareDeepLink');
-        
+        if (!window._squareAuthLoggedSetup) {
+          logger.debug('SquareAuth', 'Assigned handleDeepLink to globalThis._joylabs_handleSquareDeepLink');
+        }
+
         subscription = ExpoLinking.addEventListener('url', handleDeepLink);
-        logger.debug('SquareAuth', 'Deep link listener registered');
+        if (!window._squareAuthLoggedSetup) {
+          logger.debug('SquareAuth', 'Deep link listener registered');
+        }
 
         // Check initial URL
         const initialUrl = await ExpoLinking.getInitialURL();
@@ -355,7 +390,7 @@ export const useSquareAuth = (): UseSquareAuthResult => {
       logger.debug('SquareAuth', 'Deep link listener removed and global reference cleaned on unmount');
       clearInterval(repairInterval); // Clear interval on unmount
     };
-  }, [isConnecting, processCallback]); // processCallback is now in scope
+  }, []); // Remove dependencies to prevent re-runs - deep link setup should only happen once
   
   // Cleanup WebBrowser session when component unmounts
   useEffect(() => {
@@ -400,6 +435,9 @@ export const useSquareAuth = (): UseSquareAuthResult => {
 
   // Add another useEffect to force reset isConnecting if there's an accessToken
   useEffect(() => {
+    // Only run this check if we're actually in a connecting state
+    if (!isConnecting) return;
+
     const checkAndResetState = async () => {
       try {
         const accessToken = await SecureStore.getItemAsync(SQUARE_ACCESS_TOKEN_KEY);
@@ -413,10 +451,9 @@ export const useSquareAuth = (): UseSquareAuthResult => {
         logger.error('SquareAuth', 'Error in connection state check', err);
       }
     };
-    
-    // Run this check when component mounts and whenever isConnecting changes
+
     checkAndResetState();
-  }, [isConnecting, setSquareConnected]);
+  }, [isConnecting]); // Remove setSquareConnected dependency
 
   // Update the connect function to use tokenService for validation
   const connect = async (): Promise<void> => {

@@ -5,6 +5,13 @@ import { getDatabase } from '../database/modernDb';
 import { transformCatalogItemToItem } from '../utils/catalogTransformers';
 import logger from '../utils/logger';
 
+// Extend global for debugging flags
+declare global {
+  interface Window {
+    _crossRefLoggedNoTeamTable?: boolean;
+  }
+}
+
 /**
  * Cross-Reference Service
  * 
@@ -18,7 +25,7 @@ import logger from '../utils/logger';
  */
 class CrossReferenceService {
   private squareItemCache = new Map<string, { data: ConvertedItem; timestamp: number; accessCount: number }>();
-  private teamDataCache = new Map<string, { data: TeamData; timestamp: number; accessCount: number }>();
+  private teamDataCache = new Map<string, { data: TeamData | null; timestamp: number; accessCount: number }>();
   private readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
   private readonly MAX_CACHE_SIZE = 1000; // Maximum items per cache
   private readonly MEMORY_CHECK_INTERVAL = 30 * 1000; // Check memory every 30 seconds
@@ -309,43 +316,75 @@ class CrossReferenceService {
         return cached.data;
       }
 
-      // Query local team data database
+      // Query local team data database with proper error handling
       const db = await getDatabase();
-      
+
+      // First check if team_data table exists and has data
+      try {
+        const tableExists = await db.getFirstAsync<{ count: number }>(
+          "SELECT COUNT(*) as count FROM sqlite_master WHERE type='table' AND name='team_data'"
+        );
+
+        if (!tableExists || tableExists.count === 0) {
+          // Reduce console spam by only logging once per session
+          if (!window._crossRefLoggedNoTeamTable) {
+            logger.debug('[CrossReferenceService]', 'Team data table does not exist - user not signed in', { itemId });
+            window._crossRefLoggedNoTeamTable = true;
+          }
+          return null;
+        }
+      } catch (tableCheckError) {
+        logger.warn('[CrossReferenceService]', 'Could not check team_data table existence', {
+          error: tableCheckError,
+          itemId
+        });
+        return null;
+      }
+
       const row = await db.getFirstAsync<any>(
         'SELECT * FROM team_data WHERE item_id = ?',
         itemId
       );
 
       if (!row) {
+        // Cache null result to avoid repeated queries
+        this.addToTeamDataCache(itemId, null);
         return null;
       }
 
-      // Parse team data
+      // Parse team data using actual database schema
       const teamData: TeamData = {
         itemId: row.item_id,
         vendor: row.vendor,
-        cost: row.cost,
+        // Note: 'cost' field doesn't exist in DB schema, using case_cost instead
+        cost: row.case_cost,
         caseUpc: row.case_upc,
         caseQuantity: row.case_quantity,
         notes: row.notes,
-        history: row.history ? JSON.parse(row.history) : [],
-        lastUpdated: row.last_updated,
-        updatedBy: row.updated_by
+        // Note: 'history' field doesn't exist in DB schema, using empty array
+        history: [],
+        // Note: using correct column names from actual schema
+        lastUpdated: row.updated_at,
+        updatedBy: row.owner
       };
 
       // Cache the result with LRU tracking
       this.addToTeamDataCache(itemId, teamData);
 
-      logger.debug('[CrossReferenceService]', 'Team data found and cached', { 
-        itemId, 
-        vendor: teamData.vendor 
+      logger.debug('[CrossReferenceService]', 'Team data found and cached', {
+        itemId,
+        vendor: teamData.vendor
       });
 
       return teamData;
 
     } catch (error) {
-      logger.error('[CrossReferenceService]', 'Error getting team data', { error, itemId });
+      logger.warn('[CrossReferenceService]', 'Team data unavailable (user may not be signed in)', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        itemId
+      });
+      // Cache null result to avoid repeated failed queries
+      this.addToTeamDataCache(itemId, null);
       return null;
     }
   }
@@ -558,7 +597,7 @@ class CrossReferenceService {
   /**
    * Add item to team data cache with LRU tracking
    */
-  private addToTeamDataCache(itemId: string, teamData: TeamData): void {
+  private addToTeamDataCache(itemId: string, teamData: TeamData | null): void {
     // Check if we need to make room
     if (this.teamDataCache.size >= this.MAX_CACHE_SIZE) {
       this.evictLRUItems(this.teamDataCache, this.MAX_CACHE_SIZE - 1);
@@ -595,6 +634,53 @@ class CrossReferenceService {
       });
     } catch (error) {
       logger.error('[CrossReferenceService]', 'DEBUG: Cross-reference failed', { itemId, error });
+    }
+  }
+
+  /**
+   * Check database health for debugging
+   */
+  async checkDatabaseHealth(): Promise<{
+    catalogItemsCount: number;
+    teamDataCount: number;
+    teamDataTableExists: boolean;
+    error?: string;
+  }> {
+    try {
+      const db = await getDatabase();
+
+      // Check if team_data table exists
+      const tableCheck = await db.getFirstAsync<{ count: number }>(
+        "SELECT COUNT(*) as count FROM sqlite_master WHERE type='table' AND name='team_data'"
+      );
+      const teamDataTableExists = (tableCheck?.count || 0) > 0;
+
+      // Count catalog items
+      const catalogCount = await db.getFirstAsync<{ count: number }>(
+        'SELECT COUNT(*) as count FROM catalog_items WHERE is_deleted = 0'
+      );
+
+      // Count team data (only if table exists)
+      let teamDataCount = 0;
+      if (teamDataTableExists) {
+        const teamCount = await db.getFirstAsync<{ count: number }>(
+          'SELECT COUNT(*) as count FROM team_data'
+        );
+        teamDataCount = teamCount?.count || 0;
+      }
+
+      return {
+        catalogItemsCount: catalogCount?.count || 0,
+        teamDataCount,
+        teamDataTableExists
+      };
+    } catch (error) {
+      return {
+        catalogItemsCount: 0,
+        teamDataCount: 0,
+        teamDataTableExists: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
     }
   }
 

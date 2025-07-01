@@ -336,21 +336,11 @@ const SearchResultsArea = memo(({
       categoriesCount: categories?.length || 0
     });
     
-    // Convert SearchResultItem to ConvertedItem for reorder service
+    // SearchResultItem now contains a complete ConvertedItem from getProductById
+    // Just update the category name to ensure it's current
     const convertedItem: ConvertedItem = {
-      id: item.id,
-      name: item.name || '',
-      sku: item.sku,
-      barcode: item.barcode,
-      price: item.price,
-      category: categoryName, // Use the ensured category name
-      categoryId: item.categoryId, // Keep the category ID
-      reporting_category_id: item.categoryId || item.reporting_category_id, // Include reporting_category_id
-      description: item.description,
-      isActive: true,
-      images: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      ...item, // Use the complete ConvertedItem data from getProductById
+      category: categoryName, // Override with ensured category name
     };
 
     try {
@@ -390,21 +380,11 @@ const SearchResultsArea = memo(({
     // Ensure we have the proper category name
     const categoryName = await ensureCategoryName(item);
     
-    // Convert SearchResultItem to ConvertedItem for reorder service
+    // SearchResultItem now contains a complete ConvertedItem from getProductById
+    // Just update the category name to ensure it's current
     const convertedItem: ConvertedItem = {
-      id: item.id,
-      name: item.name || '',
-      sku: item.sku,
-      barcode: item.barcode,
-      price: item.price,
-      category: categoryName, // Use the ensured category name
-      categoryId: item.categoryId, // Keep the category ID
-      reporting_category_id: item.categoryId || item.reporting_category_id, // Include reporting_category_id
-      description: item.description,
-      isActive: true,
-      images: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      ...item, // Use the complete ConvertedItem data from getProductById
+      category: categoryName, // Override with ensured category name
     };
 
     try {

@@ -374,7 +374,7 @@ export const useCatalogItems = () => {
               locations = await db.getAllAsync<{id: string, name: string}>(
                 `SELECT id, name FROM locations WHERE is_deleted = 0`
               );
-              logger.debug('CatalogItems::getProductById', 'Fetched locations for overrides', { locationCount: locations.length });
+
             } catch (locDbError) {
               logger.warn('CatalogItems::getProductById', 'Error fetching locations from DB, using defaults', { error: locDbError });
               // Use default locations as fallback
@@ -417,7 +417,7 @@ export const useCatalogItems = () => {
               return variationWithOverrides;
             });
             
-            logger.debug('CatalogItems::getProductById', 'Successfully added location names to overrides');
+
           } catch (locError) {
             logger.warn('CatalogItems::getProductById', 'Failed to add location names to overrides', { error: locError });
           }
@@ -875,39 +875,7 @@ export const useCatalogItems = () => {
   const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
   const [searchError, setSearchError] = useState<string | null>(null);
 
-  // Helper function to transform raw DB search results to SearchResultItem
-  const transformDbResultToItem = useCallback((rawResult: RawSearchResult): SearchResultItem | null => {
-    if (!rawResult.data_json) {
-      logger.warn('useCatalogItems', 'transformDbResultToItem received item with no data_json', { id: rawResult.id });
-      return null;
-    }
-    try {
-      const parsedItemData = JSON.parse(rawResult.data_json);
-      const transformedItem = transformCatalogItemToItem(parsedItemData as CatalogObject);
 
-      if (!transformedItem) return null;
-
-      let finalCategoryName = transformedItem.category; 
-      if (rawResult.match_type === 'category' && rawResult.match_context) {
-        finalCategoryName = rawResult.match_context;
-      } else if (!finalCategoryName && transformedItem.categoryId) {
-        finalCategoryName = categoryMapRef.current[transformedItem.categoryId] || undefined;
-      } else if (!finalCategoryName && transformedItem.reporting_category_id) {
-        finalCategoryName = categoryMapRef.current[transformedItem.reporting_category_id] || undefined;
-      }
-      
-      return {
-        ...transformedItem,
-        category: finalCategoryName, 
-        categoryId: transformedItem.categoryId || transformedItem.reporting_category_id, 
-        matchType: rawResult.match_type,
-        matchContext: rawResult.match_context,
-      } as SearchResultItem;
-    } catch (error) {
-      logger.error('useCatalogItems', 'Error transforming DB search result', { id: rawResult.id, error });
-      return null;
-    }
-  }, [categoryMapRef]);
 
   // Function to perform search using local DB and GraphQL for Case UPC
   const performSearch = useCallback(async (searchTerm: string, filters: SearchFilters): Promise<SearchResultItem[]> => {
@@ -920,48 +888,78 @@ export const useCatalogItems = () => {
     try {
       // Start with local SQLite search
       const rawResults = await searchCatalogItems(searchTerm, filters);
-      const localResults = rawResults
-          .map(rawResult => transformDbResultToItem(rawResult))
-          .filter((item): item is SearchResultItem => item !== null);
-      
+
+      // Use getProductById for unified item loading (replaces transformDbResultToItem)
+      const localItemPromises = rawResults.map(async (rawResult) => {
+        const item = await getProductById(rawResult.id);
+        if (item) {
+          // Convert ConvertedItem to SearchResultItem with match metadata
+          return {
+            ...item,
+            matchType: rawResult.match_type,
+            matchContext: rawResult.match_context,
+          } as SearchResultItem;
+        }
+        return null;
+      });
+
+      const localResults = (await Promise.all(localItemPromises))
+        .filter((item): item is SearchResultItem => item !== null);
+
       // If barcode filter is enabled, search Case UPC locally (LOCAL-FIRST ARCHITECTURE)
       let caseUpcResults: SearchResultItem[] = [];
       if (filters.barcode && isSquareConnected) {
         try {
           logger.info('useCatalogItems:performSearch', '🔍 Searching Case UPC locally (LOCAL-FIRST)', { searchTerm });
 
-          // ✅ CRITICAL FIX: Search local SQLite database instead of AppSync
+          // Get case UPC item IDs first
           const localCaseUpcItems = await modernDb.searchItemsByCaseUpc(searchTerm.trim());
 
           if (localCaseUpcItems && localCaseUpcItems.length > 0) {
             logger.info('useCatalogItems:performSearch', `✅ Found ${localCaseUpcItems.length} Case UPC matches locally`);
 
-            // Transform local results to SearchResultItem format
-            caseUpcResults = localCaseUpcItems.map(item => ({
-              id: item.id,
-              name: item.name || 'Unknown Item',
-              description: item.description || '',
-              category_id: item.category_id || '',
-              variations: item.variations || [],
-              matchType: 'case_upc',
-              matchContext: item.team_data?.case_upc || searchTerm.trim(),
-              team_data: item.team_data
-            } as SearchResultItem));
+            // Use getProductById for unified loading (instead of manual transformation)
+            const caseUpcItemPromises = localCaseUpcItems.map(async (item) => {
+              try {
+                const fullItem = await getProductById(item.id);
+                if (fullItem) {
+                  // Convert ConvertedItem to SearchResultItem with case UPC match metadata
+                  return {
+                    ...fullItem,
+                    matchType: 'case_upc',
+                    matchContext: searchTerm.trim(),
+                  } as SearchResultItem;
+                }
+                return null;
+              } catch (itemError) {
+                logger.warn('useCatalogItems:performSearch', 'Failed to load case UPC item', {
+                  itemId: item.id,
+                  error: itemError
+                });
+                return null;
+              }
+            });
+
+            caseUpcResults = (await Promise.all(caseUpcItemPromises))
+              .filter((item): item is SearchResultItem => item !== null);
 
             logger.info('useCatalogItems:performSearch', `✅ Transformed ${caseUpcResults.length} local case UPC matches`);
           } else {
-            logger.info('useCatalogItems:performSearch', '📭 No local case UPC matches found');
+            logger.info('useCatalogItems:performSearch', '📭 No local case UPC matches found (table may be empty or user not signed in)');
           }
         } catch (error) {
-          logger.error('useCatalogItems:performSearch', '❌ Local case UPC search failed', { error });
-          // Don't fail the entire search if Case UPC search fails
+          logger.warn('useCatalogItems:performSearch', '⚠️ Case UPC search unavailable', {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            searchTerm: searchTerm.trim()
+          });
+          // Gracefully continue with regular search results only
         }
       }
-      
+
       // Combine and deduplicate results
       const allResults = [...localResults, ...caseUpcResults];
       const uniqueResults = new Map<string, SearchResultItem>();
-      
+
       allResults.forEach(item => {
         if (item && item.id) {
           // Prioritize case_upc matches if they exist
@@ -970,15 +968,14 @@ export const useCatalogItems = () => {
           }
         }
       });
-      
+
       const finalResults = Array.from(uniqueResults.values());
       logger.info('useCatalogItems:performSearch', `Search completed: ${localResults.length} local + ${caseUpcResults.length} Case UPC = ${finalResults.length} total unique results`);
 
-      // Populate image URLs for search results
-      const resultsWithImages = await populateItemImagesForItems(finalResults);
-
-      setSearchResults(resultsWithImages);
-      return resultsWithImages;
+      // Note: getProductById already includes image population via populateItemImages,
+      // so we don't need the separate populateItemImagesForItems call
+      setSearchResults(finalResults);
+      return finalResults;
     } catch (err) {
       logger.error('useCatalogItems', 'Error during search', { error: err });
       setSearchError(err instanceof Error ? err.message : 'An unknown error occurred.');
@@ -986,7 +983,7 @@ export const useCatalogItems = () => {
     } finally {
       setIsSearching(false);
     }
-  }, [transformDbResultToItem, isSquareConnected, getProductById, user]);
+  }, [isSquareConnected, getProductById, user]);
 
   return {
     products: storeProducts,
