@@ -29,6 +29,8 @@ import crossReferenceService from '../../src/services/crossReferenceService';
 import { generateClient } from 'aws-amplify/api';
 import { useAuthenticator } from '@aws-amplify/ui-react-native';
 import { useAppStore } from '../../src/store';
+import CachedImage from '../../src/components/CachedImage';
+import { imageCacheService } from '../../src/services/imageCacheService';
 
 const client = generateClient();
 
@@ -1796,6 +1798,58 @@ const ReordersScreen = React.memo(() => {
             )}
           </Pressable>
 
+          {/* Item Image Thumbnail */}
+          <View style={{
+            width: 64,
+            height: 64,
+            marginRight: 10,
+            marginLeft: -4,
+            borderRadius: 6,
+            overflow: 'hidden',
+          }}>
+            {item.item?.images && item.item.images.length > 0 && item.item.images[0]?.url ? (
+              <CachedImage
+                source={{ uri: item.item.images[0].url }}
+                style={{
+                  width: 64,
+                  height: 64,
+                  borderRadius: 6,
+                }}
+                fallbackStyle={{
+                  width: 64,
+                  height: 64,
+                  backgroundColor: '#f5f5f5',
+                  borderRadius: 6,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderWidth: 1,
+                  borderColor: '#e0e0e0',
+                }}
+                fallbackText={item.itemName ? item.itemName.substring(0, 2).toUpperCase() : '📦'}
+                showLoadingIndicator={false}
+              />
+            ) : (
+              <View style={{
+                width: 64,
+                height: 64,
+                backgroundColor: '#f5f5f5',
+                borderRadius: 6,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderWidth: 1,
+                borderColor: '#e0e0e0',
+              }}>
+                <Text style={{
+                  fontSize: 16,
+                  fontWeight: '600',
+                  color: '#666',
+                }}>
+                  {item.itemName ? item.itemName.substring(0, 2).toUpperCase() : '📦'}
+                </Text>
+              </View>
+            )}
+          </View>
+
           {/* Item content - tappable for quantity editing */}
           <Pressable
             style={reorderStyles.itemContent}
@@ -2538,14 +2592,27 @@ const ReordersScreen = React.memo(() => {
                 titleColor="#666"
               />
             }
-            // Performance optimizations for 1000+ items
+            // ENHANCED Performance optimizations for 1000+ items
             removeClippedSubviews={true}
-            maxToRenderPerBatch={5}
-            updateCellsBatchingPeriod={100}
-            initialNumToRender={10}
-            windowSize={5}
-            // Remove getItemLayout for variable height items - causes performance issues
-            // getItemLayout only works with fixed height items
+            maxToRenderPerBatch={10}        // Increased for better performance
+            updateCellsBatchingPeriod={50}  // Faster updates
+            initialNumToRender={15}         // Show more items initially
+            windowSize={10}                 // Larger window for smoother scrolling
+            // Optimize memory usage
+            disableVirtualization={false}
+            legacyImplementation={false}
+            // Performance boost for large lists
+            getItemLayout={sectionedData.length > 100 ? undefined : (data, index) => ({
+              length: 80, // Approximate item height
+              offset: 80 * index,
+              index,
+            })}
+            // Additional optimizations
+            keyboardShouldPersistTaps="handled"
+            maintainVisibleContentPosition={{
+              minIndexForVisible: 0,
+              autoscrollToTopThreshold: 10
+            }}
           />
         )}
       </Pressable>

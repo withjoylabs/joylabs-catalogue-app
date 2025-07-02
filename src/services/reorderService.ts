@@ -1099,10 +1099,36 @@ class ReorderService {
     };
   }
 
-  // Notify all listeners of changes with cross-referenced data
-  private async notifyListeners() {
-    const displayItems = await crossReferenceService.buildDisplayItems(this.reorderItems);
-    this.listeners.forEach(listener => listener(displayItems));
+  // PERFORMANCE OPTIMIZATION: Debounced notify to prevent excessive re-renders
+  private notifyListeners = this.debounce(async () => {
+    try {
+      const startTime = Date.now();
+      const displayItems = await crossReferenceService.buildDisplayItems(this.reorderItems);
+      const endTime = Date.now();
+
+      if (this.reorderItems.length > 50) {
+        logger.debug('[ReorderService]', `Cross-reference completed for ${this.reorderItems.length} items in ${endTime - startTime}ms`);
+      }
+
+      this.listeners.forEach(listener => {
+        try {
+          listener(displayItems);
+        } catch (error) {
+          logger.error('[ReorderService]', 'Error notifying listener', { error });
+        }
+      });
+    } catch (error) {
+      logger.error('[ReorderService]', 'Error in notifyListeners', { error });
+    }
+  }, 100); // 100ms debounce to prevent excessive calls
+
+  // Debounce utility function
+  private debounce<T extends (...args: any[]) => any>(func: T, wait: number): T {
+    let timeout: NodeJS.Timeout;
+    return ((...args: any[]) => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => func.apply(this, args), wait);
+    }) as T;
   }
 
   // Clean up subscriptions and timers

@@ -267,9 +267,10 @@ export async function initializeSchema(dbInstance?: SQLiteDatabase): Promise<voi
         )`);
         logger.debug('Schema Init', 'Created team_data table.');
 
-        // Create index for case UPC searches
-        await db.runAsync(`CREATE INDEX idx_team_data_case_upc ON team_data(case_upc)`);
-        logger.debug('Schema Init', 'Created case UPC index.');
+        // PERFORMANCE OPTIMIZATION: Create indexes for team_data searches
+        await db.runAsync(`CREATE INDEX IF NOT EXISTS idx_team_data_case_upc ON team_data(case_upc)`);
+        await db.runAsync(`CREATE INDEX IF NOT EXISTS idx_team_data_item_id ON team_data(item_id)`);
+        logger.debug('Schema Init', 'Created team_data indexes.');
 
         // Create reorder_items table for minimal reorder data (cross-reference with Square catalog)
         // Skip if already created during migration
@@ -493,8 +494,18 @@ export async function initializeSchema(dbInstance?: SQLiteDatabase): Promise<voi
         await db.runAsync('CREATE INDEX IF NOT EXISTS idx_images_deleted ON images (is_deleted)');
         // Locations
         await db.runAsync('CREATE INDEX IF NOT EXISTS idx_locations_merchant_id ON locations (merchant_id)');
-        
-        logger.info('Schema Init', 'Indexes created successfully.');
+
+        // PERFORMANCE OPTIMIZATION: Additional indexes for reorder operations
+        await db.runAsync('CREATE INDEX IF NOT EXISTS idx_reorder_items_item_id ON reorder_items (item_id)');
+        await db.runAsync('CREATE INDEX IF NOT EXISTS idx_reorder_items_status ON reorder_items (status)');
+        await db.runAsync('CREATE INDEX IF NOT EXISTS idx_reorder_items_updated_at ON reorder_items (updated_at)');
+        await db.runAsync('CREATE INDEX IF NOT EXISTS idx_reorder_items_owner ON reorder_items (owner)');
+
+        // Composite indexes for common queries
+        await db.runAsync('CREATE INDEX IF NOT EXISTS idx_catalog_items_category_deleted ON catalog_items (category_id, is_deleted)');
+        await db.runAsync('CREATE INDEX IF NOT EXISTS idx_variations_item_deleted ON item_variations (item_id, is_deleted)');
+
+        logger.info('Schema Init', 'All indexes created successfully.');
       } catch (indexError) {
         logger.error('Schema Init', 'Error creating indexes', { indexError });
         throw indexError;
@@ -1426,55 +1437,89 @@ export interface TeamData {
 
 /**
  * Upsert team data to local SQLite database
+ * CRITICAL FIX: Graceful handling when user is not signed in and team_data table doesn't exist
  */
 export async function upsertTeamData(teamData: TeamData): Promise<void> {
-  const db = await getDatabase();
-  const now = new Date().toISOString();
+  try {
+    const db = await getDatabase();
 
-  await db.runAsync(`
-    INSERT OR REPLACE INTO team_data
-    (item_id, case_upc, case_cost, case_quantity, vendor, discontinued, notes, updated_at, last_sync_at, owner)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `, [
-    teamData.itemId,
-    teamData.caseUpc || null,
-    teamData.caseCost || null,
-    teamData.caseQuantity || null,
-    teamData.vendor || null,
-    teamData.discontinued ? 1 : 0,
-    teamData.notes || null,
-    now,
-    teamData.lastSyncAt || now,
-    teamData.owner || null
-  ]);
+    // Note: Table may exist from previous sign-ins
+    const now = new Date().toISOString();
 
-  logger.debug('Database', 'Upserted team data', { itemId: teamData.itemId });
+    await db.runAsync(`
+      INSERT OR REPLACE INTO team_data
+      (item_id, case_upc, case_cost, case_quantity, vendor, discontinued, notes, updated_at, last_sync_at, owner)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      teamData.itemId,
+      teamData.caseUpc || null,
+      teamData.caseCost || null,
+      teamData.caseQuantity || null,
+      teamData.vendor || null,
+      teamData.discontinued ? 1 : 0,
+      teamData.notes || null,
+      now,
+      teamData.lastSyncAt || now,
+      teamData.owner || null
+    ]);
+
+    logger.debug('Database', 'Upserted team data', { itemId: teamData.itemId });
+  } catch (error) {
+    // CRITICAL FIX: Graceful error handling for offline/unauthenticated users
+    if (error?.message?.includes('no such table: team_data') || error?.code === 'ERR_INTERNAL_SQLITE_ERROR') {
+      logger.debug('Database', 'Team data table may not exist (user not signed in), skipping upsert', {
+        itemId: teamData.itemId,
+        error: error?.message || error?.code
+      });
+      return;
+    }
+
+    logger.error('Database', 'Error upserting team data', { error, itemId: teamData.itemId });
+    throw error;
+  }
 }
 
 /**
  * Get team data for a specific item from local SQLite
+ * CRITICAL FIX: Graceful handling when user is not signed in and team_data table doesn't exist
  */
 export async function getTeamData(itemId: string): Promise<TeamData | null> {
-  const db = await getDatabase();
-  const result = await db.getFirstAsync<any>(`
-    SELECT * FROM team_data WHERE item_id = ?
-  `, [itemId]);
+  try {
+    const db = await getDatabase();
 
-  if (!result) return null;
+    // Note: Table may exist from previous sign-ins, but specific items might be missing
+    const result = await db.getFirstAsync<any>(`
+      SELECT * FROM team_data WHERE item_id = ?
+    `, [itemId]);
 
-  return {
-    itemId: result.item_id,
-    caseUpc: result.case_upc,
-    caseCost: result.case_cost,
-    caseQuantity: result.case_quantity,
-    vendor: result.vendor,
-    discontinued: result.discontinued === 1,
-    notes: result.notes,
-    createdAt: result.created_at,
-    updatedAt: result.updated_at,
-    lastSyncAt: result.last_sync_at,
-    owner: result.owner
-  };
+    if (!result) return null;
+
+    return {
+      itemId: result.item_id,
+      caseUpc: result.case_upc,
+      caseCost: result.case_cost,
+      caseQuantity: result.case_quantity,
+      vendor: result.vendor,
+      discontinued: result.discontinued === 1,
+      notes: result.notes,
+      createdAt: result.created_at,
+      updatedAt: result.updated_at,
+      lastSyncAt: result.last_sync_at,
+      owner: result.owner
+    };
+  } catch (error) {
+    // CRITICAL FIX: Graceful error handling for offline/unauthenticated users
+    if (error?.message?.includes('no such table: team_data') || error?.code === 'ERR_INTERNAL_SQLITE_ERROR') {
+      logger.debug('Database', 'Team data table may not exist or item not found (user not signed in)', {
+        itemId,
+        error: error?.message || error?.code
+      });
+      return null;
+    }
+
+    logger.error('Database', 'Error getting team data', { error, itemId });
+    return null;
+  }
 }
 
 /**
