@@ -257,6 +257,39 @@ const SearchResultsArea = memo(({
     }
   }, [lastUpdatedItem, setLastUpdatedItem, executeSearch]);
 
+  // Real-time data change monitoring for automatic search refresh using event-driven approach
+  useEffect(() => {
+    let unsubscribe: (() => void) | null = null;
+
+    // Set up event-driven data change monitoring
+    import('../../../src/services/dataChangeNotifier').then(({ dataChangeNotifier }) => {
+      unsubscribe = dataChangeNotifier.addListener((event) => {
+        // Check if changes affect catalog items that might be in current search results
+        if (event.table === 'catalog_items' && searchTopic.trim() !== '') {
+          logger.info('SearchResultsArea', `Catalog item ${event.operation} detected, refreshing search results`, {
+            itemId: event.itemId,
+            operation: event.operation
+          });
+
+          // Add a small delay to ensure database changes are committed
+          setTimeout(() => {
+            executeSearch();
+          }, 100); // Reduced delay since we get immediate notifications
+        }
+      });
+
+      logger.debug('SearchResultsArea', 'Event-driven data change monitoring set up');
+    }).catch((error) => {
+      logger.warn('SearchResultsArea', 'Failed to set up data change monitoring', { error });
+    });
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [executeSearch, searchTopic]);
+
   // Generate dynamic category filter data from ALL search results (not filtered view)
   useEffect(() => {
     if (allSearchResults.length === 0) {

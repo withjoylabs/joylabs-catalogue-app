@@ -728,6 +728,16 @@ export async function upsertCatalogObjects(objects: CatalogObjectFromApi[]): Pro
                 }
               }
             }
+
+            // Notify data change listeners for catalog item changes
+            try {
+              const { dataChangeNotifier } = await import('../services/dataChangeNotifier');
+              const operation = isDeleted ? 'DELETE' : 'UPDATE';
+              dataChangeNotifier.notifyCatalogItemChange(operation, obj.id, obj);
+            } catch (error) {
+              // Ignore notification errors to prevent breaking the main operation
+              logger.debug('Database', 'Failed to notify catalog item change', { error, itemId: obj.id });
+            }
             break;
           case 'CATEGORY':
             await statements.CATEGORY.executeAsync(
@@ -847,6 +857,16 @@ export async function upsertCatalogObjects(objects: CatalogObjectFromApi[]): Pro
               obj.type, // Store IMAGE type
               dataJson
             );
+
+            // Notify data change listeners for image changes
+            try {
+              const { dataChangeNotifier } = await import('../services/dataChangeNotifier');
+              const operation = isDeleted ? 'DELETE' : 'UPDATE';
+              dataChangeNotifier.notifyImageChange(operation, obj.id, obj);
+            } catch (error) {
+              // Ignore notification errors to prevent breaking the main operation
+              logger.debug('Database', 'Failed to notify image change', { error, imageId: obj.id });
+            }
             break;
           default:
             // Log unsupported type? Or ignore?
@@ -1464,6 +1484,15 @@ export async function upsertTeamData(teamData: TeamData): Promise<void> {
     ]);
 
     logger.debug('Database', 'Upserted team data', { itemId: teamData.itemId });
+
+    // Notify data change listeners
+    try {
+      const { dataChangeNotifier } = await import('../services/dataChangeNotifier');
+      dataChangeNotifier.notifyTeamDataChange('UPDATE', teamData.itemId, teamData);
+    } catch (error) {
+      // Ignore notification errors to prevent breaking the main operation
+      logger.debug('Database', 'Failed to notify team data change', { error });
+    }
   } catch (error) {
     // CRITICAL FIX: Graceful error handling for offline/unauthenticated users
     if (error?.message?.includes('no such table: team_data') || error?.code === 'ERR_INTERNAL_SQLITE_ERROR') {

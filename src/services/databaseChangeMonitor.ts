@@ -189,15 +189,25 @@ class DatabaseChangeMonitor {
   private async checkTeamDataChanges(): Promise<DatabaseChange[]> {
     try {
       const db = await getDatabase();
-      
+
       // Get current checksum of team_data table
-      const result = await db.getFirstAsync<{ checksum: string }>(
-        `SELECT COUNT(*) || '-' || COALESCE(MAX(last_updated), '') as checksum 
-         FROM team_data`
-      );
+      let result: { checksum: string } | null = null;
+      try {
+        result = await db.getFirstAsync<{ checksum: string }>(
+          `SELECT COUNT(*) || '-' || COALESCE(MAX(last_updated), '') as checksum
+           FROM team_data`
+        );
+      } catch (queryError) {
+        if (queryError?.message?.includes('no such table:') || queryError?.code === 'ERR_INTERNAL_SQLITE_ERROR') {
+          logger.debug('[DatabaseChangeMonitor]', 'Team data table not available, skipping team data changes check');
+          return [];
+        } else {
+          throw queryError;
+        }
+      }
 
       const currentChecksum = result?.checksum || '';
-      
+
       if (currentChecksum !== this.lastTeamDataChecksum && this.lastTeamDataChecksum !== '') {
         logger.debug('[DatabaseChangeMonitor]', 'Team data changes detected', {
           oldChecksum: this.lastTeamDataChecksum,
@@ -206,7 +216,7 @@ class DatabaseChangeMonitor {
 
         // Get recently updated items (since last check)
         const recentlyUpdated = await db.getAllAsync<{ item_id: string; last_updated: string }>(
-          `SELECT item_id, last_updated FROM team_data 
+          `SELECT item_id, last_updated FROM team_data
            WHERE last_updated > datetime('now', '-${this.CHECK_INTERVAL * 2 / 1000} seconds')
            ORDER BY last_updated DESC`
         );
@@ -253,20 +263,38 @@ class DatabaseChangeMonitor {
   private async updateBaseline(): Promise<void> {
     try {
       const db = await getDatabase();
-      
+
       // Get initial catalog checksum
-      const catalogResult = await db.getFirstAsync<{ checksum: string }>(
-        `SELECT COUNT(*) || '-' || COALESCE(MAX(updated_at), '') as checksum 
-         FROM catalog_items WHERE is_deleted = 0`
-      );
-      this.lastCatalogChecksum = catalogResult?.checksum || '';
+      try {
+        const catalogResult = await db.getFirstAsync<{ checksum: string }>(
+          `SELECT COUNT(*) || '-' || COALESCE(MAX(updated_at), '') as checksum
+           FROM catalog_items WHERE is_deleted = 0`
+        );
+        this.lastCatalogChecksum = catalogResult?.checksum || '';
+      } catch (catalogError) {
+        if (catalogError?.message?.includes('no such table:') || catalogError?.code === 'ERR_INTERNAL_SQLITE_ERROR') {
+          logger.debug('[DatabaseChangeMonitor]', 'Catalog table not available, skipping catalog baseline');
+          this.lastCatalogChecksum = '';
+        } else {
+          throw catalogError;
+        }
+      }
 
       // Get initial team data checksum
-      const teamDataResult = await db.getFirstAsync<{ checksum: string }>(
-        `SELECT COUNT(*) || '-' || COALESCE(MAX(last_updated), '') as checksum 
-         FROM team_data`
-      );
-      this.lastTeamDataChecksum = teamDataResult?.checksum || '';
+      try {
+        const teamDataResult = await db.getFirstAsync<{ checksum: string }>(
+          `SELECT COUNT(*) || '-' || COALESCE(MAX(last_updated), '') as checksum
+           FROM team_data`
+        );
+        this.lastTeamDataChecksum = teamDataResult?.checksum || '';
+      } catch (teamDataError) {
+        if (teamDataError?.message?.includes('no such table:') || teamDataError?.code === 'ERR_INTERNAL_SQLITE_ERROR') {
+          logger.debug('[DatabaseChangeMonitor]', 'Team data table not available, skipping team data baseline');
+          this.lastTeamDataChecksum = '';
+        } else {
+          throw teamDataError;
+        }
+      }
 
       logger.debug('[DatabaseChangeMonitor]', 'Updated baseline checksums', {
         catalogChecksum: this.lastCatalogChecksum,

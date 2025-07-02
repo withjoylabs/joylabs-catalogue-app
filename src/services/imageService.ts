@@ -12,6 +12,10 @@ class ImageService {
   private readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
   private readonly MAX_CACHE_SIZE = 1000;
 
+  constructor() {
+    this.setupRealTimeUpdates();
+  }
+
   /**
    * Get image data by image ID from local SQLite database
    */
@@ -220,6 +224,45 @@ class ImageService {
     this.imageCache.clear();
     this.cacheTimestamp = 0;
     logger.debug('ImageService', 'Image cache cleared');
+  }
+
+  /**
+   * Set up real-time updates for image cache invalidation using event-driven approach
+   */
+  private setupRealTimeUpdates(): void {
+    try {
+      // Import data change notifier dynamically to avoid circular dependencies
+      import('./dataChangeNotifier').then(({ dataChangeNotifier }) => {
+        // Listen for data changes and invalidate image caches
+        dataChangeNotifier.addListener((event) => {
+          if (event.table === 'images') {
+            // Clear entire image cache when images change
+            // This is simpler than tracking individual image IDs
+            this.imageCache.clear();
+            this.cacheTimestamp = 0;
+            logger.debug('[ImageService]', 'Invalidated image cache due to image updates', {
+              operation: event.operation,
+              itemId: event.itemId
+            });
+          } else if (event.table === 'catalog_items') {
+            // When catalog items change, their image associations might change
+            // Clear cache to ensure fresh image data
+            this.imageCache.clear();
+            this.cacheTimestamp = 0;
+            logger.debug('[ImageService]', 'Invalidated image cache due to catalog item updates', {
+              operation: event.operation,
+              itemId: event.itemId
+            });
+          }
+        });
+
+        logger.info('[ImageService]', 'Event-driven image cache invalidation set up');
+      }).catch((error) => {
+        logger.warn('[ImageService]', 'Failed to set up real-time updates', { error });
+      });
+    } catch (error) {
+      logger.warn('[ImageService]', 'Failed to set up real-time updates', { error });
+    }
   }
 
   /**

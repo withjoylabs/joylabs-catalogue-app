@@ -34,6 +34,8 @@ class CrossReferenceService {
   constructor() {
     // Start memory monitoring
     this.startMemoryMonitoring();
+    // Set up real-time updates
+    this.setupRealTimeUpdates();
   }
 
   /**
@@ -791,6 +793,41 @@ class CrossReferenceService {
 
       logger.error('[CrossReferenceService]', 'Batch load team data failed', { error });
       return result;
+    }
+  }
+
+  /**
+   * Set up real-time updates for cache invalidation using event-driven approach
+   */
+  private setupRealTimeUpdates(): void {
+    try {
+      // Import data change notifier dynamically to avoid circular dependencies
+      import('./dataChangeNotifier').then(({ dataChangeNotifier }) => {
+        // Listen for data changes and invalidate relevant caches
+        dataChangeNotifier.addListener((event) => {
+          if (event.table === 'catalog_items') {
+            // Invalidate Square item cache for this item
+            this.squareItemCache.delete(event.itemId);
+            logger.debug('[CrossReferenceService]', 'Invalidated Square item cache', {
+              itemId: event.itemId,
+              operation: event.operation
+            });
+          } else if (event.table === 'team_data') {
+            // Invalidate team data cache for this item
+            this.teamDataCache.delete(event.itemId);
+            logger.debug('[CrossReferenceService]', 'Invalidated team data cache', {
+              itemId: event.itemId,
+              operation: event.operation
+            });
+          }
+        });
+
+        logger.info('[CrossReferenceService]', 'Event-driven cache invalidation set up');
+      }).catch((error) => {
+        logger.warn('[CrossReferenceService]', 'Failed to set up real-time updates', { error });
+      });
+    } catch (error) {
+      logger.warn('[CrossReferenceService]', 'Failed to set up real-time updates', { error });
     }
   }
 
