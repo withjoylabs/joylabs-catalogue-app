@@ -4,6 +4,7 @@ import { useAppStore } from '../store';
 import { CatalogObject, ConvertedItem, SearchResultItem } from '../types/api';
 import { ScanHistoryItem } from '../types';
 import { transformCatalogItemToItem, populateItemImagesForItems, populateItemImages } from '../utils/catalogTransformers';
+import { crossReferenceService } from '../services/crossReferenceService';
 import { useApi } from '../providers/ApiProvider';
 import logger from '../utils/logger';
 import {
@@ -216,11 +217,7 @@ export const useCatalogItems = () => {
         variations = allVariations.map(v => {
           try {
             const parsedData = JSON.parse(v.data_json || '{}');
-            logger.debug('CatalogItems::getProductById', 'Parsed variation data', { 
-              variationId: parsedData.id, 
-              variationName: parsedData.item_variation_data?.name,
-              hasLocationOverrides: !!parsedData.item_variation_data?.location_overrides
-            });
+
             
             // Log location overrides if they exist
             if (parsedData.item_variation_data?.location_overrides) {
@@ -268,11 +265,7 @@ export const useCatalogItems = () => {
         variations = allVariations.map(v => {
           try {
             const parsedData = JSON.parse(v.data_json || '{}');
-            logger.debug('CatalogItems::getProductById', 'Parsed variation data', { 
-              variationId: parsedData.id, 
-              variationName: parsedData.item_variation_data?.name,
-              hasLocationOverrides: !!parsedData.item_variation_data?.location_overrides
-            });
+
             
             // Log location overrides if they exist
             if (parsedData.item_variation_data?.location_overrides) {
@@ -299,11 +292,7 @@ export const useCatalogItems = () => {
 
       // 3. Parse JSON and reconstruct for transformer
       const itemData = JSON.parse(itemJson);
-      logger.debug('CatalogItems::getProductById', 'Parsed item data before reconstruction', { 
-        itemId: itemData.id,
-        variationCount: variations.length,
-        hasPayload: !!itemData.item_data
-      });
+
 
       // Reconstruct CatalogObject (ensure structure matches transformer expectations)
        const reconstructedCatalogObject: Partial<CatalogObjectFromApi> & { id: string } = {
@@ -329,42 +318,10 @@ export const useCatalogItems = () => {
           }
         };
 
-      // Call the transformer, it now handles modifier extraction internally
-      const transformedItem = transformCatalogItemToItem(reconstructedCatalogObject as any);
+      // Use CrossReferenceService to get item with category name populated (like reorders page)
+      const transformedItem = await crossReferenceService.getSquareItem(itemId);
 
       if (transformedItem) {
-        logger.debug('CatalogItems::getProductById', 'Item successfully fetched and transformed from DB', { id });
-        logger.debug('CatalogItems::getProductById', 'Transformed item data check', {
-          itemId: transformedItem.id,
-          variationCount: transformedItem.variations?.length || 0,
-          variations: JSON.stringify(transformedItem.variations?.map(v => {
-            // Define proper type to avoid linter errors
-            type VariationWithOverrides = {
-              id?: string;
-              version?: number;
-              name: string | null;
-              sku: string | null;
-              price?: number;
-              barcode?: string;
-              locationOverrides?: Array<{
-                locationId: string;
-                locationName?: string;
-                price?: number;
-              }>;
-            };
-            
-            // Use type assertion to avoid linter errors
-            const variation = v as VariationWithOverrides;
-            
-            return {
-              id: variation.id,
-              name: variation.name,
-              hasOverrides: !!variation.locationOverrides,
-              overrideCount: variation.locationOverrides?.length || 0
-            };
-          }))
-        });
-
         // Add location names to each override using default locations if the DB query fails
         if (transformedItem.variations && transformedItem.variations.length > 0) {
           try {
@@ -909,11 +866,18 @@ export const useCatalogItems = () => {
       // If barcode filter is enabled, search Case UPC locally (LOCAL-FIRST ARCHITECTURE)
       let caseUpcResults: SearchResultItem[] = [];
       if (filters.barcode && isSquareConnected) {
-        try {
-          logger.info('useCatalogItems:performSearch', '🔍 Searching Case UPC locally (LOCAL-FIRST)', { searchTerm });
+        // Only search case UPC for numerical values (case UPCs are always numbers)
+        const trimmedSearchTerm = searchTerm.trim();
+        const isNumericSearch = /^\d+$/.test(trimmedSearchTerm);
 
-          // Get case UPC item IDs first
-          const localCaseUpcItems = await modernDb.searchItemsByCaseUpc(searchTerm.trim());
+        if (!isNumericSearch) {
+          logger.debug('useCatalogItems:performSearch', '⏭️ Skipping case UPC search for non-numeric input', { searchTerm: trimmedSearchTerm });
+        } else {
+          try {
+            logger.info('useCatalogItems:performSearch', '🔍 Searching Case UPC locally (LOCAL-FIRST)', { searchTerm: trimmedSearchTerm });
+
+            // Get case UPC item IDs first
+            const localCaseUpcItems = await modernDb.searchItemsByCaseUpc(trimmedSearchTerm);
 
           if (localCaseUpcItems && localCaseUpcItems.length > 0) {
             logger.info('useCatalogItems:performSearch', `✅ Found ${localCaseUpcItems.length} Case UPC matches locally`);
@@ -947,12 +911,13 @@ export const useCatalogItems = () => {
           } else {
             logger.info('useCatalogItems:performSearch', '📭 No local case UPC matches found (table may be empty or user not signed in)');
           }
-        } catch (error) {
-          logger.warn('useCatalogItems:performSearch', '⚠️ Case UPC search unavailable', {
-            error: error instanceof Error ? error.message : 'Unknown error',
-            searchTerm: searchTerm.trim()
-          });
-          // Gracefully continue with regular search results only
+          } catch (error) {
+            logger.warn('useCatalogItems:performSearch', '⚠️ Case UPC search unavailable', {
+              error: error instanceof Error ? error.message : 'Unknown error',
+              searchTerm: trimmedSearchTerm
+            });
+            // Gracefully continue with regular search results only
+          }
         }
       }
 

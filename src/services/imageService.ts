@@ -108,13 +108,7 @@ class ImageService {
             results.set(row.id, imageData);
             this.cacheImage(row.id, imageData);
 
-            // Log for debugging
-            logger.debug('ImageService', 'Found image in database', {
-              id: row.id,
-              url: row.url,
-              isLocal: row.url.startsWith('file://'),
-              name: row.name
-            });
+
           }
         }
       }

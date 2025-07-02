@@ -1520,6 +1520,12 @@ export async function searchItemsByCaseUpc(caseUpc: string): Promise<ConvertedIt
   logger.info('Database', 'Searching items by case UPC locally', { caseUpc });
 
   try {
+    // Validate input - case UPCs should be numeric
+    if (!/^\d+$/.test(caseUpc.trim())) {
+      logger.debug('Database', 'Invalid case UPC format - must be numeric', { caseUpc });
+      return [];
+    }
+
     // First check if team_data table has any data
     const teamDataCount = await db.getFirstAsync<{ count: number }>(
       'SELECT COUNT(*) as count FROM team_data WHERE case_upc IS NOT NULL'

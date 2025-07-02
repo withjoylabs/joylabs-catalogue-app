@@ -98,7 +98,7 @@ export const styles = StyleSheet.create({
   resultItem: {
     flexDirection: 'row',
     paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12, // Reduced from 16 to give more space for text
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
     alignItems: 'center',
@@ -111,21 +111,21 @@ export const styles = StyleSheet.create({
     marginRight: 8,
   },
   resultImageContainer: {
-    width: 50,
-    height: 50,
-    marginRight: 8,
-    marginLeft: -2, // Extend slightly beyond text padding
+    width: 64,
+    height: 64,
+    marginRight: 10,
+    marginLeft: -4, // Extend slightly beyond text padding
     borderRadius: 6,
     overflow: 'hidden',
   },
   resultImage: {
-    width: 50,
-    height: 50,
+    width: 64,
+    height: 64,
     borderRadius: 6,
   },
   resultImageFallback: {
-    width: 50,
-    height: 50,
+    width: 64,
+    height: 64,
     backgroundColor: '#f5f5f5',
     borderRadius: 6,
     alignItems: 'center',
@@ -224,11 +224,11 @@ export const styles = StyleSheet.create({
     marginTop: 16,
   },
   filterContainer: {
-    flexDirection: 'row',
+    // Removed flexDirection: 'row' and alignItems since this is now a ScrollView
     // Removed justifyContent: 'space-around', as it's now part of a flex item
     // Removed paddingVertical and paddingHorizontal, handled by inner/outer containers
     // Removed backgroundColor, borderBottomWidth, borderBottomColor
-    alignItems: 'center', // Align filter buttons nicely in their group
+    position: 'relative', // For dropdown positioning
   },
   filterButton: {
     flexDirection: 'row',
@@ -323,16 +323,17 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 6, // Vertical padding for the inner content
   },
-  // Styles for the new sort cycle button
+  // Styles for the new sort cycle button (matches filterButton)
   sortCycleButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: lightTheme.colors.border,
     backgroundColor: lightTheme.colors.background,
+    marginRight: 6, // Space between filter buttons
   },
   sortCycleButtonText: {
     fontSize: 13,
@@ -539,4 +540,60 @@ export const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 4,
   },
-}); 
+
+  // Dropdown styles (similar to reorders page)
+  dropdownContainer: {
+    position: 'absolute',
+    bottom: '100%',
+    left: 0,
+    right: 0,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    zIndex: 1000,
+    maxHeight: 280, // Increased from 200 to show ~2 more rows
+    marginBottom: 8,
+  },
+
+  dropdownHeader: {
+    padding: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+    backgroundColor: '#f8f9fa',
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+  },
+
+  dropdownHeaderText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    textAlign: 'center',
+  },
+
+  dropdownScrollView: {
+    flex: 1,
+    maxHeight: 160,
+  },
+
+  dropdownItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+
+  dropdownItemText: {
+    fontSize: 14,
+    color: '#333',
+  },
+
+  dropdownItemTextSelected: {
+    color: '#007AFF',
+    fontWeight: '600',
+  },
+});

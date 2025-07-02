@@ -220,11 +220,12 @@ class CrossReferenceService {
 
       // CRITICAL FIX: Ensure category name is properly set
       // The transformer only sets categoryId, not the category name
-      let categoryName = row.category_name || 'Unknown';
+      let categoryName = row.category_name;
 
       // If no category name from join, try to look it up from categoryId or reporting_category_id
-      if (!row.category_name) {
-        const categoryId = convertedItem.categoryId || convertedItem.reporting_category_id;
+      if (!categoryName) {
+        // Prioritize reporting_category_id as it's the most important category
+        const categoryId = convertedItem.reporting_category_id || convertedItem.categoryId;
         if (categoryId) {
           try {
             const db = await getDatabase();
@@ -234,6 +235,7 @@ class CrossReferenceService {
             );
             if (categoryRow) {
               categoryName = categoryRow.name;
+
             }
           } catch (categoryError) {
             logger.warn('[CrossReferenceService]', 'Failed to lookup category name', {
@@ -244,8 +246,10 @@ class CrossReferenceService {
         }
       }
 
-      // Set the category name on the converted item
-      convertedItem.category = categoryName;
+      // Set the category name on the converted item (only if we found one)
+      if (categoryName) {
+        convertedItem.category = categoryName;
+      }
 
       // Cache the result with LRU tracking
       this.addToSquareItemCache(itemId, convertedItem);
@@ -328,7 +332,6 @@ class CrossReferenceService {
         if (!tableExists || tableExists.count === 0) {
           // Reduce console spam by only logging once per session
           if (!window._crossRefLoggedNoTeamTable) {
-            logger.debug('[CrossReferenceService]', 'Team data table does not exist - user not signed in', { itemId });
             window._crossRefLoggedNoTeamTable = true;
           }
           return null;
@@ -371,10 +374,7 @@ class CrossReferenceService {
       // Cache the result with LRU tracking
       this.addToTeamDataCache(itemId, teamData);
 
-      logger.debug('[CrossReferenceService]', 'Team data found and cached', {
-        itemId,
-        vendor: teamData.vendor
-      });
+
 
       return teamData;
 
@@ -498,7 +498,7 @@ class CrossReferenceService {
   clearCaches(): void {
     this.squareItemCache.clear();
     this.teamDataCache.clear();
-    logger.debug('[CrossReferenceService]', 'Caches cleared');
+
   }
 
   /**
@@ -522,7 +522,7 @@ class CrossReferenceService {
       this.performMemoryOptimization();
     }, this.MEMORY_CHECK_INTERVAL);
 
-    logger.debug('[CrossReferenceService]', 'Memory monitoring started');
+
   }
 
   /**

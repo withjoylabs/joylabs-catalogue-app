@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, memo, useMemo } from 'react';
 import {
   View,
   FlatList,
@@ -13,7 +13,7 @@ import {
   Platform, // For KeyboardAvoidingView if we re-add it, but SearchBar handles its input.
   KeyboardAvoidingView, // Keep for filter pills for now, may remove if SearchBar covers all
   ScrollView,
-  Modal,
+
   Animated, // For swipe action
   Alert, // Added for print feedback
   Vibration, // Added for haptic feedback
@@ -76,14 +76,16 @@ interface SearchResultsAreaProps {
   onCreateNewItem: (params: { name?: string; sku?: string; barcode?: string }) => void;
   isAwaitingPostSaveSearch: boolean;
   onSearchComplete: () => void;
+  onClearSearch: () => void;
 }
 
-const SearchResultsArea = memo(({ 
-  searchTopic, 
-  onPrintSuccessForChaining, 
+const SearchResultsArea = memo(({
+  searchTopic,
+  onPrintSuccessForChaining,
   onCreateNewItem,
   isAwaitingPostSaveSearch,
-  onSearchComplete
+  onSearchComplete,
+  onClearSearch
 }: SearchResultsAreaProps) => {
   const router = useRouter(); 
   const swipeableRefs = useRef<Record<string, Swipeable | null>>({});
@@ -112,16 +114,17 @@ const SearchResultsArea = memo(({
   const [reorderNotificationItemId, setReorderNotificationItemId] = useState<string | null>(null);
 
   const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
+  const [allSearchResults, setAllSearchResults] = useState<SearchResultItem[]>([]); // Keep original results
   const [isSearchPending, setIsSearchPending] = useState(false);
   const [searchFilters, setSearchFilters] = useState<SearchFilters>({
-    name: true, 
+    name: true,
     sku: true,
     barcode: true,
-    category: false 
+    category: false
   });
   const [sortOrder, setSortOrder] = useState<'default' | 'az' | 'za' | 'price_asc' | 'price_desc'>('default');
   const [selectedResultCategoryId, setSelectedResultCategoryId] = useState<string | null>(null);
-  const [availableResultCategories, setAvailableResultCategories] = useState<Array<{ id: string; name: string }>>([]);
+  const [availableResultCategories, setAvailableResultCategories] = useState<Array<{ id: string; name: string; count: number }>>([]);
 
   const { performSearch, isSearching: catalogIsSearching, searchError: catalogSearchError } = useCatalogItems();
   
@@ -161,38 +164,23 @@ const SearchResultsArea = memo(({
   const executeSearch = useCallback(async () => {
     if (searchTopic.trim() === '') {
       setSearchResults([]);
+      setAllSearchResults([]);
       setIsSearchPending(false); // Clear pending state for empty search
       return;
     }
-    
+
     // Set pending state immediately and clear old results to prevent flash
     setIsSearchPending(true);
     setSearchResults([]); // Clear old results immediately
-    
+    setAllSearchResults([]); // Clear all results immediately
+
     logger.info('SearchResultsArea', 'Executing search for topic:', { topic: searchTopic });
     const rawResults = await performSearch(searchTopic, searchFilters);
-    
+
     let processedResults = [...rawResults];
 
-    if (selectedResultCategoryId) {
-      processedResults = processedResults.filter(item => item.categoryId === selectedResultCategoryId);
-    }
-
-    switch (sortOrder) {
-      case 'az':
-        processedResults.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
-        break;
-      case 'za':
-        processedResults.sort((a, b) => (b.name ?? '').localeCompare(a.name ?? ''));
-        break;
-      case 'price_asc':
-        processedResults.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
-        break;
-      case 'price_desc':
-        processedResults.sort((a, b) => (b.price ?? -Infinity) - (a.price ?? -Infinity));
-        break;
-    }
-    setSearchResults(processedResults);
+    // Store ALL results (no category filtering here - this is for data storage)
+    setAllSearchResults(processedResults);
     setIsSearchPending(false); // Clear pending state when search completes
     onSearchComplete(); // Notify parent that search is done
 
@@ -204,12 +192,54 @@ const SearchResultsArea = memo(({
     });
 
     // logger.info('SearchResultsArea', 'Search executed, results set.', { count: processedResults.length });
-  }, [searchTopic, searchFilters, performSearch, sortOrder, selectedResultCategoryId, setSearchResults, onSearchComplete]);
+  }, [searchTopic, searchFilters, performSearch, setSearchResults, onSearchComplete]);
 
-  // useEffect to run search when query/filters/sort change
+  // useEffect to run search when query/filters change (but NOT sort or category filter)
   useEffect(() => {
     executeSearch();
   }, [executeSearch]); // Depends on the memoized executeSearch
+
+  // Separate effect for VIEW-ONLY filtering and sorting (lightning fast)
+  useEffect(() => {
+    if (allSearchResults.length === 0) {
+      setSearchResults([]);
+      return;
+    }
+
+    let viewResults = [...allSearchResults];
+
+    // Apply category filter for VIEW only (not destructive)
+    if (selectedResultCategoryId) {
+      const selectedCategory = availableResultCategories.find(c => c.id === selectedResultCategoryId);
+      if (selectedCategory) {
+        viewResults = viewResults.filter(item => {
+          const itemCategory = item.category || 'Uncategorized';
+          return itemCategory === selectedCategory.name;
+        });
+      }
+    }
+
+    // Apply sorting
+    switch (sortOrder) {
+      case 'az':
+        viewResults.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        break;
+      case 'za':
+        viewResults.sort((a, b) => (b.name || '').localeCompare(a.name || ''));
+        break;
+      case 'price_asc':
+        viewResults.sort((a, b) => (a.price || 0) - (b.price || 0));
+        break;
+      case 'price_desc':
+        viewResults.sort((a, b) => (b.price || 0) - (a.price || 0));
+        break;
+      default:
+        // Keep default order
+        break;
+    }
+
+    setSearchResults(viewResults);
+  }, [allSearchResults, selectedResultCategoryId, sortOrder, availableResultCategories]);
 
   // Effect to update/refresh search results if a relevant item was globally updated or created
   useEffect(() => {
@@ -227,21 +257,35 @@ const SearchResultsArea = memo(({
     }
   }, [lastUpdatedItem, setLastUpdatedItem, executeSearch]);
 
+  // Generate dynamic category filter data from ALL search results (not filtered view)
   useEffect(() => {
-    const fetchCategoriesForFilter = async () => {
-      try {
-        const categoriesFromDb = await modernDb.getAllCategories();
-        const formattedCategories = categoriesFromDb
-          .map(cat => ({ id: cat.id, name: cat.name }))
-          .sort((a, b) => a.name.localeCompare(b.name));
-        setAvailableResultCategories(formattedCategories);
-      } catch (err) {
-        logger.error('SearchResultsArea: Failed to fetch categories for filter', String(err));
-        setAvailableResultCategories([]); // Set to empty on error
+    if (allSearchResults.length === 0) {
+      setAvailableResultCategories([]);
+      return;
+    }
+
+    const categoryMap = new Map<string, { id: string; count: number }>();
+
+
+
+    allSearchResults.forEach(item => {
+      let categoryName = item.category || 'Uncategorized';
+      let categoryId = item.categoryId || item.reporting_category_id || 'uncategorized';
+
+      if (categoryMap.has(categoryName)) {
+        categoryMap.get(categoryName)!.count++;
+      } else {
+        categoryMap.set(categoryName, { id: categoryId, count: 1 });
       }
-    };
-    fetchCategoriesForFilter();
-  }, []);
+    });
+
+    const categories = Array.from(categoryMap.entries())
+      .map(([name, data]) => ({ id: data.id, name, count: data.count }))
+      .sort((a, b) => b.count - a.count); // Sort by count descending
+
+
+    setAvailableResultCategories(categories);
+  }, [allSearchResults]);
 
   const toggleFilter = useCallback((toggledFilter: keyof Omit<SearchFilters, 'category'>) => {
     setSearchFilters(currentFilters => {
@@ -269,7 +313,16 @@ const SearchResultsArea = memo(({
 
   const handleSelectResultCategory = useCallback((categoryId: string | null) => {
       setSelectedResultCategoryId(categoryId);
+      // Note: When categoryId is null (All Categories), we just remove the filter view
+      // We do NOT clear the search - that's handled separately by the clear button
   }, [setSelectedResultCategoryId]);
+
+  // Listen for search topic changes to reset category filter when search is cleared
+  useEffect(() => {
+    if (searchTopic.trim() === '') {
+      setSelectedResultCategoryId(null); // Reset category filter when search is cleared
+    }
+  }, [searchTopic]);
 
   const handleResultItemPress = useCallback((item: SearchResultItem) => {
     // logger.info('SearchResultsArea', 'Search result selected', { itemId: item.id, name: item.name });
@@ -494,10 +547,6 @@ const SearchResultsArea = memo(({
         enableTrackpadTwoFingerGesture
       >
         <Pressable style={styles.resultItem} onPress={() => handleResultItemPress(item)}>
-          <View style={styles.resultNumberContainer}>
-            <Text style={styles.resultNumberText}>{index + 1}</Text>
-          </View>
-
           {/* Item Image Thumbnail */}
           <View style={(styles as any).resultImageContainer}>
             {item.images && item.images.length > 0 && item.images[0].url ? (
@@ -522,16 +571,15 @@ const SearchResultsArea = memo(({
           </View>
 
           <View style={styles.resultDetails}>
-            <Text style={styles.resultName} numberOfLines={1}>{item.name ?? 'N/A'}</Text>
-            <View style={styles.resultMeta}>
-              {item.sku && <Text style={styles.resultSku}>SKU: {item.sku}</Text>}
+            <Text style={styles.resultName} numberOfLines={3}>{item.name ?? 'N/A'}</Text>
+            <View style={[styles.resultMeta, { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' }]}>
               {item.category && <Text style={styles.resultCategory}>{item.category}</Text>}
               {item.barcode && <Text style={styles.resultBarcode}>UPC: {item.barcode}</Text>}
+              {item.sku && <Text style={[styles.resultBarcode, { marginLeft: 8 }]}>SKU: {item.sku}</Text>}
             </View>
           </View>
           <View style={styles.resultPrice}>
             <Text style={styles.priceText}>{formattedPrice}</Text>
-            <Ionicons name="chevron-forward" size={18} color="#ccc" />
           </View>
           {/* Inline reorder success notification */}
           {showReorderNotification && reorderNotificationItemId === item.id && reorderNotificationType === 'success' && (
@@ -635,14 +683,16 @@ const SearchResultsArea = memo(({
         style={{ flex: 1 }}
       />
       {searchTopic.trim().length > 0 && (
-        <FilterAndSortControls 
-          searchFilters={searchFilters} 
-          onToggleFilter={toggleFilter} 
-          sortOrder={sortOrder} 
-          onSetSortOrder={setSortOrder} 
+        <FilterAndSortControls
+          searchFilters={searchFilters}
+          onToggleFilter={toggleFilter}
+          sortOrder={sortOrder}
+          onSetSortOrder={setSortOrder}
           availableResultCategories={availableResultCategories}
           selectedResultCategoryId={selectedResultCategoryId}
           onSelectResultCategory={handleSelectResultCategory}
+          searchResults={searchResults}
+          allSearchResults={allSearchResults}
         />
       )}
       <SystemModal
@@ -666,18 +716,22 @@ interface FilterAndSortControlsProps {
   onToggleFilter: (filter: keyof Omit<SearchFilters, 'category'>) => void;
   sortOrder: 'default' | 'az' | 'za' | 'price_asc' | 'price_desc';
   onSetSortOrder: (order: 'default' | 'az' | 'za' | 'price_asc' | 'price_desc') => void;
-  availableResultCategories: Array<{ id: string; name: string }>;
+  availableResultCategories: Array<{ id: string; name: string; count: number }>;
   selectedResultCategoryId: string | null;
   onSelectResultCategory: (categoryId: string | null) => void;
+  searchResults: SearchResultItem[];
+  allSearchResults: SearchResultItem[];
 }
 const FilterAndSortControls = memo(({
-  searchFilters, 
-  onToggleFilter, 
-  sortOrder, 
+  searchFilters,
+  onToggleFilter,
+  sortOrder,
   onSetSortOrder,
   availableResultCategories,
   selectedResultCategoryId,
-  onSelectResultCategory
+  onSelectResultCategory,
+  searchResults,
+  allSearchResults
 }: FilterAndSortControlsProps) => {
   const sortLabels: Record<typeof sortOrder, string> = {
     default: 'Default',
@@ -694,119 +748,118 @@ const FilterAndSortControls = memo(({
     onSetSortOrder(orders[nextIndex]);
   };
 
-  const [isCategoryModalVisible, setCategoryModalVisible] = useState(false);
-  const [modalCategorySearchTerm, setModalCategorySearchTerm] = useState('');
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
 
-  const filteredModalCategories = availableResultCategories.filter(cat => 
-    cat.name.toLowerCase().includes(modalCategorySearchTerm.toLowerCase())
-  );
+  const filteredModalCategories = useMemo(() => availableResultCategories, [availableResultCategories]);
 
-  const selectedCategoryName = selectedResultCategoryId 
-    ? availableResultCategories.find(c => c.id === selectedResultCategoryId)?.name 
-    : 'Category';
+  // Memoize category button text for performance
+  const categoryButtonText = useMemo(() => {
+    if (selectedResultCategoryId) {
+      const selectedCategory = availableResultCategories.find(c => c.id === selectedResultCategoryId);
+      return selectedCategory ? `${selectedCategory.name} (${selectedCategory.count})` : 'Categories';
+    }
+    return `Categories (${availableResultCategories.length})`;
+  }, [selectedResultCategoryId, availableResultCategories]);
 
   return (
     <View style={styles.controlsContainer}> 
-      <View style={styles.filterAndSortInnerContainer}> 
-        <View style={styles.filterContainer}>
+      <View style={styles.filterAndSortInnerContainer}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          style={styles.filterContainer}
+          contentContainerStyle={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingHorizontal: 0
+          }}
+        >
           <Pressable style={[styles.filterButton, searchFilters.name && styles.filterButtonActive]} onPress={() => onToggleFilter('name')}><Text style={[styles.filterButtonText, searchFilters.name && styles.filterButtonTextActive]}>Name</Text></Pressable>
           <Pressable style={[styles.filterButton, searchFilters.sku && styles.filterButtonActive]} onPress={() => onToggleFilter('sku')}><Text style={[styles.filterButtonText, searchFilters.sku && styles.filterButtonTextActive]}>SKU</Text></Pressable>
           <Pressable style={[styles.filterButton, searchFilters.barcode && styles.filterButtonActive]} onPress={() => onToggleFilter('barcode')}><Text style={[styles.filterButtonText, searchFilters.barcode && styles.filterButtonTextActive]}>UPC</Text></Pressable>
-          <Pressable 
-            style={[styles.filterButton, selectedResultCategoryId && styles.filterButtonActive, { flexDirection: 'row', alignItems: 'center' }]} 
-            onPress={() => setCategoryModalVisible(true)}
+          <Pressable
+            style={[styles.filterButton, selectedResultCategoryId && styles.filterButtonActive, { flexDirection: 'row', alignItems: 'center', position: 'relative' }]}
+            onPress={() => setShowCategoryDropdown(!showCategoryDropdown)}
           >
             <Ionicons name="filter-outline" size={14} color={selectedResultCategoryId ? '#FFFFFF' : lightTheme.colors.text} style={{ marginRight: 3 }} />
             <Text style={[styles.filterButtonText, selectedResultCategoryId && styles.filterButtonTextActive]}>
-              {selectedCategoryName}
+              {categoryButtonText}
             </Text>
           </Pressable>
-        </View>
-        
-        <Pressable style={styles.sortCycleButton} onPress={handleSortCycle}>
-          <Ionicons name="swap-vertical-outline" size={16} color={lightTheme.colors.text} style={{ marginRight: 5 }} />
-          <Text style={styles.sortCycleButtonText}>Sort: {sortLabels[sortOrder]}</Text>
-        </Pressable>
+
+          <Pressable style={styles.sortCycleButton} onPress={handleSortCycle}>
+            <Ionicons name="swap-vertical-outline" size={16} color={lightTheme.colors.text} style={{ marginRight: 5 }} />
+            <Text style={styles.sortCycleButtonText}>Sort: {sortLabels[sortOrder]}</Text>
+          </Pressable>
+        </ScrollView>
       </View>
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={isCategoryModalVisible}
-        onRequestClose={() => {
-          setCategoryModalVisible(false);
-          setModalCategorySearchTerm('');
-        }}
-      >
-        <View style={styles.categoryModalContainer}>
-          <KeyboardAvoidingView 
-            behavior={Platform.OS === "ios" ? "padding" : "height"} 
-            style={{ flexShrink: 1 }} 
-            keyboardVerticalOffset={Platform.OS === "ios" ? 20 : 0} 
-          >
-            <View style={styles.categoryModalContent}>
-              <Text style={styles.categoryModalTitle}>Filter by Category</Text>
-              <FlatList
-                data={[{ id: null, name: `All Categories` }, ...filteredModalCategories]}
-                keyExtractor={(item) => item.id ?? 'all'}
-                renderItem={({ item }) => (
-                  <Pressable 
-                      style={styles.categoryModalItem}
-                      onPress={() => {
-                          onSelectResultCategory(item.id); 
-                          setCategoryModalVisible(false);
-                          setModalCategorySearchTerm('');
-                      }}
-                  >
-                    <Text 
-                      style={[
-                          styles.categoryModalItemText,
-                          (item.id === selectedResultCategoryId) && styles.categoryModalItemTextSelected 
-                      ]}
-                    >
-                      {item.name}
-                    </Text>
-                  </Pressable>
-                )}
-                ListEmptyComponent={() => (
-                  <View style={styles.categoryModalEmpty}>
-                    <Text style={styles.categoryModalEmptyText}>No categories match "{modalCategorySearchTerm}"</Text>
-                  </View>
-                )}
-              />
-              <TextInput
-                style={styles.categoryModalSearchInput}
-                placeholder="Search categories..."
-                placeholderTextColor="#999"
-                value={modalCategorySearchTerm}
-                onChangeText={setModalCategorySearchTerm}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              <View style={styles.categoryModalFooter}>
-                  <Pressable 
-                      style={[styles.categoryModalButton, styles.categoryModalClearButton]} 
-                      onPress={() => {
-                          onSelectResultCategory(null); 
-                          setCategoryModalVisible(false);
-                          setModalCategorySearchTerm('');
-                      }}
-                  >
-                      <Text style={[styles.categoryModalButtonText, styles.categoryModalClearButtonText]}>Clear Selection</Text>
-                  </Pressable>
-                  <Pressable 
-                      style={[styles.categoryModalButton, styles.categoryModalCloseButton]} 
-                      onPress={() => {
-                          setCategoryModalVisible(false);
-                          setModalCategorySearchTerm('');
-                      }}
-                  >
-                      <Text style={styles.categoryModalButtonText}>Close</Text>
-                  </Pressable>
-              </View>
+      {showCategoryDropdown && (
+        <>
+          {/* Backdrop to close dropdown when clicking outside */}
+          <Pressable
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 999,
+            }}
+            onPress={() => setShowCategoryDropdown(false)}
+          />
+          <View style={styles.dropdownContainer}>
+            <View style={styles.dropdownHeader}>
+              <Text style={styles.dropdownHeaderText}>Filter by Category</Text>
             </View>
-          </KeyboardAvoidingView>
-        </View>
-      </Modal>
+            <ScrollView style={styles.dropdownScrollView}>
+              {[{ id: null, name: `All Categories`, count: allSearchResults.length }, ...filteredModalCategories].map((item) => (
+                <Pressable
+                  key={item.id ?? 'all'}
+                  style={[
+                    styles.dropdownItem,
+                    {
+                      backgroundColor: (item.id === selectedResultCategoryId) ? '#f0f8ff' : 'transparent',
+                      flexDirection: 'row',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }
+                  ]}
+                  onPress={() => {
+                    onSelectResultCategory(item.id);
+                    setShowCategoryDropdown(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.dropdownItemText,
+                      (item.id === selectedResultCategoryId) && styles.dropdownItemTextSelected
+                    ]}
+                  >
+                    {item.name}
+                  </Text>
+                  <View style={{
+                    backgroundColor: (item.id === selectedResultCategoryId) ? '#007AFF' : '#e0e0e0',
+                    paddingHorizontal: 8,
+                    paddingVertical: 4,
+                    borderRadius: 12,
+                    minWidth: 24,
+                    alignItems: 'center',
+                  }}>
+                    <Text style={{
+                      fontSize: 12,
+                      color: (item.id === selectedResultCategoryId) ? '#fff' : '#666',
+                      fontWeight: '600',
+                    }}>
+                      {item.count}
+                    </Text>
+                  </View>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        </>
+      )}
     </View>
   );
 });
@@ -841,13 +894,7 @@ function RootLayoutNav() {
     return unsubscribe;
   }, []);
 
-  const handleClearSearch = useCallback(() => {
-    setSearchTopic('');
-    // Focus the input after clearing
-    setTimeout(() => {
-      searchInputRef.current?.focus();
-    }, 100);
-  }, []);
+
 
   useFocusEffect(
     useCallback(() => {
@@ -868,6 +915,14 @@ function RootLayoutNav() {
     // logger.info('RootLayoutNav', 'Search submitted', { query });
     setSearchTopic(query);
     // NOTE: No longer triggering select all here to avoid aggressive highlighting.
+  }, []);
+
+  const handleClearSearch = useCallback(() => {
+    setSearchTopic('');
+    // Focus the input after clearing
+    setTimeout(() => {
+      searchInputRef.current?.focus();
+    }, 100);
   }, []);
 
   const handleCreateNewItem = useCallback((params: { name?: string; sku?: string; barcode?: string }) => {
@@ -909,12 +964,13 @@ function RootLayoutNav() {
 
       <ScanHistoryButtonComponent count={scanHistory.length} onNavigate={navigateToHistory} />
 
-      <SearchResultsArea 
-        searchTopic={searchTopic} 
+      <SearchResultsArea
+        searchTopic={searchTopic}
         onPrintSuccessForChaining={handlePrintAndClear}
         onCreateNewItem={handleCreateNewItem}
         isAwaitingPostSaveSearch={isAwaitingPostSaveSearch}
         onSearchComplete={() => setIsAwaitingPostSaveSearch(false)}
+        onClearSearch={handleClearSearch}
       />
 
       <BottomSearchBarComponent 
@@ -1027,8 +1083,14 @@ const BottomSearchBarComponent = memo(React.forwardRef<TextInput, BottomSearchBa
           autoFocus={true}
           autoCapitalize="none"
           autoCorrect={false}
-          returnKeyType="search"
-          blurOnSubmit={false}
+          returnKeyType="done"
+          blurOnSubmit={true}
+          onSubmitEditing={() => {
+            // Dismiss keyboard when "Done" is pressed
+            if (inputRef.current) {
+              inputRef.current.blur();
+            }
+          }}
         />
         {inputValue.length > 0 && (
           <Pressable style={styles.clearButton} onPress={handleClear}>
