@@ -218,8 +218,8 @@ export const reorderStyles = StyleSheet.create({
   },
   
   itemNameCompleted: {
-    textDecorationLine: 'line-through',
-    color: '#999',
+    // Removed textDecorationLine: 'line-through' - user wants to keep text readable
+    color: '#666', // Slightly lighter but still readable
   },
   
   qtyBadge: {

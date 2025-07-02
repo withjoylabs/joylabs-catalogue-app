@@ -30,6 +30,7 @@ import { generateClient } from 'aws-amplify/api';
 import { useAuthenticator } from '@aws-amplify/ui-react-native';
 import { useAppStore } from '../../src/store';
 import CachedImage from '../../src/components/CachedImage';
+import ImageOverlay from '../../src/components/ImageOverlay';
 import { imageCacheService } from '../../src/services/imageCacheService';
 
 const client = generateClient();
@@ -664,6 +665,8 @@ const ReordersScreen = React.memo(() => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [showImageOverlay, setShowImageOverlay] = useState(false);
+  const [selectedImageUrl, setSelectedImageUrl] = useState('');
 
   // Track last scanned item for smart increment logic
   const [lastScannedItemId, setLastScannedItemId] = useState<string | null>(null);
@@ -1352,6 +1355,23 @@ const ReordersScreen = React.memo(() => {
     setCustomItemEdit(null);
   }, []);
 
+  // Handle image thumbnail tap
+  const handleImageTap = useCallback((imageUrl: string) => {
+    setSelectedImageUrl(imageUrl);
+    setShowImageOverlay(true);
+  }, []);
+
+  // Handle long press to open item modal
+  const handleItemLongPress = useCallback((item: DisplayReorderItem) => {
+    if (item.isCustom) {
+      // For custom items, just edit them inline
+      handleEditCustomItem(item);
+    } else {
+      // For catalog items, navigate to the item detail page
+      router.push(`/item/${item.itemId}`);
+    }
+  }, [router]);
+
   // Monitor sync status
   useEffect(() => {
     const updateSyncStatus = () => {
@@ -1798,15 +1818,23 @@ const ReordersScreen = React.memo(() => {
             )}
           </Pressable>
 
-          {/* Item Image Thumbnail */}
-          <View style={{
-            width: 64,
-            height: 64,
-            marginRight: 10,
-            marginLeft: -4,
-            borderRadius: 6,
-            overflow: 'hidden',
-          }}>
+          {/* Item Image Thumbnail - Tappable for overlay */}
+          <Pressable
+            style={{
+              width: 64,
+              height: 64,
+              marginRight: 10,
+              marginLeft: -4,
+              borderRadius: 6,
+              overflow: 'hidden',
+            }}
+            onPress={() => {
+              // Only show overlay if there's an image
+              if (item.item?.images && item.item.images.length > 0 && item.item.images[0]?.url) {
+                handleImageTap(item.item.images[0].url);
+              }
+            }}
+          >
             {item.item?.images && item.item.images.length > 0 && item.item.images[0]?.url ? (
               <CachedImage
                 source={{ uri: item.item.images[0].url }}
@@ -1848,9 +1876,9 @@ const ReordersScreen = React.memo(() => {
                 </Text>
               </View>
             )}
-          </View>
+          </Pressable>
 
-          {/* Item content - tappable for quantity editing */}
+          {/* Item content - tappable for quantity editing, long press for item details */}
           <Pressable
             style={reorderStyles.itemContent}
             onPress={() => {
@@ -1866,6 +1894,14 @@ const ReordersScreen = React.memo(() => {
                 setCurrentEditingItem(item);
                 setShowQuantityModal(true);
               }
+            }}
+            onLongPress={() => {
+              // Prevent long press action if item is currently being swiped
+              if (swipingItemId === item.id) {
+                return;
+              }
+
+              handleItemLongPress(item);
             }}
           >
             <View style={reorderStyles.itemHeader}>
@@ -1906,15 +1942,22 @@ const ReordersScreen = React.memo(() => {
                   )}
                 </View>
                 <View style={staticStyles.itemDetailsContainer}>
-                  {item.itemCategory && <Text style={reorderStyles.itemCategory}>{item.itemCategory}</Text>}
                   <Text style={reorderStyles.compactDetails}>
-                    {/* Cross-referenced Square catalog data */}
-                    UPC: {item.missingSquareData ? 'Missing Catalog' : (item.itemBarcode || 'N/A')} •
-                    Price: {item.missingSquareData ? 'Unknown' : (item.itemPrice ? `$${item.itemPrice.toFixed(2)}` : 'Variable')}
-                    {/* Cross-referenced team data */}
-                    {item.missingTeamData ? ' • Team Data: Missing' : (
-                      `${item.teamData?.vendorCost ? ` • Cost: $${item.teamData.vendorCost.toFixed(2)}` : ' • Cost: N/A'}${item.teamData?.vendor ? ` • Vendor: ${item.teamData.vendor}` : ' • Vendor: N/A'}${item.teamData?.discontinued ? ' • DISCONTINUED' : ''}`
-                    )}
+                    {/* Build data line efficiently with only available data */}
+                    {[
+                      // Category (if available)
+                      item.itemCategory,
+                      // UPC (if catalog data available)
+                      item.missingSquareData ? 'Missing Catalog' : (item.itemBarcode || 'N/A'),
+                      // Price (if catalog data available)
+                      item.missingSquareData ? 'Unknown' : (item.itemPrice ? `$${item.itemPrice.toFixed(2)}` : 'Variable'),
+                      // Vendor Cost (only if team data available and cost exists)
+                      (!item.missingTeamData && item.teamData?.vendorCost) ? `$${item.teamData.vendorCost.toFixed(2)}/unit` : null,
+                      // Vendor (only if team data available and vendor exists)
+                      (!item.missingTeamData && item.teamData?.vendor) ? item.teamData.vendor : null,
+                      // Discontinued flag (only if team data available and item is discontinued)
+                      (!item.missingTeamData && item.teamData?.discontinued) ? 'DISCONTINUED' : null
+                    ].filter(Boolean).join(' • ')}
                   </Text>
                 </View>
               </View>
@@ -2906,6 +2949,13 @@ const ReordersScreen = React.memo(() => {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Image Overlay */}
+      <ImageOverlay
+        visible={showImageOverlay}
+        imageUrl={selectedImageUrl}
+        onClose={() => setShowImageOverlay(false)}
+      />
     </SafeAreaView>
   );
 });
