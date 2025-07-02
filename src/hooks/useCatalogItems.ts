@@ -864,8 +864,9 @@ export const useCatalogItems = () => {
         .filter((item): item is SearchResultItem => item !== null);
 
       // If barcode filter is enabled, search Case UPC locally (LOCAL-FIRST ARCHITECTURE)
+      // Note: Case UPC search is local-only and doesn't require Square connection
       let caseUpcResults: SearchResultItem[] = [];
-      if (filters.barcode && isSquareConnected) {
+      if (filters.barcode) {
         // Only search case UPC for numerical values (case UPCs are always numbers)
         const trimmedSearchTerm = searchTerm.trim();
         const isNumericSearch = /^\d+$/.test(trimmedSearchTerm);
@@ -874,7 +875,11 @@ export const useCatalogItems = () => {
           logger.debug('useCatalogItems:performSearch', '⏭️ Skipping case UPC search for non-numeric input', { searchTerm: trimmedSearchTerm });
         } else {
           try {
-            logger.info('useCatalogItems:performSearch', '🔍 Searching Case UPC locally (LOCAL-FIRST)', { searchTerm: trimmedSearchTerm });
+            logger.info('useCatalogItems:performSearch', '🔍 Searching Case UPC locally (LOCAL-FIRST)', {
+              searchTerm: trimmedSearchTerm,
+              isSquareConnected,
+              hasUser: !!user
+            });
 
             // Get case UPC item IDs first
             const localCaseUpcItems = await modernDb.searchItemsByCaseUpc(trimmedSearchTerm);
@@ -950,6 +955,38 @@ export const useCatalogItems = () => {
     }
   }, [isSquareConnected, getProductById, user]);
 
+  // Debug method to check case UPC data availability
+  const debugCaseUpcData = async () => {
+    try {
+      const db = await modernDb.getDatabase();
+
+      // Check team data count
+      const teamDataCount = await db.getFirstAsync<{ count: number }>(
+        'SELECT COUNT(*) as count FROM team_data WHERE case_upc IS NOT NULL'
+      );
+
+      // Get sample case UPCs
+      const sampleCaseUpcs = await db.getAllAsync<{ case_upc: string, item_id: string }>(
+        'SELECT case_upc, item_id FROM team_data WHERE case_upc IS NOT NULL LIMIT 5'
+      );
+
+      logger.info('useCatalogItems:debugCaseUpcData', 'Case UPC data status', {
+        teamDataWithCaseUpc: teamDataCount?.count || 0,
+        sampleCaseUpcs,
+        isSquareConnected,
+        hasUser: !!user
+      });
+
+      return {
+        teamDataWithCaseUpc: teamDataCount?.count || 0,
+        sampleCaseUpcs
+      };
+    } catch (error) {
+      logger.error('useCatalogItems:debugCaseUpcData', 'Failed to check case UPC data', { error });
+      return null;
+    }
+  };
+
   return {
     products: storeProducts,
     isProductsLoading,
@@ -967,6 +1004,7 @@ export const useCatalogItems = () => {
     deleteProduct,
     performSearch,
     isSearching,
-    searchError
+    searchError,
+    debugCaseUpcData
   };
 }; 

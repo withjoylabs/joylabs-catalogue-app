@@ -416,6 +416,34 @@ class ReorderService {
   // Subscribe only to changes from other users
   private subscribeToOtherUsersChanges() {
     try {
+      if (!this.currentUserId) {
+        logger.warn('[ReorderService]', 'Cannot setup subscriptions without currentUserId');
+        return;
+      }
+
+      // Subscribe to reorder item creates from other users
+      const createSubscription = this.client.graphql({
+        query: subscriptions.onCreateReorderItem,
+        variables: {
+          filter: {
+            addedBy: {
+              ne: this.currentUserId // Only changes from other users
+            }
+          }
+        }
+      }).subscribe({
+        next: (result: any) => {
+          const createdItem = result.data?.onCreateReorderItem;
+          if (createdItem && createdItem.addedBy !== this.currentUserId) {
+            logger.info('[ReorderService]', 'Received external create', { itemId: createdItem.itemId, addedBy: createdItem.addedBy });
+            this.handleExternalCreate(createdItem);
+          }
+        },
+        error: (error: any) => {
+          logger.error('[ReorderService]', 'Create subscription error', { error });
+        }
+      });
+
       // Subscribe to reorder item updates from other users
       const updateSubscription = this.client.graphql({
         query: subscriptions.onUpdateReorderItem,
@@ -430,18 +458,87 @@ class ReorderService {
         next: (result: any) => {
           const updatedItem = result.data?.onUpdateReorderItem;
           if (updatedItem && updatedItem.addedBy !== this.currentUserId) {
+            logger.info('[ReorderService]', 'Received external update', { itemId: updatedItem.itemId, addedBy: updatedItem.addedBy });
             this.handleExternalUpdate(updatedItem);
           }
         },
         error: (error: any) => {
-          logger.error('[ReorderService]', 'Subscription error', { error });
+          logger.error('[ReorderService]', 'Update subscription error', { error });
         }
       });
 
-      this.subscriptions.push(updateSubscription);
-      logger.info('[ReorderService]', 'Smart subscriptions setup complete');
+      // Subscribe to reorder item deletes from other users
+      const deleteSubscription = this.client.graphql({
+        query: subscriptions.onDeleteReorderItem,
+        variables: {
+          filter: {
+            addedBy: {
+              ne: this.currentUserId // Only changes from other users
+            }
+          }
+        }
+      }).subscribe({
+        next: (result: any) => {
+          const deletedItem = result.data?.onDeleteReorderItem;
+          if (deletedItem && deletedItem.addedBy !== this.currentUserId) {
+            logger.info('[ReorderService]', 'Received external delete', { itemId: deletedItem.itemId, addedBy: deletedItem.addedBy });
+            this.handleExternalDelete(deletedItem);
+          }
+        },
+        error: (error: any) => {
+          logger.error('[ReorderService]', 'Delete subscription error', { error });
+        }
+      });
+
+      this.subscriptions.push(createSubscription, updateSubscription, deleteSubscription);
+      logger.info('[ReorderService]', 'Smart subscriptions setup complete', {
+        currentUserId: this.currentUserId,
+        subscriptionCount: this.subscriptions.length
+      });
     } catch (error) {
       logger.error('[ReorderService]', 'Failed to setup subscriptions', { error });
+    }
+  }
+
+  // Handle creates from other users
+  private async handleExternalCreate(createdItem: any) {
+    try {
+      // Check if we already have this item locally
+      const existingItem = this.reorderItems.find(item => item.id === createdItem.id);
+
+      if (!existingItem) {
+        // Add the new item to our local list
+        const newReorderItem: ReorderItem = {
+          id: createdItem.id,
+          itemId: createdItem.itemId,
+          quantity: createdItem.quantity,
+          status: createdItem.status,
+          addedBy: createdItem.addedBy,
+          createdAt: createdItem.createdAt,
+          updatedAt: createdItem.updatedAt,
+          timestamp: new Date(createdItem.createdAt)
+        };
+
+        this.reorderItems.push(newReorderItem);
+
+        // Sort chronologically (most recent first)
+        this.reorderItems.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+        // Re-index items
+        this.reorderItems.forEach((item, index) => {
+          item.index = index + 1;
+        });
+
+        await this.saveOfflineItems();
+        this.notifyListeners();
+
+        logger.info('[ReorderService]', 'Added external item to local list', {
+          itemId: createdItem.itemId,
+          addedBy: createdItem.addedBy
+        });
+      }
+    } catch (error) {
+      logger.error('[ReorderService]', 'Failed to handle external create', { error });
     }
   }
 
@@ -463,10 +560,41 @@ class ReorderService {
     }
   }
 
+  // Handle deletes from other users
+  private async handleExternalDelete(deletedItem: any) {
+    try {
+      // Remove the item from our local list
+      const itemIndex = this.reorderItems.findIndex(item => item.id === deletedItem.id);
+
+      if (itemIndex >= 0) {
+        this.reorderItems.splice(itemIndex, 1);
+
+        // Re-index remaining items
+        this.reorderItems.forEach((item, index) => {
+          item.index = index + 1;
+        });
+
+        await this.saveOfflineItems();
+        this.notifyListeners();
+
+        logger.info('[ReorderService]', 'Removed external deleted item from local list', {
+          itemId: deletedItem.itemId,
+          addedBy: deletedItem.addedBy
+        });
+      }
+    } catch (error) {
+      logger.error('[ReorderService]', 'Failed to handle external delete', { error });
+    }
+  }
+
   // Queue sync operation and trigger batching
   private queueBackgroundSync(operation: string, data: any) {
     if (this.isOfflineMode) {
-      logger.info('[ReorderService]', `Queuing operation for later sync: ${operation}`);
+      logger.info('[ReorderService]', `Queuing operation for later sync: ${operation}`, {
+        operation,
+        data,
+        isOfflineMode: this.isOfflineMode
+      });
       return;
     }
 
@@ -477,7 +605,12 @@ class ReorderService {
       retryCount: 0
     });
 
-    logger.debug('[ReorderService]', `Queued sync operation: ${operation}`, { queueLength: this.syncQueue.length });
+    logger.info('[ReorderService]', `Queued sync operation: ${operation}`, {
+      queueLength: this.syncQueue.length,
+      operation,
+      dataKeys: Object.keys(data),
+      isOfflineMode: this.isOfflineMode
+    });
 
     // Trigger batched sync after user interaction
     this.triggerBatchSync('USER_INTERACTION');
@@ -505,6 +638,9 @@ class ReorderService {
   // Background sync methods
   private async syncCreateItem(data: any) {
     try {
+      // Monitor AppSync request
+      await appSyncMonitor.beforeRequest('createReorderItem', 'ReorderService:syncCreateItem', data);
+
       const response = await this.client.graphql({
         query: mutations.createReorderItem,
         variables: {
@@ -514,15 +650,38 @@ class ReorderService {
 
       if (response.data?.createReorderItem) {
         logger.info('[ReorderService]', `✅ Background sync: Created item on server`, { itemId: data.itemId });
+        await appSyncMonitor.afterRequest('createReorderItem', 'ReorderService:syncCreateItem', true);
+      } else {
+        throw new Error('No data returned from createReorderItem mutation');
       }
-    } catch (error) {
-      logger.error('[ReorderService]', 'Failed to sync create item', { error, data });
+    } catch (error: any) {
+      await appSyncMonitor.afterRequest('createReorderItem', 'ReorderService:syncCreateItem', false, error);
+
+      // Enhanced error logging
+      logger.error('[ReorderService]', 'Failed to sync create item', {
+        error: error.message,
+        errorName: error.name,
+        errorCode: error.code,
+        graphQLErrors: error.errors,
+        data,
+        isAuthError: error?.name === 'NotAuthorizedException' || error?.name === 'NoSignedUser'
+      });
+
+      // Handle specific error types
+      if (error?.name === 'NotAuthorizedException' || error?.name === 'NoSignedUser') {
+        logger.warn('[ReorderService]', 'Authentication error during sync - switching to offline mode');
+        this.isOfflineMode = true;
+      }
+
       throw error;
     }
   }
 
   private async syncUpdateItem(data: any) {
     try {
+      // Monitor AppSync request
+      await appSyncMonitor.beforeRequest('updateReorderItem', 'ReorderService:syncUpdateItem', data);
+
       const response = await this.client.graphql({
         query: mutations.updateReorderItem,
         variables: {
@@ -532,15 +691,38 @@ class ReorderService {
 
       if (response.data?.updateReorderItem) {
         logger.info('[ReorderService]', `✅ Background sync: Updated item on server`, { itemId: data.id });
+        await appSyncMonitor.afterRequest('updateReorderItem', 'ReorderService:syncUpdateItem', true);
+      } else {
+        throw new Error('No data returned from updateReorderItem mutation');
       }
-    } catch (error) {
-      logger.error('[ReorderService]', 'Failed to sync update item', { error, data });
+    } catch (error: any) {
+      await appSyncMonitor.afterRequest('updateReorderItem', 'ReorderService:syncUpdateItem', false, error);
+
+      // Enhanced error logging
+      logger.error('[ReorderService]', 'Failed to sync update item', {
+        error: error.message,
+        errorName: error.name,
+        errorCode: error.code,
+        graphQLErrors: error.errors,
+        data,
+        isAuthError: error?.name === 'NotAuthorizedException' || error?.name === 'NoSignedUser'
+      });
+
+      // Handle specific error types
+      if (error?.name === 'NotAuthorizedException' || error?.name === 'NoSignedUser') {
+        logger.warn('[ReorderService]', 'Authentication error during sync - switching to offline mode');
+        this.isOfflineMode = true;
+      }
+
       throw error;
     }
   }
 
   private async syncDeleteItem(data: any) {
     try {
+      // Monitor AppSync request
+      await appSyncMonitor.beforeRequest('deleteReorderItem', 'ReorderService:syncDeleteItem', data);
+
       const response = await this.client.graphql({
         query: mutations.deleteReorderItem,
         variables: {
@@ -550,9 +732,29 @@ class ReorderService {
 
       if (response.data?.deleteReorderItem) {
         logger.info('[ReorderService]', `✅ Background sync: Deleted item on server`, { itemId: data.id });
+        await appSyncMonitor.afterRequest('deleteReorderItem', 'ReorderService:syncDeleteItem', true);
+      } else {
+        throw new Error('No data returned from deleteReorderItem mutation');
       }
-    } catch (error) {
-      logger.error('[ReorderService]', 'Failed to sync delete item', { error, data });
+    } catch (error: any) {
+      await appSyncMonitor.afterRequest('deleteReorderItem', 'ReorderService:syncDeleteItem', false, error);
+
+      // Enhanced error logging
+      logger.error('[ReorderService]', 'Failed to sync delete item', {
+        error: error.message,
+        errorName: error.name,
+        errorCode: error.code,
+        graphQLErrors: error.errors,
+        data,
+        isAuthError: error?.name === 'NotAuthorizedException' || error?.name === 'NoSignedUser'
+      });
+
+      // Handle specific error types
+      if (error?.name === 'NotAuthorizedException' || error?.name === 'NoSignedUser') {
+        logger.warn('[ReorderService]', 'Authentication error during sync - switching to offline mode');
+        this.isOfflineMode = true;
+      }
+
       throw error;
     }
   }
@@ -1427,12 +1629,54 @@ class ReorderService {
   }
 
   // Get current sync status
-  getSyncStatus(): { isOnline: boolean; pendingCount: number; isAuthenticated: boolean } {
+  getSyncStatus(): {
+    isOnline: boolean;
+    pendingCount: number;
+    isAuthenticated: boolean;
+    currentUserId: string | null;
+    isProcessingQueue: boolean;
+    queueOperations: any[];
+  } {
     return {
       isOnline: !this.isOfflineMode,
-      pendingCount: this.pendingSyncItems.length,
-      isAuthenticated: !this.isOfflineMode
+      pendingCount: this.syncQueue.length, // Fixed: was using pendingSyncItems instead of syncQueue
+      isAuthenticated: !this.isOfflineMode && this.currentUserId !== null,
+      // Additional debugging info
+      currentUserId: this.currentUserId,
+      isProcessingQueue: this.isProcessingQueue,
+      queueOperations: this.syncQueue.map(op => ({
+        operation: op.operation,
+        retryCount: op.retryCount,
+        timestamp: op.timestamp
+      }))
     };
+  }
+
+  // Debug method to manually trigger sync
+  async debugTriggerSync(): Promise<void> {
+    logger.info('[ReorderService]', 'Debug: Manually triggering sync', {
+      queueLength: this.syncQueue.length,
+      isOfflineMode: this.isOfflineMode,
+      isProcessingQueue: this.isProcessingQueue,
+      currentUserId: this.currentUserId
+    });
+
+    if (this.isOfflineMode) {
+      logger.warn('[ReorderService]', 'Debug: Cannot sync in offline mode');
+      return;
+    }
+
+    if (this.syncQueue.length === 0) {
+      logger.info('[ReorderService]', 'Debug: No operations in sync queue');
+      return;
+    }
+
+    try {
+      await this.processSyncBatch();
+      logger.info('[ReorderService]', 'Debug: Manual sync completed');
+    } catch (error) {
+      logger.error('[ReorderService]', 'Debug: Manual sync failed', { error });
+    }
   }
 
   // Local database functions for reorder items

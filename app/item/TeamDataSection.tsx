@@ -9,6 +9,7 @@ import type { ItemData, ItemChangeLog, Note } from '../../src/models';
 import { lightTheme } from '../../src/themes';
 import logger from '../../src/utils/logger';
 import { itemHistoryService } from '../../src/services/itemHistoryService';
+import * as modernDb from '../../src/database/modernDb';
 
 const client = generateClient();
 
@@ -302,8 +303,23 @@ export default function TeamDataSection({ itemId, onSaveRef, onDataChange, onVen
     }
 
     // Skip saving if user is not authenticated
-    if (!user?.signInDetails?.loginId) {
-      logger.info('TeamDataSection:saveItemData', 'Skipping save - user not authenticated', { itemId });
+    // Check multiple authentication indicators for better compatibility
+    const isAuthenticated = !!(
+      user?.signInDetails?.loginId ||
+      user?.userId ||
+      user?.username
+    );
+
+    if (!isAuthenticated) {
+      logger.warn('TeamDataSection:saveItemData', 'Skipping save - user not authenticated', {
+        itemId,
+        hasUser: !!user,
+        hasSignInDetails: !!user?.signInDetails,
+        loginId: user?.signInDetails?.loginId,
+        userId: user?.userId,
+        username: user?.username,
+        userKeys: user ? Object.keys(user) : []
+      });
       return;
     }
 
@@ -324,38 +340,161 @@ export default function TeamDataSection({ itemId, onSaveRef, onDataChange, onVen
 
     try {
       const { __typename, id, createdAt, updatedAt, owner, ...inputData } = itemData as any;
-      
+
+      logger.info('TeamDataSection:saveItemData', 'Starting team data save', {
+        itemId,
+        inputDataKeys: Object.keys(inputData),
+        inputData: inputData
+      });
+
+      // Check for existing record
       const existingRecord = await client.graphql({
         query: queries.getItemData,
         variables: { id: itemId }
       }) as GraphQLResult<{ getItemData: ItemData }>;
 
+      logger.info('TeamDataSection:saveItemData', 'Checked existing record', {
+        itemId,
+        hasExisting: !!existingRecord.data?.getItemData
+      });
+
       // Track changes before saving
       await trackTeamDataChanges(itemData, originalItemData);
 
+      let saveResult;
       if (existingRecord.data?.getItemData) {
-        await client.graphql({
+        logger.info('TeamDataSection:saveItemData', 'Updating existing team data', { itemId });
+        saveResult = await client.graphql({
           query: mutations.updateItemData,
           variables: { input: { id: itemId, ...inputData } }
         });
       } else {
-        await client.graphql({
+        logger.info('TeamDataSection:saveItemData', 'Creating new team data', { itemId });
+        saveResult = await client.graphql({
           query: mutations.createItemData,
           variables: { input: { id: itemId, ...inputData } }
         });
       }
 
+      logger.info('TeamDataSection:saveItemData', 'AppSync save completed', {
+        itemId,
+        success: !!saveResult.data
+      });
+
+      // Also save to local database for offline access and case UPC search
+      try {
+        await modernDb.upsertTeamData({
+          itemId: itemId,
+          caseUpc: inputData.caseUpc,
+          caseCost: inputData.caseCost,
+          caseQuantity: inputData.caseQuantity,
+          vendor: inputData.vendor,
+          discontinued: inputData.discontinued,
+          notes: inputData.notes?.[0]?.content,
+          lastSyncAt: new Date().toISOString(),
+          owner: user?.signInDetails?.loginId || user?.userId || user?.username
+        });
+        logger.info('TeamDataSection:saveItemData', 'Local database save completed', { itemId });
+      } catch (localError) {
+        logger.error('TeamDataSection:saveItemData', 'Failed to save to local database', {
+          itemId,
+          error: localError
+        });
+        // Don't fail the entire operation if local save fails
+      }
+
       setOriginalItemData({ ...itemData });
-      logger.info('TeamDataSection:saveItemData', 'Team data saved successfully', { 
-        itemId, 
+      logger.info('TeamDataSection:saveItemData', '✅ Team data saved successfully to both AppSync and local database', {
+        itemId,
         hasData: !!itemData,
         dataKeys: itemData ? Object.keys(itemData) : []
       });
-    } catch (e) {
-      logger.error('TeamDataSection:saveItemData', 'Error saving custom item data', e);
+    } catch (e: any) {
+      logger.error('TeamDataSection:saveItemData', '❌ Error saving team data', {
+        itemId,
+        error: e.message,
+        errorName: e.name,
+        errorCode: e.code,
+        graphQLErrors: e.errors,
+        stack: e.stack
+      });
+
+      // Try to save to local database as fallback
+      try {
+        const { __typename, id, createdAt, updatedAt, owner, ...inputData } = itemData as any;
+        await modernDb.upsertTeamData({
+          itemId: itemId,
+          caseUpc: inputData.caseUpc,
+          caseCost: inputData.caseCost,
+          caseQuantity: inputData.caseQuantity,
+          vendor: inputData.vendor,
+          discontinued: inputData.discontinued,
+          notes: inputData.notes?.[0]?.content,
+          lastSyncAt: new Date().toISOString(),
+          owner: user?.signInDetails?.loginId || user?.userId || user?.username
+        });
+        logger.info('TeamDataSection:saveItemData', '⚠️ Saved to local database as fallback', { itemId });
+      } catch (fallbackError) {
+        logger.error('TeamDataSection:saveItemData', '💥 Both AppSync and local database saves failed', {
+          itemId,
+          appSyncError: e.message,
+          localError: fallbackError
+        });
+      }
     }
   }, [itemId, itemData, trackTeamDataChanges, originalItemData, isNewItem, user]);
-  
+
+  // Debug method to check team data status
+  const debugTeamDataStatus = useCallback(async () => {
+    try {
+      logger.info('TeamDataSection:debugTeamDataStatus', 'Team data debug info', {
+        itemId,
+        hasItemData: !!itemData,
+        itemDataKeys: itemData ? Object.keys(itemData) : [],
+        hasUser: !!user,
+        hasSignInDetails: !!user?.signInDetails,
+        loginId: user?.signInDetails?.loginId,
+        userId: user?.userId,
+        hasSaveRef: !!onSaveRef?.current
+      });
+
+      // Check local database
+      if (itemId && itemId !== 'new') {
+        const localTeamData = await modernDb.getTeamData(itemId);
+        logger.info('TeamDataSection:debugTeamDataStatus', 'Local team data', {
+          itemId,
+          hasLocalData: !!localTeamData,
+          localData: localTeamData
+        });
+      }
+
+      // Check AppSync
+      if (itemId && itemId !== 'new') {
+        try {
+          const appSyncData = await client.graphql({
+            query: queries.getItemData,
+            variables: { id: itemId }
+          }) as GraphQLResult<{ getItemData: ItemData }>;
+
+          logger.info('TeamDataSection:debugTeamDataStatus', 'AppSync team data', {
+            itemId,
+            hasAppSyncData: !!appSyncData.data?.getItemData,
+            appSyncData: appSyncData.data?.getItemData
+          });
+        } catch (appSyncError) {
+          logger.error('TeamDataSection:debugTeamDataStatus', 'AppSync query failed', {
+            itemId,
+            error: appSyncError
+          });
+        }
+      }
+    } catch (error) {
+      logger.error('TeamDataSection:debugTeamDataStatus', 'Debug failed', { error });
+    }
+  }, [itemId, itemData, user, onSaveRef]);
+
+  // CRITICAL FIX: Set up save function BEFORE authentication guard
+  // This ensures the save function is available even when user is not authenticated
   useEffect(() => {
     if (onSaveRef) {
       onSaveRef.current = saveItemData;
@@ -363,7 +502,14 @@ export default function TeamDataSection({ itemId, onSaveRef, onDataChange, onVen
   }, [onSaveRef, saveItemData]);
 
   // Authentication guard - show sign-in prompt if user is not authenticated
-  if (!user?.signInDetails?.loginId) {
+  // Check multiple authentication indicators for better compatibility
+  const isAuthenticated = !!(
+    user?.signInDetails?.loginId ||
+    user?.userId ||
+    user?.username
+  );
+
+  if (!isAuthenticated) {
     return (
       <View style={styles.teamDataSection}>
         <Text style={styles.teamDataTitle}>Team Data (Not Synced with Square)</Text>

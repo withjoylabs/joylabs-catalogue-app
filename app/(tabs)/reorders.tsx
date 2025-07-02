@@ -769,15 +769,15 @@ const ReordersScreen = React.memo(() => {
       setErrorMessage('');
     }
     
-    // Search for items with matching barcode
+    // Search for items with matching barcode (including case UPC)
     try {
       const searchFilters = {
         name: false,
         sku: false,
-        barcode: true, // Only search by barcode
+        barcode: true, // Search by regular barcode AND case UPC
         category: false
       };
-      
+
       const matchingItems = await performSearch(barcode, searchFilters);
 
     if (matchingItems.length === 0) {

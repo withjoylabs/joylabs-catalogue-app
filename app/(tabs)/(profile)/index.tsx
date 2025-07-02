@@ -53,9 +53,31 @@ const ProfileScreen = () => {
     }
   };
 
-  const isAuthenticated = route === 'authenticated';
-  const userEmail = user?.signInDetails?.loginId || 'N/A';
-  const userName = user?.signInDetails?.loginId?.split('@')[0] || 'Guest';
+  // CRITICAL FIX: Use multiple authentication indicators for better reliability
+  // The route property might not update properly in EAS builds
+  const isAuthenticated = !!(
+    route === 'authenticated' ||
+    user?.signInDetails?.loginId ||
+    user?.userId ||
+    user?.username
+  );
+
+  const userEmail = user?.signInDetails?.loginId || user?.username || 'N/A';
+  const userName = (user?.signInDetails?.loginId || user?.username || 'Guest').split('@')[0];
+
+  // Debug authentication state
+  React.useEffect(() => {
+    logger.info('ProfileScreen:authState', 'Authentication state debug', {
+      route,
+      hasUser: !!user,
+      hasSignInDetails: !!user?.signInDetails,
+      loginId: user?.signInDetails?.loginId,
+      userId: user?.userId,
+      username: user?.username,
+      isAuthenticated,
+      userKeys: user ? Object.keys(user) : []
+    });
+  }, [route, user, isAuthenticated]);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>

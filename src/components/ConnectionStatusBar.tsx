@@ -14,7 +14,12 @@ const ConnectionStatusBar: React.FC<ConnectionStatusBarProps> = ({
   compact = false
 }) => {
   const { user } = useAuthenticator((context) => [context.user]);
-  const isAuthenticated = !!user?.signInDetails?.loginId;
+  // CRITICAL FIX: Use multiple authentication indicators for better reliability
+  const isAuthenticated = !!(
+    user?.signInDetails?.loginId ||
+    user?.userId ||
+    user?.username
+  );
 
   if (compact) {
     // Compact horizontal layout for header

@@ -156,13 +156,8 @@ export const onCreateReorderItem = /* GraphQL */ `
     onCreateReorderItem(filter: $filter, owner: $owner) {
       id
       itemId
-      itemName
-      itemBarcode
-      itemCategory
-      itemPrice
       quantity
-      completed
-      received
+      status
       addedBy
       createdAt
       updatedAt
@@ -179,13 +174,8 @@ export const onUpdateReorderItem = /* GraphQL */ `
     onUpdateReorderItem(filter: $filter, owner: $owner) {
       id
       itemId
-      itemName
-      itemBarcode
-      itemCategory
-      itemPrice
       quantity
-      completed
-      received
+      status
       addedBy
       createdAt
       updatedAt
@@ -202,13 +192,8 @@ export const onDeleteReorderItem = /* GraphQL */ `
     onDeleteReorderItem(filter: $filter, owner: $owner) {
       id
       itemId
-      itemName
-      itemBarcode
-      itemCategory
-      itemPrice
       quantity
-      completed
-      received
+      status
       addedBy
       createdAt
       updatedAt

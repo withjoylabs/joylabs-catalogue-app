@@ -6,10 +6,18 @@ import { Stack } from 'expo-router';
 
 const LoginScreen = () => {
   const router = useRouter();
-  const { route } = useAuthenticator();
+  const { route, user } = useAuthenticator();
 
   useEffect(() => {
-    if (route === 'authenticated') {
+    // CRITICAL FIX: Use multiple authentication indicators for better reliability
+    const isAuthenticated = !!(
+      route === 'authenticated' ||
+      user?.signInDetails?.loginId ||
+      user?.userId ||
+      user?.username
+    );
+
+    if (isAuthenticated) {
       // Wait for the next render cycle to ensure the router is ready
       setTimeout(() => {
         if (router.canGoBack()) {
@@ -17,7 +25,7 @@ const LoginScreen = () => {
         }
       }, 0);
     }
-  }, [route, router]);
+  }, [route, user, router]);
 
   return (
     <View style={styles.container}>

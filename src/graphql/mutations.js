@@ -156,12 +156,8 @@ export const createReorderItem = /* GraphQL */ `
     createReorderItem(input: $input, condition: $condition) {
       id
       itemId
-      itemName
-      itemBarcode
-      itemCategory
-      itemPrice
       quantity
-      completed
+      status
       addedBy
       createdAt
       updatedAt
@@ -178,13 +174,8 @@ export const updateReorderItem = /* GraphQL */ `
     updateReorderItem(input: $input, condition: $condition) {
       id
       itemId
-      itemName
-      itemBarcode
-      itemCategory
-      itemPrice
       quantity
-      completed
-      received
+      status
       addedBy
       createdAt
       updatedAt
@@ -201,12 +192,8 @@ export const deleteReorderItem = /* GraphQL */ `
     deleteReorderItem(input: $input, condition: $condition) {
       id
       itemId
-      itemName
-      itemBarcode
-      itemCategory
-      itemPrice
       quantity
-      completed
+      status
       addedBy
       createdAt
       updatedAt

@@ -98,13 +98,8 @@ export const getReorderItem = /* GraphQL */ `
     getReorderItem(id: $id) {
       id
       itemId
-      itemName
-      itemBarcode
-      itemCategory
-      itemPrice
       quantity
-      completed
-      received
+      status
       addedBy
       createdAt
       updatedAt
@@ -123,13 +118,8 @@ export const listReorderItems = /* GraphQL */ `
       items {
         id
         itemId
-        itemName
-        itemBarcode
-        itemCategory
-        itemPrice
         quantity
-        completed
-        received
+        status
         addedBy
         createdAt
         updatedAt
@@ -224,12 +214,8 @@ export const reordersByItemId = /* GraphQL */ `
       items {
         id
         itemId
-        itemName
-        itemBarcode
-        itemCategory
-        itemPrice
         quantity
-        completed
+        status
         addedBy
         createdAt
         updatedAt
