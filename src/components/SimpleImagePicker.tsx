@@ -8,7 +8,6 @@ import {
   Alert,
   ActivityIndicator,
   SafeAreaView,
-  Dimensions,
   Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,10 +17,11 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   useAnimatedGestureHandler,
+  clamp,
 } from 'react-native-reanimated';
 import {
-  PinchGestureHandler,
   PanGestureHandler,
+  PinchGestureHandler,
 } from 'react-native-gesture-handler';
 import * as ImageManipulator from 'expo-image-manipulator';
 
@@ -33,27 +33,10 @@ interface SimpleImagePickerProps {
   preSelectedImage?: string | null;
 }
 
-// Constants for layout
+// FIXED CROP SIZE - NO MORE ORIENTATION BUGS
+const CROP_SIZE = 600; // Fixed size that works well on all devices
 const HEADER_HEIGHT = 60;
-const BOTTOM_PADDING = 120;
-const SIDE_PADDING = 20;
-
-// Get screen dimensions and calculate responsive crop size
-const getResponsiveCropSize = () => {
-  const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
-
-  const availableHeight = screenHeight - HEADER_HEIGHT - BOTTOM_PADDING;
-  const availableWidth = screenWidth - (SIDE_PADDING * 2);
-
-  // Ensure minimum size and maximum size
-  const minSize = 250;
-  const maxSize = Math.min(screenWidth * 0.8, screenHeight * 0.6);
-
-  return Math.max(minSize, Math.min(maxSize, Math.min(availableWidth, availableHeight)));
-};
-
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
-const CROP_SIZE = getResponsiveCropSize();
+const SIDE_PADDING = 12;
 
 const SimpleImagePicker: React.FC<SimpleImagePickerProps> = ({
   visible,
@@ -64,94 +47,67 @@ const SimpleImagePicker: React.FC<SimpleImagePickerProps> = ({
 }) => {
   const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [cropSize, setCropSize] = useState(getResponsiveCropSize());
-  const [imageDimensions, setImageDimensions] = useState<{width: number, height: number} | null>(null);
+  const [imageLayout, setImageLayout] = useState({ width: CROP_SIZE, height: CROP_SIZE });
 
-  // Animated values for crop preview
+  // Shared values for animation - based on working example
   const scale = useSharedValue(1);
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
-  const savedScale = useSharedValue(1);
-  const savedTranslateX = useSharedValue(0);
-  const savedTranslateY = useSharedValue(0);
-  const cropSizeShared = useSharedValue(cropSize);
-  const imageDisplayWidth = useSharedValue(cropSize);
-  const imageDisplayHeight = useSharedValue(cropSize);
+  const lastScale = useSharedValue(1);
+  const lastTranslateX = useSharedValue(0);
+  const lastTranslateY = useSharedValue(0);
 
-  // Handle orientation changes
-  useEffect(() => {
-    const subscription = Dimensions.addEventListener('change', () => {
-      const newCropSize = getResponsiveCropSize();
-      setCropSize(newCropSize);
-      cropSizeShared.value = newCropSize;
-      resetCropValues(); // Reset crop when orientation changes
-    });
+  // Shared values for image dimensions and crop size to avoid crashes
+  const imageWidth = useSharedValue(CROP_SIZE);
+  const imageHeight = useSharedValue(CROP_SIZE);
+  const cropSizeShared = useSharedValue(CROP_SIZE);
 
-    return () => subscription?.remove();
-  }, []);
+  // Handle image layout and calculate proper initial scale
+  const handleImageLayout = (event: any) => {
+    const { width, height } = event.nativeEvent.layout;
+    setImageLayout({ width, height });
 
-  // Update shared values when cropSize changes
-  useEffect(() => {
-    cropSizeShared.value = cropSize;
+    // Update shared values for gesture calculations
+    imageWidth.value = width;
+    imageHeight.value = height;
 
-    // Recalculate image display size if we have dimensions
-    if (imageDimensions) {
-      const aspectRatio = imageDimensions.width / imageDimensions.height;
-      if (aspectRatio > 1) {
-        // Landscape
-        imageDisplayWidth.value = cropSize * aspectRatio;
-        imageDisplayHeight.value = cropSize;
-      } else {
-        // Portrait or square
-        imageDisplayWidth.value = cropSize;
-        imageDisplayHeight.value = cropSize / aspectRatio;
-      }
+    // Calculate initial scale to fill crop window (no black bars)
+    const aspectRatio = width / height;
+    const cropAspectRatio = 1; // Square crop window
+
+    let initialScale = 1;
+    if (aspectRatio > cropAspectRatio) {
+      // Landscape image: scale to fill height
+      initialScale = CROP_SIZE / height;
+    } else {
+      // Portrait image: scale to fill width
+      initialScale = CROP_SIZE / width;
     }
-  }, [cropSize, imageDimensions]);
 
-  // Get image dimensions
-  const getImageDimensions = (uri: string) => {
-    Image.getSize(uri, (width, height) => {
-      setImageDimensions({ width, height });
-
-      // Calculate and update shared values for gesture handlers
-      const aspectRatio = width / height;
-      if (aspectRatio > 1) {
-        // Landscape
-        imageDisplayWidth.value = cropSize * aspectRatio;
-        imageDisplayHeight.value = cropSize;
-      } else {
-        // Portrait or square
-        imageDisplayWidth.value = cropSize;
-        imageDisplayHeight.value = cropSize / aspectRatio;
-      }
-    }, (error) => {
-      console.error('Failed to get image dimensions:', error);
-      // Fallback to square
-      setImageDimensions({ width: cropSize, height: cropSize });
-      imageDisplayWidth.value = cropSize;
-      imageDisplayHeight.value = cropSize;
-    });
+    // Set initial scale to fill crop window
+    scale.value = initialScale;
+    lastScale.value = initialScale;
   };
+
+  // Reset transform - from working example
+  const resetTransform = () => {
+    scale.value = 1;
+    translateX.value = 0;
+    translateY.value = 0;
+    lastScale.value = 1;
+    lastTranslateX.value = 0;
+    lastTranslateY.value = 0;
+  };
+
+  // NO MORE ORIENTATION HANDLING - FIXED SIZE
 
   // Set pre-selected image when provided
   useEffect(() => {
     if (preSelectedImage) {
       setSelectedImageUri(preSelectedImage);
-      getImageDimensions(preSelectedImage);
-      resetCropValues();
+      resetTransform();
     }
   }, [preSelectedImage]);
-
-  // Reset crop values when image changes
-  const resetCropValues = () => {
-    scale.value = 1; // Start at 1x scale fitting crop area
-    translateX.value = 0;
-    translateY.value = 0;
-    savedScale.value = 1;
-    savedTranslateX.value = 0;
-    savedTranslateY.value = 0;
-  };
 
   // Handle camera
   const handleTakePhoto = async () => {
@@ -171,8 +127,7 @@ const SimpleImagePicker: React.FC<SimpleImagePickerProps> = ({
       if (!result.canceled && result.assets[0]) {
         const uri = result.assets[0].uri;
         setSelectedImageUri(uri);
-        getImageDimensions(uri);
-        resetCropValues();
+        resetTransform();
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to take photo. Please try again.');
@@ -197,45 +152,95 @@ const SimpleImagePicker: React.FC<SimpleImagePickerProps> = ({
       if (!result.canceled && result.assets[0]) {
         const uri = result.assets[0].uri;
         setSelectedImageUri(uri);
-        getImageDimensions(uri);
-        resetCropValues();
+        resetTransform();
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to select image. Please try again.');
     }
   };
 
-  // Handle upload
-  const handleUpload = async () => {
+  // SIMPLIFIED crop calculation - direct approach
+  const cropImage = async () => {
     if (!selectedImageUri) return;
 
     setIsUploading(true);
     try {
-      // Calculate crop parameters based on image display size and transforms
-      if (!imageDimensions) return;
+      // Get current transform values
+      const currentScale = scale.value;
+      const currentTranslateX = translateX.value;
+      const currentTranslateY = translateY.value;
 
-      const displaySize = getImageDisplaySize();
-      const scaledWidth = displaySize.width * scale.value;
-      const scaledHeight = displaySize.height * scale.value;
+      // Get original image dimensions from Image.getSize
+      const getOriginalDimensions = (): Promise<{width: number, height: number}> => {
+        return new Promise((resolve, reject) => {
+          Image.getSize(selectedImageUri, (width, height) => {
+            resolve({ width, height });
+          }, reject);
+        });
+      };
 
-      // Calculate crop area relative to the original image
-      const cropX = ((scaledWidth - cropSize) / 2 - translateX.value) / scale.value;
-      const cropY = ((scaledHeight - cropSize) / 2 - translateY.value) / scale.value;
-      const calculatedCropSize = cropSize / scale.value;
+      const originalDimensions = await getOriginalDimensions();
+      const originalWidth = originalDimensions.width;
+      const originalHeight = originalDimensions.height;
 
-      // Crop the image
+      // Calculate how the image is displayed (fitted to crop window)
+      const aspectRatio = originalWidth / originalHeight;
+      let baseDisplayWidth, baseDisplayHeight;
+
+      if (aspectRatio > 1) {
+        // Landscape: fit height to crop window, scale to fill
+        baseDisplayHeight = CROP_SIZE;
+        baseDisplayWidth = CROP_SIZE * aspectRatio;
+      } else {
+        // Portrait: fit width to crop window, scale to fill
+        baseDisplayWidth = CROP_SIZE;
+        baseDisplayHeight = CROP_SIZE / aspectRatio;
+      }
+
+      // The actual scale relative to the original image
+      const totalScale = currentScale;
+
+      // Calculate what part of the original image is visible in the crop window
+      // At 1x zoom, the image fills the crop window
+      // At 2x zoom, we see half the image width/height
+      const visibleOriginalWidth = originalWidth / totalScale;
+      const visibleOriginalHeight = originalHeight / totalScale;
+
+      // Calculate crop center in original image coordinates
+      // translateX/Y are in display coordinates, convert to original coordinates
+      const translateXInOriginal = -currentTranslateX * (originalWidth / baseDisplayWidth) / currentScale;
+      const translateYInOriginal = -currentTranslateY * (originalHeight / baseDisplayHeight) / currentScale;
+
+      const cropCenterX = (originalWidth / 2) + translateXInOriginal;
+      const cropCenterY = (originalHeight / 2) + translateYInOriginal;
+
+      // Calculate crop area in original coordinates
+      const originalCropX = cropCenterX - (visibleOriginalWidth / 2);
+      const originalCropY = cropCenterY - (visibleOriginalHeight / 2);
+      const originalCropWidth = visibleOriginalWidth;
+      const originalCropHeight = visibleOriginalHeight;
+
+      // Ensure crop area is within bounds
+      const finalCropX = Math.max(0, Math.min(originalCropX, originalWidth - originalCropWidth));
+      const finalCropY = Math.max(0, Math.min(originalCropY, originalHeight - originalCropHeight));
+      const finalCropWidth = Math.min(originalCropWidth, originalWidth - finalCropX);
+      const finalCropHeight = Math.min(originalCropHeight, originalHeight - finalCropY);
+
+      // Ensure we crop a square area to maintain aspect ratio
+      const cropSize = Math.min(finalCropWidth, finalCropHeight);
+
       const croppedImage = await ImageManipulator.manipulateAsync(
         selectedImageUri,
         [
           {
             crop: {
-              originX: Math.max(0, cropX),
-              originY: Math.max(0, cropY),
-              width: calculatedCropSize,
-              height: calculatedCropSize,
+              originX: finalCropX,
+              originY: finalCropY,
+              width: cropSize,
+              height: cropSize,
             },
           },
-          { resize: { width: 800, height: 800 } }, // Resize to 800x800
+          { resize: { width: 800, height: 800 } },
         ],
         { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
       );
@@ -251,111 +256,101 @@ const SimpleImagePicker: React.FC<SimpleImagePickerProps> = ({
 
   const handleClose = () => {
     setSelectedImageUri(null);
-    resetCropValues();
+    resetTransform();
     onClose();
   };
 
-  // Calculate image display size based on aspect ratio
-  const getImageDisplaySize = () => {
-    if (!imageDimensions) {
-      return { width: cropSize, height: cropSize };
-    }
-
-    const { width: imgWidth, height: imgHeight } = imageDimensions;
-    const aspectRatio = imgWidth / imgHeight;
-
-    if (aspectRatio > 1) {
-      // Landscape: fit height to crop area, width will be larger
-      const displayHeight = cropSize;
-      const displayWidth = displayHeight * aspectRatio;
-      return { width: displayWidth, height: displayHeight };
-    } else {
-      // Portrait or square: fit width to crop area, height will be larger
-      const displayWidth = cropSize;
-      const displayHeight = displayWidth / aspectRatio;
-      return { width: displayWidth, height: displayHeight };
-    }
-  };
-
-  const imageDisplaySize = getImageDisplaySize();
-
-  // Dynamic styles based on current crop size and image dimensions
-  const dynamicStyles = {
-    cropArea: {
-      width: cropSize,
-      height: cropSize,
-      position: 'relative' as const,
-      backgroundColor: '#e0e0e0',
-      borderRadius: 8,
-      borderWidth: 2,
-      borderColor: '#333',
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.25,
-      shadowRadius: 4,
-      elevation: 5,
-    },
-    imageContainer: {
-      width: cropSize,
-      height: cropSize,
-      justifyContent: 'center' as const,
-      alignItems: 'center' as const,
-      overflow: 'hidden' as const,
-      borderRadius: 6,
-    },
-    gestureContainer: {
-      width: cropSize,
-      height: cropSize,
-      justifyContent: 'center' as const,
-      alignItems: 'center' as const,
-    },
-    cropImage: {
-      width: imageDisplaySize.width,
-      height: imageDisplaySize.height,
-    },
-  };
-
-  // Gesture handlers
-  const pinchGestureHandler = useAnimatedGestureHandler({
-    onStart: () => {
-      savedScale.value = scale.value;
-    },
-    onActive: (event) => {
-      scale.value = Math.max(1, Math.min(3, savedScale.value * event.scale));
-    },
-  });
-
+  // Pan gesture handler - fixed to avoid crashes
   const panGestureHandler = useAnimatedGestureHandler({
     onStart: () => {
-      savedTranslateX.value = translateX.value;
-      savedTranslateY.value = translateY.value;
+      lastTranslateX.value = translateX.value;
+      lastTranslateY.value = translateY.value;
     },
     onActive: (event) => {
-      // For true 1:1 movement, we need to scale finger movement by inverse of zoom
-      // This makes it feel like you're directly moving the image at its actual size
-      const scaledTranslationX = event.translationX / scale.value;
-      const scaledTranslationY = event.translationY / scale.value;
+      // Apply 1:1 movement by dividing by current scale
+      const deltaX = event.translationX / scale.value;
+      const deltaY = event.translationY / scale.value;
 
-      // Calculate new translate values
-      const newTranslateX = savedTranslateX.value + scaledTranslationX;
-      const newTranslateY = savedTranslateY.value + scaledTranslationY;
+      // Calculate boundaries inline to avoid crashes
+      const currentScale = scale.value;
+      const scaledWidth = imageWidth.value * currentScale;
+      const scaledHeight = imageHeight.value * currentScale;
 
-      // Calculate bounds based on the base image size (not scaled)
-      const maxPanX = Math.max(0, (imageDisplayWidth.value - cropSizeShared.value) / 2);
-      const maxPanY = Math.max(0, (imageDisplayHeight.value - cropSizeShared.value) / 2);
+      const maxX = Math.max(0, (scaledWidth - cropSizeShared.value) / 2);
+      const maxY = Math.max(0, (scaledHeight - cropSizeShared.value) / 2);
 
-      // Constrain to image bounds
-      translateX.value = Math.max(-maxPanX, Math.min(maxPanX, newTranslateX));
-      translateY.value = Math.max(-maxPanY, Math.min(maxPanY, newTranslateY));
+      // Clamp translation to boundaries
+      translateX.value = clamp(
+        lastTranslateX.value + deltaX,
+        -maxX,
+        maxX
+      );
+      translateY.value = clamp(
+        lastTranslateY.value + deltaY,
+        -maxY,
+        maxY
+      );
+    },
+    onEnd: () => {
+      lastTranslateX.value = translateX.value;
+      lastTranslateY.value = translateY.value;
     },
   });
+
+  // Pinch gesture handler - fixed to avoid crashes
+  const pinchGestureHandler = useAnimatedGestureHandler({
+    onStart: () => {
+      lastScale.value = scale.value;
+    },
+    onActive: (event: any) => {
+      // Allow zoom from 1x to 5x
+      const newScale = clamp(lastScale.value * event.scale, 1, 5);
+      scale.value = newScale;
+
+      // Recalculate boundaries inline
+      const scaledWidth = imageWidth.value * newScale;
+      const scaledHeight = imageHeight.value * newScale;
+
+      const maxX = Math.max(0, (scaledWidth - cropSizeShared.value) / 2);
+      const maxY = Math.max(0, (scaledHeight - cropSizeShared.value) / 2);
+
+      translateX.value = clamp(translateX.value, -maxX, maxX);
+      translateY.value = clamp(translateY.value, -maxY, maxY);
+    },
+    onEnd: () => {
+      lastScale.value = scale.value;
+    },
+  });
+
+  // FIXED styles - no more dynamic sizing
+  const cropStyles = {
+    cropArea: {
+      width: CROP_SIZE,
+      height: CROP_SIZE,
+      position: 'relative' as const,
+      backgroundColor: '#000',
+      borderRadius: 8,
+      overflow: 'hidden' as const,
+    },
+    imageContainer: {
+      width: CROP_SIZE,
+      height: CROP_SIZE,
+      justifyContent: 'center' as const,
+      alignItems: 'center' as const,
+    },
+    gestureContainer: {
+      flex: 1,
+      justifyContent: 'center' as const,
+      alignItems: 'center' as const,
+    },
+  };
 
   const animatedImageStyle = useAnimatedStyle(() => {
     return {
       transform: [
-        { scale: scale.value },
         { translateX: translateX.value },
         { translateY: translateY.value },
+        { scale: scale.value },
       ],
     };
   });
@@ -377,8 +372,8 @@ const SimpleImagePicker: React.FC<SimpleImagePickerProps> = ({
             {selectedImageUri ? 'Crop Photo' : 'Add Photo'}
           </Text>
           {selectedImageUri && (
-            <TouchableOpacity 
-              onPress={handleUpload} 
+            <TouchableOpacity
+              onPress={cropImage}
               style={styles.headerButton}
               disabled={isUploading}
             >
@@ -393,26 +388,35 @@ const SimpleImagePicker: React.FC<SimpleImagePickerProps> = ({
 
         {/* Content */}
         <View style={styles.content}>
-          {selectedImageUri && imageDimensions ? (
-            // Proper crop interface
+          {selectedImageUri ? (
+            // Crop interface - from working example
             <View style={styles.cropContainer}>
-              {/* Crop area with image */}
-              <View style={dynamicStyles.cropArea}>
-                <View style={dynamicStyles.imageContainer}>
-                  <PinchGestureHandler onGestureEvent={pinchGestureHandler}>
-                    <Animated.View style={dynamicStyles.gestureContainer}>
-                      <PanGestureHandler onGestureEvent={panGestureHandler}>
-                        <Animated.View style={dynamicStyles.gestureContainer}>
-                          <Animated.Image
-                            source={{ uri: selectedImageUri }}
-                            style={[dynamicStyles.cropImage, animatedImageStyle]}
-                            resizeMode="cover"
-                          />
-                        </Animated.View>
-                      </PanGestureHandler>
-                    </Animated.View>
-                  </PinchGestureHandler>
-                </View>
+              <View style={cropStyles.cropArea}>
+                <PinchGestureHandler
+                  onGestureEvent={pinchGestureHandler}
+                  onHandlerStateChange={pinchGestureHandler}
+                >
+                  <Animated.View style={cropStyles.gestureContainer}>
+                    <PanGestureHandler
+                      onGestureEvent={panGestureHandler}
+                      onHandlerStateChange={panGestureHandler}
+                      minPointers={1}
+                      maxPointers={1}
+                    >
+                      <Animated.View style={[cropStyles.imageContainer, animatedImageStyle]}>
+                        <Image
+                          source={{ uri: selectedImageUri }}
+                          style={{
+                            width: imageLayout.width,
+                            height: imageLayout.height,
+                          }}
+                          onLayout={handleImageLayout}
+                          resizeMode="contain"
+                        />
+                      </Animated.View>
+                    </PanGestureHandler>
+                  </Animated.View>
+                </PinchGestureHandler>
 
                 {/* Crop grid overlay */}
                 <View style={styles.cropGrid} pointerEvents="none">
@@ -517,12 +521,13 @@ const styles = StyleSheet.create({
     color: lightTheme.colors.text,
     marginTop: 12,
   },
-  // Proper crop interface - using dynamic sizing
+  // Minimal padding crop interface
   cropContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: SIDE_PADDING,
+    paddingVertical: 8,
   },
   cropGrid: {
     position: 'absolute',

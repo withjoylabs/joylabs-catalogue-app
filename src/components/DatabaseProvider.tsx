@@ -10,41 +10,28 @@ interface DatabaseProviderProps {
 }
 
 const DatabaseProviderComponent: React.FC<DatabaseProviderProps> = ({ children }) => {
-  logger.info('DatabaseProviderComponent', 'COMPONENT FUNCTION BODY EXECUTING');
   const [isInitialized, setIsInitialized] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
   // Initialize the database
   useEffect(() => {
-    logger.info('DatabaseProviderComponent', 'EFFECT for initDatabase: MOUNTING / EFFECT TRIGGERED');
     async function init() {
       try {
-        logger.info('DatabaseProviderComponent', 'EFFECT: Calling modernDb.initDatabase()...');
         await modernDb.initDatabase();
-
-        // ✅ CRITICAL: Check and recover data from DynamoDB after database initialization
-        logger.info('DatabaseProviderComponent', 'EFFECT: Starting data recovery check...');
         await dataRecoveryService.checkAndRecoverData();
-
         setIsInitialized(true);
-        logger.info('DatabaseProviderComponent', 'EFFECT: Database initialized and data recovery completed successfully');
+        logger.info('DatabaseProvider', 'Database initialized and data recovery completed');
       } catch (err: any) {
-        logger.error('DatabaseProviderComponent', 'EFFECT: Error initializing database or recovering data:', err);
+        logger.error('DatabaseProvider', 'Error initializing database:', err);
         setError(err);
       }
     }
 
     init();
-
-    // Close the database when the component unmounts
-    return () => {
-      logger.info('DatabaseProviderComponent', 'EFFECT for initDatabase: UNMOUNTING');
-    };
   }, []);
 
   // Show loading screen while initializing
   if (!isInitialized) {
-    logger.info('DatabaseProviderComponent', 'RENDER: Not initialized, showing loading indicator.');
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" />
@@ -63,7 +50,6 @@ const DatabaseProviderComponent: React.FC<DatabaseProviderProps> = ({ children }
   }
 
   // Provide the database context to all children
-  logger.info('DatabaseProviderComponent', 'RENDER: Initialized, rendering SQLiteProvider and children.');
   return (
     <SQLiteProvider databaseName="joylabs.db">
       {children}
@@ -71,24 +57,10 @@ const DatabaseProviderComponent: React.FC<DatabaseProviderProps> = ({ children }
   );
 };
 
-export const DatabaseProvider = memo(DatabaseProviderComponent, (prevProps, nextProps) => {
-  const childrenChanged = prevProps.children !== nextProps.children;
-  logger.info('DatabaseProvider.memo', 'Comparing props for memoization', { 
-    childrenChanged: childrenChanged
-  });
-  // Default shallow comparison: return true if props are equal (no re-render)
-  // We want to log, then let default behavior proceed (which is shallow compare)
-  // Forcing a re-render for logging would be: return false;
-  // Forcing no re-render for logging would be: return true;
-  // To mimic default shallow, if childrenChanged is true, it should re-render (return false from comparison)
-  // If childrenChanged is false, it should not re-render (return true from comparison)
-  if (childrenChanged) {
-    logger.warn('DatabaseProvider.memo', 'Children prop has a new identity. Re-render will occur if other props also changed or if this is the only prop.');
-    return false; // Re-render if children changed
-  }
-  logger.info('DatabaseProvider.memo', 'Children prop identity is the same. No re-render based on children.');
-  return true; // Don't re-render if children are the same
-});
+// REMOVED PROBLEMATIC MEMO: React creates new JSX trees on every render,
+// causing children prop to always have new identity. This memo was causing
+// more re-renders than it prevented and spamming console logs.
+export const DatabaseProvider = DatabaseProviderComponent;
 
 const styles = StyleSheet.create({
   centered: {

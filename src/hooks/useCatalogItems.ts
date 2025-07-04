@@ -79,6 +79,14 @@ export const useCatalogItems = () => {
     categoryMapRef.current = map;
   }, [categories]);
 
+  // Use ref to access current products without causing re-renders
+  const storeProductsRef = useRef(storeProducts);
+
+  // Update ref when products change
+  useEffect(() => {
+    storeProductsRef.current = storeProducts;
+  }, [storeProducts]);
+
   // Listen for data changes to trigger targeted cache invalidation
   useEffect(() => {
     const handleDataChange = (event: DataChangeEvent) => {
@@ -97,8 +105,9 @@ export const useCatalogItems = () => {
           // Add a small delay to prevent race conditions with modal operations
           // This allows any ongoing modal state changes to complete first
           setTimeout(() => {
-            // Remove the specific item from Zustand store to force fresh fetch
-            const updatedProducts = storeProducts.filter(p => p.id !== affectedItemId);
+            // Use ref to get current products without dependency issues
+            const currentProducts = storeProductsRef.current;
+            const updatedProducts = currentProducts.filter(p => p.id !== affectedItemId);
             setProducts(updatedProducts);
 
             logger.info('useCatalogItems', 'Invalidated item cache for targeted refresh (delayed)', {
@@ -106,7 +115,7 @@ export const useCatalogItems = () => {
               operation: event.operation,
               itemId: event.itemId,
               affectedItemId,
-              removedFromStore: storeProducts.length !== updatedProducts.length
+              removedFromStore: currentProducts.length !== updatedProducts.length
             });
           }, 200); // Small delay to avoid modal state conflicts
         }
@@ -120,7 +129,7 @@ export const useCatalogItems = () => {
       unsubscribe();
       logger.debug('useCatalogItems', 'Removed data change listener');
     };
-  }, [storeProducts, setProducts]);
+  }, [setProducts]); // FIXED: Removed storeProducts dependency to prevent infinite loops
 
 
 

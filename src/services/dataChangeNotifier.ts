@@ -23,7 +23,7 @@ class DataChangeNotifier {
    */
   addListener(listener: DataChangeListener): () => void {
     this.listeners.push(listener);
-    
+
     logger.debug('[DataChangeNotifier]', `Added listener, total: ${this.listeners.length}`);
 
     return () => {
@@ -36,12 +36,15 @@ class DataChangeNotifier {
    * Notify all listeners of a data change
    */
   notifyChange(event: DataChangeEvent): void {
-    logger.debug('[DataChangeNotifier]', 'Notifying data change', {
-      table: event.table,
-      operation: event.operation,
-      itemId: event.itemId,
-      listenerCount: this.listeners.length
-    });
+    // Only log bulk operations and errors to reduce spam
+    if (event.itemId === 'BULK_SYNC_COMPLETE' || this.listeners.length === 0) {
+      logger.debug('[DataChangeNotifier]', 'Notifying data change', {
+        table: event.table,
+        operation: event.operation,
+        itemId: event.itemId,
+        listenerCount: this.listeners.length
+      });
+    }
 
     this.listeners.forEach(listener => {
       try {

@@ -778,17 +778,9 @@ class SquareImageService {
         [JSON.stringify(localItemData), new Date().toISOString(), itemId]
       );
 
-      // 5. Notify data change listeners for real-time updates
-      try {
-        const { dataChangeNotifier } = await import('./dataChangeNotifier');
-        dataChangeNotifier.notifyCatalogItemChange('UPDATE', itemId, {
-          imageReordered: true,
-          primaryImageId: newImageIds[0]
-        });
-        logger.info('SquareImageService', 'Real-time reorder notifications sent');
-      } catch (notificationError) {
-        logger.warn('SquareImageService', 'Failed to send real-time reorder notifications', { notificationError });
-      }
+      // 5. Skip data change notification for image reordering to prevent reload loops
+      // The UI is already updated optimistically in the calling component
+      logger.info('SquareImageService', 'Skipping data change notification for image reorder to prevent reload loops');
 
       logger.info('SquareImageService', 'Image reorder completed successfully', {
         itemId,

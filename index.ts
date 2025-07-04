@@ -1,8 +1,6 @@
-import { registerRootComponent } from 'expo';
+// This file is not needed when using expo-router
+// The main entry point is set to "expo-router/entry" in package.json
+// which automatically uses app/_layout.tsx as the root component
 
-import App from './App';
-
-// registerRootComponent calls AppRegistry.registerComponent('main', () => App);
-// It also ensures that whether you load the app in Expo Go or in a native build,
-// the environment is set up appropriately
-registerRootComponent(App);
+// Import expo-router entry point
+import 'expo-router/entry';

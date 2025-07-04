@@ -3,17 +3,19 @@ import 'react-native-get-random-values';
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { Stack, SplashScreen, ErrorBoundary, useRouter } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { 
-  Platform, 
-  View, 
-  TouchableOpacity, 
-  Text, 
-  Dimensions, 
-  ActivityIndicator, 
+import {
+  Platform,
+  View,
+  TouchableOpacity,
+  Text,
+  Dimensions,
+  ActivityIndicator,
   Linking,
   useColorScheme,
   LogBox,
+  AppState,
 } from 'react-native';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import * as ExpoLinking from 'expo-linking';
@@ -39,6 +41,11 @@ import { ConsoleLogger } from 'aws-amplify/utils';
 import { Authenticator } from '@aws-amplify/ui-react-native';
 import { CatalogSubscriptionManager } from '../src/components/CatalogSubscriptionManager';
 import { useAuthInit } from '../src/hooks/useAuthInit';
+
+// Global type declaration for Amplify configuration guard
+declare global {
+  var _amplifyConfigured: boolean | undefined;
+}
 
 const config = {
   "aws_project_region": "us-west-1",
@@ -70,8 +77,12 @@ const config = {
   "aws_appsync_authenticationType": "AMAZON_COGNITO_USER_POOLS"
 };
 
-Amplify.configure(config);
-ConsoleLogger.LOG_LEVEL = 'DEBUG';
+// Configure Amplify only once to prevent Hub dispatch spam
+if (!global._amplifyConfigured) {
+  Amplify.configure(config);
+  ConsoleLogger.LOG_LEVEL = 'DEBUG';
+  global._amplifyConfigured = true;
+}
 
 const BACKGROUND_NOTIFICATION_TASK = 'CATALOG_SYNC_TASK';
 
@@ -142,9 +153,10 @@ export default function RootLayout() {
   const [debugModeActive, setDebugModeActive] = useState(false);
   const [debugTapTimeout, setDebugTapTimeout] = useState<NodeJS.Timeout | null>(null);
   const [responseListenerSubscription, setResponseListenerSubscription] = useState<Notifications.Subscription | null>(null);
+  const [appState, setAppState] = useState(AppState.currentState);
 
   const colorScheme = useColorScheme();
-  
+
   // Initialize authentication state on app startup
   const { isLoading: authLoading, isAuthenticated, error: authError } = useAuthInit();
   
@@ -221,6 +233,73 @@ export default function RootLayout() {
       logger.error('App', 'Font loading failed', { error: fontError });
     }
   }, [fontError]);
+
+  // Set up app state change listener with catch-up sync (moved from App.tsx)
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      logger.debug('App', `App state changed from ${appState} to ${nextAppState}`);
+
+      // Only trigger catch-up sync when app comes to foreground if we have reason to believe we missed webhooks
+      if (appState === 'background' && nextAppState === 'active') {
+        logger.info('App', 'App came to foreground from background - checking if catch-up sync is needed');
+
+        try {
+          const syncService = CatalogSyncService.getInstance();
+          syncService.checkAndRunCatchUpSync().catch(error => {
+            logger.error('App', 'Catch-up sync check failed during foreground transition', { error });
+          });
+
+          logger.info('App', 'Intelligent catch-up sync check initiated during foreground transition');
+        } catch (syncError) {
+          logger.error('App', 'Failed to initiate catch-up sync check during foreground transition', { syncError });
+        }
+      }
+
+      setAppState(nextAppState);
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [appState]);
+
+  // Set up global error handler (moved from App.tsx)
+  useEffect(() => {
+    const errorHandler = (error: Error, isFatal?: boolean) => {
+      logger.error('App', `Global error: ${isFatal ? 'FATAL' : 'NON-FATAL'}`, {
+        error: error.toString(),
+        stack: error.stack
+      });
+    };
+
+    const originalConsoleError = console.error;
+    console.error = (message, ...args) => {
+      if (message instanceof Error) {
+        errorHandler(message, false);
+      } else if (typeof message === 'string' && args[0] instanceof Error) {
+        errorHandler(args[0], false);
+      }
+      originalConsoleError(message, ...args);
+    };
+
+    const rejectionHandler = (event: PromiseRejectionEvent) => {
+      logger.error('App', 'Unhandled promise rejection', {
+        reason: event.reason?.toString(),
+        stack: event.reason?.stack
+      });
+    };
+
+    if (global.addEventListener) {
+      global.addEventListener('unhandledrejection', rejectionHandler);
+    }
+
+    return () => {
+      console.error = originalConsoleError;
+      if (global.removeEventListener) {
+        global.removeEventListener('unhandledrejection', rejectionHandler);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -358,6 +437,14 @@ export default function RootLayout() {
 
   const router = useRouter();
 
+  // Create a triple tap gesture to activate debug mode (moved from App.tsx)
+  const tripleTap = Gesture.Tap()
+    .numberOfTaps(3)
+    .onStart(() => {
+      logger.info('App', 'Triple tap activated - opening debug screen');
+      router.push('/debug');
+    });
+
   // Notification response handling is now consolidated in the main notification setup above
 
   if (!isAppReady || authLoading) {
@@ -366,6 +453,8 @@ export default function RootLayout() {
 
   return (
       <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureDetector gesture={tripleTap}>
+      <View collapsable={false} style={{ flex: 1 }}>
       <ActionSheetProvider>
         <Authenticator.Provider>
           <ApiProvider>
@@ -426,6 +515,8 @@ export default function RootLayout() {
           <CatalogSubscriptionManager />
         </Authenticator.Provider>
       </ActionSheetProvider>
+      </View>
+    </GestureDetector>
       </GestureHandlerRootView>
   );
 }

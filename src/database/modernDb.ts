@@ -2,7 +2,8 @@ import { SQLiteDatabase, openDatabaseAsync, SQLiteBindValue } from 'expo-sqlite'
 import * as FileSystem from 'expo-file-system';
 import logger from '../utils/logger';
 import { ConvertedItem } from '../types/api';
-import { transformCatalogItemToItem } from '../utils/catalogTransformers';
+// REMOVED: import { transformCatalogItemToItem } from '../utils/catalogTransformers';
+// This import was causing a circular dependency. We'll use dynamic imports instead.
 
 // Constants
 const DATABASE_NAME = 'joylabs.db';
@@ -1131,12 +1132,13 @@ export async function searchLocalItems(query: string): Promise<ConvertedItem[]> 
             crvType 
         });
 
-        // Pass crvType to the transformer
+        // Pass crvType to the transformer (using dynamic import to avoid circular dependency)
+        const { transformCatalogItemToItem } = await import('../utils/catalogTransformers');
         const transformed = transformCatalogItemToItem(reconstructedCatalogObject as any);
 
         // Log the result from the transformer
-        logger.debug('Database::searchLocalItems', 'Transformed item result:', transformed); 
-        
+        logger.debug('Database::searchLocalItems', 'Transformed item result:', transformed);
+
         if (transformed && !transformedItemsMap.has(transformed.id)) {
            transformedItemsMap.set(transformed.id, transformed);
         }
@@ -1647,6 +1649,9 @@ export async function searchItemsByCaseUpc(caseUpc: string): Promise<ConvertedIt
     `, [caseUpc]);
 
     logger.info('Database', `Found ${results.length} items with case UPC ${caseUpc}`);
+
+    // Use dynamic import to avoid circular dependency
+    const { transformCatalogItemToItem } = await import('../utils/catalogTransformers');
 
     return results.map(row => {
       try {

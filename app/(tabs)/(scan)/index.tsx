@@ -30,7 +30,7 @@ import { useApi } from '../../../src/providers/ApiProvider';
 import { useAppStore } from '../../../src/store';
 import { apiClientInstance } from '../../../src/api';
 import logger from '../../../src/utils/logger';
-import { DatabaseProvider } from '../../../src/components/DatabaseProvider';
+// DatabaseProvider import removed - already provided by app/_layout.tsx
 import { transformCatalogItemToItem } from '../../../src/utils/catalogTransformers';
 import { v4 as uuidv4 } from 'uuid';
 import { lightTheme } from '../../../src/themes';
@@ -257,6 +257,16 @@ const SearchResultsArea = memo(({
     }
   }, [lastUpdatedItem, setLastUpdatedItem, executeSearch]);
 
+  // Use refs to access current search results without causing re-renders
+  const searchResultsRef = useRef(searchResults);
+  const allSearchResultsRef = useRef(allSearchResults);
+
+  // Update refs when search results change
+  useEffect(() => {
+    searchResultsRef.current = searchResults;
+    allSearchResultsRef.current = allSearchResults;
+  }, [searchResults, allSearchResults]);
+
   // Real-time data change monitoring for targeted item updates using event-driven approach
   useEffect(() => {
     let unsubscribe: (() => void) | null = null;
@@ -282,8 +292,9 @@ const SearchResultsArea = memo(({
           }
 
           // EFFICIENCY FIX: For individual item updates, do targeted item update
-          const isItemInCurrentResults = searchResults.some(item => item.id === event.itemId) ||
-                                        allSearchResults.some(item => item.id === event.itemId);
+          // Use refs to get current values without dependency issues
+          const isItemInCurrentResults = searchResultsRef.current.some(item => item.id === event.itemId) ||
+                                        allSearchResultsRef.current.some(item => item.id === event.itemId);
 
           if (isItemInCurrentResults) {
             logger.info('SearchResultsArea', `Catalog item ${event.operation} detected for item in results - updating targeted item`, {
@@ -351,7 +362,7 @@ const SearchResultsArea = memo(({
         unsubscribe();
       }
     };
-  }, [executeSearch, searchTopic, searchResults, allSearchResults]);
+  }, [executeSearch, searchTopic]); // FIXED: Removed searchResults and allSearchResults to prevent infinite loops
 
 
 
@@ -963,12 +974,9 @@ const FilterAndSortControls = memo(({
 });
 // --- END: FilterAndSortControls Component Definition ---
 
+// REMOVED NESTED DatabaseProvider - already provided by app/_layout.tsx
 export default function App() {
-  return (
-    <DatabaseProvider>
-      <RootLayoutNav />
-    </DatabaseProvider>
-  );
+  return <RootLayoutNav />;
 }
 
 function RootLayoutNav() {
@@ -1034,7 +1042,11 @@ function RootLayoutNav() {
     // After printing, just focus the input. Selection is handled by the focus effect.
     setTimeout(() => {
       searchInputRef.current?.focus();
-    }, 100); 
+    }, 100);
+  }, []);
+
+  const handleSearchComplete = useCallback(() => {
+    setIsAwaitingPostSaveSearch(false);
   }, []);
   
   const scanHistory = useAppStore((state) => state.scanHistory);
@@ -1067,7 +1079,7 @@ function RootLayoutNav() {
         onPrintSuccessForChaining={handlePrintAndClear}
         onCreateNewItem={handleCreateNewItem}
         isAwaitingPostSaveSearch={isAwaitingPostSaveSearch}
-        onSearchComplete={() => setIsAwaitingPostSaveSearch(false)}
+        onSearchComplete={handleSearchComplete}
         onClearSearch={handleClearSearch}
       />
 
