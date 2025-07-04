@@ -10,7 +10,7 @@ import * as modernDb from '../database/modernDb';
 import appSyncMonitor from './appSyncMonitor';
 import crossReferenceService from './crossReferenceService';
 import dataConsistencyService, { ConsistencyReport } from './dataConsistencyService';
-import databaseChangeMonitor, { DatabaseChange } from './databaseChangeMonitor';
+import { dataChangeNotifier, DataChangeEvent } from './dataChangeNotifier';
 
 export interface TeamData {
   vendor?: string;
@@ -95,8 +95,8 @@ class ReorderService {
         // Set up event-driven sync (no polling)
         this.setupEventDrivenSync();
 
-        // Set up automatic item detail updates (local database monitoring)
-        this.setupDatabaseChangeMonitoring();
+        // Set up automatic item detail updates (real-time data change notifications)
+        this.setupRealTimeDataChangeMonitoring();
       } else {
         // Load from offline storage
         this.isOfflineMode = true;
@@ -238,42 +238,59 @@ class ReorderService {
     logger.info('[ReorderService]', 'Event-driven sync setup complete');
   }
 
-  // Set up automatic item detail updates via database change monitoring
-  private setupDatabaseChangeMonitoring() {
+  // Set up automatic item detail updates via real-time data change notifications
+  private setupRealTimeDataChangeMonitoring() {
     try {
-      // Listen for database changes and automatically refresh affected reorder items
-      const unsubscribe = databaseChangeMonitor.addListener(async (changes: DatabaseChange[]) => {
-        logger.info('[ReorderService]', `Database changes detected: ${changes.length} items updated`);
+      // Listen for real-time data changes and automatically refresh affected reorder items
+      const unsubscribe = dataChangeNotifier.addListener(async (event: DataChangeEvent) => {
+        // Only handle catalog item and team data changes
+        if (event.table === 'catalog_items' || event.table === 'team_data') {
 
-        // Get affected item IDs
-        const affectedItemIds = [...new Set(changes.map(change => change.itemId))];
+          // CRITICAL FIX: Handle bulk sync completion notification
+          if (event.itemId === 'BULK_SYNC_COMPLETE') {
+            logger.info('[ReorderService]', 'Bulk sync completed, refreshing reorder items with updated catalog data', {
+              syncType: event.data?.syncType,
+              itemCount: event.data?.itemCount
+            });
 
-        // Check if any of our reorder items are affected
-        const affectedReorderItems = this.reorderItems.filter(item =>
-          affectedItemIds.includes(item.itemId)
-        );
+            // Add a small delay to ensure all database operations are complete
+            setTimeout(async () => {
+              await this.notifyListeners();
+            }, 500);
+            return;
+          }
 
-        if (affectedReorderItems.length > 0) {
-          logger.info('[ReorderService]', `${affectedReorderItems.length} reorder items affected by database changes`, {
-            affectedItemIds: affectedReorderItems.map(item => item.itemId)
-          });
+          // For individual item updates, check if any of our reorder items are affected
+          const affectedReorderItems = this.reorderItems.filter(item =>
+            item.itemId === event.itemId
+          );
 
-          // Notify listeners to refresh cross-referenced data
-          // This will automatically show updated item details (price, name, discontinued status, etc.)
-          await this.notifyListeners();
+          if (affectedReorderItems.length > 0) {
+            logger.info('[ReorderService]', `Reorder item affected by ${event.table} ${event.operation}`, {
+              itemId: event.itemId,
+              operation: event.operation,
+              affectedCount: affectedReorderItems.length
+            });
 
-          logger.info('[ReorderService]', 'Reorder items automatically updated with latest item details');
+            // Notify listeners to refresh cross-referenced data
+            // This will automatically show updated item details (price, name, discontinued status, etc.)
+            await this.notifyListeners();
+
+            logger.debug('[ReorderService]', 'Reorder items automatically updated with latest item details');
+          }
         }
       });
 
       // Store unsubscribe function for cleanup
       this.subscriptions.push({ unsubscribe });
 
-      logger.info('[ReorderService]', 'Database change monitoring setup complete - automatic item detail updates enabled');
+      logger.info('[ReorderService]', 'Real-time data change monitoring setup complete - automatic item detail updates enabled');
     } catch (error) {
-      logger.error('[ReorderService]', 'Failed to setup database change monitoring', { error });
+      logger.error('[ReorderService]', 'Failed to setup real-time data change monitoring', { error });
     }
   }
+
+
 
   // Trigger batched sync after user interactions
   private triggerBatchSync(reason: string) {
@@ -1146,8 +1163,7 @@ class ReorderService {
       this.syncBatchTimeout = null;
     }
 
-    // Stop database change monitoring
-    databaseChangeMonitor.stopMonitoring();
+    // Real-time data change monitoring cleanup is handled by subscription cleanup above
 
     logger.info('[ReorderService]', 'Subscriptions, timers, and database monitoring cleaned up');
   }
@@ -1606,22 +1622,54 @@ class ReorderService {
   // Check if user is authenticated and online
   private async checkAuthStatus(): Promise<boolean> {
     try {
-      // Try a simple GraphQL query to test authentication
-      await this.client.graphql({
-        query: queries.listReorderItems,
-        variables: { limit: 1 }
-      });
-      this.isOfflineMode = false;
-      return true;
-    } catch (error: any) {
-      if (error?.name === 'NoSignedUser' || error?.underlyingError?.name === 'NotAuthorizedException') {
+      // First check if user is authenticated using Amplify's getCurrentUser
+      const { getCurrentUser } = require('aws-amplify/auth');
+      const user = await getCurrentUser();
+
+      if (!user) {
         this.isOfflineMode = true;
-        logger.info('[ReorderService]', 'User not authenticated, switching to offline mode');
+        logger.info('[ReorderService]', 'No authenticated user found, switching to offline mode');
         return false;
       }
-      // Other errors might be network issues, still try offline mode
+
+      // User is authenticated, now test network connectivity with a simple GraphQL query
+      try {
+        await this.client.graphql({
+          query: queries.listReorderItems,
+          variables: { limit: 1 }
+        });
+
+        // Both authentication and network are working
+        this.isOfflineMode = false;
+        logger.info('[ReorderService]', 'User authenticated and online', {
+          userId: user.userId || user.username
+        });
+        return true;
+
+      } catch (networkError: any) {
+        // User is authenticated but network/AppSync is not working
+        if (networkError?.name === 'NoSignedUser' || networkError?.underlyingError?.name === 'NotAuthorizedException') {
+          // This shouldn't happen since we already checked authentication, but handle it
+          this.isOfflineMode = true;
+          logger.warn('[ReorderService]', 'Authentication error in network test - switching to offline mode');
+          return false;
+        } else {
+          // Network error - user is authenticated but can't reach server
+          this.isOfflineMode = true;
+          logger.warn('[ReorderService]', 'User authenticated but network unavailable - offline mode', {
+            error: networkError.message,
+            userId: user.userId || user.username
+          });
+          return false;
+        }
+      }
+
+    } catch (authError: any) {
+      // Authentication check failed
       this.isOfflineMode = true;
-      logger.warn('[ReorderService]', 'Network/auth error, switching to offline mode', { error });
+      logger.info('[ReorderService]', 'Authentication check failed - switching to offline mode', {
+        error: authError.message
+      });
       return false;
     }
   }
@@ -1651,6 +1699,73 @@ class ReorderService {
       logger.info('[ReorderService]', 'Saved items to offline storage');
     } catch (error) {
       logger.error('[ReorderService]', 'Failed to save offline items', { error });
+    }
+  }
+
+  // Public method to force save offline data (used during sign-out)
+  async forceSaveOfflineData(): Promise<void> {
+    try {
+      logger.info('[ReorderService]', 'Forcing offline data save (sign-out preservation)', {
+        itemCount: this.reorderItems.length
+      });
+
+      // Save current items to AsyncStorage
+      await AsyncStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.reorderItems));
+
+      // Set offline mode to ensure data is loaded from storage on next init
+      this.isOfflineMode = true;
+
+      logger.info('[ReorderService]', 'Successfully preserved data for sign-out', {
+        itemCount: this.reorderItems.length,
+        storageKey: this.STORAGE_KEY
+      });
+
+      return Promise.resolve();
+    } catch (error) {
+      logger.error('[ReorderService]', 'Failed to force save offline data', { error });
+      return Promise.reject(error);
+    }
+  }
+
+  // Public method to refresh authentication status (used when user signs in)
+  async refreshAuthenticationStatus(): Promise<void> {
+    try {
+      logger.info('[ReorderService]', 'Refreshing authentication status...');
+
+      const isAuthenticated = await this.checkAuthStatus();
+
+      if (isAuthenticated && this.isOfflineMode) {
+        // User just came online - set up online services
+        logger.info('[ReorderService]', 'User came online - setting up sync services');
+
+        // Set up real-time subscriptions
+        this.setupSmartSubscriptions();
+
+        // Set up event-driven sync
+        this.setupEventDrivenSync();
+
+        // Set up real-time data change monitoring
+        this.setupRealTimeDataChangeMonitoring();
+
+        // Trigger a sync to catch up
+        await this.refresh();
+
+        logger.info('[ReorderService]', 'Successfully transitioned to online mode');
+      } else if (!isAuthenticated && !this.isOfflineMode) {
+        // User went offline
+        logger.info('[ReorderService]', 'User went offline - cleaning up online services');
+
+        // Clean up subscriptions
+        this.subscriptions.forEach(sub => {
+          if (sub && typeof sub.unsubscribe === 'function') {
+            sub.unsubscribe();
+          }
+        });
+        this.subscriptions = [];
+      }
+
+    } catch (error) {
+      logger.error('[ReorderService]', 'Failed to refresh authentication status', { error });
     }
   }
 

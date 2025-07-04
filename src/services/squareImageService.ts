@@ -1,6 +1,7 @@
 import logger from '../utils/logger';
 import { directSquareApi } from '../api';
 import * as FileSystem from 'expo-file-system';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { v4 as uuidv4 } from 'uuid';
 import { getDatabase } from '../database/modernDb';
 import tokenService from '../services/tokenService';
@@ -32,7 +33,100 @@ interface ImageData {
 }
 
 class SquareImageService {
-  
+
+  /**
+   * Convert image to JPEG format if needed for Square API compatibility
+   */
+  private async convertToJpegIfNeeded(imageUri: string, imageName: string): Promise<{ uri: string; name: string }> {
+    try {
+      // Validate inputs
+      if (!imageUri || !imageName) {
+        logger.warn('SquareImageService', 'Invalid inputs for image conversion', { imageUri, imageName });
+        return { uri: imageUri, name: imageName };
+      }
+
+      // Check if the image is HEIC format
+      const isHeic = imageName.toLowerCase().includes('.heic') ||
+                     imageName.toLowerCase().includes('.heif') ||
+                     imageUri.toLowerCase().includes('.heic') ||
+                     imageUri.toLowerCase().includes('.heif');
+
+      if (!isHeic) {
+        // Already in a supported format
+        logger.debug('SquareImageService', 'Image already in supported format, no conversion needed', {
+          imageName,
+          format: imageName.split('.').pop()?.toLowerCase()
+        });
+        return { uri: imageUri, name: imageName };
+      }
+
+      logger.info('SquareImageService', 'Converting HEIC image to JPEG for Square compatibility', {
+        originalUri: imageUri,
+        originalName: imageName
+      });
+
+      // Verify file exists before conversion
+      const fileInfo = await FileSystem.getInfoAsync(imageUri);
+      if (!fileInfo.exists) {
+        throw new Error(`Image file does not exist: ${imageUri}`);
+      }
+
+      // Convert HEIC to JPEG
+      const result = await manipulateAsync(
+        imageUri,
+        [], // No transformations, just format conversion
+        {
+          compress: 0.8, // Good quality compression
+          format: SaveFormat.JPEG,
+        }
+      );
+
+      // Validate conversion result
+      if (!result || !result.uri) {
+        throw new Error('Image conversion returned invalid result');
+      }
+
+      // Generate new name with .jpg extension
+      const newName = imageName.replace(/\.(heic|heif)$/i, '.jpg');
+
+      logger.info('SquareImageService', 'HEIC to JPEG conversion successful', {
+        originalUri: imageUri,
+        convertedUri: result.uri,
+        originalName: imageName,
+        convertedName: newName,
+        originalSize: await this.getFileSize(imageUri),
+        convertedSize: await this.getFileSize(result.uri)
+      });
+
+      return { uri: result.uri, name: newName };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown conversion error';
+      logger.error('SquareImageService', 'Failed to convert image format', {
+        error: errorMessage,
+        imageUri,
+        imageName,
+        fullError: error
+      });
+      // Return original if conversion fails - let Square API handle the error
+      return { uri: imageUri, name: imageName };
+    }
+  }
+
+  /**
+   * Get file size for logging purposes
+   */
+  private async getFileSize(uri: string): Promise<string> {
+    try {
+      const info = await FileSystem.getInfoAsync(uri);
+      if (info.exists && 'size' in info) {
+        return `${Math.round(info.size / 1024)}KB`;
+      }
+      return 'Unknown';
+    } catch {
+      return 'Unknown';
+    }
+  }
+
   /**
    * Upload a new image with different behavior for existing vs new items
    * - Existing items: Complete CRUD operation immediately
@@ -44,10 +138,14 @@ class SquareImageService {
     itemId: string
   ): Promise<SquareImageUploadResult> {
     try {
+      // Convert image to JPEG if needed for Square API compatibility
+      const { uri: convertedUri, name: convertedName } = await this.convertToJpegIfNeeded(imageUri, imageName);
+
       const isNewItem = itemId === 'new-item-temp' || !itemId;
 
       logger.info('SquareImageService', 'Starting image upload', {
-        imageName,
+        originalName: imageName,
+        convertedName,
         itemId,
         isNewItem,
         strategy: isNewItem ? 'defer-until-save' : 'immediate-crud'
@@ -68,7 +166,7 @@ class SquareImageService {
         return {
           success: true,
           imageId,
-          imageUrl: imageUri // Return local URI for immediate display
+          imageUrl: convertedUri // Return converted URI for immediate display
         };
 
       } else {
@@ -84,7 +182,7 @@ class SquareImageService {
           itemId
         });
 
-        const squareUploadResult = await this.uploadImageToSquare(imageUri, imageName, imageId, itemId);
+        const squareUploadResult = await this.uploadImageToSquare(convertedUri, convertedName, imageId, itemId);
         if (!squareUploadResult.success) {
           throw new Error(`Square image creation failed: ${squareUploadResult.error}`);
         }
@@ -101,8 +199,8 @@ class SquareImageService {
         // Note: Image is already attached to item via object_id + is_primary in CreateCatalogImage
         await this.saveImageToDatabase(actualSquareImageId, {
           id: actualSquareImageId,
-          name: imageName,
-          url: imageUri, // Use local URI for immediate display
+          name: convertedName, // Use converted name
+          url: actualSquareImageUrl, // Use Square URL for persistence
           squareUrl: actualSquareImageUrl, // Store actual Square URL
           caption: `Image for item ${itemId}`,
           itemId: itemId
@@ -115,6 +213,21 @@ class SquareImageService {
         imageService.clearCache();
         logger.info('SquareImageService', 'Image service cache cleared');
 
+        // Step 5: Notify data change listeners for real-time updates
+        try {
+          const { dataChangeNotifier } = await import('./dataChangeNotifier');
+          dataChangeNotifier.notifyImageChange('CREATE', actualSquareImageId, {
+            id: actualSquareImageId,
+            name: convertedName, // Use converted name
+            url: actualSquareImageUrl,
+            itemId: itemId
+          });
+          dataChangeNotifier.notifyCatalogItemChange('UPDATE', itemId, { imageAdded: true });
+          logger.info('SquareImageService', 'Real-time update notifications sent');
+        } catch (notificationError) {
+          logger.warn('SquareImageService', 'Failed to send real-time notifications', { notificationError });
+        }
+
         logger.info('SquareImageService', 'Complete CRUD operation successful', {
           actualSquareImageId,
           itemId,
@@ -125,7 +238,7 @@ class SquareImageService {
         return {
           success: true,
           imageId: actualSquareImageId,
-          imageUrl: imageUri // Return local URI for immediate display
+          imageUrl: actualSquareImageUrl // Return Square URL for persistence
         };
       }
 
@@ -222,6 +335,18 @@ class SquareImageService {
       // 5. Clear image service cache to ensure fresh data is loaded
       imageService.clearCache();
       logger.info('SquareImageService', 'Image service cache cleared after deletion');
+
+      // 6. Notify data change listeners for real-time updates
+      try {
+        const { dataChangeNotifier } = await import('./dataChangeNotifier');
+        dataChangeNotifier.notifyImageChange('DELETE', imageId, { imageId });
+        if (itemId) {
+          dataChangeNotifier.notifyCatalogItemChange('UPDATE', itemId, { imageDeleted: true });
+        }
+        logger.info('SquareImageService', 'Real-time deletion notifications sent');
+      } catch (notificationError) {
+        logger.warn('SquareImageService', 'Failed to send real-time deletion notifications', { notificationError });
+      }
 
       logger.info('SquareImageService', 'Image deletion completed successfully', {
         imageId,
@@ -652,6 +777,18 @@ class SquareImageService {
         `UPDATE catalog_items SET data_json = ?, updated_at = ? WHERE id = ?`,
         [JSON.stringify(localItemData), new Date().toISOString(), itemId]
       );
+
+      // 5. Notify data change listeners for real-time updates
+      try {
+        const { dataChangeNotifier } = await import('./dataChangeNotifier');
+        dataChangeNotifier.notifyCatalogItemChange('UPDATE', itemId, {
+          imageReordered: true,
+          primaryImageId: newImageIds[0]
+        });
+        logger.info('SquareImageService', 'Real-time reorder notifications sent');
+      } catch (notificationError) {
+        logger.warn('SquareImageService', 'Failed to send real-time reorder notifications', { notificationError });
+      }
 
       logger.info('SquareImageService', 'Image reorder completed successfully', {
         itemId,

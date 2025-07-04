@@ -12,11 +12,14 @@ import {
   SafeAreaView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { lightTheme } from '../themes';
 import logger from '../utils/logger';
 import CachedImage from './CachedImage';
 import { imageCacheService } from '../services/imageCacheService';
-import InstagramStyleImagePicker from './InstagramStyleImagePicker';
+import SimpleImagePicker from './SimpleImagePicker';
+
+// Responsive sizing is now handled in styles
 
 interface ItemImage {
   id: string;
@@ -50,25 +53,73 @@ const ImageManagementModal: React.FC<ImageManagementModalProps> = ({
   const [makingPrimaryImageId, setMakingPrimaryImageId] = useState<string | null>(null);
   const [confirmDeleteImageId, setConfirmDeleteImageId] = useState<string | null>(null);
   const [confirmPrimaryImageId, setConfirmPrimaryImageId] = useState<string | null>(null);
-  const [instagramPickerVisible, setInstagramPickerVisible] = useState(false);
+  const [simplePickerVisible, setSimplePickerVisible] = useState(false);
+  const [selectedImageForCrop, setSelectedImageForCrop] = useState<string | null>(null);
 
   // Preload images when modal becomes visible
   useEffect(() => {
     if (visible && images.length > 0) {
-      logger.info('ImageManagementModal', 'Preloading images for modal', { count: images.length });
+      logger.info('ImageManagementModal', 'Modal opened - preloading images', { count: images.length });
       images.forEach(image => {
         if (image.url) {
           imageCacheService.preloadImage(image.url);
         }
       });
+    } else if (!visible) {
+      logger.info('ImageManagementModal', 'Modal closed');
     }
   }, [visible, images]);
 
 
 
-  // Handle opening Instagram-style image picker
-  const handleAddImage = () => {
-    setInstagramPickerVisible(true);
+  // Handle taking photo with camera - DIRECT launch
+  const handleTakePhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'We need camera permission to take photos.');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        // Set the selected image and open crop modal
+        setSelectedImageForCrop(result.assets[0].uri);
+        setSimplePickerVisible(true);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to take photo. Please try again.');
+    }
+  };
+
+  // Handle selecting from gallery - DIRECT launch
+  const handleSelectFromGallery = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'We need photo library permission to select images.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        // Set the selected image and open crop modal
+        setSelectedImageForCrop(result.assets[0].uri);
+        setSimplePickerVisible(true);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to select image. Please try again.');
+    }
   };
 
   // Handle image selection from Instagram-style picker
@@ -92,8 +143,9 @@ const ImageManagementModal: React.FC<ImageManagementModalProps> = ({
     try {
       await onImageUpload(imageUri, imageName);
 
-      // Preload the uploaded image for better performance
-      imageCacheService.preloadImage(imageUri);
+      // Don't preload the local URI - the uploaded image will have a different Square URL
+      // The image will be available in the images prop after the upload completes
+      logger.info('ImageManagementModal', 'Image upload completed successfully', { imageName });
 
       // No success popup - user can see the image was added to the list
     } catch (error) {
@@ -152,6 +204,8 @@ const ImageManagementModal: React.FC<ImageManagementModalProps> = ({
       onRequestClose={onClose}
     >
       <SafeAreaView style={styles.container}>
+        {/* Content Wrapper for iPad */}
+        <View style={styles.contentWrapper}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
@@ -256,14 +310,33 @@ const ImageManagementModal: React.FC<ImageManagementModalProps> = ({
           </View>
         </ScrollView>
 
-        {/* Floating Add Photo Button */}
-        <TouchableOpacity
-          style={styles.floatingAddButton}
-          onPress={handleAddImage}
-          disabled={isUploading}
-        >
-          <Ionicons name="add" size={24} color="white" />
-        </TouchableOpacity>
+        {/* Camera and Gallery Buttons */}
+        <View style={styles.buttonRow}>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={handleTakePhoto}
+            disabled={isUploading}
+          >
+            {isUploading ? (
+              <ActivityIndicator size="small" color={lightTheme.colors.background} />
+            ) : (
+              <>
+                <Ionicons name="camera" size={24} color={lightTheme.colors.background} />
+                <Text style={styles.actionButtonText}>Camera</Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={handleSelectFromGallery}
+            disabled={isUploading}
+          >
+            <Ionicons name="images" size={24} color={lightTheme.colors.background} />
+            <Text style={styles.actionButtonText}>Gallery</Text>
+          </TouchableOpacity>
+        </View>
+        </View>
       </SafeAreaView>
 
       {/* Delete Confirmation Modal */}
@@ -346,13 +419,19 @@ const ImageManagementModal: React.FC<ImageManagementModalProps> = ({
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* Instagram-Style Image Picker */}
-      <InstagramStyleImagePicker
-        visible={instagramPickerVisible}
-        onClose={() => setInstagramPickerVisible(false)}
-        onImageSelected={handleImageSelected}
-        itemName={itemName}
-      />
+      {/* Simple Image Picker - Crop Only */}
+      {selectedImageForCrop && (
+        <SimpleImagePicker
+          visible={simplePickerVisible}
+          onClose={() => {
+            setSimplePickerVisible(false);
+            setSelectedImageForCrop(null);
+          }}
+          onImageSelected={(uri: string) => handleImageSelected(uri, `${itemName || 'item'}_${Date.now()}.jpg`)}
+          itemName={itemName}
+          preSelectedImage={selectedImageForCrop}
+        />
+      )}
     </Modal>
   );
 };
@@ -361,6 +440,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: lightTheme.colors.background,
+  },
+  contentWrapper: {
+    flex: 1,
+    width: '100%',
   },
   header: {
     flexDirection: 'row',
@@ -470,7 +553,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   imageItem: {
-    width: '48%',
+    width: '48%', // 2 columns like item modal
     marginBottom: 16,
   },
   imageContainer: {
@@ -631,14 +714,21 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 8,
   },
-  floatingAddButton: {
+  buttonRow: {
     position: 'absolute',
     bottom: 20,
+    left: 20,
     right: 20,
-    width: 56,
+    flexDirection: 'row',
+    gap: 12,
+    zIndex: 1000,
+  },
+  actionButton: {
+    flex: 1,
     height: 56,
     borderRadius: 28,
     backgroundColor: lightTheme.colors.primary,
+    flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -649,7 +739,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 5,
-    zIndex: 1000, // Ensure it appears above other content
+    gap: 8,
+  },
+  actionButtonText: {
+    color: lightTheme.colors.background,
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

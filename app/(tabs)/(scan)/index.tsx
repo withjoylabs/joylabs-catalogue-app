@@ -257,24 +257,87 @@ const SearchResultsArea = memo(({
     }
   }, [lastUpdatedItem, setLastUpdatedItem, executeSearch]);
 
-  // Real-time data change monitoring for automatic search refresh using event-driven approach
+  // Real-time data change monitoring for targeted item updates using event-driven approach
   useEffect(() => {
     let unsubscribe: (() => void) | null = null;
 
     // Set up event-driven data change monitoring
     import('../../../src/services/dataChangeNotifier').then(({ dataChangeNotifier }) => {
-      unsubscribe = dataChangeNotifier.addListener((event) => {
+      unsubscribe = dataChangeNotifier.addListener(async (event) => {
         // Check if changes affect catalog items that might be in current search results
         if (event.table === 'catalog_items' && searchTopic.trim() !== '') {
-          logger.info('SearchResultsArea', `Catalog item ${event.operation} detected, refreshing search results`, {
-            itemId: event.itemId,
-            operation: event.operation
-          });
 
-          // Add a small delay to ensure database changes are committed
-          setTimeout(() => {
-            executeSearch();
-          }, 100); // Reduced delay since we get immediate notifications
+          // CRITICAL FIX: Handle bulk sync completion notification
+          if (event.itemId === 'BULK_SYNC_COMPLETE') {
+            logger.info('SearchResultsArea', 'Bulk sync completed, refreshing search results', {
+              syncType: event.data?.syncType,
+              itemCount: event.data?.itemCount
+            });
+
+            // Add a small delay to ensure all database operations are complete
+            setTimeout(() => {
+              executeSearch();
+            }, 500);
+            return;
+          }
+
+          // EFFICIENCY FIX: For individual item updates, do targeted item update
+          const isItemInCurrentResults = searchResults.some(item => item.id === event.itemId) ||
+                                        allSearchResults.some(item => item.id === event.itemId);
+
+          if (isItemInCurrentResults) {
+            logger.info('SearchResultsArea', `Catalog item ${event.operation} detected for item in results - updating targeted item`, {
+              itemId: event.itemId,
+              operation: event.operation
+            });
+
+            // Add a small delay to ensure database changes are committed, then update just this item
+            setTimeout(async () => {
+              try {
+                // Fetch updated item data
+                const { getItemOrVariationRawById } = await import('../../../src/database/modernDb');
+                const updatedRawItem = await getItemOrVariationRawById(event.itemId);
+
+                if (updatedRawItem) {
+                  const { transformCatalogItemToItem } = await import('../../../src/utils/catalogTransformers');
+                  const updatedItem = transformCatalogItemToItem(updatedRawItem);
+
+                  if (updatedItem) {
+                    // Update both search result arrays
+                    setSearchResults(prev => prev.map(item =>
+                      item.id === event.itemId ? updatedItem : item
+                    ));
+                    setAllSearchResults(prev => prev.map(item =>
+                      item.id === event.itemId ? updatedItem : item
+                    ));
+
+                    logger.debug('SearchResultsArea', 'Successfully updated item in search results', { itemId: event.itemId });
+                  } else {
+                    logger.warn('SearchResultsArea', 'Transform returned null, removing item from results', { itemId: event.itemId });
+                    // Remove item if transform failed
+                    setSearchResults(prev => prev.filter(item => item.id !== event.itemId));
+                    setAllSearchResults(prev => prev.filter(item => item.id !== event.itemId));
+                  }
+                } else if (event.operation === 'DELETE') {
+                  // Remove deleted item from results
+                  setSearchResults(prev => prev.filter(item => item.id !== event.itemId));
+                  setAllSearchResults(prev => prev.filter(item => item.id !== event.itemId));
+                  logger.debug('SearchResultsArea', 'Removed deleted item from search results', { itemId: event.itemId });
+                }
+              } catch (updateError) {
+                logger.warn('SearchResultsArea', 'Failed to update specific item, falling back to full search', {
+                  itemId: event.itemId,
+                  updateError
+                });
+                executeSearch(); // Fallback to full search if targeted update fails
+              }
+            }, 100);
+          } else {
+            logger.debug('SearchResultsArea', `Catalog item ${event.operation} detected but item not in current results - ignoring`, {
+              itemId: event.itemId,
+              operation: event.operation
+            });
+          }
         }
       });
 
@@ -288,7 +351,9 @@ const SearchResultsArea = memo(({
         unsubscribe();
       }
     };
-  }, [executeSearch, searchTopic]);
+  }, [executeSearch, searchTopic, searchResults, allSearchResults]);
+
+
 
   // Generate dynamic category filter data from ALL search results (not filtered view)
   useEffect(() => {

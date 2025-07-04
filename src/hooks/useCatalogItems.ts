@@ -18,6 +18,7 @@ import {
 import * as modernDb from '../database/modernDb';
 import { v4 as uuidv4 } from 'uuid';
 import { Platform } from 'react-native';
+import { dataChangeNotifier, DataChangeEvent } from '../services/dataChangeNotifier';
 import { generateClient } from 'aws-amplify/api';
 import { useAuthenticator } from '@aws-amplify/ui-react-native';
 import * as queries from '../graphql/queries';
@@ -77,6 +78,51 @@ export const useCatalogItems = () => {
     }
     categoryMapRef.current = map;
   }, [categories]);
+
+  // Listen for data changes to trigger targeted cache invalidation
+  useEffect(() => {
+    const handleDataChange = (event: DataChangeEvent) => {
+      logger.debug('useCatalogItems', 'Data change detected', {
+        table: event.table,
+        operation: event.operation,
+        itemId: event.itemId
+      });
+
+      // For catalog items and images, invalidate specific item from Zustand store
+      // This forces getProductById to fetch fresh data from database on next call
+      if (event.table === 'catalog_items' || event.table === 'images') {
+        const affectedItemId = event.table === 'images' ? event.data?.itemId : event.itemId;
+
+        if (affectedItemId) {
+          // Add a small delay to prevent race conditions with modal operations
+          // This allows any ongoing modal state changes to complete first
+          setTimeout(() => {
+            // Remove the specific item from Zustand store to force fresh fetch
+            const updatedProducts = storeProducts.filter(p => p.id !== affectedItemId);
+            setProducts(updatedProducts);
+
+            logger.info('useCatalogItems', 'Invalidated item cache for targeted refresh (delayed)', {
+              table: event.table,
+              operation: event.operation,
+              itemId: event.itemId,
+              affectedItemId,
+              removedFromStore: storeProducts.length !== updatedProducts.length
+            });
+          }, 200); // Small delay to avoid modal state conflicts
+        }
+      }
+    };
+
+    const unsubscribe = dataChangeNotifier.addListener(handleDataChange);
+    logger.debug('useCatalogItems', 'Added data change listener');
+
+    return () => {
+      unsubscribe();
+      logger.debug('useCatalogItems', 'Removed data change listener');
+    };
+  }, [storeProducts, setProducts]);
+
+
 
   // DO NOT fetch products on mount - wait for explicit refresh call
   // This prevents the app from making API calls before Square connection

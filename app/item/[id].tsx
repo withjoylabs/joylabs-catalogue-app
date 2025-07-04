@@ -151,6 +151,7 @@ export default function ItemDetails() {
 
   // State for image management modal
   const [isImageManagementVisible, setIsImageManagementVisible] = useState(false);
+  const [isImageModalClosing, setIsImageModalClosing] = useState(false);
 
   // State for vendor unit cost from team data
   const [vendorUnitCost, setVendorUnitCost] = useState<number | undefined>(undefined);
@@ -1485,6 +1486,11 @@ export default function ItemDetails() {
       const realItemId = item.id || 'new-item-temp';
       logger.info('ItemDetails', 'Starting independent image upload', { imageName, itemId: realItemId });
 
+      // Validate inputs
+      if (!imageUri || !imageName) {
+        throw new Error('Invalid image URI or name');
+      }
+
       // The image service now handles everything: Square upload + database save + item association
       const result = await squareImageService.uploadImage(imageUri, imageName, realItemId);
 
@@ -1492,7 +1498,14 @@ export default function ItemDetails() {
         throw new Error(result.error || 'Failed to upload image');
       }
 
-      logger.info('ItemDetails', 'Independent image upload successful', { imageId: result.imageId });
+      if (!result.imageId || !result.imageUrl) {
+        throw new Error('Upload succeeded but missing image data');
+      }
+
+      logger.info('ItemDetails', 'Independent image upload successful', {
+        imageId: result.imageId,
+        imageUrl: result.imageUrl.substring(0, 50) + '...' // Log partial URL
+      });
 
       // Simply add the image to React state for immediate UI update
       const newImage = {
@@ -1502,17 +1515,35 @@ export default function ItemDetails() {
         caption: `Image for ${item.name || 'item'}`
       };
 
+      // Validate current item state before updating
+      if (!item) {
+        throw new Error('Item state is invalid');
+      }
+
       // Add the image to the current item
       const updatedItem = {
         ...item,
         images: [...(item.images || []), newImage]
       };
 
-      setItem(updatedItem);
+      // Use React's functional state update to avoid race conditions
+      setItem(prevItem => {
+        if (!prevItem) return prevItem;
+        return {
+          ...prevItem,
+          images: [...(prevItem.images || []), newImage]
+        };
+      });
 
       // For new items, update originalItem so it has a baseline
       if (isNewItem) {
-        setOriginalItem(updatedItem);
+        setOriginalItem(prevOriginal => {
+          if (!prevOriginal) return prevOriginal;
+          return {
+            ...prevOriginal,
+            images: [...(prevOriginal.images || []), newImage]
+          };
+        });
         // Note: New items will trigger change detection naturally due to other changes
       } else {
         // For existing items, image is already saved independently - no save button needed
@@ -1533,7 +1564,8 @@ export default function ItemDetails() {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       logger.error('ItemDetails', 'Independent image upload failed', {
         error: errorMessage,
-        itemId: realItemId,
+        itemId: item?.id || 'unknown',
+        imageName,
         fullError: error
       });
       throw error;
@@ -1798,7 +1830,13 @@ export default function ItemDetails() {
                     console.log('Image pressed:', image, index);
                   }}
                   onManageImages={() => {
-                    setIsImageManagementVisible(true);
+                    // Prevent opening modal while it's closing to avoid state conflicts
+                    if (!isImageModalClosing) {
+                      logger.info('ItemDetails', 'Opening image management modal');
+                      setIsImageManagementVisible(true);
+                    } else {
+                      logger.warn('ItemDetails', 'Prevented opening image modal while closing');
+                    }
                   }}
                   style={styles.itemImage}
                 />
@@ -2447,7 +2485,17 @@ export default function ItemDetails() {
             {/* Image Management Modal */}
             <ImageManagementModal
               visible={isImageManagementVisible}
-              onClose={() => setIsImageManagementVisible(false)}
+              onClose={() => {
+                logger.info('ItemDetails', 'Closing image management modal');
+                setIsImageModalClosing(true);
+                setIsImageManagementVisible(false);
+
+                // Reset closing state after modal animation completes
+                setTimeout(() => {
+                  setIsImageModalClosing(false);
+                  logger.debug('ItemDetails', 'Image modal closing state reset');
+                }, 300); // Standard modal animation time
+              }}
               images={item.images || []}
               itemId={item.id}
               itemName={item.name || ''}

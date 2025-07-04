@@ -15,7 +15,7 @@ import {
   RefreshControl,
   Vibration
 } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 import { useCatalogItems } from '../../src/hooks/useCatalogItems';
@@ -31,6 +31,7 @@ import { useAuthenticator } from '@aws-amplify/ui-react-native';
 import { useAppStore } from '../../src/store';
 import CachedImage from '../../src/components/CachedImage';
 import ImageOverlay from '../../src/components/ImageOverlay';
+import ReorderGridItem from '../../src/components/ReorderGridItem';
 import { imageCacheService } from '../../src/services/imageCacheService';
 
 const client = generateClient();
@@ -667,6 +668,9 @@ const ReordersScreen = React.memo(() => {
   const [errorMessage, setErrorMessage] = useState('');
   const [showImageOverlay, setShowImageOverlay] = useState(false);
   const [selectedImageUrl, setSelectedImageUrl] = useState('');
+  const [selectedItemInfo, setSelectedItemInfo] = useState<any>(null);
+  const [viewMode, setViewMode] = useState<'list' | 'large-grid' | 'medium-grid' | 'small-grid'>('list');
+  const [isScreenFocused, setIsScreenFocused] = useState(true);
 
   // Track last scanned item for smart increment logic
   const [lastScannedItemId, setLastScannedItemId] = useState<string | null>(null);
@@ -1356,8 +1360,19 @@ const ReordersScreen = React.memo(() => {
   }, []);
 
   // Handle image thumbnail tap
-  const handleImageTap = useCallback((imageUrl: string) => {
+  const handleImageTap = useCallback((imageUrl: string, item: DisplayReorderItem) => {
     setSelectedImageUrl(imageUrl);
+    setSelectedItemInfo({
+      itemName: item.itemName,
+      itemCategory: item.itemCategory,
+      itemBarcode: item.itemBarcode,
+      itemPrice: item.itemPrice,
+      vendorCost: item.teamData?.vendorCost,
+      vendor: item.teamData?.vendor,
+      discontinued: item.teamData?.discontinued,
+      missingSquareData: item.missingSquareData,
+      missingTeamData: item.missingTeamData,
+    });
     setShowImageOverlay(true);
   }, []);
 
@@ -1372,21 +1387,142 @@ const ReordersScreen = React.memo(() => {
     }
   }, [router]);
 
+  // Track screen focus to disable barcode scanner when navigating to item detail page
+  useFocusEffect(
+    useCallback(() => {
+      // Screen is focused
+      setIsScreenFocused(true);
+
+      return () => {
+        // Screen is losing focus (navigating away)
+        setIsScreenFocused(false);
+      };
+    }, [])
+  );
+
   // Monitor sync status
   useEffect(() => {
     const updateSyncStatus = () => {
-      const status = reorderService.getSyncStatus();
-      setSyncStatus(status);
+      const serviceStatus = reorderService.getSyncStatus();
+
+      // Override authentication status with actual Cognito state
+      // The reorderService might have stale authentication info
+      const isActuallyAuthenticated = user !== undefined && user !== null;
+
+      const correctedStatus = {
+        ...serviceStatus,
+        isAuthenticated: isActuallyAuthenticated
+      };
+
+      setSyncStatus(correctedStatus);
+
+      // Log discrepancies for debugging
+      if (serviceStatus.isAuthenticated !== isActuallyAuthenticated) {
+        logger.warn('ReorderPage', 'Authentication state mismatch detected', {
+          serviceAuth: serviceStatus.isAuthenticated,
+          cognitoAuth: isActuallyAuthenticated,
+          userId: user?.userId || 'none',
+          serviceUserId: serviceStatus.currentUserId
+        });
+      }
     };
-    
+
     // Update immediately
     updateSyncStatus();
-    
+
     // Update every 5 seconds
     const interval = setInterval(updateSyncStatus, 5000);
-    
+
     return () => clearInterval(interval);
-  }, []);
+  }, [user]); // Add user dependency to update when auth state changes
+
+  // Track previous authentication state to detect sign-out
+  const wasAuthenticatedRef = useRef<boolean>(false);
+
+  // Immediate update when user authentication state changes
+  useEffect(() => {
+    const serviceStatus = reorderService.getSyncStatus();
+    const isActuallyAuthenticated = user !== undefined && user !== null;
+
+    // Check if user just signed out (was authenticated, now not)
+    if (wasAuthenticatedRef.current && !isActuallyAuthenticated) {
+      logger.info('ReorderPage', 'User signed out - ensuring data preservation', {
+        itemCount: reorderItems.length,
+        previousUserId: 'user-signed-out'
+      });
+
+      // Force save current reorder items to local storage before losing authentication
+      // This ensures data is preserved even if the service doesn't handle sign-out properly
+      reorderService.forceSaveOfflineData().catch((error: any) => {
+        logger.error('ReorderPage', 'Failed to preserve data on sign-out', { error });
+      });
+    }
+
+    // Check if user just signed in (was not authenticated, now is)
+    if (!wasAuthenticatedRef.current && isActuallyAuthenticated) {
+      logger.info('ReorderPage', 'User signed in - refreshing service authentication status', {
+        userId: user?.signInDetails?.loginId || 'unknown',
+        itemCount: reorderItems.length
+      });
+
+      // Refresh the service authentication status to transition from offline to online
+      reorderService.refreshAuthenticationStatus().catch((error: any) => {
+        logger.error('ReorderPage', 'Failed to refresh authentication status on sign-in', { error });
+      });
+    }
+
+    // Update the ref for next comparison
+    wasAuthenticatedRef.current = isActuallyAuthenticated;
+
+    const correctedStatus = {
+      ...serviceStatus,
+      isAuthenticated: isActuallyAuthenticated
+    };
+
+    setSyncStatus(correctedStatus);
+
+    logger.info('ReorderPage', 'Authentication state changed', {
+      isAuthenticated: isActuallyAuthenticated,
+      userId: user?.signInDetails?.loginId || 'none',
+      itemCount: reorderItems.length,
+      serviceOnline: serviceStatus.isOnline
+    });
+  }, [user, reorderItems.length]);
+
+  // Additional safeguard: Save data when component unmounts or app goes to background
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: string) => {
+      if (nextAppState === 'background' || nextAppState === 'inactive') {
+        logger.info('ReorderPage', 'App going to background - preserving data', {
+          itemCount: reorderItems.length
+        });
+
+        // Save data when app goes to background
+        reorderService.forceSaveOfflineData().catch((error: any) => {
+          logger.error('ReorderPage', 'Failed to preserve data on background', { error });
+        });
+      }
+    };
+
+    // Import AppState dynamically to avoid issues
+    const { AppState } = require('react-native');
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    // Cleanup function to save data when component unmounts
+    return () => {
+      logger.info('ReorderPage', 'Component unmounting - preserving data', {
+        itemCount: reorderItems.length
+      });
+
+      // Save data when component unmounts
+      reorderService.forceSaveOfflineData().catch((error: any) => {
+        logger.error('ReorderPage', 'Failed to preserve data on unmount', { error });
+      });
+
+      // Remove app state listener
+      subscription?.remove();
+    };
+  }, [reorderItems.length]);
 
   // Set up reorder service listener and cleanup
   useEffect(() => {
@@ -1831,7 +1967,7 @@ const ReordersScreen = React.memo(() => {
             onPress={() => {
               // Only show overlay if there's an image
               if (item.item?.images && item.item.images.length > 0 && item.item.images[0]?.url) {
-                handleImageTap(item.item.images[0].url);
+                handleImageTap(item.item.images[0].url, item);
               }
             }}
           >
@@ -2120,6 +2256,32 @@ const ReordersScreen = React.memo(() => {
     </View>
   ), []);
 
+  // Render grid item - memoized for performance
+  const renderGridItem = useCallback(({ item }: { item: DisplayReorderItem }) => {
+    const gridSize = viewMode === 'large-grid' ? 'large' : viewMode === 'medium-grid' ? 'medium' : 'small';
+
+    return (
+      <ReorderGridItem
+        item={item}
+        size={gridSize}
+        onImageTap={handleImageTap}
+        onItemPress={() => {
+          if (item.isCustom) {
+            handleEditCustomItem(item);
+          } else {
+            setCurrentEditingItem(item);
+            setShowQuantityModal(true);
+          }
+        }}
+        onItemLongPress={() => handleItemLongPress(item)}
+        onToggleComplete={() => {
+          const userName = user?.signInDetails?.loginId?.split('@')[0] || 'Unknown User';
+          reorderService.toggleCompletion(item.id, userName);
+        }}
+      />
+    );
+  }, [viewMode, handleImageTap, handleItemLongPress, user]);
+
   // Updated render item function to handle both items and headers - memoized
   const renderListItem = useCallback(({ item }: { item: any }) => {
     if (item.type === 'header') {
@@ -2335,7 +2497,7 @@ const ReordersScreen = React.memo(() => {
       <BarcodeScanner
         onScan={handleBarcodeScan}
         onError={handleScanError}
-        enabled={!showQuantityModal && !showSelectionModal && !showErrorModal && !showAddCustomItem}
+        enabled={isScreenFocused && !showQuantityModal && !showSelectionModal && !showErrorModal && !showAddCustomItem && !showImageOverlay}
         minLength={8}
         maxLength={50}
         timeout={150}
@@ -2603,6 +2765,83 @@ const ReordersScreen = React.memo(() => {
               </Text>
             )}
           </View>
+
+          {/* View Options Section */}
+          <View style={staticStyles.dropdownHeader}>
+            <Text style={staticStyles.dropdownHeaderText}>
+              View Options
+            </Text>
+          </View>
+
+          <View style={staticStyles.configDropdownContent}>
+            <Pressable
+              style={staticStyles.configToggleButton}
+              onPress={() => setViewMode('list')}
+            >
+              <Text style={staticStyles.configToggleText}>
+                List View
+              </Text>
+              <View style={[
+                staticStyles.configToggleIcon,
+                { backgroundColor: viewMode === 'list' ? '#007AFF' : '#e0e0e0' }
+              ]}>
+                {viewMode === 'list' && (
+                  <Ionicons name="checkmark" size={16} color="#fff" />
+                )}
+              </View>
+            </Pressable>
+
+            <Pressable
+              style={staticStyles.configToggleButton}
+              onPress={() => setViewMode('large-grid')}
+            >
+              <Text style={staticStyles.configToggleText}>
+                Large Grid (1 per row)
+              </Text>
+              <View style={[
+                staticStyles.configToggleIcon,
+                { backgroundColor: viewMode === 'large-grid' ? '#007AFF' : '#e0e0e0' }
+              ]}>
+                {viewMode === 'large-grid' && (
+                  <Ionicons name="checkmark" size={16} color="#fff" />
+                )}
+              </View>
+            </Pressable>
+
+            <Pressable
+              style={staticStyles.configToggleButton}
+              onPress={() => setViewMode('medium-grid')}
+            >
+              <Text style={staticStyles.configToggleText}>
+                Medium Grid (2 per row)
+              </Text>
+              <View style={[
+                staticStyles.configToggleIcon,
+                { backgroundColor: viewMode === 'medium-grid' ? '#007AFF' : '#e0e0e0' }
+              ]}>
+                {viewMode === 'medium-grid' && (
+                  <Ionicons name="checkmark" size={16} color="#fff" />
+                )}
+              </View>
+            </Pressable>
+
+            <Pressable
+              style={staticStyles.configToggleButtonLast}
+              onPress={() => setViewMode('small-grid')}
+            >
+              <Text style={staticStyles.configToggleText}>
+                Small Grid (3 per row)
+              </Text>
+              <View style={[
+                staticStyles.configToggleIcon,
+                { backgroundColor: viewMode === 'small-grid' ? '#007AFF' : '#e0e0e0' }
+              ]}>
+                {viewMode === 'small-grid' && (
+                  <Ionicons name="checkmark" size={16} color="#fff" />
+                )}
+              </View>
+            </Pressable>
+          </View>
         </View>
       )}
 
@@ -2619,7 +2858,7 @@ const ReordersScreen = React.memo(() => {
       >
         {sectionedData.length === 0 ? (
           renderEmptyState()
-        ) : (
+        ) : viewMode === 'list' ? (
           <FlatList
             data={sectionedData}
             renderItem={renderListItem}
@@ -2656,6 +2895,34 @@ const ReordersScreen = React.memo(() => {
               minIndexForVisible: 0,
               autoscrollToTopThreshold: 10
             }}
+          />
+        ) : (
+          <FlatList
+            data={sectionedData.filter(item =>
+              !('type' in item) || (item.type !== 'header' && item.type !== 'customEntry')
+            ) as DisplayReorderItem[]}
+            renderItem={renderGridItem}
+            keyExtractor={keyExtractor}
+            numColumns={viewMode === 'large-grid' ? 1 : viewMode === 'medium-grid' ? 2 : 3}
+            key={viewMode} // Force re-render when view mode changes
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={[staticStyles.listContainerPadding, { paddingHorizontal: 16 }]}
+            columnWrapperStyle={viewMode !== 'large-grid' ? { justifyContent: 'space-between' } : undefined}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={handleRefresh}
+                tintColor="#007AFF"
+                title="Pull to refresh"
+                titleColor="#666"
+              />
+            }
+            // Performance optimizations for grid
+            removeClippedSubviews={true}
+            maxToRenderPerBatch={viewMode === 'large-grid' ? 10 : viewMode === 'medium-grid' ? 8 : 6}
+            initialNumToRender={viewMode === 'large-grid' ? 15 : viewMode === 'medium-grid' ? 12 : 9}
+            windowSize={8}
+            keyboardShouldPersistTaps="handled"
           />
         )}
       </Pressable>
@@ -2954,7 +3221,11 @@ const ReordersScreen = React.memo(() => {
       <ImageOverlay
         visible={showImageOverlay}
         imageUrl={selectedImageUrl}
-        onClose={() => setShowImageOverlay(false)}
+        itemInfo={selectedItemInfo}
+        onClose={() => {
+          setShowImageOverlay(false);
+          setSelectedItemInfo(null);
+        }}
       />
     </SafeAreaView>
   );

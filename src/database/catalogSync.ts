@@ -517,6 +517,21 @@ export class CatalogSyncService {
         syncAttemptCount: 0 // Reset attempt count on success
       });
 
+      // CRITICAL FIX: Send single bulk notification after sync completes
+      try {
+        const { dataChangeNotifier } = await import('../services/dataChangeNotifier');
+        dataChangeNotifier.notifyChange({
+          table: 'catalog_items',
+          operation: 'UPDATE',
+          itemId: 'BULK_SYNC_COMPLETE',
+          timestamp: Date.now(),
+          data: { syncType: 'full', itemCount: totalItemsSynced, categoryCount: totalCategoriesSynced }
+        });
+        logger.info('CatalogSync', 'Sent bulk sync completion notification');
+      } catch (error) {
+        logger.warn('CatalogSync', 'Failed to send sync completion notification', { error });
+      }
+
       return { itemCount: totalItemsSynced, categoryCount: totalCategoriesSynced };
 
     } catch (error) {
@@ -654,7 +669,7 @@ export class CatalogSyncService {
       // 6. Sync completed successfully
       logger.info(syncTag, `Incremental sync completed successfully. Processed ${processedObjectCount} objects.`);
       // Store the cursor that would fetch the *next* page (which is null if finished)
-      await modernDb.updateLastIncrementalSyncCursor(lastFetchedCursor); 
+      await modernDb.updateLastIncrementalSyncCursor(lastFetchedCursor);
       await this.updateSyncStatus({
         isSyncing: false,
         syncError: null,
@@ -662,6 +677,23 @@ export class CatalogSyncService {
         syncAttemptCount: 0, // Reset attempt count on success
         syncProgress: processedObjectCount, // Final count
       });
+
+      // CRITICAL FIX: Send single bulk notification after sync completes
+      if (processedObjectCount > 0) {
+        try {
+          const { dataChangeNotifier } = await import('../services/dataChangeNotifier');
+          dataChangeNotifier.notifyChange({
+            table: 'catalog_items',
+            operation: 'UPDATE',
+            itemId: 'BULK_SYNC_COMPLETE',
+            timestamp: Date.now(),
+            data: { syncType: 'incremental', itemCount: processedObjectCount }
+          });
+          logger.info(syncTag, 'Sent bulk sync completion notification');
+        } catch (error) {
+          logger.warn(syncTag, 'Failed to send sync completion notification', { error });
+        }
+      }
 
     } catch (error: any) {
       // 7. Handle errors during the sync loop
@@ -812,6 +844,23 @@ export class CatalogSyncService {
         syncAttemptCount: 0,
         syncProgress: processedObjectCount,
       });
+
+      // CRITICAL FIX: Send single bulk notification after sync completes
+      if (processedObjectCount > 0) {
+        try {
+          const { dataChangeNotifier } = await import('../services/dataChangeNotifier');
+          dataChangeNotifier.notifyChange({
+            table: 'catalog_items',
+            operation: 'UPDATE',
+            itemId: 'BULK_SYNC_COMPLETE',
+            timestamp: Date.now(),
+            data: { syncType: 'webhook', itemCount: processedObjectCount }
+          });
+          logger.info(syncTag, 'Sent bulk sync completion notification');
+        } catch (error) {
+          logger.warn(syncTag, 'Failed to send sync completion notification', { error });
+        }
+      }
 
       // 8. Send notification with specific feedback
       if (processedObjectCount > 0) {
@@ -1158,6 +1207,23 @@ export class CatalogSyncService {
         syncAttemptCount: 0,
         syncProgress: processedObjectCount,
       });
+
+      // CRITICAL FIX: Send single bulk notification after sync completes
+      if (processedObjectCount > 0) {
+        try {
+          const { dataChangeNotifier } = await import('../services/dataChangeNotifier');
+          dataChangeNotifier.notifyChange({
+            table: 'catalog_items',
+            operation: 'UPDATE',
+            itemId: 'BULK_SYNC_COMPLETE',
+            timestamp: Date.now(),
+            data: { syncType: 'catchup', itemCount: processedObjectCount }
+          });
+          logger.info(syncTag, 'Sent bulk sync completion notification');
+        } catch (error) {
+          logger.warn(syncTag, 'Failed to send sync completion notification', { error });
+        }
+      }
 
       // Add notifications for catch-up sync results
       if (processedObjectCount > 0) {
