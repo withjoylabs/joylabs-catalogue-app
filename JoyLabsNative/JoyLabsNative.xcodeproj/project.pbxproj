@@ -11,6 +11,9 @@
 		A1B2C3D4E5F6789012345680 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345681 /* ContentView.swift */; };
 		A1B2C3D4E5F6789012345682 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345683 /* Assets.xcassets */; };
 		A1B2C3D4E5F6789012345684 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345685 /* Preview Assets.xcassets */; };
+		A1B2C3D4E5F6789012345710 /* MockDatabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345711 /* MockDatabaseManager.swift */; };
+		A1B2C3D4E5F6789012345712 /* MockSearchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345713 /* MockSearchManager.swift */; };
+		A1B2C3D4E5F6789012345714 /* SearchModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345715 /* SearchModels.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -19,6 +22,9 @@
 		A1B2C3D4E5F6789012345683 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345685 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345686 /* JoyLabsNative.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = JoyLabsNative.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A1B2C3D4E5F6789012345711 /* MockDatabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Database/MockDatabaseManager.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345713 /* MockSearchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Search/MockSearchManager.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345715 /* SearchModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Models/SearchModels.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -45,6 +51,9 @@
 			children = (
 				A1B2C3D4E5F6789012345679 /* JoyLabsNativeApp.swift */,
 				A1B2C3D4E5F6789012345681 /* ContentView.swift */,
+				A1B2C3D4E5F6789012345711 /* MockDatabaseManager.swift */,
+				A1B2C3D4E5F6789012345713 /* MockSearchManager.swift */,
+				A1B2C3D4E5F6789012345715 /* SearchModels.swift */,
 				A1B2C3D4E5F6789012345683 /* Assets.xcassets */,
 				A1B2C3D4E5F6789012345691 /* Preview Content */,
 			);
@@ -139,6 +148,9 @@
 			files = (
 				A1B2C3D4E5F6789012345680 /* ContentView.swift in Sources */,
 				A1B2C3D4E5F6789012345678 /* JoyLabsNativeApp.swift in Sources */,
+				A1B2C3D4E5F6789012345710 /* MockDatabaseManager.swift in Sources */,
+				A1B2C3D4E5F6789012345712 /* MockSearchManager.swift in Sources */,
+				A1B2C3D4E5F6789012345714 /* SearchModels.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

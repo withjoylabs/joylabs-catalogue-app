@@ -47,6 +47,10 @@ struct ScanView: View {
     @State private var scanHistoryCount = 0
     @State private var isConnected = true
 
+    // Mock search functionality for Phase 7
+    @StateObject private var searchManager = MockSearchManager()
+    @StateObject private var databaseManager = MockDatabaseManager()
+
     var body: some View {
         VStack(spacing: 0) {
             // Header with JOYLABS logo and status
@@ -72,23 +76,39 @@ struct ScanView: View {
             BottomSearchBar(searchText: $searchText, onSearch: performSearch)
         }
         .background(Color(.systemBackground))
+        .onAppear {
+            // Initialize mock database when view appears
+            Task {
+                do {
+                    try await databaseManager.initializeDatabase()
+                    print("ScanView: Mock database initialized successfully")
+                } catch {
+                    print("ScanView: Failed to initialize database: \(error)")
+                }
+            }
+        }
     }
 
     private func performSearch() {
-        guard !searchText.isEmpty else { return }
+        guard !searchText.isEmpty else {
+            searchResults = []
+            return
+        }
 
         isSearching = true
 
-        // Simulate search delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            // Mock search results
-            searchResults = [
-                SearchResultItem(id: "1", name: "Sample Product 1", sku: "SKU001", barcode: "123456789"),
-                SearchResultItem(id: "2", name: "Sample Product 2", sku: "SKU002", barcode: "987654321")
-            ]
-            isSearching = false
+        // Use real search functionality
+        Task {
+            let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
+            let results = await searchManager.performSearch(searchTerm: searchText, filters: filters)
+
+            await MainActor.run {
+                searchResults = results
+                isSearching = false
+            }
         }
     }
+
 }
 
 // MARK: - Supporting Views
@@ -264,16 +284,16 @@ struct SearchResultCard: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(item.name)
+                    Text(item.name ?? "Unknown Product")
                         .font(.headline)
                         .foregroundColor(.primary)
 
-                    Text("SKU: \(item.sku)")
+                    Text("SKU: \(item.sku ?? "N/A")")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
 
-                    if !item.barcode.isEmpty {
-                        Text("Barcode: \(item.barcode)")
+                    if let barcode = item.barcode, !barcode.isEmpty {
+                        Text("Barcode: \(barcode)")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -538,13 +558,7 @@ struct ReorderItemCard: View {
 }
 
 // MARK: - Data Models
-
-struct SearchResultItem: Identifiable {
-    let id: String
-    let name: String
-    let sku: String
-    let barcode: String
-}
+// SearchResultItem is now defined in Core/Models/SearchModels.swift
 
 struct ReorderItem: Identifiable {
     let id: String
