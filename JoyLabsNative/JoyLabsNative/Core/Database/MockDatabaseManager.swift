@@ -61,10 +61,23 @@ class MockDatabaseManager: ObservableObject {
             var matchType: String?
             var matchContext: String?
             
-            // Name search
-            if filters.name, let name = itemData.name, name.lowercased().contains(trimmedTerm) {
-                matchType = "name"
-                matchContext = name
+            // Name search with fuzzy matching
+            if filters.name, let name = itemData.name {
+                let tokens = tokenizeSearchString(trimmedTerm)
+
+                if tokens.count > 1 {
+                    // Use fuzzy search for multi-token queries (like "cof be" -> "Premium Coffee Beans")
+                    if matchesAllTokens(text: name, tokens: tokens) {
+                        matchType = "name"
+                        matchContext = name
+                    }
+                } else {
+                    // Fall back to exact search for single tokens
+                    if name.lowercased().contains(trimmedTerm) {
+                        matchType = "name"
+                        matchContext = name
+                    }
+                }
             }
             
             // SKU search (check variations)
@@ -127,6 +140,121 @@ class MockDatabaseManager: ObservableObject {
         return results
     }
     
+    // MARK: - Fuzzy Search Helper Methods
+
+    /**
+     * Tokenizes a search string by splitting on whitespace and removing punctuation
+     * Ported from React Native tokenizeSearchString function
+     */
+    private func tokenizeSearchString(_ searchString: String) -> [String] {
+        guard !searchString.isEmpty else {
+            return []
+        }
+
+        return searchString
+            .lowercased()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            // Split on whitespace and common punctuation
+            .components(separatedBy: CharacterSet(charactersIn: " \t\n\r-_,.:/\\"))
+            // Remove empty strings and very short tokens (less than 2 characters)
+            .filter { $0.count >= 2 }
+            // Remove duplicates
+            .reduce(into: [String]()) { result, token in
+                if !result.contains(token) {
+                    result.append(token)
+                }
+            }
+    }
+
+    /**
+     * Checks if all tokens match somewhere in the text (in any order)
+     * Ported from React Native searchNamesFuzzy logic
+     */
+    private func matchesAllTokens(text: String, tokens: [String]) -> Bool {
+        let lowercasedText = text.lowercased()
+
+        // All tokens must match somewhere in the text
+        for token in tokens {
+            if !lowercasedText.contains(token) {
+                return false
+            }
+        }
+
+        return true
+    }
+
+    /**
+     * Performs fuzzy search for name matches using tokenized search terms
+     * All tokens must match somewhere in the item name (in any order)
+     * Ported from React Native searchNamesFuzzy function
+     */
+    private func searchNamesFuzzy(tokens: [String]) -> [SearchResultItem] {
+        guard !tokens.isEmpty else {
+            return []
+        }
+
+        var results: [SearchResultItem] = []
+
+        // Search through all catalog items
+        for (_, object) in catalogItems {
+            guard let itemData = object.itemData,
+                  let name = itemData.name else { continue }
+
+            if matchesAllTokens(text: name, tokens: tokens) {
+                let searchResult = SearchResultItem(
+                    id: object.id,
+                    name: itemData.name,
+                    sku: getFirstSKU(for: object.id),
+                    price: getFirstPrice(for: object.id),
+                    barcode: getFirstBarcode(for: object.id),
+                    categoryId: itemData.categoryId,
+                    categoryName: getCategoryName(for: itemData.categoryId),
+                    images: nil, // TODO: Implement images
+                    matchType: "name",
+                    matchContext: name,
+                    isFromCaseUpc: false,
+                    caseUpcData: nil
+                )
+                results.append(searchResult)
+            }
+        }
+
+        // Sort results by relevance (exact matches first, then by name length)
+        results.sort { first, second in
+            guard let firstName = first.name, let secondName = second.name else {
+                return false
+            }
+
+            let originalQuery = tokens.joined(separator: " ")
+
+            // Prioritize exact matches
+            let firstExact = firstName.lowercased().contains(originalQuery)
+            let secondExact = secondName.lowercased().contains(originalQuery)
+
+            if firstExact && !secondExact {
+                return true
+            } else if !firstExact && secondExact {
+                return false
+            }
+
+            // Then prioritize matches where first token appears at start
+            let firstStartsWithFirstToken = firstName.lowercased().hasPrefix(tokens[0])
+            let secondStartsWithFirstToken = secondName.lowercased().hasPrefix(tokens[0])
+
+            if firstStartsWithFirstToken && !secondStartsWithFirstToken {
+                return true
+            } else if !firstStartsWithFirstToken && secondStartsWithFirstToken {
+                return false
+            }
+
+            // Finally sort by name length (shorter names first, likely more relevant)
+            return firstName.count < secondName.count
+        }
+
+        print("[MockDatabase] DEBUG: Fuzzy name search found \(results.count) results for tokens: \(tokens)")
+        return results
+    }
+
     // MARK: - Helper Methods
     private func getFirstSKU(for itemId: String) -> String? {
         return itemVariations[itemId]?.first?.itemVariationData?.sku

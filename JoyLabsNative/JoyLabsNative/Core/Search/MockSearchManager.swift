@@ -96,7 +96,7 @@ class MockSearchManager: ObservableObject {
             .debounce(for: .milliseconds(300), scheduler: DispatchQueue.main)
             .sink { [weak self] (searchTerm: String, filters: SearchFilters) in
                 self?.searchTask = Task {
-                    await self?.performSearch(searchTerm: searchTerm, filters: filters)
+                    let _ = await self?.performSearch(searchTerm: searchTerm, filters: filters)
                 }
             }
             .store(in: &cancellables)

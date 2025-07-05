@@ -42,7 +42,6 @@ struct ContentView: View {
 
 struct ScanView: View {
     @State private var searchText = ""
-    @State private var searchResults: [SearchResultItem] = []
     @State private var isSearching = false
     @State private var scanHistoryCount = 0
     @State private var isConnected = true
@@ -65,15 +64,15 @@ struct ScanView: View {
             } else {
                 SearchResultsView(
                     searchText: searchText,
-                    searchResults: searchResults,
-                    isSearching: isSearching
+                    searchResults: searchManager.searchResults,
+                    isSearching: searchManager.isSearching
                 )
             }
 
             Spacer()
 
             // Bottom search bar (matching React Native layout)
-            BottomSearchBar(searchText: $searchText, onSearch: performSearch)
+            BottomSearchBar(searchText: $searchText)
         }
         .background(Color(.systemBackground))
         .onAppear {
@@ -87,26 +86,34 @@ struct ScanView: View {
                 }
             }
         }
+        .onChange(of: searchText) { newValue in
+            // Trigger debounced search automatically when text changes (like React Native)
+            performDebouncedSearch(newValue)
+        }
     }
 
     private func performSearch() {
         guard !searchText.isEmpty else {
-            searchResults = []
+            searchManager.clearResults()
             return
         }
-
-        isSearching = true
 
         // Use real search functionality
         Task {
             let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
-            let results = await searchManager.performSearch(searchTerm: searchText, filters: filters)
-
-            await MainActor.run {
-                searchResults = results
-                isSearching = false
-            }
+            let _ = await searchManager.performSearch(searchTerm: searchText, filters: filters)
         }
+    }
+
+    private func performDebouncedSearch(_ searchTerm: String) {
+        guard !searchTerm.isEmpty else {
+            searchManager.clearResults()
+            return
+        }
+
+        // Use debounced search like React Native implementation
+        let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
+        searchManager.performSearchWithDebounce(searchTerm: searchTerm, filters: filters)
     }
 
 }
@@ -328,7 +335,6 @@ struct SearchResultCard: View {
 
 struct BottomSearchBar: View {
     @Binding var searchText: String
-    let onSearch: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -340,9 +346,7 @@ struct BottomSearchBar: View {
                         .foregroundColor(.secondary)
 
                     TextField("Search products, SKUs, barcodes...", text: $searchText)
-                        .onSubmit {
-                            onSearch()
-                        }
+                        // Remove onSubmit - search now triggers automatically on text change
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
