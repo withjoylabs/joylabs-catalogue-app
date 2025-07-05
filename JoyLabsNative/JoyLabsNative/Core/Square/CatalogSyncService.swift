@@ -53,7 +53,7 @@ actor CatalogSyncService {
         
         do {
             let syncType = determineSyncType()
-            logger.info("Determined sync type: \(syncType)")
+            logger.info("Determined sync type: \(syncType.rawValue)")
             
             let result: SyncResult
             
@@ -348,7 +348,7 @@ actor CatalogSyncService {
             lastIncrementalSyncDate = now
         }
         
-        logger.debug("Updated sync timestamps for \(syncType)")
+        logger.debug("Updated sync timestamps for \(syncType.rawValue)")
     }
 }
 
@@ -438,12 +438,4 @@ enum SyncError: LocalizedError {
     }
 }
 
-// MARK: - Array Extension
 
-extension Array {
-    func chunked(into size: Int) -> [[Element]] {
-        return stride(from: 0, to: count, by: size).map {
-            Array(self[$0..<Swift.min($0 + size, count)])
-        }
-    }
-}

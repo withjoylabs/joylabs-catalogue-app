@@ -40,7 +40,8 @@ class SquareSyncCoordinator: ObservableObject {
     }
     
     deinit {
-        stopBackgroundSync()
+        backgroundSyncTimer?.invalidate()
+        backgroundSyncTimer = nil
     }
     
     // MARK: - Public Sync Methods
@@ -79,7 +80,7 @@ class SquareSyncCoordinator: ObservableObject {
     
     /// Check if sync is needed
     func checkSyncNeeded() async -> Bool {
-        guard await squareAPIService.isAuthenticated else {
+        guard squareAPIService.isAuthenticated else {
             return false
         }
         
@@ -126,7 +127,7 @@ class SquareSyncCoordinator: ObservableObject {
         logger.debug("Performing sync - manual: \(isManual)")
         
         // Check authentication
-        guard await squareAPIService.isAuthenticated else {
+        guard squareAPIService.isAuthenticated else {
             logger.warning("Cannot sync - not authenticated")
             if isManual {
                 error = SyncCoordinatorError.notAuthenticated
@@ -229,7 +230,7 @@ class SquareSyncCoordinator: ObservableObject {
     }
     
     private func checkAuthenticationAndStartBackgroundSync() async {
-        let isAuthenticated = await squareAPIService.isAuthenticated
+        let isAuthenticated = squareAPIService.isAuthenticated
         
         if isAuthenticated && isBackgroundSyncEnabled {
             startBackgroundSync()
@@ -309,7 +310,8 @@ struct SyncStatistics {
 // MARK: - Sync Coordinator Factory
 
 struct SquareSyncCoordinatorFactory {
-    
+
+    @MainActor
     static func createCoordinator(
         databaseManager: ResilientDatabaseManager,
         squareAPIService: SquareAPIService
@@ -318,7 +320,7 @@ struct SquareSyncCoordinatorFactory {
             squareAPIService: squareAPIService,
             databaseManager: databaseManager
         )
-        
+
         return SquareSyncCoordinator(
             catalogSyncService: catalogSyncService,
             squareAPIService: squareAPIService
