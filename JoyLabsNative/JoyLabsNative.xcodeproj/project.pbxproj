@@ -27,6 +27,8 @@
 		A1B2C3D4E5F6789012345737 /* ErrorRecoveryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345738 /* ErrorRecoveryManager.swift */; };
 		A1B2C3D4E5F6789012345739 /* CircuitBreaker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345740 /* CircuitBreaker.swift */; };
 		A1B2C3D4E5F6789012345749 /* PKCEGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345750 /* PKCEGenerator.swift */; };
+		A1B2C3D4E5F6789012345753 /* TokenService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345754 /* TokenService.swift */; };
+		A1B2C3D4E5F6789012345755 /* SquareAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345756 /* SquareAPIService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -50,6 +52,8 @@
 		A1B2C3D4E5F6789012345738 /* ErrorRecoveryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Resilience/ErrorRecoveryManager.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345740 /* CircuitBreaker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Resilience/CircuitBreaker.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345750 /* PKCEGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/PKCEGenerator.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345754 /* TokenService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/TokenService.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345756 /* SquareAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareAPIService.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -92,6 +96,8 @@
 				A1B2C3D4E5F6789012345738 /* ErrorRecoveryManager.swift */,
 				A1B2C3D4E5F6789012345740 /* CircuitBreaker.swift */,
 				A1B2C3D4E5F6789012345750 /* PKCEGenerator.swift */,
+				A1B2C3D4E5F6789012345754 /* TokenService.swift */,
+				A1B2C3D4E5F6789012345756 /* SquareAPIService.swift */,
 				A1B2C3D4E5F6789012345683 /* Assets.xcassets */,
 				A1B2C3D4E5F6789012345691 /* Preview Content */,
 			);
@@ -207,6 +213,8 @@
 				A1B2C3D4E5F6789012345737 /* ErrorRecoveryManager.swift in Sources */,
 				A1B2C3D4E5F6789012345739 /* CircuitBreaker.swift in Sources */,
 				A1B2C3D4E5F6789012345749 /* PKCEGenerator.swift in Sources */,
+				A1B2C3D4E5F6789012345753 /* TokenService.swift in Sources */,
+				A1B2C3D4E5F6789012345755 /* SquareAPIService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
