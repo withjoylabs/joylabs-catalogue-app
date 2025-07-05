@@ -408,7 +408,7 @@ struct CatalogObject: Codable {
     let imageData: CatalogImageData?
     let updatedAt: String?
     let createdAt: String?
-    
+
     enum CodingKeys: String, CodingKey {
         case id, type, version
         case isDeleted = "is_deleted"

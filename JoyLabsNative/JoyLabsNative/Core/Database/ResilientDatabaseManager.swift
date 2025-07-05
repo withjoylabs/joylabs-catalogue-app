@@ -91,13 +91,58 @@ class ResilientDatabaseManager: ObservableObject {
         try await executeWithRetry(operation: "insertCatalogObject") {
             // Validate data first
             let validatedObject = try validator.validateSquareCatalogObject(data).get()
-            
+
             // Initialize database if needed
             let db = await getOrCreateEnhancedDB()
             try await db.initializeDatabase()
-            
+
             // Insert with proper error handling
             try await insertValidatedObject(validatedObject)
+        }
+    }
+
+    /// Insert catalog object from Square API sync
+    func insertCatalogObject(_ object: CatalogObject) async throws {
+        try await executeWithRetry(operation: "insertCatalogObject") {
+            let db = await getOrCreateEnhancedDB()
+            try await db.initializeDatabase()
+            try await db.insertCatalogObject(object)
+        }
+    }
+
+    /// Update catalog object from Square API sync
+    func updateCatalogObject(_ object: CatalogObject) async throws {
+        try await executeWithRetry(operation: "updateCatalogObject") {
+            let db = await getOrCreateEnhancedDB()
+            try await db.initializeDatabase()
+            try await db.updateCatalogObject(object)
+        }
+    }
+
+    /// Get catalog object by ID
+    func getCatalogObject(id: String) async throws -> CatalogObject? {
+        return try await executeWithRetry(operation: "getCatalogObject") {
+            let db = await getOrCreateEnhancedDB()
+            try await db.initializeDatabase()
+            return try await db.getCatalogObject(id: id)
+        }
+    }
+
+    /// Delete catalog object by ID
+    func deleteCatalogObject(id: String) async throws {
+        try await executeWithRetry(operation: "deleteCatalogObject") {
+            let db = await getOrCreateEnhancedDB()
+            try await db.initializeDatabase()
+            try await db.deleteCatalogObject(id: id)
+        }
+    }
+
+    /// Get all catalog object IDs
+    func getAllCatalogObjectIds() async throws -> Set<String> {
+        return try await executeWithRetry(operation: "getAllCatalogObjectIds") {
+            let db = await getOrCreateEnhancedDB()
+            try await db.initializeDatabase()
+            return try await db.getAllCatalogObjectIds()
         }
     }
     

@@ -73,6 +73,7 @@ class EnhancedDatabaseManager: ObservableObject {
             group.addTask { try await self.createTeamDataTable(db) }
             group.addTask { try await self.createReorderItemsTable(db) }
             group.addTask { try await self.createSyncStatusTable(db) }
+            group.addTask { try await self.createCatalogObjectsTable(db) }
             
             // Wait for all tables to be created
             try await group.waitForAll()
@@ -196,6 +197,27 @@ class EnhancedDatabaseManager: ObservableObject {
         
         logger.debug("Created sync_status table")
     }
+
+    /// Create catalog_objects table for Square API sync
+    private func createCatalogObjectsTable(_ db: Connection) async throws {
+        try db.run(DatabaseTables.catalogObjects.create(ifNotExists: true) { t in
+            t.column(Expression<String>("id"), primaryKey: true)
+            t.column(Expression<String>("type"))
+            t.column(Expression<Int?>("version"))
+            t.column(Expression<Bool>("is_deleted"), defaultValue: false)
+            t.column(Expression<String?>("name"))
+            t.column(Expression<String?>("category_id"))
+            t.column(Expression<String?>("sku"))
+            t.column(Expression<String?>("upc"))
+            t.column(Expression<Int?>("price_amount"))
+            t.column(Expression<String?>("price_currency"))
+            t.column(Expression<String?>("created_at"))
+            t.column(Expression<String?>("updated_at"))
+            t.column(Expression<Data>("raw_data"))
+        })
+
+        logger.debug("Created catalog_objects table")
+    }
     
     /// Create performance indexes (exact port from React Native)
     private func createIndexes() async throws {
@@ -245,6 +267,113 @@ class EnhancedDatabaseManager: ObservableObject {
     private func checkAndMigrateSchema() async throws {
         // Implementation will be added in next step
         logger.info("Schema migration check completed")
+    }
+
+    // MARK: - Catalog Object Operations
+
+    /// Insert catalog object from Square API
+    func insertCatalogObject(_ object: CatalogObject) async throws {
+        guard let db = connection else {
+            throw DatabaseError.connectionNotAvailable
+        }
+
+        let sql = """
+            INSERT OR REPLACE INTO catalog_objects
+            (id, type, version, is_deleted, name, category_id, sku, upc, price_amount, price_currency, created_at, updated_at, raw_data)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+
+        let rawData = try JSONEncoder().encode(object)
+
+        try db.run(sql,
+            object.id,
+            object.type,
+            object.version ?? 0,
+            object.isDeleted ?? false,
+            extractName(from: object),
+            extractCategoryId(from: object),
+            extractSKU(from: object),
+            extractUPC(from: object),
+            extractPriceAmount(from: object),
+            extractPriceCurrency(from: object),
+            Date().iso8601String,
+            Date().iso8601String,
+            rawData.datatypeValue
+        )
+    }
+
+    /// Update catalog object from Square API
+    func updateCatalogObject(_ object: CatalogObject) async throws {
+        try await insertCatalogObject(object) // Using INSERT OR REPLACE
+    }
+
+    /// Get catalog object by ID
+    func getCatalogObject(id: String) async throws -> CatalogObject? {
+        guard let db = connection else {
+            throw DatabaseError.connectionNotAvailable
+        }
+
+        let sql = "SELECT raw_data FROM catalog_objects WHERE id = ?"
+
+        for row in try db.prepare(sql, id) {
+            let rawData = row[0] as! Data
+            return try JSONDecoder().decode(CatalogObject.self, from: rawData)
+        }
+
+        return nil
+    }
+
+    /// Delete catalog object by ID
+    func deleteCatalogObject(id: String) async throws {
+        guard let db = connection else {
+            throw DatabaseError.connectionNotAvailable
+        }
+
+        let sql = "DELETE FROM catalog_objects WHERE id = ?"
+        try db.run(sql, id)
+    }
+
+    /// Get all catalog object IDs
+    func getAllCatalogObjectIds() async throws -> Set<String> {
+        guard let db = connection else {
+            throw DatabaseError.connectionNotAvailable
+        }
+
+        let sql = "SELECT id FROM catalog_objects"
+        var ids = Set<String>()
+
+        for row in try db.prepare(sql) {
+            let id = row[0] as! String
+            ids.insert(id)
+        }
+
+        return ids
+    }
+
+    // MARK: - Helper Methods for Catalog Objects
+
+    private func extractName(from object: CatalogObject) -> String? {
+        return object.itemData?.name ?? object.categoryData?.name
+    }
+
+    private func extractCategoryId(from object: CatalogObject) -> String? {
+        return object.itemData?.categoryId
+    }
+
+    private func extractSKU(from object: CatalogObject) -> String? {
+        return object.itemVariationData?.sku
+    }
+
+    private func extractUPC(from object: CatalogObject) -> String? {
+        return object.itemVariationData?.upc
+    }
+
+    private func extractPriceAmount(from object: CatalogObject) -> Int? {
+        return object.itemVariationData?.priceMoney?.amount
+    }
+
+    private func extractPriceCurrency(from object: CatalogObject) -> String? {
+        return object.itemVariationData?.priceMoney?.currency
     }
 }
 

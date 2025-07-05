@@ -191,6 +191,7 @@ enum DatabaseTables {
     
     // Sync management tables
     static let syncStatus = Table("sync_status")
+    static let catalogObjects = Table("catalog_objects")
     static let syncLogs = Table("sync_logs")
     static let dbVersion = Table("db_version")
     
