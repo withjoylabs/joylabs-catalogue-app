@@ -21,6 +21,9 @@
 		A1B2C3D4E5F6789012345725 /* ResilientDatabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345726 /* ResilientDatabaseManager.swift */; };
 		A1B2C3D4E5F6789012345727 /* ProductService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345728 /* ProductService.swift */; };
 		A1B2C3D4E5F6789012345729 /* ServiceImplementations.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345730 /* ServiceImplementations.swift */; };
+		A1B2C3D4E5F6789012345731 /* EnhancedSearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345732 /* EnhancedSearchService.swift */; };
+		A1B2C3D4E5F6789012345733 /* MultiLevelCacheManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345734 /* MultiLevelCacheManager.swift */; };
+		A1B2C3D4E5F6789012345735 /* SearchPerformanceMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345736 /* SearchPerformanceMonitor.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -38,6 +41,9 @@
 		A1B2C3D4E5F6789012345726 /* ResilientDatabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Database/ResilientDatabaseManager.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345728 /* ProductService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Services/ProductService.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345730 /* ServiceImplementations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Services/ServiceImplementations.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345732 /* EnhancedSearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Search/EnhancedSearchService.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345734 /* MultiLevelCacheManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Search/MultiLevelCacheManager.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345736 /* SearchPerformanceMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Search/SearchPerformanceMonitor.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -74,6 +80,9 @@
 				A1B2C3D4E5F6789012345726 /* ResilientDatabaseManager.swift */,
 				A1B2C3D4E5F6789012345728 /* ProductService.swift */,
 				A1B2C3D4E5F6789012345730 /* ServiceImplementations.swift */,
+				A1B2C3D4E5F6789012345732 /* EnhancedSearchService.swift */,
+				A1B2C3D4E5F6789012345734 /* MultiLevelCacheManager.swift */,
+				A1B2C3D4E5F6789012345736 /* SearchPerformanceMonitor.swift */,
 				A1B2C3D4E5F6789012345683 /* Assets.xcassets */,
 				A1B2C3D4E5F6789012345691 /* Preview Content */,
 			);
@@ -183,6 +192,9 @@
 				A1B2C3D4E5F6789012345725 /* ResilientDatabaseManager.swift in Sources */,
 				A1B2C3D4E5F6789012345727 /* ProductService.swift in Sources */,
 				A1B2C3D4E5F6789012345729 /* ServiceImplementations.swift in Sources */,
+				A1B2C3D4E5F6789012345731 /* EnhancedSearchService.swift in Sources */,
+				A1B2C3D4E5F6789012345733 /* MultiLevelCacheManager.swift in Sources */,
+				A1B2C3D4E5F6789012345735 /* SearchPerformanceMonitor.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
