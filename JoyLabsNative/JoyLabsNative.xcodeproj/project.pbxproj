@@ -17,6 +17,8 @@
 		A1B2C3D4E5F6789012345716 /* SQLite in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4E5F6789012345717 /* SQLite */; };
 		A1B2C3D4E5F6789012345719 /* DatabaseModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345720 /* DatabaseModels.swift */; };
 		A1B2C3D4E5F6789012345721 /* EnhancedDatabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345722 /* EnhancedDatabaseManager.swift */; };
+		A1B2C3D4E5F6789012345723 /* DataValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345724 /* DataValidation.swift */; };
+		A1B2C3D4E5F6789012345725 /* ResilientDatabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345726 /* ResilientDatabaseManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -30,6 +32,8 @@
 		A1B2C3D4E5F6789012345715 /* SearchModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Models/SearchModels.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345720 /* DatabaseModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Database/DatabaseModels.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345722 /* EnhancedDatabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Database/EnhancedDatabaseManager.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345724 /* DataValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Database/DataValidation.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345726 /* ResilientDatabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Database/ResilientDatabaseManager.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -62,6 +66,8 @@
 				A1B2C3D4E5F6789012345715 /* SearchModels.swift */,
 				A1B2C3D4E5F6789012345720 /* DatabaseModels.swift */,
 				A1B2C3D4E5F6789012345722 /* EnhancedDatabaseManager.swift */,
+				A1B2C3D4E5F6789012345724 /* DataValidation.swift */,
+				A1B2C3D4E5F6789012345726 /* ResilientDatabaseManager.swift */,
 				A1B2C3D4E5F6789012345683 /* Assets.xcassets */,
 				A1B2C3D4E5F6789012345691 /* Preview Content */,
 			);
@@ -167,6 +173,8 @@
 				A1B2C3D4E5F6789012345714 /* SearchModels.swift in Sources */,
 				A1B2C3D4E5F6789012345719 /* DatabaseModels.swift in Sources */,
 				A1B2C3D4E5F6789012345721 /* EnhancedDatabaseManager.swift in Sources */,
+				A1B2C3D4E5F6789012345723 /* DataValidation.swift in Sources */,
+				A1B2C3D4E5F6789012345725 /* ResilientDatabaseManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

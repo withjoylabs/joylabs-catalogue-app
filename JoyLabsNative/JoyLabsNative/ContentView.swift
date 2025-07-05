@@ -86,9 +86,9 @@ struct ScanView: View {
                 }
             }
         }
-        .onChange(of: searchText) { newValue in
+        .onChange(of: searchText) {
             // Trigger debounced search automatically when text changes (like React Native)
-            performDebouncedSearch(newValue)
+            performDebouncedSearch(searchText)
         }
     }
 
