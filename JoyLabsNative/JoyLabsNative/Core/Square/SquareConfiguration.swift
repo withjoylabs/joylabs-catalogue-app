@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 /// Square API configuration and constants
 /// Ports the configuration from React Native config files
@@ -150,18 +151,18 @@ struct SquareConfiguration {
               !apiVersion.isEmpty,
               !backendBaseURL.isEmpty,
               !scopes.isEmpty else {
-            Logger.error("SquareConfig", "Missing required Square configuration")
+            Logger(subsystem: "com.joylabs.native", category: "SquareConfig").error("Missing required Square configuration")
             return false
         }
         
         // Validate URLs
         guard URL(string: apiBaseURL) != nil,
               URL(string: backendBaseURL) != nil else {
-            Logger.error("SquareConfig", "Invalid URLs in Square configuration")
+            Logger(subsystem: "com.joylabs.native", category: "SquareConfig").error("Invalid URLs in Square configuration")
             return false
         }
         
-        Logger.info("SquareConfig", "Square configuration validated successfully")
+        Logger(subsystem: "com.joylabs.native", category: "SquareConfig").info("Square configuration validated successfully")
         return true
     }
 }

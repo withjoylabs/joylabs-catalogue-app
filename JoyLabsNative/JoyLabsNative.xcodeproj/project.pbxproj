@@ -29,6 +29,11 @@
 		A1B2C3D4E5F6789012345749 /* PKCEGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345750 /* PKCEGenerator.swift */; };
 		A1B2C3D4E5F6789012345753 /* TokenService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345754 /* TokenService.swift */; };
 		A1B2C3D4E5F6789012345755 /* SquareAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345756 /* SquareAPIService.swift */; };
+		A1B2C3D4E5F6789012345757 /* SquareConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345758 /* SquareConfiguration.swift */; };
+		A1B2C3D4E5F6789012345759 /* SquareHTTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345760 /* SquareHTTPClient.swift */; };
+		A1B2C3D4E5F6789012345761 /* SquareOAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345762 /* SquareOAuthService.swift */; };
+		A1B2C3D4E5F6789012345763 /* CatalogSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345764 /* CatalogSyncService.swift */; };
+		A1B2C3D4E5F6789012345765 /* SquareSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345766 /* SquareSyncCoordinator.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -54,6 +59,11 @@
 		A1B2C3D4E5F6789012345750 /* PKCEGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/PKCEGenerator.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345754 /* TokenService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/TokenService.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345756 /* SquareAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareAPIService.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345758 /* SquareConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareConfiguration.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345760 /* SquareHTTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareHTTPClient.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345762 /* SquareOAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareOAuthService.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345764 /* CatalogSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/CatalogSyncService.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345766 /* SquareSyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareSyncCoordinator.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -98,6 +108,11 @@
 				A1B2C3D4E5F6789012345750 /* PKCEGenerator.swift */,
 				A1B2C3D4E5F6789012345754 /* TokenService.swift */,
 				A1B2C3D4E5F6789012345756 /* SquareAPIService.swift */,
+				A1B2C3D4E5F6789012345758 /* SquareConfiguration.swift */,
+				A1B2C3D4E5F6789012345760 /* SquareHTTPClient.swift */,
+				A1B2C3D4E5F6789012345762 /* SquareOAuthService.swift */,
+				A1B2C3D4E5F6789012345764 /* CatalogSyncService.swift */,
+				A1B2C3D4E5F6789012345766 /* SquareSyncCoordinator.swift */,
 				A1B2C3D4E5F6789012345683 /* Assets.xcassets */,
 				A1B2C3D4E5F6789012345691 /* Preview Content */,
 			);
@@ -215,6 +230,11 @@
 				A1B2C3D4E5F6789012345749 /* PKCEGenerator.swift in Sources */,
 				A1B2C3D4E5F6789012345753 /* TokenService.swift in Sources */,
 				A1B2C3D4E5F6789012345755 /* SquareAPIService.swift in Sources */,
+				A1B2C3D4E5F6789012345757 /* SquareConfiguration.swift in Sources */,
+				A1B2C3D4E5F6789012345759 /* SquareHTTPClient.swift in Sources */,
+				A1B2C3D4E5F6789012345761 /* SquareOAuthService.swift in Sources */,
+				A1B2C3D4E5F6789012345763 /* CatalogSyncService.swift in Sources */,
+				A1B2C3D4E5F6789012345765 /* SquareSyncCoordinator.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
