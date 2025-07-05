@@ -363,7 +363,7 @@ extension SquareSyncCoordinator {
     
     /// Get time since last sync
     var timeSinceLastSync: String? {
-        guard let lastResult = lastSyncResult else { return nil }
+        guard lastSyncResult != nil else { return nil }
         
         // This would need to be implemented with actual timestamp tracking
         return "Recently"

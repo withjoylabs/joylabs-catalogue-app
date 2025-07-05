@@ -72,7 +72,7 @@ struct CatalogObject: Codable {
     let id: String
     let type: String
     let updatedAt: String
-    let version: Int
+    let version: Int?
     let isDeleted: Bool
     let presentAtAllLocations: Bool
     let itemData: ItemData?

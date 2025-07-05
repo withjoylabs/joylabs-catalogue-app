@@ -1,6 +1,13 @@
 import Foundation
 import OSLog
 
+// MARK: - Sync Types
+
+enum SyncType: String, CaseIterable {
+    case full = "full"
+    case incremental = "incremental"
+}
+
 /// Comprehensive catalog synchronization service for Square API integration
 /// Handles incremental sync, conflict resolution, and database integration
 actor CatalogSyncService {
@@ -353,11 +360,7 @@ actor CatalogSyncService {
 }
 
 // MARK: - Supporting Types
-
-enum SyncType: String, CaseIterable {
-    case full = "full"
-    case incremental = "incremental"
-}
+// SyncType is already defined at the top of this file
 
 enum SyncProgress: Equatable {
     case idle

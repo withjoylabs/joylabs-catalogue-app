@@ -1,6 +1,44 @@
 import Foundation
 import OSLog
 
+// MARK: - ResilienceService Protocol
+
+protocol ResilienceService {
+    func executeResilient<T>(
+        operationId: String,
+        operation: @escaping () async throws -> T,
+        fallback: T?,
+        degradationStrategy: DegradationStrategy
+    ) async throws -> T
+}
+
+// DegradationStrategy is already defined in CircuitBreaker.swift
+
+// MARK: - Basic ResilienceService Implementation
+
+actor BasicResilienceService: ResilienceService {
+    func executeResilient<T>(
+        operationId: String,
+        operation: @escaping () async throws -> T,
+        fallback: T?,
+        degradationStrategy: DegradationStrategy
+    ) async throws -> T {
+        do {
+            return try await operation()
+        } catch {
+            switch degradationStrategy {
+            case .returnCached, .returnDefault:
+                if let fallback = fallback {
+                    return fallback
+                }
+                throw error
+            case .skipOperation, .useAlternativeService:
+                throw error
+            }
+        }
+    }
+}
+
 /// Comprehensive HTTP client for Square API and backend integration
 /// Ports the sophisticated API client from React Native with modern iOS patterns
 actor SquareHTTPClient {
@@ -20,11 +58,11 @@ actor SquareHTTPClient {
     
     init(
         tokenService: TokenService,
-        resilienceService: ResilienceService,
+        resilienceService: ResilienceService? = nil,
         configuration: SquareConfiguration.Type = SquareConfiguration.self
     ) {
         self.tokenService = tokenService
-        self.resilienceService = resilienceService
+        self.resilienceService = resilienceService ?? BasicResilienceService()
         self.configuration = configuration
         
         // Configure URLSession with timeouts and caching
@@ -62,7 +100,7 @@ actor SquareHTTPClient {
                     responseType: responseType
                 )
             },
-            fallback: nil,
+            fallback: nil as T?,
             degradationStrategy: .returnCached
         )
     }
@@ -86,7 +124,7 @@ actor SquareHTTPClient {
                     requiresAuth: requiresAuth
                 )
             },
-            fallback: nil,
+            fallback: nil as T?,
             degradationStrategy: .returnDefault
         )
     }
@@ -392,39 +430,7 @@ struct CatalogSearchResponse: Codable {
     }
 }
 
-struct CatalogObject: Codable {
-    let id: String
-    let type: String
-    let version: Int?
-    let isDeleted: Bool?
-    let presentAtAllLocations: Bool?
-    let itemData: CatalogItemData?
-    let categoryData: CatalogCategoryData?
-    let itemVariationData: CatalogItemVariationData?
-    let modifierData: CatalogModifierData?
-    let modifierListData: CatalogModifierListData?
-    let taxData: CatalogTaxData?
-    let discountData: CatalogDiscountData?
-    let imageData: CatalogImageData?
-    let updatedAt: String?
-    let createdAt: String?
-
-    enum CodingKeys: String, CodingKey {
-        case id, type, version
-        case isDeleted = "is_deleted"
-        case presentAtAllLocations = "present_at_all_locations"
-        case itemData = "item_data"
-        case categoryData = "category_data"
-        case itemVariationData = "item_variation_data"
-        case modifierData = "modifier_data"
-        case modifierListData = "modifier_list_data"
-        case taxData = "tax_data"
-        case discountData = "discount_data"
-        case imageData = "image_data"
-        case updatedAt = "updated_at"
-        case createdAt = "created_at"
-    }
-}
+// CatalogObject is defined in SearchModels.swift - using that definition
 
 // MARK: - Catalog Data Models (Basic structure for now)
 
@@ -501,7 +507,4 @@ struct CatalogImageData: Codable {
     let url: String?
 }
 
-struct Money: Codable {
-    let amount: Int?
-    let currency: String?
-}
+// Money is defined in SearchModels.swift - using that definition
