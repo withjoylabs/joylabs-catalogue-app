@@ -24,6 +24,8 @@
 		A1B2C3D4E5F6789012345731 /* EnhancedSearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345732 /* EnhancedSearchService.swift */; };
 		A1B2C3D4E5F6789012345733 /* MultiLevelCacheManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345734 /* MultiLevelCacheManager.swift */; };
 		A1B2C3D4E5F6789012345735 /* SearchPerformanceMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345736 /* SearchPerformanceMonitor.swift */; };
+		A1B2C3D4E5F6789012345737 /* ErrorRecoveryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345738 /* ErrorRecoveryManager.swift */; };
+		A1B2C3D4E5F6789012345739 /* CircuitBreaker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345740 /* CircuitBreaker.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -44,6 +46,8 @@
 		A1B2C3D4E5F6789012345732 /* EnhancedSearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Search/EnhancedSearchService.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345734 /* MultiLevelCacheManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Search/MultiLevelCacheManager.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345736 /* SearchPerformanceMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Search/SearchPerformanceMonitor.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345738 /* ErrorRecoveryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Resilience/ErrorRecoveryManager.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345740 /* CircuitBreaker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Resilience/CircuitBreaker.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -83,6 +87,8 @@
 				A1B2C3D4E5F6789012345732 /* EnhancedSearchService.swift */,
 				A1B2C3D4E5F6789012345734 /* MultiLevelCacheManager.swift */,
 				A1B2C3D4E5F6789012345736 /* SearchPerformanceMonitor.swift */,
+				A1B2C3D4E5F6789012345738 /* ErrorRecoveryManager.swift */,
+				A1B2C3D4E5F6789012345740 /* CircuitBreaker.swift */,
 				A1B2C3D4E5F6789012345683 /* Assets.xcassets */,
 				A1B2C3D4E5F6789012345691 /* Preview Content */,
 			);
@@ -195,6 +201,8 @@
 				A1B2C3D4E5F6789012345731 /* EnhancedSearchService.swift in Sources */,
 				A1B2C3D4E5F6789012345733 /* MultiLevelCacheManager.swift in Sources */,
 				A1B2C3D4E5F6789012345735 /* SearchPerformanceMonitor.swift in Sources */,
+				A1B2C3D4E5F6789012345737 /* ErrorRecoveryManager.swift in Sources */,
+				A1B2C3D4E5F6789012345739 /* CircuitBreaker.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
