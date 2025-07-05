@@ -220,7 +220,7 @@ struct SearchResultsView: View {
     let isSearching: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(spacing: 0) {
             // Search header
             HStack {
                 Text("Results for \"\(searchText)\"")
@@ -246,7 +246,6 @@ struct SearchResultsView: View {
                     Spacer()
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.horizontal, 40)
             } else if searchResults.isEmpty {
                 VStack(spacing: 20) {
                     Spacer()
@@ -268,7 +267,7 @@ struct SearchResultsView: View {
 
                     Spacer()
                 }
-                .padding(.horizontal, 40)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
                     LazyVStack(spacing: 12) {

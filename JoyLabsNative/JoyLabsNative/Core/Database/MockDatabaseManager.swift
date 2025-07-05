@@ -156,8 +156,8 @@ class MockDatabaseManager: ObservableObject {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             // Split on whitespace and common punctuation
             .components(separatedBy: CharacterSet(charactersIn: " \t\n\r-_,.:/\\"))
-            // Remove empty strings and very short tokens (less than 2 characters)
-            .filter { $0.count >= 2 }
+            // Remove empty strings but KEEP single characters (like "b" in "co b")
+            .filter { !$0.isEmpty }
             // Remove duplicates
             .reduce(into: [String]()) { result, token in
                 if !result.contains(token) {
