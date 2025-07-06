@@ -33,6 +33,7 @@ struct TestRunnerView: View {
         
         _testRunner = StateObject(wrappedValue: SquareIntegrationTests(
             squareAPIService: squareAPIService,
+            catalogSyncService: catalogSyncService,
             syncCoordinator: syncCoordinator
         ))
     }
