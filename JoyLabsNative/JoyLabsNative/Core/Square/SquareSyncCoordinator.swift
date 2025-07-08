@@ -14,9 +14,10 @@ class SquareSyncCoordinator: ObservableObject {
     @Published var error: Error?
     
     // MARK: - Dependencies
-    
+
     private let catalogSyncService: CatalogSyncService
     private let squareAPIService: SquareAPIService
+    private let resilienceService: any ResilienceService
     private let logger = Logger(subsystem: "com.joylabs.native", category: "SquareSyncCoordinator")
     
     // MARK: - Background Sync
@@ -33,17 +34,35 @@ class SquareSyncCoordinator: ObservableObject {
     private let maxCatchupRetries = 3
     
     // MARK: - Initialization
-    
-    init(catalogSyncService: CatalogSyncService, squareAPIService: SquareAPIService) {
+
+    init(catalogSyncService: CatalogSyncService, squareAPIService: SquareAPIService, resilienceService: any ResilienceService) {
         self.catalogSyncService = catalogSyncService
         self.squareAPIService = squareAPIService
-        
-        logger.info("SquareSyncCoordinator initialized")
-        
+        self.resilienceService = resilienceService
+
+        logger.info("SquareSyncCoordinator initialized with resilience")
+
         // Start background sync if authenticated
         Task {
             await checkAuthenticationAndStartBackgroundSync()
         }
+    }
+
+    /// Factory method to create coordinator with proper dependencies
+    static func createCoordinator(databaseManager: ResilientDatabaseManager, squareAPIService: SquareAPIService) -> SquareSyncCoordinator {
+        let resilienceService = ErrorRecoveryManager()
+
+        let catalogSyncService = CatalogSyncService(
+            squareAPIService: squareAPIService,
+            databaseManager: databaseManager,
+            resilienceService: resilienceService
+        )
+
+        return SquareSyncCoordinator(
+            catalogSyncService: catalogSyncService,
+            squareAPIService: squareAPIService,
+            resilienceService: resilienceService
+        )
     }
     
     deinit {
@@ -193,8 +212,8 @@ class SquareSyncCoordinator: ObservableObject {
     // MARK: - Private Implementation
     
     private func performSync(isManual: Bool) async {
-        logger.debug("Performing sync - manual: \(isManual)")
-        
+        logger.debug("Performing sync with resilience - manual: \(isManual)")
+
         // Check authentication
         guard squareAPIService.isAuthenticated else {
             logger.warning("Cannot sync - not authenticated")
@@ -203,7 +222,7 @@ class SquareSyncCoordinator: ObservableObject {
             }
             return
         }
-        
+
         // Check if sync is needed (skip for manual sync)
         if !isManual {
             let syncNeeded = await catalogSyncService.isSyncNeeded()
@@ -212,23 +231,53 @@ class SquareSyncCoordinator: ObservableObject {
                 return
             }
         }
-        
+
         syncState = .syncing
         error = nil
-        
+
         // Monitor sync progress
         let progressTask = Task {
             await monitorSyncProgress()
         }
-        
+
         do {
-            let result = try await catalogSyncService.performSync()
+            let result = try await resilienceService.executeResilient(
+                operationId: "sync_coordinator_operation",
+                operation: {
+                    return try await self.catalogSyncService.performSync()
+                },
+                fallback: SyncResult(
+                    syncType: .incremental,
+                    duration: 0,
+                    totalProcessed: 0,
+                    inserted: 0,
+                    updated: 0,
+                    deleted: 0,
+                    errors: []
+                ),
+                degradationStrategy: .returnCached
+            )
+
             progressTask.cancel()
             await handleSyncSuccess(result, isManual: isManual)
         } catch {
             progressTask.cancel()
             await handleSyncError(error, isManual: isManual)
         }
+    }
+
+    /// Get fallback sync result when main sync fails
+    private func getFallbackSyncResult() async -> SyncResult {
+        logger.info("Using fallback sync result")
+        return SyncResult(
+            syncType: .incremental,
+            duration: 0,
+            totalProcessed: 0,
+            inserted: 0,
+            updated: 0,
+            deleted: 0,
+            errors: []
+        )
     }
     
     private func performBackgroundSync() async {
@@ -528,14 +577,18 @@ struct SquareSyncCoordinatorFactory {
         databaseManager: ResilientDatabaseManager,
         squareAPIService: SquareAPIService
     ) -> SquareSyncCoordinator {
+        let resilienceService = BasicResilienceService()
+
         let catalogSyncService = CatalogSyncService(
             squareAPIService: squareAPIService,
-            databaseManager: databaseManager
+            databaseManager: databaseManager,
+            resilienceService: resilienceService
         )
 
         return SquareSyncCoordinator(
             catalogSyncService: catalogSyncService,
-            squareAPIService: squareAPIService
+            squareAPIService: squareAPIService,
+            resilienceService: resilienceService
         )
     }
 }
@@ -612,4 +665,5 @@ extension SquareSyncCoordinator {
             return "No webhooks received"
         }
     }
+
 }

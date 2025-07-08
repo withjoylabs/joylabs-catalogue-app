@@ -200,6 +200,48 @@ enum DatabaseTables {
     static let locations = Table("locations")
 }
 
+// MARK: - Database Row Types (for transformation)
+
+/// Database row representation for catalog items
+struct CatalogItemRow {
+    let id: String
+    let updatedAt: String
+    let version: String
+    let isDeleted: Int
+    let presentAtAllLocations: Int?
+    let name: String?
+    let description: String?
+    let categoryId: String?
+    let dataJson: String
+}
+
+/// Database row representation for categories
+struct CategoryRow {
+    let id: String
+    let updatedAt: String
+    let version: String
+    let isDeleted: Int
+    let name: String?
+    let dataJson: String
+}
+
+/// Database row representation for item variations
+struct ItemVariationRow {
+    let id: String
+    let updatedAt: String
+    let version: String
+    let isDeleted: Int
+    let itemId: String?
+    let name: String?
+    let sku: String?
+    let upc: String?
+    let ordinal: Int?
+    let pricingType: String?
+    let priceAmount: Int64?
+    let priceCurrency: String?
+    let dataJson: String
+}
+
 // MARK: - Column Definitions (Type-safe)
 
 /// Type-safe column definitions for catalog_items table
@@ -221,11 +263,13 @@ enum ItemVariationColumns {
     static let updatedAt = Expression<String>("updated_at")
     static let version = Expression<String>("version")
     static let isDeleted = Expression<Bool>("is_deleted")
-    static let itemId = Expression<String>("item_id")
+    static let itemId = Expression<String?>("item_id")
     static let name = Expression<String?>("name")
     static let sku = Expression<String?>("sku")
+    static let upc = Expression<String?>("upc")
+    static let ordinal = Expression<Int?>("ordinal")
     static let pricingType = Expression<String?>("pricing_type")
-    static let priceAmount = Expression<Int?>("price_amount")
+    static let priceAmount = Expression<Int64?>("price_amount")
     static let priceCurrency = Expression<String?>("price_currency")
     static let dataJson = Expression<String>("data_json")
 }
@@ -239,6 +283,8 @@ enum CategoryColumns {
     static let name = Expression<String?>("name")
     static let dataJson = Expression<String>("data_json")
 }
+
+
 
 /// Type-safe column definitions for team_data table
 enum TeamDataColumns {

@@ -130,7 +130,8 @@ class EnhancedSearchService: ObservableObject {
                         resultCount: results.count,
                         duration: Date().timeIntervalSince(startTime),
                         cacheHit: false,
-                        searchId: searchId
+                        searchId: searchId,
+                        timestamp: Date()
                     )
                     
                     await cacheManager.cacheResults(
@@ -281,7 +282,8 @@ class EnhancedSearchService: ObservableObject {
                     resultCount: results.count,
                     duration: 0,
                     cacheHit: false,
-                    searchId: "preload-\(UUID().uuidString)"
+                    searchId: "preload-\(UUID().uuidString)",
+                    timestamp: Date()
                 )
                 
                 await cacheManager.cacheResults(
@@ -339,7 +341,7 @@ struct SearchMetrics: Codable {
     let duration: TimeInterval
     let cacheHit: Bool
     let searchId: String
-    let timestamp: Date = Date()
+    let timestamp: Date
 }
 
 struct CachedSearchResult: Codable {

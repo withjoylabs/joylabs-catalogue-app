@@ -20,15 +20,11 @@ struct SquareIntegrationView: View {
     
     init() {
         let databaseManager = ResilientDatabaseManager()
-        
-        let catalogSyncService = CatalogSyncService(
-            squareAPIService: SquareAPIServiceFactory.createService(),
-            databaseManager: databaseManager
-        )
-        
-        _syncCoordinator = StateObject(wrappedValue: SquareSyncCoordinator(
-            catalogSyncService: catalogSyncService,
-            squareAPIService: SquareAPIServiceFactory.createService()
+        let squareService = SquareAPIServiceFactory.createService()
+
+        _syncCoordinator = StateObject(wrappedValue: SquareSyncCoordinator.createCoordinator(
+            databaseManager: databaseManager,
+            squareAPIService: squareService
         ))
     }
     

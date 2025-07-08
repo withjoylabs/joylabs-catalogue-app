@@ -219,7 +219,11 @@ struct OAuthURLBuilder {
         var state: String?
         var error: String?
         var errorDescription: String?
-        
+        var accessToken: String?
+        var refreshToken: String?
+        var merchantId: String?
+        var businessName: String?
+
         for item in queryItems {
             switch item.name {
             case "code":
@@ -230,6 +234,14 @@ struct OAuthURLBuilder {
                 error = item.value
             case "error_description":
                 errorDescription = item.value
+            case "access_token":
+                accessToken = item.value
+            case "refresh_token":
+                refreshToken = item.value
+            case "merchant_id":
+                merchantId = item.value
+            case "business_name":
+                businessName = item.value?.removingPercentEncoding
             default:
                 break
             }
@@ -240,15 +252,26 @@ struct OAuthURLBuilder {
             logger.error("OAuth callback error: \(error)")
             return .error(error, errorDescription)
         }
-        
-        // Validate required parameters
-        guard let authCode = code, let stateParam = state else {
-            logger.error("Missing required parameters in callback URL")
-            return .error("invalid_request", "Missing code or state parameter")
+
+        // Check for direct token callback (new flow)
+        if let accessToken = accessToken {
+            logger.info("Direct token callback detected")
+            return .directTokens(
+                accessToken: accessToken,
+                refreshToken: refreshToken,
+                merchantId: merchantId,
+                businessName: businessName
+            )
         }
-        
-        logger.info("Successfully parsed callback URL - state: \(stateParam)")
-        return .success(code: authCode, state: stateParam)
+
+        // Check for authorization code callback (original flow)
+        if let authCode = code, let stateParam = state {
+            logger.info("Authorization code callback detected - state: \(stateParam)")
+            return .success(code: authCode, state: stateParam)
+        }
+
+        logger.error("Missing required parameters in callback URL")
+        return .error("invalid_request", "Missing code/state or access_token parameters")
     }
 }
 
@@ -256,11 +279,12 @@ struct OAuthURLBuilder {
 
 enum CallbackResult {
     case success(code: String, state: String)
+    case directTokens(accessToken: String, refreshToken: String?, merchantId: String?, businessName: String?)
     case error(String, String?)
-    
+
     var isSuccess: Bool {
         switch self {
-        case .success:
+        case .success, .directTokens:
             return true
         case .error:
             return false

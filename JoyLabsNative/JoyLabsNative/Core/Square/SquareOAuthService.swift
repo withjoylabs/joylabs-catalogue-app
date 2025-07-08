@@ -12,6 +12,7 @@ class SquareOAuthService: NSObject, ObservableObject {
     @Published var isAuthenticating = false
     @Published var authenticationError: Error?
     @Published var isAuthenticated = false
+    @Published var lastTokenResponse: TokenResponse?
     
     // MARK: - Dependencies
     
@@ -50,8 +51,8 @@ class SquareOAuthService: NSObject, ObservableObject {
             let oauthState = await stateManager.createOAuthState()
             currentOAuthState = oauthState
             
-            // Register state with backend
-            try await registerStateWithBackend(oauthState)
+            // Skip backend registration for performance - direct token flow doesn't need it
+            // try await registerStateWithBackend(oauthState)
             
             // Build authorization URL
             guard let authURL = OAuthURLBuilder.buildAuthorizationURL(oauthState: oauthState) else {
@@ -80,7 +81,15 @@ class SquareOAuthService: NSObject, ObservableObject {
         switch callbackResult {
         case .success(let code, let state):
             return try await processSuccessfulCallback(code: code, state: state)
-            
+
+        case .directTokens(let accessToken, let refreshToken, let merchantId, let businessName):
+            return try await processDirectTokenCallback(
+                accessToken: accessToken,
+                refreshToken: refreshToken,
+                merchantId: merchantId,
+                businessName: businessName
+            )
+
         case .error(let error, let description):
             logger.error("OAuth callback error: \(error) - \(description ?? "no description")")
             throw OAuthError.serverError(description ?? error)
@@ -145,7 +154,7 @@ class SquareOAuthService: NSObject, ObservableObject {
                     }
                     
                     do {
-                        let tokenResponse = try await self?.handleCallback(url: callbackURL)
+                        _ = try await self?.handleCallback(url: callbackURL)
                         self?.isAuthenticated = true
                         continuation.resume()
                     } catch {
@@ -186,11 +195,48 @@ class SquareOAuthService: NSObject, ObservableObject {
             codeVerifier: oauthState.codeVerifier
         )
         
+        // Store token response
+        lastTokenResponse = tokenResponse
+        isAuthenticated = true
+
         // Clear OAuth state
         await stateManager.clearOAuthState()
         currentOAuthState = nil
-        
+
         logger.info("OAuth flow completed successfully")
+        return tokenResponse
+    }
+
+    private func processDirectTokenCallback(
+        accessToken: String,
+        refreshToken: String?,
+        merchantId: String?,
+        businessName: String?
+    ) async throws -> TokenResponse {
+        logger.debug("Processing direct token callback")
+
+        // Create token response from direct tokens
+        let tokenResponse = TokenResponse(
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+            expiresIn: nil, // Not provided in direct callback
+            merchantId: merchantId,
+            businessName: businessName,
+            tokenType: "Bearer"
+        )
+
+        // Store token response and update authentication state
+        lastTokenResponse = tokenResponse
+        isAuthenticated = true
+
+        // Store tokens securely
+        // TODO: Implement token storage when TokenService is ready
+
+        // Clear OAuth state
+        await stateManager.clearOAuthState()
+        currentOAuthState = nil
+
+        logger.info("Direct token callback processed successfully")
         return tokenResponse
     }
 }

@@ -145,6 +145,141 @@ class ResilientDatabaseManager: ObservableObject {
             return try await db.getAllCatalogObjectIds()
         }
     }
+
+    // MARK: - Catalog Item Operations
+
+    /// Insert catalog item row
+    func insertCatalogItem(_ item: CatalogItemRow) async throws {
+        try await executeWithRetry(operation: "insertCatalogItem") {
+            let db = await getOrCreateEnhancedDB()
+            try await db.initializeDatabase()
+            // Convert CatalogItemRow to CatalogObject for insertion
+            let catalogObject = try self.convertItemRowToCatalogObject(item)
+            try await db.insertCatalogObject(catalogObject)
+        }
+    }
+
+    /// Update catalog item row
+    func updateCatalogItem(_ item: CatalogItemRow) async throws {
+        try await executeWithRetry(operation: "updateCatalogItem") {
+            let db = await getOrCreateEnhancedDB()
+            try await db.initializeDatabase()
+            // Convert CatalogItemRow to CatalogObject for update
+            let catalogObject = try self.convertItemRowToCatalogObject(item)
+            try await db.updateCatalogObject(catalogObject)
+        }
+    }
+
+    /// Get catalog item by ID
+    func getCatalogItem(id: String) async throws -> CatalogItemRow? {
+        return try await executeWithRetry(operation: "getCatalogItem") {
+            let db = await getOrCreateEnhancedDB()
+            try await db.initializeDatabase()
+            if let catalogObject = try await db.getCatalogObject(id: id) {
+                return try self.convertCatalogObjectToItemRow(catalogObject)
+            }
+            return nil
+        }
+    }
+
+    /// Delete catalog item by ID
+    func deleteCatalogItem(id: String) async throws {
+        try await executeWithRetry(operation: "deleteCatalogItem") {
+            let db = await getOrCreateEnhancedDB()
+            try await db.initializeDatabase()
+            try await db.deleteCatalogObject(id: id)
+        }
+    }
+
+    // MARK: - Category Operations
+
+    /// Insert category row
+    func insertCategory(_ category: CategoryRow) async throws {
+        try await executeWithRetry(operation: "insertCategory") {
+            let db = await getOrCreateEnhancedDB()
+            try await db.initializeDatabase()
+            // Convert CategoryRow to CatalogObject for insertion
+            let catalogObject = try self.convertCategoryRowToCatalogObject(category)
+            try await db.insertCatalogObject(catalogObject)
+        }
+    }
+
+    /// Update category row
+    func updateCategory(_ category: CategoryRow) async throws {
+        try await executeWithRetry(operation: "updateCategory") {
+            let db = await getOrCreateEnhancedDB()
+            try await db.initializeDatabase()
+            // Convert CategoryRow to CatalogObject for update
+            let catalogObject = try self.convertCategoryRowToCatalogObject(category)
+            try await db.updateCatalogObject(catalogObject)
+        }
+    }
+
+    /// Get category by ID
+    func getCategory(id: String) async throws -> CategoryRow? {
+        return try await executeWithRetry(operation: "getCategory") {
+            let db = await getOrCreateEnhancedDB()
+            try await db.initializeDatabase()
+            if let catalogObject = try await db.getCatalogObject(id: id) {
+                return try self.convertCatalogObjectToCategoryRow(catalogObject)
+            }
+            return nil
+        }
+    }
+
+    /// Delete category by ID
+    func deleteCategory(id: String) async throws {
+        try await executeWithRetry(operation: "deleteCategory") {
+            let db = await getOrCreateEnhancedDB()
+            try await db.initializeDatabase()
+            try await db.deleteCatalogObject(id: id)
+        }
+    }
+
+    // MARK: - Item Variation Operations
+
+    /// Insert item variation row
+    func insertItemVariation(_ variation: ItemVariationRow) async throws {
+        try await executeWithRetry(operation: "insertItemVariation") {
+            let db = await getOrCreateEnhancedDB()
+            try await db.initializeDatabase()
+            // Convert ItemVariationRow to CatalogObject for insertion
+            let catalogObject = try self.convertVariationRowToCatalogObject(variation)
+            try await db.insertCatalogObject(catalogObject)
+        }
+    }
+
+    /// Update item variation row
+    func updateItemVariation(_ variation: ItemVariationRow) async throws {
+        try await executeWithRetry(operation: "updateItemVariation") {
+            let db = await getOrCreateEnhancedDB()
+            try await db.initializeDatabase()
+            // Convert ItemVariationRow to CatalogObject for update
+            let catalogObject = try self.convertVariationRowToCatalogObject(variation)
+            try await db.updateCatalogObject(catalogObject)
+        }
+    }
+
+    /// Get item variation by ID
+    func getItemVariation(id: String) async throws -> ItemVariationRow? {
+        return try await executeWithRetry(operation: "getItemVariation") {
+            let db = await getOrCreateEnhancedDB()
+            try await db.initializeDatabase()
+            if let catalogObject = try await db.getCatalogObject(id: id) {
+                return try self.convertCatalogObjectToVariationRow(catalogObject)
+            }
+            return nil
+        }
+    }
+
+    /// Delete item variation by ID
+    func deleteItemVariation(id: String) async throws {
+        try await executeWithRetry(operation: "deleteItemVariation") {
+            let db = await getOrCreateEnhancedDB()
+            try await db.initializeDatabase()
+            try await db.deleteCatalogObject(id: id)
+        }
+    }
     
     /// Safely search products with input sanitization and retry
     func searchProducts(_ query: String) async throws -> [SearchResultItem] {
@@ -357,5 +492,118 @@ enum ResilientDatabaseError: LocalizedError {
         case .maxRetriesExceeded(let operation):
             return "Maximum retries exceeded for operation: \(operation)"
         }
+    }
+}
+
+// MARK: - ResilientDatabaseManager Extensions
+
+extension ResilientDatabaseManager {
+
+    // MARK: - Row Conversion Methods
+
+    /// Convert CatalogItemRow to CatalogObject
+    private func convertItemRowToCatalogObject(_ item: CatalogItemRow) throws -> CatalogObject {
+        // Try to decode from JSON first
+        if let data = item.dataJson.data(using: .utf8) {
+            let decoder = JSONDecoder()
+            if let catalogObject = try? decoder.decode(CatalogObject.self, from: data) {
+                return catalogObject
+            }
+        }
+
+        // If JSON decoding fails, throw an error for now
+        throw ResilientDatabaseError.operationFailed("convertItemRowToCatalogObject", NSError(domain: "ConversionError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to convert CatalogItemRow to CatalogObject"]))
+    }
+
+    /// Convert CatalogObject to CatalogItemRow
+    private func convertCatalogObjectToItemRow(_ object: CatalogObject) throws -> CatalogItemRow? {
+        guard object.type == "ITEM" else { return nil }
+
+        let encoder = JSONEncoder()
+        let jsonData = try encoder.encode(object)
+        let jsonString = String(data: jsonData, encoding: .utf8) ?? "{}"
+
+        return CatalogItemRow(
+            id: object.id,
+            updatedAt: object.updatedAt,
+            version: String(object.version ?? 0),
+            isDeleted: object.isDeleted ? 1 : 0,
+            presentAtAllLocations: object.presentAtAllLocations ? 1 : 0,
+            name: object.itemData?.name,
+            description: object.itemData?.description,
+            categoryId: object.itemData?.categoryId,
+            dataJson: jsonString
+        )
+    }
+
+    /// Convert CategoryRow to CatalogObject
+    private func convertCategoryRowToCatalogObject(_ category: CategoryRow) throws -> CatalogObject {
+        // Try to decode from JSON first
+        if let data = category.dataJson.data(using: .utf8) {
+            let decoder = JSONDecoder()
+            if let catalogObject = try? decoder.decode(CatalogObject.self, from: data) {
+                return catalogObject
+            }
+        }
+
+        // If JSON decoding fails, throw an error for now
+        throw ResilientDatabaseError.operationFailed("convertCategoryRowToCatalogObject", NSError(domain: "ConversionError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to convert CategoryRow to CatalogObject"]))
+    }
+
+    /// Convert CatalogObject to CategoryRow
+    private func convertCatalogObjectToCategoryRow(_ object: CatalogObject) throws -> CategoryRow? {
+        guard object.type == "CATEGORY" else { return nil }
+
+        let encoder = JSONEncoder()
+        let jsonData = try encoder.encode(object)
+        let jsonString = String(data: jsonData, encoding: .utf8) ?? "{}"
+
+        return CategoryRow(
+            id: object.id,
+            updatedAt: object.updatedAt,
+            version: String(object.version ?? 0),
+            isDeleted: object.isDeleted ? 1 : 0,
+            name: object.categoryData?.name,
+            dataJson: jsonString
+        )
+    }
+
+    /// Convert ItemVariationRow to CatalogObject
+    private func convertVariationRowToCatalogObject(_ variation: ItemVariationRow) throws -> CatalogObject {
+        // Try to decode from JSON first
+        if let data = variation.dataJson.data(using: .utf8) {
+            let decoder = JSONDecoder()
+            if let catalogObject = try? decoder.decode(CatalogObject.self, from: data) {
+                return catalogObject
+            }
+        }
+
+        // If JSON decoding fails, throw an error for now
+        throw ResilientDatabaseError.operationFailed("convertVariationRowToCatalogObject", NSError(domain: "ConversionError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to convert ItemVariationRow to CatalogObject"]))
+    }
+
+    /// Convert CatalogObject to ItemVariationRow
+    private func convertCatalogObjectToVariationRow(_ object: CatalogObject) throws -> ItemVariationRow? {
+        guard object.type == "ITEM_VARIATION" else { return nil }
+
+        let encoder = JSONEncoder()
+        let jsonData = try encoder.encode(object)
+        let jsonString = String(data: jsonData, encoding: .utf8) ?? "{}"
+
+        return ItemVariationRow(
+            id: object.id,
+            updatedAt: object.updatedAt,
+            version: String(object.version ?? 0),
+            isDeleted: object.isDeleted ? 1 : 0,
+            itemId: object.itemVariationData?.itemId,
+            name: object.itemVariationData?.name,
+            sku: object.itemVariationData?.sku,
+            upc: object.itemVariationData?.upc,
+            ordinal: object.itemVariationData?.ordinal,
+            pricingType: object.itemVariationData?.pricingType,
+            priceAmount: object.itemVariationData?.priceMoney?.amount != nil ? Int64(object.itemVariationData!.priceMoney!.amount!) : nil,
+            priceCurrency: object.itemVariationData?.priceMoney?.currency,
+            dataJson: jsonString
+        )
     }
 }

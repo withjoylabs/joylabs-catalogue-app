@@ -158,17 +158,14 @@ actor TokenService {
     }
     
     private func performTokenRefresh(_ tokenData: TokenData) async throws -> TokenData {
-        guard let refreshToken = tokenData.refreshToken else {
+        guard tokenData.refreshToken != nil else {
             logger.error("No refresh token available")
             throw TokenError.noRefreshToken
         }
-        
+
         // Temporarily disable token refresh until HTTP client is available
         logger.error("Token refresh not implemented yet")
         throw TokenError.refreshFailed(NSError(domain: "TokenService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Token refresh not implemented"]))
-        
-        // This will be implemented when HTTP client is available
-        fatalError("Token refresh not implemented")
     }
     
     private func calculateExpiryDate(from expiresIn: Int?) -> Date? {

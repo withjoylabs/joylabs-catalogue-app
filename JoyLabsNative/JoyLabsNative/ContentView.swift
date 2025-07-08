@@ -1074,11 +1074,24 @@ struct LabelsView: View {
 }
 
 struct ProfileView: View {
-    @State private var isSquareConnected = false
-    @State private var lastSyncDate: Date? = nil
+    @StateObject private var squareAPIService = SquareAPIServiceFactory.createService()
+    @StateObject private var syncCoordinator: SquareSyncCoordinator
+    @State private var showingSquareIntegration = false
     @State private var showingSignOutAlert = false
     @State private var userName = "Store Manager"
     @State private var userEmail = "manager@joylabs.com"
+    @State private var alertMessage = ""
+    @State private var showingAlert = false
+
+    init() {
+        let databaseManager = ResilientDatabaseManager()
+        let squareService = SquareAPIServiceFactory.createService()
+
+        _syncCoordinator = StateObject(wrappedValue: SquareSyncCoordinator.createCoordinator(
+            databaseManager: databaseManager,
+            squareAPIService: squareService
+        ))
+    }
 
     var body: some View {
         NavigationView {
@@ -1136,17 +1149,37 @@ struct ProfileView: View {
                         IntegrationCard(
                             icon: "square.and.arrow.up",
                             title: "Square Integration",
-                            subtitle: isSquareConnected ? "Connected" : "Not connected",
-                            status: isSquareConnected ? .connected : .disconnected,
-                            action: { toggleSquareConnection() }
+                            subtitle: squareAPIService.isAuthenticated ?
+                                (squareAPIService.currentMerchant?.displayName ?? "Connected to Square") :
+                                "Not connected",
+                            status: squareAPIService.isAuthenticated ? .connected : .disconnected,
+                            action: {
+                                if squareAPIService.isAuthenticated {
+                                    showingSquareIntegration = true
+                                } else {
+                                    Task {
+                                        do {
+                                            try await squareAPIService.authenticate()
+                                            // Don't show success alert here - wait for actual completion
+                                        } catch {
+                                            alertMessage = "Failed to connect to Square: \(error.localizedDescription)"
+                                            showingAlert = true
+                                        }
+                                    }
+                                }
+                            }
                         )
 
                         IntegrationCard(
                             icon: "cloud.fill",
-                            title: "Cloud Sync",
-                            subtitle: lastSyncDate != nil ? "Last synced: \(formatDate(lastSyncDate!))" : "Never synced",
-                            status: lastSyncDate != nil ? .connected : .warning,
-                            action: { performSync() }
+                            title: "Catalog Sync",
+                            subtitle: syncCoordinator.timeSinceLastSync ?? "Never synced",
+                            status: syncCoordinator.syncState == .completed ? .connected : .warning,
+                            action: {
+                                Task {
+                                    await performCatalogSync()
+                                }
+                            }
                         )
                     }
                     .padding(.horizontal, 20)
@@ -1202,6 +1235,16 @@ struct ProfileView: View {
                 }
             }
             .navigationBarHidden(true)
+            .sheet(isPresented: $showingSquareIntegration) {
+                SimpleSquareConnectionSheet(
+                    squareAPIService: squareAPIService,
+                    onDismiss: { showingSquareIntegration = false },
+                    onResult: { message in
+                        alertMessage = message
+                        showingAlert = true
+                    }
+                )
+            }
             .alert("Sign Out", isPresented: $showingSignOutAlert) {
                 Button("Cancel", role: .cancel) { }
                 Button("Sign Out", role: .destructive) {
@@ -1210,15 +1253,43 @@ struct ProfileView: View {
             } message: {
                 Text("Are you sure you want to sign out?")
             }
+            .alert("Profile", isPresented: $showingAlert) {
+                Button("OK") { }
+            } message: {
+                Text(alertMessage)
+            }
+            .onAppear {
+                Task {
+                    await squareAPIService.checkAuthenticationState()
+                }
+            }
         }
     }
 
-    private func toggleSquareConnection() {
-        isSquareConnected.toggle()
-    }
+    private func performCatalogSync() async {
+        await syncCoordinator.triggerSync()
 
-    private func performSync() {
-        lastSyncDate = Date()
+        // Check the sync state after triggering
+        switch syncCoordinator.syncState {
+        case .completed:
+            if let result = syncCoordinator.lastSyncResult {
+                alertMessage = "Catalog sync completed successfully. Processed \(result.totalProcessed) items."
+            } else {
+                alertMessage = "Catalog sync completed successfully."
+            }
+        case .failed:
+            if let error = syncCoordinator.error {
+                alertMessage = "Catalog sync failed: \(error.localizedDescription)"
+            } else {
+                alertMessage = "Catalog sync failed with unknown error."
+            }
+        case .syncing:
+            alertMessage = "Catalog sync is in progress..."
+        case .idle:
+            alertMessage = "Catalog sync initiated."
+        }
+
+        showingAlert = true
     }
 
     private func formatDate(_ date: Date) -> String {
@@ -1352,6 +1423,79 @@ struct SettingsRow: View {
             )
         }
         .buttonStyle(PlainButtonStyle())
+    }
+}
+
+// MARK: - Simple Square Connection Sheet
+struct SimpleSquareConnectionSheet: View {
+    let squareAPIService: SquareAPIService
+    let onDismiss: () -> Void
+    let onResult: (String) -> Void
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("Square Integration")
+                .font(.title2)
+                .fontWeight(.bold)
+
+            if squareAPIService.isAuthenticated {
+                VStack(spacing: 12) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 40))
+                        .foregroundColor(.green)
+                    Text("Connected to Square")
+                        .font(.headline)
+
+                    if let merchant = squareAPIService.currentMerchant {
+                        VStack(spacing: 4) {
+                            Text(merchant.displayName)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                            Text("Merchant ID: \(merchant.id)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+
+                Button("Disconnect") {
+                    Task {
+                        try? await squareAPIService.signOut()
+                        onResult("Disconnected from Square")
+                        onDismiss()
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.red)
+            } else {
+                VStack(spacing: 12) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 40))
+                        .foregroundColor(.blue)
+                    Text("Not Connected")
+                        .font(.headline)
+                }
+
+                Button("Connect to Square") {
+                    Task {
+                        do {
+                            try await squareAPIService.authenticate()
+                            onResult("Successfully connected to Square!")
+                            onDismiss()
+                        } catch {
+                            onResult("Failed to connect: \(error.localizedDescription)")
+                        }
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+            }
+
+            Button("Cancel") {
+                onDismiss()
+            }
+            .foregroundColor(.secondary)
+        }
+        .padding()
     }
 }
 

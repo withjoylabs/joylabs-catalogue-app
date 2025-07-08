@@ -289,7 +289,7 @@ class EnhancedDatabaseManager: ObservableObject {
             object.id,
             object.type,
             object.version ?? 0,
-            object.isDeleted ?? false,
+            object.isDeleted,
             extractName(from: object),
             extractCategoryId(from: object),
             extractSKU(from: object),
@@ -313,10 +313,14 @@ class EnhancedDatabaseManager: ObservableObject {
             throw DatabaseError.connectionNotAvailable
         }
 
-        let sql = "SELECT raw_data FROM catalog_objects WHERE id = ?"
+        let rawDataColumn = Expression<Data>("raw_data")
+        let table = Table("catalog_objects")
+        let idColumn = Expression<String>("id")
 
-        for row in try db.prepare(sql, id) {
-            let rawData = row[0] as! Data
+        let query = table.select(rawDataColumn).where(idColumn == id)
+
+        for row in try db.prepare(query) {
+            let rawData = try row.get(rawDataColumn)
             return try JSONDecoder().decode(CatalogObject.self, from: rawData)
         }
 

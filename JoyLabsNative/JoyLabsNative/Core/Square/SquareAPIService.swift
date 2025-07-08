@@ -1,6 +1,19 @@
 import Foundation
 import OSLog
 
+// MARK: - Authentication State
+
+enum AuthenticationState {
+    case unauthenticated
+    case authenticating
+    case authenticated
+    case failed
+
+    var isInProgress: Bool {
+        return self == .authenticating
+    }
+}
+
 // MARK: - Temporary Model Definitions (until proper models are added)
 
 struct SquareCatalogResponse: Codable {
@@ -29,42 +42,113 @@ class SquareAPIService: ObservableObject {
     @Published var error: Error?
     
     // MARK: - Dependencies
-    
-    private let httpClient: AnyObject // Will be SquareHTTPClient when available
+
+    private let httpClient: SquareHTTPClient
     private let tokenService: TokenService
-    private let oauthFlowManager: AnyObject // Will be SquareOAuthFlowManager when available
-    private let resilienceService: AnyObject // Will be ResilienceService when available
+    private let oauthService: SquareOAuthService
+    private let resilienceService: any ResilienceService
     private let logger = Logger(subsystem: "com.joylabs.native", category: "SquareAPIService")
     
     // MARK: - Initialization
-    
+
     init() {
-        self.resilienceService = NSObject() // Placeholder
-        self.httpClient = NSObject() // Placeholder
+        self.resilienceService = BasicResilienceService()
         self.tokenService = TokenService()
-        self.oauthFlowManager = NSObject() // Placeholder
-        
-        logger.info("SquareAPIService initialized")
-        
+        self.httpClient = SquareHTTPClient(tokenService: self.tokenService, resilienceService: BasicResilienceService())
+        self.oauthService = SquareOAuthService(httpClient: self.httpClient)
+
+        logger.info("SquareAPIService initialized with resilience integration")
+
         // Check initial authentication state
         Task {
             await checkAuthenticationState()
         }
+
+        // Set up authentication state monitoring
+        setupAuthenticationMonitoring()
     }
-    
+
+    private func setupAuthenticationMonitoring() {
+        // Set up a simple callback-based approach instead of polling
+        // This will be triggered when OAuth completes
+    }
+
     // MARK: - Authentication Methods
-    
-    /// Start Square OAuth authentication flow
+
+    private func fetchMerchantInfo() async {
+        do {
+            // Get merchant info from the OAuth service's last token response
+            if let tokenResponse = oauthService.lastTokenResponse {
+                currentMerchant = MerchantInfo(
+                    id: tokenResponse.merchantId ?? "unknown_merchant",
+                    businessName: tokenResponse.businessName ?? "Square Account"
+                )
+                logger.info("Merchant info fetched from OAuth response: \(tokenResponse.merchantId ?? "unknown")")
+            } else {
+                // Fallback if no token response available
+                currentMerchant = MerchantInfo(
+                    id: "unknown_merchant",
+                    businessName: "Square Account"
+                )
+                logger.warning("No token response available, using fallback merchant info")
+            }
+        } catch {
+            logger.error("Failed to fetch merchant info: \(error.localizedDescription)")
+        }
+    }
+
+    /// Start Square OAuth authentication flow with resilience
     func authenticate() async throws {
-        logger.info("Starting Square authentication")
-        
+        logger.info("Starting Square authentication with resilience")
+
         authenticationState = .authenticating
         error = nil
-        
-        // Temporarily disable OAuth flow
-        logger.info("OAuth flow not implemented yet")
-        authenticationState = .failed
-        error = NSError(domain: "SquareAPIService", code: -1, userInfo: [NSLocalizedDescriptionKey: "OAuth flow not implemented"])
+
+        do {
+            let _: Void = try await resilienceService.executeResilient(
+                operationId: "square_oauth_authentication",
+                operation: {
+                    // Start the actual OAuth flow
+                    try await self.oauthService.startAuthorization()
+                },
+                fallback: (), // No fallback value for Void
+                degradationStrategy: .returnCached
+            )
+
+            // Update authentication state based on OAuth result
+            if oauthService.isAuthenticated {
+                authenticationState = .authenticated
+                isAuthenticated = true
+                await fetchMerchantInfo()
+            }
+        } catch {
+            logger.error("Authentication failed: \(error.localizedDescription)")
+            authenticationState = .failed
+            self.error = error
+            throw error
+        }
+    }
+
+    /// Check for cached authentication credentials
+    private func checkCachedAuthentication() async {
+        logger.info("Checking cached authentication")
+
+        do {
+            _ = try await tokenService.getCurrentTokenData()
+            authenticationState = .authenticated
+            isAuthenticated = true
+            logger.info("Found valid cached authentication")
+        } catch {
+            logger.error("Error checking cached authentication: \(error.localizedDescription)")
+            authenticationState = .unauthenticated
+            isAuthenticated = false
+            logger.info("No valid cached authentication found")
+        }
+    }
+
+    /// Public method to check authentication state
+    func checkAuthenticationState() async {
+        await checkCachedAuthentication()
     }
     
     /// Handle deep link callback from OAuth flow
@@ -89,57 +173,62 @@ class SquareAPIService: ObservableObject {
         
         logger.info("User signed out successfully")
     }
-    
-    /// Check current authentication state
-    func checkAuthenticationState() async {
-        logger.debug("Checking authentication state")
-        
-        let authenticated = await tokenService.isAuthenticated()
-        
-        if authenticated {
-            do {
-                let tokenData = try await tokenService.getCurrentTokenData()
-                await updateAuthenticatedState(tokenData)
-            } catch {
-                logger.error("Failed to load token data: \(error.localizedDescription)")
-                authenticationState = .unauthenticated
-                isAuthenticated = false
-            }
-        } else {
-            authenticationState = .unauthenticated
-            isAuthenticated = false
-        }
-    }
+
+
+
     
     // MARK: - Catalog API Methods
     
-    /// Fetch complete catalog from Square
+    /// Fetch complete catalog from Square with resilience
     func fetchCatalog() async throws -> [CatalogObject] {
-        logger.info("Fetching complete catalog from Square")
-        
+        logger.info("Fetching complete catalog from Square with resilience")
+
         guard isAuthenticated else {
-            throw NSError(domain: "SquareAPIService", code: -1, userInfo: [NSLocalizedDescriptionKey: "No access token"])
+            throw SquareAPIError.authenticationFailed
         }
-        
+
+        return try await resilienceService.executeResilient(
+            operationId: "square_catalog_fetch",
+            operation: {
+                return try await self.performCatalogFetch()
+            },
+            fallback: [], // Empty array as fallback
+            degradationStrategy: .returnCached
+        )
+    }
+
+    /// Perform the actual catalog fetch operation
+    private func performCatalogFetch() async throws -> [CatalogObject] {
         var allObjects: [CatalogObject] = []
         var cursor: String?
-        
+
         repeat {
-            // Temporarily return empty response until HTTP client is implemented
-            let response = SquareCatalogResponse(objects: [], cursor: nil, relatedObjects: [])
-            
+            let response = try await httpClient.makeSquareAPIRequest(
+                endpoint: "catalog/list",
+                method: .GET,
+                body: nil,
+                responseType: SquareCatalogResponse.self
+            )
+
             if let objects = response.objects {
                 allObjects.append(contentsOf: objects)
             }
-            
+
             cursor = response.cursor
-            
+
         } while cursor != nil
-        
+
         logger.info("Fetched \(allObjects.count) catalog objects")
         lastSyncDate = Date()
-        
+
         return allObjects
+    }
+
+    /// Get cached catalog data as fallback
+    private func getCachedCatalog() async -> [CatalogObject] {
+        logger.info("Using cached catalog data as fallback")
+        // This would integrate with the database manager to get cached data
+        return []
     }
     
     /// Search catalog objects with timestamp filter
@@ -223,29 +312,7 @@ class SquareAPIService: ObservableObject {
 
 // MARK: - Authentication State
 
-enum AuthenticationState {
-    case unauthenticated
-    case authenticating
-    case authenticated
-    case failed
-    
-    var description: String {
-        switch self {
-        case .unauthenticated:
-            return "Not authenticated"
-        case .authenticating:
-            return "Authenticating..."
-        case .authenticated:
-            return "Authenticated"
-        case .failed:
-            return "Authentication failed"
-        }
-    }
-    
-    var isInProgress: Bool {
-        return self == .authenticating
-    }
-}
+
 
 // MARK: - Merchant Info Model
 

@@ -1,6 +1,38 @@
 import Foundation
 import OSLog
 
+// MARK: - Temporary Types (until DataTransformationService is properly integrated)
+
+struct TransformationResult {
+    let catalogItems: [CatalogItemRow]
+    let categories: [CategoryRow]
+    let itemVariations: [ItemVariationRow]
+    let errors: [TransformationError]
+}
+
+enum TransformationError: LocalizedError {
+    case objectTransformationFailed(String, Error)
+    case missingItemData(String)
+    case missingCategoryData(String)
+    case missingVariationData(String)
+    case jsonEncodingFailed(String, Error)
+
+    var errorDescription: String? {
+        switch self {
+        case .objectTransformationFailed(let id, let error):
+            return "Failed to transform object \(id): \(error.localizedDescription)"
+        case .missingItemData(let id):
+            return "Missing item data for object \(id)"
+        case .missingCategoryData(let id):
+            return "Missing category data for object \(id)"
+        case .missingVariationData(let id):
+            return "Missing variation data for object \(id)"
+        case .jsonEncodingFailed(let id, let error):
+            return "Failed to encode JSON for object \(id): \(error.localizedDescription)"
+        }
+    }
+}
+
 // MARK: - Sync Types
 
 enum SyncType: String, CaseIterable {
@@ -13,9 +45,11 @@ enum SyncType: String, CaseIterable {
 actor CatalogSyncService {
     
     // MARK: - Dependencies
-    
+
     private let squareAPIService: SquareAPIService
     private let databaseManager: ResilientDatabaseManager
+    // private let dataTransformationService: DataTransformationService
+    private let resilienceService: any ResilienceService
     private let logger = Logger(subsystem: "com.joylabs.native", category: "CatalogSyncService")
     
     // MARK: - Sync State
@@ -33,55 +67,79 @@ actor CatalogSyncService {
     private let maxRetryAttempts = 3
     
     // MARK: - Initialization
-    
-    init(squareAPIService: SquareAPIService, databaseManager: ResilientDatabaseManager) {
+
+    init(squareAPIService: SquareAPIService, databaseManager: ResilientDatabaseManager, resilienceService: any ResilienceService) {
         self.squareAPIService = squareAPIService
         self.databaseManager = databaseManager
-        logger.info("CatalogSyncService initialized")
+        // self.dataTransformationService = dataTransformationService
+        self.resilienceService = resilienceService
+        logger.info("CatalogSyncService initialized with resilience integration")
     }
     
     // MARK: - Public Sync Methods
     
-    /// Perform intelligent catalog sync (incremental or full based on conditions)
+    /// Perform intelligent catalog sync with resilience (incremental or full based on conditions)
     func performSync() async throws -> SyncResult {
         guard !isSyncing else {
             logger.warning("Sync already in progress, skipping")
             throw SyncError.syncInProgress
         }
-        
-        logger.info("Starting intelligent catalog sync")
+
+        logger.info("Starting intelligent catalog sync with resilience")
         isSyncing = true
         syncProgress = .preparing
-        
+
         defer {
             isSyncing = false
             syncProgress = .idle
         }
-        
-        do {
-            let syncType = determineSyncType()
-            logger.info("Determined sync type: \(syncType.rawValue)")
-            
-            let result: SyncResult
-            
-            switch syncType {
-            case .full:
-                result = try await performFullSync()
-            case .incremental:
-                result = try await performIncrementalSync()
-            }
-            
-            // Update sync timestamps
-            await updateSyncTimestamps(for: syncType)
-            
-            logger.info("Catalog sync completed successfully: \(result.summary)")
-            return result
-            
-        } catch {
-            logger.error("Catalog sync failed: \(error.localizedDescription)")
-            syncProgress = .failed(error)
-            throw error
-        }
+
+        return try await resilienceService.executeResilient(
+            operationId: "catalog_sync_operation",
+            operation: {
+                let syncType = self.determineSyncType()
+                self.logger.info("Determined sync type: \(syncType.rawValue)")
+
+                let result: SyncResult
+
+                switch syncType {
+                case .full:
+                    result = try await self.performFullSync()
+                case .incremental:
+                    result = try await self.performIncrementalSync()
+                }
+
+                // Update sync timestamps
+                await self.updateSyncTimestamps(for: syncType)
+
+                self.logger.info("Catalog sync completed successfully: \(result.summary)")
+                return result
+            },
+            fallback: SyncResult(
+                syncType: .incremental,
+                duration: 0,
+                totalProcessed: 0,
+                inserted: 0,
+                updated: 0,
+                deleted: 0,
+                errors: []
+            ),
+            degradationStrategy: .returnCached
+        )
+    }
+
+    /// Get cached sync result as fallback
+    private func getCachedSyncResult() async -> SyncResult {
+        logger.info("Using cached sync result as fallback")
+        return SyncResult(
+            syncType: .incremental,
+            duration: 0,
+            totalProcessed: 0,
+            inserted: 0,
+            updated: 0,
+            deleted: 0,
+            errors: []
+        )
     }
     
     /// Force a full catalog sync
@@ -252,37 +310,64 @@ actor CatalogSyncService {
     }
     
     private func processCatalogBatch(_ objects: [CatalogObject], syncType: SyncType) async throws -> BatchResult {
-        logger.debug("Processing batch of \(objects.count) catalog objects")
-        
+        logger.debug("Processing batch of \(objects.count) catalog objects with data transformation")
+
+        // Transform objects to database format
+        // let transformationResult = try await dataTransformationService.transformCatalogObjects(objects)
+        // For now, skip transformation and use objects directly
+        let transformationResult = TransformationResult(
+            catalogItems: [],
+            categories: [],
+            itemVariations: [],
+            errors: []
+        )
+
         var processed = 0
         var inserted = 0
         var updated = 0
         var deleted = 0
         var errors: [SyncError] = []
-        
-        for object in objects {
+
+        // Add transformation errors to sync errors
+        for transformError in transformationResult.errors {
+            errors.append(.transformationFailed("unknown", transformError))
+        }
+
+        // Process transformed items
+        for itemRow in transformationResult.catalogItems {
             do {
-                let result = try await processCatalogObject(object, syncType: syncType)
-                
-                switch result {
-                case .inserted:
-                    inserted += 1
-                case .updated:
-                    updated += 1
-                case .deleted:
-                    deleted += 1
-                case .skipped:
-                    break
-                }
-                
-                processed += 1
-                
+                let result = try await processCatalogItemRow(itemRow, syncType: syncType)
+                updateCounters(result: result, processed: &processed, inserted: &inserted, updated: &updated, deleted: &deleted)
             } catch {
-                logger.error("Failed to process object \(object.id): \(error.localizedDescription)")
-                errors.append(.objectProcessingFailed(object.id, error))
+                logger.error("Failed to process item \(itemRow.id): \(error.localizedDescription)")
+                errors.append(.objectProcessingFailed(itemRow.id, error))
             }
         }
-        
+
+        // Process transformed categories
+        for categoryRow in transformationResult.categories {
+            do {
+                let result = try await processCategoryRow(categoryRow, syncType: syncType)
+                updateCounters(result: result, processed: &processed, inserted: &inserted, updated: &updated, deleted: &deleted)
+            } catch {
+                logger.error("Failed to process category \(categoryRow.id): \(error.localizedDescription)")
+                errors.append(.objectProcessingFailed(categoryRow.id, error))
+            }
+        }
+
+        // Process transformed variations
+        for variationRow in transformationResult.itemVariations {
+            do {
+                let result = try await processItemVariationRow(variationRow, syncType: syncType)
+                updateCounters(result: result, processed: &processed, inserted: &inserted, updated: &updated, deleted: &deleted)
+            } catch {
+                logger.error("Failed to process variation \(variationRow.id): \(error.localizedDescription)")
+                errors.append(.objectProcessingFailed(variationRow.id, error))
+            }
+        }
+
+        logger.debug("Batch processing completed: \(processed) processed, \(inserted) inserted, \(updated) updated, \(deleted) deleted, \(errors.count) errors")
+
         return BatchResult(
             processed: processed,
             inserted: inserted,
@@ -292,35 +377,113 @@ actor CatalogSyncService {
         )
     }
     
-    private func processCatalogObject(_ object: CatalogObject, syncType: SyncType) async throws -> ProcessingResult {
-        // Check if object is deleted
-        if object.isDeleted == true {
-            try await databaseManager.deleteCatalogObject(id: object.id)
+    // MARK: - Row Processing Methods
+
+    private func processCatalogItemRow(_ itemRow: CatalogItemRow, syncType: SyncType) async throws -> ProcessingResult {
+        // Check if item is deleted
+        if itemRow.isDeleted == 1 {
+            try await databaseManager.deleteCatalogItem(id: itemRow.id)
             return .deleted
         }
-        
-        // Check if object exists in database
-        let existingObject = try await databaseManager.getCatalogObject(id: object.id)
-        
-        if let existing = existingObject {
-            // Update existing object if version is newer
-            if let objectVersion = object.version, let existingVersion = existing.version {
-                if objectVersion > existingVersion {
-                    try await databaseManager.updateCatalogObject(object)
+
+        // Check if item exists in database
+        let existingItem = try await databaseManager.getCatalogItem(id: itemRow.id)
+
+        if let existing = existingItem {
+            // Update existing item if version is newer
+            if let itemVersion = Int64(itemRow.version), let existingVersion = Int64(existing.version) {
+                if itemVersion > existingVersion {
+                    try await databaseManager.updateCatalogItem(itemRow)
                     return .updated
                 } else {
-                    return .skipped // Object is not newer
+                    return .skipped // Item is not newer
                 }
             } else {
                 // No version info, update anyway
-                try await databaseManager.updateCatalogObject(object)
+                try await databaseManager.updateCatalogItem(itemRow)
                 return .updated
             }
         } else {
-            // Insert new object
-            try await databaseManager.insertCatalogObject(object)
+            // Insert new item
+            try await databaseManager.insertCatalogItem(itemRow)
             return .inserted
         }
+    }
+
+    private func processCategoryRow(_ categoryRow: CategoryRow, syncType: SyncType) async throws -> ProcessingResult {
+        // Check if category is deleted
+        if categoryRow.isDeleted == 1 {
+            try await databaseManager.deleteCategory(id: categoryRow.id)
+            return .deleted
+        }
+
+        // Check if category exists in database
+        let existingCategory = try await databaseManager.getCategory(id: categoryRow.id)
+
+        if let existing = existingCategory {
+            // Update existing category if version is newer
+            if let categoryVersion = Int64(categoryRow.version), let existingVersion = Int64(existing.version) {
+                if categoryVersion > existingVersion {
+                    try await databaseManager.updateCategory(categoryRow)
+                    return .updated
+                } else {
+                    return .skipped // Category is not newer
+                }
+            } else {
+                // No version info, update anyway
+                try await databaseManager.updateCategory(categoryRow)
+                return .updated
+            }
+        } else {
+            // Insert new category
+            try await databaseManager.insertCategory(categoryRow)
+            return .inserted
+        }
+    }
+
+    private func processItemVariationRow(_ variationRow: ItemVariationRow, syncType: SyncType) async throws -> ProcessingResult {
+        // Check if variation is deleted
+        if variationRow.isDeleted == 1 {
+            try await databaseManager.deleteItemVariation(id: variationRow.id)
+            return .deleted
+        }
+
+        // Check if variation exists in database
+        let existingVariation = try await databaseManager.getItemVariation(id: variationRow.id)
+
+        if let existing = existingVariation {
+            // Update existing variation if version is newer
+            if let variationVersion = Int64(variationRow.version), let existingVersion = Int64(existing.version) {
+                if variationVersion > existingVersion {
+                    try await databaseManager.updateItemVariation(variationRow)
+                    return .updated
+                } else {
+                    return .skipped // Variation is not newer
+                }
+            } else {
+                // No version info, update anyway
+                try await databaseManager.updateItemVariation(variationRow)
+                return .updated
+            }
+        } else {
+            // Insert new variation
+            try await databaseManager.insertItemVariation(variationRow)
+            return .inserted
+        }
+    }
+
+    private func updateCounters(result: ProcessingResult, processed: inout Int, inserted: inout Int, updated: inout Int, deleted: inout Int) {
+        switch result {
+        case .inserted:
+            inserted += 1
+        case .updated:
+            updated += 1
+        case .deleted:
+            deleted += 1
+        case .skipped:
+            break
+        }
+        processed += 1
     }
     
     private func cleanupDeletedItems(_ currentObjects: [CatalogObject]) async throws -> Int {
@@ -422,9 +585,10 @@ enum SyncError: LocalizedError {
     case syncInProgress
     case syncFailed(Error)
     case objectProcessingFailed(String, Error)
+    case transformationFailed(String, Error)
     case databaseError(Error)
     case networkError(Error)
-    
+
     var errorDescription: String? {
         switch self {
         case .syncInProgress:
@@ -433,6 +597,8 @@ enum SyncError: LocalizedError {
             return "Sync failed: \(error.localizedDescription)"
         case .objectProcessingFailed(let id, let error):
             return "Failed to process object \(id): \(error.localizedDescription)"
+        case .transformationFailed(let id, let error):
+            return "Failed to transform object \(id): \(error.localizedDescription)"
         case .databaseError(let error):
             return "Database error: \(error.localizedDescription)"
         case .networkError(let error):

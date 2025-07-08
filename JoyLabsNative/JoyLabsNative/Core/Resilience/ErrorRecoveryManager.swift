@@ -3,7 +3,7 @@ import OSLog
 
 /// Comprehensive error recovery manager with exponential backoff and graceful degradation
 /// Implements 2025 industry standards for resilient system design
-actor ErrorRecoveryManager {
+actor ErrorRecoveryManager: ResilienceService {
     
     // MARK: - Configuration
     
@@ -258,6 +258,36 @@ actor ErrorRecoveryManager {
         }
 
         return statistics
+    }
+
+    // MARK: - ResilienceService Protocol Conformance
+
+    /// Execute operation with resilience (protocol conformance)
+    func executeResilient<T>(
+        operationId: String,
+        operation: @escaping () async throws -> T,
+        fallback: T?,
+        degradationStrategy: DegradationStrategy
+    ) async throws -> T {
+        // Use the existing executeWithRecovery method with fallback handling
+        do {
+            return try await executeWithRecovery(
+                operationId: operationId,
+                operation: operation,
+                fallback: fallback.map { value in { value } }
+            )
+        } catch {
+            // Apply degradation strategy if operation fails
+            switch degradationStrategy {
+            case .returnCached, .returnDefault:
+                if let fallback = fallback {
+                    return fallback
+                }
+                throw error
+            case .skipOperation, .useAlternativeService:
+                throw error
+            }
+        }
     }
 }
 
