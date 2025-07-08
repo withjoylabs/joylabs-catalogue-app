@@ -66,11 +66,45 @@ class SquareAPIService: ObservableObject {
 
         // Set up authentication state monitoring
         setupAuthenticationMonitoring()
+        setupNotificationObservers()
     }
 
     private func setupAuthenticationMonitoring() {
         // Set up a simple callback-based approach instead of polling
         // This will be triggered when OAuth completes
+    }
+
+    private func setupNotificationObservers() {
+        // Listen for OAuth completion notifications
+        NotificationCenter.default.addObserver(
+            forName: .squareAuthenticationCompleted,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            Task { @MainActor in
+                self?.logger.info("Received OAuth completion notification")
+                self?.isAuthenticated = true
+                self?.authenticationState = .authenticated
+                await self?.fetchMerchantInfo()
+            }
+        }
+
+        NotificationCenter.default.addObserver(
+            forName: .squareAuthenticationFailed,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            Task { @MainActor in
+                self?.logger.error("Received OAuth failure notification")
+                self?.isAuthenticated = false
+                self?.authenticationState = .unauthenticated
+                self?.currentMerchant = nil
+            }
+        }
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 
     // MARK: - Authentication Methods

@@ -1078,6 +1078,7 @@ struct ProfileView: View {
     @StateObject private var syncCoordinator: SquareSyncCoordinator
     @State private var showingSquareIntegration = false
     @State private var showingSignOutAlert = false
+    @State private var isAuthenticating = false
     @State private var userName = "Store Manager"
     @State private var userEmail = "manager@joylabs.com"
     @State private var alertMessage = ""
@@ -1149,14 +1150,17 @@ struct ProfileView: View {
                         IntegrationCard(
                             icon: "square.and.arrow.up",
                             title: "Square Integration",
-                            subtitle: squareAPIService.isAuthenticated ?
-                                (squareAPIService.currentMerchant?.displayName ?? "Connected to Square") :
-                                "Not connected",
+                            subtitle: isAuthenticating ? "Connecting..." :
+                                (squareAPIService.isAuthenticated ?
+                                    (squareAPIService.currentMerchant?.displayName ?? "Connected to Square") :
+                                    "Not connected"),
                             status: squareAPIService.isAuthenticated ? .connected : .disconnected,
+                            isLoading: isAuthenticating,
                             action: {
                                 if squareAPIService.isAuthenticated {
                                     showingSquareIntegration = true
                                 } else {
+                                    isAuthenticating = true
                                     Task {
                                         do {
                                             try await squareAPIService.authenticate()
@@ -1165,6 +1169,7 @@ struct ProfileView: View {
                                             alertMessage = "Failed to connect to Square: \(error.localizedDescription)"
                                             showingAlert = true
                                         }
+                                        isAuthenticating = false
                                     }
                                 }
                             }
@@ -1175,6 +1180,7 @@ struct ProfileView: View {
                             title: "Catalog Sync",
                             subtitle: syncCoordinator.timeSinceLastSync ?? "Never synced",
                             status: syncCoordinator.syncState == .completed ? .connected : .warning,
+                            isLoading: syncCoordinator.syncState == .syncing,
                             action: {
                                 Task {
                                     await performCatalogSync()
@@ -1341,6 +1347,7 @@ struct IntegrationCard: View {
     let title: String
     let subtitle: String
     let status: ConnectionStatus
+    let isLoading: Bool
     let action: () -> Void
 
     var body: some View {
@@ -1364,13 +1371,19 @@ struct IntegrationCard: View {
                 Spacer()
 
                 VStack(spacing: 4) {
-                    Image(systemName: status.icon)
-                        .font(.title3)
-                        .foregroundColor(status.color)
+                    if isLoading {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                            .frame(width: 20, height: 20)
+                    } else {
+                        Image(systemName: status.icon)
+                            .font(.title3)
+                            .foregroundColor(status.color)
 
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
             }
             .padding(16)

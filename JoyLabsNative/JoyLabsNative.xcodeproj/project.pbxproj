@@ -32,6 +32,7 @@
 		A1B2C3D4E5F6789012345757 /* SquareConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345758 /* SquareConfiguration.swift */; };
 		A1B2C3D4E5F6789012345759 /* SquareHTTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345760 /* SquareHTTPClient.swift */; };
 		A1B2C3D4E5F6789012345761 /* SquareOAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345762 /* SquareOAuthService.swift */; };
+		A1B2C3D4E5F6789012345767 /* SquareOAuthCallbackHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345768 /* SquareOAuthCallbackHandler.swift */; };
 		A1B2C3D4E5F6789012345763 /* CatalogSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345764 /* CatalogSyncService.swift */; };
 		A1B2C3D4E5F6789012345765 /* SquareSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345766 /* SquareSyncCoordinator.swift */; };
 /* End PBXBuildFile section */
@@ -62,6 +63,7 @@
 		A1B2C3D4E5F6789012345758 /* SquareConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareConfiguration.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345760 /* SquareHTTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareHTTPClient.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345762 /* SquareOAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareOAuthService.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345768 /* SquareOAuthCallbackHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareOAuthCallbackHandler.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345764 /* CatalogSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/CatalogSyncService.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345766 /* SquareSyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareSyncCoordinator.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -111,6 +113,7 @@
 				A1B2C3D4E5F6789012345758 /* SquareConfiguration.swift */,
 				A1B2C3D4E5F6789012345760 /* SquareHTTPClient.swift */,
 				A1B2C3D4E5F6789012345762 /* SquareOAuthService.swift */,
+				A1B2C3D4E5F6789012345768 /* SquareOAuthCallbackHandler.swift */,
 				A1B2C3D4E5F6789012345764 /* CatalogSyncService.swift */,
 				A1B2C3D4E5F6789012345766 /* SquareSyncCoordinator.swift */,
 				A1B2C3D4E5F6789012345683 /* Assets.xcassets */,
@@ -233,6 +236,7 @@
 				A1B2C3D4E5F6789012345757 /* SquareConfiguration.swift in Sources */,
 				A1B2C3D4E5F6789012345759 /* SquareHTTPClient.swift in Sources */,
 				A1B2C3D4E5F6789012345761 /* SquareOAuthService.swift in Sources */,
+				A1B2C3D4E5F6789012345767 /* SquareOAuthCallbackHandler.swift in Sources */,
 				A1B2C3D4E5F6789012345763 /* CatalogSyncService.swift in Sources */,
 				A1B2C3D4E5F6789012345765 /* SquareSyncCoordinator.swift in Sources */,
 			);

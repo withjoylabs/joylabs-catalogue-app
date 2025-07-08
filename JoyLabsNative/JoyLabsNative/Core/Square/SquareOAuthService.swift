@@ -47,18 +47,21 @@ class SquareOAuthService: NSObject, ObservableObject {
         authenticationError = nil
         
         do {
+            // Register this service to receive callbacks
+            await SquareOAuthCallbackHandler.shared.registerOAuthService(self)
+
             // Create OAuth state with PKCE parameters
             let oauthState = await stateManager.createOAuthState()
             currentOAuthState = oauthState
-            
-            // Skip backend registration for performance - direct token flow doesn't need it
-            // try await registerStateWithBackend(oauthState)
-            
+
+            // Register state with backend for validation
+            try await registerStateWithBackend(oauthState)
+
             // Build authorization URL
             guard let authURL = OAuthURLBuilder.buildAuthorizationURL(oauthState: oauthState) else {
                 throw OAuthError.invalidCallback
             }
-            
+
             // Start web authentication session
             try await startWebAuthenticationSession(authURL: authURL)
             
