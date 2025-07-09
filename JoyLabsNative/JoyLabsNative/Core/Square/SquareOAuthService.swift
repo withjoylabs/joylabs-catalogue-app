@@ -15,8 +15,9 @@ class SquareOAuthService: NSObject, ObservableObject {
     @Published var lastTokenResponse: TokenResponse?
     
     // MARK: - Dependencies
-    
+
     private let httpClient: SquareHTTPClient
+    private let tokenService: TokenService
     private let stateManager = OAuthStateManager()
     private let logger = Logger(subsystem: "com.joylabs.native", category: "SquareOAuthService")
     
@@ -26,9 +27,10 @@ class SquareOAuthService: NSObject, ObservableObject {
     private var currentOAuthState: OAuthState?
     
     // MARK: - Initialization
-    
-    init(httpClient: SquareHTTPClient) {
+
+    init(httpClient: SquareHTTPClient, tokenService: TokenService) {
         self.httpClient = httpClient
+        self.tokenService = tokenService
         super.init()
         logger.info("SquareOAuthService initialized")
     }
@@ -202,6 +204,33 @@ class SquareOAuthService: NSObject, ObservableObject {
         lastTokenResponse = tokenResponse
         isAuthenticated = true
 
+        // Store tokens securely in keychain
+        do {
+            var tokenDict: [String: Any] = [
+                "access_token": tokenResponse.accessToken,
+                "token_type": tokenResponse.tokenType ?? "Bearer"
+            ]
+
+            if let refreshToken = tokenResponse.refreshToken {
+                tokenDict["refresh_token"] = refreshToken
+            }
+            if let merchantId = tokenResponse.merchantId {
+                tokenDict["merchant_id"] = merchantId
+            }
+            if let businessName = tokenResponse.businessName {
+                tokenDict["business_name"] = businessName
+            }
+            if let expiresIn = tokenResponse.expiresIn {
+                tokenDict["expires_in"] = expiresIn
+            }
+
+            try await tokenService.storeTokens(tokenDict)
+            logger.info("Tokens stored successfully in keychain")
+        } catch {
+            logger.error("Failed to store tokens: \(error)")
+            throw error
+        }
+
         // Clear OAuth state
         await stateManager.clearOAuthState()
         currentOAuthState = nil
@@ -232,8 +261,29 @@ class SquareOAuthService: NSObject, ObservableObject {
         lastTokenResponse = tokenResponse
         isAuthenticated = true
 
-        // Store tokens securely
-        // TODO: Implement token storage when TokenService is ready
+        // Store tokens securely in keychain
+        do {
+            var tokenDict: [String: Any] = [
+                "access_token": accessToken,
+                "token_type": "Bearer"
+            ]
+
+            if let refreshToken = refreshToken {
+                tokenDict["refresh_token"] = refreshToken
+            }
+            if let merchantId = merchantId {
+                tokenDict["merchant_id"] = merchantId
+            }
+            if let businessName = businessName {
+                tokenDict["business_name"] = businessName
+            }
+
+            try await tokenService.storeTokens(tokenDict)
+            logger.info("Tokens stored successfully in keychain")
+        } catch {
+            logger.error("Failed to store tokens: \(error)")
+            throw error
+        }
 
         // Clear OAuth state
         await stateManager.clearOAuthState()
@@ -337,11 +387,11 @@ class SquareOAuthFlowManager: ObservableObject {
     private let logger = Logger(subsystem: "com.joylabs.native", category: "SquareOAuthFlowManager")
     
     // MARK: - Initialization
-    
-    init(httpClient: SquareHTTPClient) {
-        self.oauthService = SquareOAuthService(httpClient: httpClient)
+
+    init(httpClient: SquareHTTPClient, tokenService: TokenService) {
+        self.oauthService = SquareOAuthService(httpClient: httpClient, tokenService: tokenService)
         self.deepLinkHandler = SquareDeepLinkHandler(oauthService: oauthService)
-        
+
         logger.info("SquareOAuthFlowManager initialized")
     }
     
