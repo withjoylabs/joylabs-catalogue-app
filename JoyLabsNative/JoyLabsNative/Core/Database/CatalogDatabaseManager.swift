@@ -209,6 +209,9 @@ class CatalogDatabaseManager {
 
     /// Get the last sync time (used for corruption detection)
     func getLastSyncTime() async throws -> Date? {
+        // First perform a basic integrity check
+        try await performIntegrityCheck()
+
         let sql = "SELECT MAX(completed_at) FROM sync_metadata WHERE status = 'completed';"
         var statement: OpaquePointer?
 
@@ -219,7 +222,13 @@ class CatalogDatabaseManager {
 
         defer { sqlite3_finalize(statement) }
 
-        if sqlite3_step(statement) == SQLITE_ROW {
+        let stepResult = sqlite3_step(statement)
+        guard stepResult == SQLITE_ROW || stepResult == SQLITE_DONE else {
+            let errorMessage = String(cString: sqlite3_errmsg(db))
+            throw DatabaseError.executionFailed(errorMessage)
+        }
+
+        if stepResult == SQLITE_ROW {
             if let timestampCString = sqlite3_column_text(statement, 0) {
                 let timestampString = String(cString: timestampCString)
                 return ISO8601DateFormatter().date(from: timestampString)
@@ -227,6 +236,31 @@ class CatalogDatabaseManager {
         }
 
         return nil
+    }
+
+    /// Perform basic database integrity check
+    private func performIntegrityCheck() async throws {
+        let sql = "PRAGMA integrity_check(1);"
+        var statement: OpaquePointer?
+
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+            let errorMessage = String(cString: sqlite3_errmsg(db))
+            throw DatabaseError.preparationFailed(errorMessage)
+        }
+
+        defer { sqlite3_finalize(statement) }
+
+        let stepResult = sqlite3_step(statement)
+        guard stepResult == SQLITE_ROW else {
+            throw DatabaseError.executionFailed("Integrity check failed")
+        }
+
+        if let resultCString = sqlite3_column_text(statement, 0) {
+            let result = String(cString: resultCString)
+            if result != "ok" {
+                throw DatabaseError.executionFailed("Database integrity check failed: \(result)")
+            }
+        }
     }
 
     // MARK: - Catalog Object Storage

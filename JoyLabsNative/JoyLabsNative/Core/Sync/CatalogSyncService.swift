@@ -39,6 +39,33 @@ class CatalogSyncService: ObservableObject {
     // MARK: - Sync Lock
     private var isSyncInProgress = false
 
+    // MARK: - Database Corruption Detection
+
+    /// Detects various types of SQLite database corruption
+    private func isDatabaseCorrupted(_ error: Error) -> Bool {
+        let errorDescription = error.localizedDescription.lowercased()
+
+        // Common SQLite corruption indicators
+        let corruptionIndicators = [
+            "malformed",
+            "corruption",
+            "corrupt",
+            "database disk image is malformed",
+            "index corruption",
+            "database or disk is full",
+            "sqlite_corrupt",
+            "sqlite_notadb",
+            "file is not a database",
+            "database schema has changed",
+            "no such table",
+            "sql logic error"
+        ]
+
+        return corruptionIndicators.contains { indicator in
+            errorDescription.contains(indicator)
+        }
+    }
+
     // MARK: - Sync State
     
     enum SyncState {
@@ -206,7 +233,7 @@ class CatalogSyncService: ObservableObject {
                 // Test database with a simple query
                 _ = try await databaseManager.getLastSyncTime()
             } catch {
-                if error.localizedDescription.contains("malformed") || error.localizedDescription.contains("corruption") {
+                if isDatabaseCorrupted(error) {
                     print("Database corruption detected, recreating database...")
                     try await databaseManager.recreateDatabase()
                 }
@@ -219,9 +246,27 @@ class CatalogSyncService: ObservableObject {
             saveLastSyncTime()
             return result
         } catch {
-            syncState = .failed
-            errorMessage = error.localizedDescription
-            throw error
+            // Check if this is a database corruption error during sync
+            if isDatabaseCorrupted(error) {
+                print("Database corruption detected during sync, attempting recovery...")
+                do {
+                    try await databaseManager.recreateDatabase()
+                    // Retry the sync after database recreation
+                    let result = try await performFullSync()
+                    syncState = .completed
+                    lastSyncTime = Date()
+                    saveLastSyncTime()
+                    return result
+                } catch {
+                    syncState = .failed
+                    errorMessage = "Database corruption recovery failed: \(error.localizedDescription)"
+                    throw error
+                }
+            } else {
+                syncState = .failed
+                errorMessage = error.localizedDescription
+                throw error
+            }
         }
     }
 
@@ -237,9 +282,27 @@ class CatalogSyncService: ObservableObject {
             saveLastSyncTime()
             return result
         } catch {
-            syncState = .failed
-            errorMessage = error.localizedDescription
-            throw error
+            // Check if this is a database corruption error during incremental sync
+            if isDatabaseCorrupted(error) {
+                print("Database corruption detected during incremental sync, attempting recovery...")
+                do {
+                    try await databaseManager.recreateDatabase()
+                    // Retry the sync after database recreation
+                    let result = try await performFullSync()
+                    syncState = .completed
+                    lastSyncTime = Date()
+                    saveLastSyncTime()
+                    return result
+                } catch {
+                    syncState = .failed
+                    errorMessage = "Database corruption recovery failed: \(error.localizedDescription)"
+                    throw error
+                }
+            } else {
+                syncState = .failed
+                errorMessage = error.localizedDescription
+                throw error
+            }
         }
     }
 
