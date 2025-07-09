@@ -49,7 +49,6 @@ struct ScanView: View {
 
     // Mock search functionality for Phase 7
     @StateObject private var searchManager = MockSearchManager()
-    @StateObject private var databaseManager = MockDatabaseManager()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -77,15 +76,7 @@ struct ScanView: View {
         }
         .background(Color(.systemBackground))
         .onAppear {
-            // Initialize mock database when view appears
-            Task {
-                do {
-                    try await databaseManager.initializeDatabase()
-                    print("ScanView: Mock database initialized successfully")
-                } catch {
-                    print("ScanView: Failed to initialize database: \(error)")
-                }
-            }
+            // No mock database initialization needed
         }
         .onChange(of: searchText) {
             // Trigger debounced search automatically when text changes (like React Native)
