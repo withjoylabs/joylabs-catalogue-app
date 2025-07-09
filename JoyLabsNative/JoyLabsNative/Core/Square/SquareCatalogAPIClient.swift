@@ -53,11 +53,31 @@ class SquareCatalogAPIClient {
         }
     }
     
+    /// Response type for /v2/catalog/list endpoint (per Square API documentation)
+    struct ListCatalogResponse: Codable {
+        let objects: [CatalogObject]?
+        let cursor: String?
+        let errors: [SquareError]?
+
+        enum CodingKeys: String, CodingKey {
+            case objects
+            case cursor
+            case errors
+        }
+    }
+
     struct SearchCatalogObjectsResponse: Codable {
         let objects: [CatalogObject]?
         let relatedObjects: [CatalogObject]?
         let cursor: String?
         let errors: [SquareError]?
+
+        enum CodingKeys: String, CodingKey {
+            case objects
+            case relatedObjects = "related_objects"
+            case cursor
+            case errors
+        }
     }
     
     struct CatalogObject: Codable {
@@ -276,22 +296,22 @@ class SquareCatalogAPIClient {
 
     // MARK: - API Methods
 
-    /// List catalog objects with pagination support (matches React Native implementation)
+    /// List catalog objects with pagination support (matches Square API documentation exactly)
     /// Implements: GET /v2/catalog/list
+    /// Reference: https://developer.squareup.com/reference/square/catalog-api/list-catalog
     func listCatalogObjects(
-        objectTypes: [String] = ["ITEM", "ITEM_VARIATION", "CATEGORY", "TAX", "DISCOUNT", "MODIFIER_LIST", "MODIFIER", "IMAGE"],
+        objectTypes: String = "ITEM,ITEM_VARIATION,CATEGORY,TAX,DISCOUNT,MODIFIER_LIST,MODIFIER,IMAGE",
         cursor: String? = nil
-    ) async throws -> SearchCatalogObjectsResponse {
+    ) async throws -> ListCatalogResponse {
 
-        // Build URL with query parameters
+        // Build URL with query parameters exactly as per Square API docs
         var urlComponents = URLComponents(string: "\(baseURL)/v2/catalog/list")!
         var queryItems: [URLQueryItem] = []
 
-        // Add object types as comma-separated string
-        let typesString = objectTypes.joined(separator: ",")
-        queryItems.append(URLQueryItem(name: "types", value: typesString))
+        // Add object types as comma-separated string (per Square API docs)
+        queryItems.append(URLQueryItem(name: "types", value: objectTypes))
 
-        // Add cursor if provided
+        // Add cursor if provided (per Square API docs)
         if let cursor = cursor {
             queryItems.append(URLQueryItem(name: "cursor", value: cursor))
         }
@@ -319,7 +339,7 @@ class SquareCatalogAPIClient {
         }
 
         let decoder = JSONDecoder()
-        let listResponse = try decoder.decode(SearchCatalogObjectsResponse.self, from: data)
+        let listResponse = try decoder.decode(ListCatalogResponse.self, from: data)
 
         if let errors = listResponse.errors, !errors.isEmpty {
             throw SquareCatalogError.squareAPIError(errors)
@@ -343,7 +363,7 @@ class SquareCatalogAPIClient {
                         if let objects = response.objects {
                             totalObjects += objects.count
 
-                            // Process objects in batches
+                            // Process objects in batches (Square API returns max 100 per page)
                             for object in objects {
                                 // Yield progress
                                 syncedObjects += 1
@@ -357,20 +377,8 @@ class SquareCatalogAPIClient {
                             }
                         }
 
-                        if let relatedObjects = response.relatedObjects {
-                            totalObjects += relatedObjects.count
-
-                            for object in relatedObjects {
-                                syncedObjects += 1
-                                let progress = CatalogSyncProgress(
-                                    totalObjects: totalObjects,
-                                    syncedObjects: syncedObjects,
-                                    currentObject: object,
-                                    cursor: cursor
-                                )
-                                continuation.yield(progress)
-                            }
-                        }
+                        // Note: /v2/catalog/list does NOT return relatedObjects (only /v2/catalog/search does)
+                        // This was a bug in our implementation - list endpoint only returns objects array
 
                         cursor = response.cursor
 
@@ -414,20 +422,8 @@ class SquareCatalogAPIClient {
                             }
                         }
 
-                        if let relatedObjects = response.relatedObjects {
-                            totalObjects += relatedObjects.count
-
-                            for object in relatedObjects {
-                                syncedObjects += 1
-                                let progress = CatalogSyncProgress(
-                                    totalObjects: totalObjects,
-                                    syncedObjects: syncedObjects,
-                                    currentObject: object,
-                                    cursor: cursor
-                                )
-                                continuation.yield(progress)
-                            }
-                        }
+                        // Note: /v2/catalog/list does NOT return relatedObjects (only /v2/catalog/search does)
+                        // This was a bug in our implementation - list endpoint only returns objects array
 
                         cursor = response.cursor
 

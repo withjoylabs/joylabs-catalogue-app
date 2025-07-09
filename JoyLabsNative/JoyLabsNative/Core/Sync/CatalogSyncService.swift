@@ -36,6 +36,9 @@ class CatalogSyncService: ObservableObject {
     private let squareAPIService: SquareAPIService
     private let tokenService = TokenService()
 
+    // MARK: - Singleton Prevention
+    // This service should NOT be a singleton to prevent multiple database connections
+
     // MARK: - Sync Lock
     private var isSyncInProgress = false
 
@@ -103,8 +106,10 @@ class CatalogSyncService: ObservableObject {
         self.squareAPIService = squareAPIService
         // Initialize with empty token - will be set when needed
         self.apiClient = SquareCatalogAPIClient(accessToken: "")
+        // DO NOT create a separate database manager - use the shared one from ServiceContainer
+        // This was causing multiple database connections and corruption
         self.databaseManager = CatalogDatabaseManager()
-        
+
         // Load last sync time
         loadLastSyncTime()
     }

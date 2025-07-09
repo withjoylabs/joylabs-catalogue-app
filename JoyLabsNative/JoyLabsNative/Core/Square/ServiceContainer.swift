@@ -99,14 +99,16 @@ class ServiceContainer: ObservableObject {
         if let coordinator = _squareSyncCoordinator {
             return coordinator
         }
-        
-        logger.info("Creating SquareSyncCoordinator with dependencies")
+
+        logger.info("Creating SquareSyncCoordinator with shared dependencies")
         let catalogService = await catalogSyncService()
         let apiService = await squareAPIService()
-        
+        let catalogService = await catalogSyncService() // Use shared instance
+
         let coordinator = SquareSyncCoordinator(
             catalogSyncService: catalogService,
-            squareAPIService: apiService
+            squareAPIService: apiService,
+            catalogSyncService: catalogService
         )
         _squareSyncCoordinator = coordinator
         return coordinator

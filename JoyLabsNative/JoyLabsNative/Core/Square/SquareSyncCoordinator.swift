@@ -85,12 +85,13 @@ class SquareSyncCoordinator: ObservableObject {
     }
 
     /// Factory method to create coordinator with proper dependencies
-    static func createCoordinator(databaseManager: ResilientDatabaseManager, squareAPIService: SquareAPIService) -> SquareSyncCoordinator {
+    /// CRITICAL: Use shared CatalogSyncService to prevent multiple database connections
+    static func createCoordinator(
+        databaseManager: ResilientDatabaseManager,
+        squareAPIService: SquareAPIService,
+        catalogSyncService: CatalogSyncService
+    ) -> SquareSyncCoordinator {
         let resilienceService = ErrorRecoveryManager()
-
-        let catalogSyncService = CatalogSyncService(
-            squareAPIService: squareAPIService
-        )
 
         return SquareSyncCoordinator(
             catalogSyncService: catalogSyncService,

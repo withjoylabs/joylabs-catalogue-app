@@ -1087,10 +1087,12 @@ struct ProfileView: View {
     init() {
         let databaseManager = ResilientDatabaseManager()
         let squareService = SquareAPIServiceFactory.createService()
+        let catalogService = CatalogSyncService(squareAPIService: squareService)
 
         _syncCoordinator = StateObject(wrappedValue: SquareSyncCoordinator.createCoordinator(
             databaseManager: databaseManager,
-            squareAPIService: squareService
+            squareAPIService: squareService,
+            catalogSyncService: catalogService
         ))
     }
 
