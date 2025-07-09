@@ -11,32 +11,13 @@
 		A1B2C3D4E5F6789012345680 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345681 /* ContentView.swift */; };
 		A1B2C3D4E5F6789012345682 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345683 /* Assets.xcassets */; };
 		A1B2C3D4E5F6789012345684 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345685 /* Preview Assets.xcassets */; };
-				A1B2C3D4E5F6789012345712 /* MockSearchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345713 /* MockSearchManager.swift */; };
-		A1B2C3D4E5F6789012345714 /* SearchModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345715 /* SearchModels.swift */; };
-		A1B2C3D4E5F6789012345716 /* SQLite in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4E5F6789012345717 /* SQLite */; };
-		A1B2C3D4E5F6789012345719 /* DatabaseModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345720 /* DatabaseModels.swift */; };
-				A1B2C3D4E5F6789012345723 /* DataValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345724 /* DataValidation.swift */; };
-		A1B2C3D4E5F6789012345801 /* SQLiteSwiftCatalogManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345802 /* SQLiteSwiftCatalogManager.swift */; };
+								A1B2C3D4E5F6789012345716 /* SQLite in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4E5F6789012345717 /* SQLite */; };
+								A1B2C3D4E5F6789012345801 /* SQLiteSwiftCatalogManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345802 /* SQLiteSwiftCatalogManager.swift */; };
 		A1B2C3D4E5F6789012345803 /* DatabaseBackup.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345804 /* DatabaseBackup.swift */; };
 		A1B2C3D4E5F6789012345805 /* DatabaseMigrationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345806 /* DatabaseMigrationService.swift */; };
 		A1B2C3D4E5F6789012345807 /* SQLiteSwiftSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345808 /* SQLiteSwiftSyncCoordinator.swift */; };
 		A1B2C3D4E5F6789012345809 /* SQLiteSwiftCatalogSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345810 /* SQLiteSwiftCatalogSyncService.swift */; };
-				A1B2C3D4E5F6789012345727 /* ProductService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345728 /* ProductService.swift */; };
-		A1B2C3D4E5F6789012345729 /* ServiceImplementations.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345730 /* ServiceImplementations.swift */; };
-		A1B2C3D4E5F6789012345751 /* TokenService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345752 /* TokenService.swift */; };
-						A1B2C3D4E5F6789012345771 /* SquareCatalogAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345772 /* SquareCatalogAPIClient.swift */; };
-		A1B2C3D4E5F6789012345731 /* EnhancedSearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345732 /* EnhancedSearchService.swift */; };
-		A1B2C3D4E5F6789012345733 /* MultiLevelCacheManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345734 /* MultiLevelCacheManager.swift */; };
-		A1B2C3D4E5F6789012345735 /* SearchPerformanceMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345736 /* SearchPerformanceMonitor.swift */; };
-		A1B2C3D4E5F6789012345737 /* ErrorRecoveryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345738 /* ErrorRecoveryManager.swift */; };
-		A1B2C3D4E5F6789012345739 /* CircuitBreaker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345740 /* CircuitBreaker.swift */; };
-		A1B2C3D4E5F6789012345749 /* PKCEGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345750 /* PKCEGenerator.swift */; };
-		A1B2C3D4E5F6789012345773 /* SquareAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345774 /* SquareAPIService.swift */; };
-		A1B2C3D4E5F6789012345757 /* SquareConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345758 /* SquareConfiguration.swift */; };
-		A1B2C3D4E5F6789012345759 /* SquareHTTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345760 /* SquareHTTPClient.swift */; };
-		A1B2C3D4E5F6789012345761 /* SquareOAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345762 /* SquareOAuthService.swift */; };
-		A1B2C3D4E5F6789012345767 /* SquareOAuthCallbackHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345768 /* SquareOAuthCallbackHandler.swift */; };
-				/* End PBXBuildFile section */
+																																								/* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		A1B2C3D4E5F6789012345679 /* JoyLabsNativeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNativeApp.swift; sourceTree = "<group>"; };
@@ -44,31 +25,12 @@
 		A1B2C3D4E5F6789012345683 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345685 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345686 /* JoyLabsNative.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = JoyLabsNative.app; sourceTree = BUILT_PRODUCTS_DIR; };
-				A1B2C3D4E5F6789012345713 /* MockSearchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Search/MockSearchManager.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345715 /* SearchModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Models/SearchModels.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345720 /* DatabaseModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Database/DatabaseModels.swift"; sourceTree = "<group>"; };
-				A1B2C3D4E5F6789012345724 /* DataValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Database/DataValidation.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345802 /* SQLiteSwiftCatalogManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Database/SQLiteSwiftCatalogManager.swift"; sourceTree = "<group>"; };
+														A1B2C3D4E5F6789012345802 /* SQLiteSwiftCatalogManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Database/SQLiteSwiftCatalogManager.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345804 /* DatabaseBackup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Database/DatabaseBackup.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345806 /* DatabaseMigrationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Database/DatabaseMigrationService.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345808 /* SQLiteSwiftSyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SQLiteSwiftSyncCoordinator.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345810 /* SQLiteSwiftCatalogSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Sync/SQLiteSwiftCatalogSyncService.swift"; sourceTree = "<group>"; };
-				A1B2C3D4E5F6789012345728 /* ProductService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Services/ProductService.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345730 /* ServiceImplementations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Services/ServiceImplementations.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345752 /* TokenService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Services/TokenService.swift"; sourceTree = "<group>"; };
-						A1B2C3D4E5F6789012345772 /* SquareCatalogAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareCatalogAPIClient.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345732 /* EnhancedSearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Search/EnhancedSearchService.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345734 /* MultiLevelCacheManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Search/MultiLevelCacheManager.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345736 /* SearchPerformanceMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Search/SearchPerformanceMonitor.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345738 /* ErrorRecoveryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Resilience/ErrorRecoveryManager.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345740 /* CircuitBreaker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Resilience/CircuitBreaker.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345750 /* PKCEGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/PKCEGenerator.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345774 /* SquareAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareAPIService.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345758 /* SquareConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareConfiguration.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345760 /* SquareHTTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareHTTPClient.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345762 /* SquareOAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareOAuthService.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345768 /* SquareOAuthCallbackHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareOAuthCallbackHandler.swift"; sourceTree = "<group>"; };
-				/* End PBXFileReference section */
+																																								/* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		A1B2C3D4E5F6789012345687 /* Frameworks */ = {
@@ -95,25 +57,6 @@
 			children = (
 				A1B2C3D4E5F6789012345679 /* JoyLabsNativeApp.swift */,
 				A1B2C3D4E5F6789012345681 /* ContentView.swift */,
-				A1B2C3D4E5F6789012345713 /* MockSearchManager.swift */,
-				A1B2C3D4E5F6789012345715 /* SearchModels.swift */,
-				A1B2C3D4E5F6789012345720 /* DatabaseModels.swift */,
-				A1B2C3D4E5F6789012345724 /* DataValidation.swift */,
-				A1B2C3D4E5F6789012345728 /* ProductService.swift */,
-				A1B2C3D4E5F6789012345730 /* ServiceImplementations.swift */,
-				A1B2C3D4E5F6789012345752 /* TokenService.swift */,
-				A1B2C3D4E5F6789012345732 /* EnhancedSearchService.swift */,
-				A1B2C3D4E5F6789012345734 /* MultiLevelCacheManager.swift */,
-				A1B2C3D4E5F6789012345736 /* SearchPerformanceMonitor.swift */,
-				A1B2C3D4E5F6789012345738 /* ErrorRecoveryManager.swift */,
-				A1B2C3D4E5F6789012345740 /* CircuitBreaker.swift */,
-				A1B2C3D4E5F6789012345750 /* PKCEGenerator.swift */,
-				A1B2C3D4E5F6789012345774 /* SquareAPIService.swift */,
-				A1B2C3D4E5F6789012345758 /* SquareConfiguration.swift */,
-				A1B2C3D4E5F6789012345760 /* SquareHTTPClient.swift */,
-				A1B2C3D4E5F6789012345762 /* SquareOAuthService.swift */,
-				A1B2C3D4E5F6789012345768 /* SquareOAuthCallbackHandler.swift */,
-				A1B2C3D4E5F6789012345772 /* SquareCatalogAPIClient.swift */,
 				A1B2C3D4E5F6789012345683 /* Assets.xcassets */,
 				A1B2C3D4E5F6789012345691 /* Preview Content */
 			);
@@ -214,30 +157,11 @@
 			files = (
 				A1B2C3D4E5F6789012345680 /* ContentView.swift in Sources */,
 				A1B2C3D4E5F6789012345678 /* JoyLabsNativeApp.swift in Sources */,
-				A1B2C3D4E5F6789012345712 /* MockSearchManager.swift in Sources */,
-				A1B2C3D4E5F6789012345714 /* SearchModels.swift in Sources */,
-				A1B2C3D4E5F6789012345719 /* DatabaseModels.swift in Sources */,
-				A1B2C3D4E5F6789012345723 /* DataValidation.swift in Sources */,
 				A1B2C3D4E5F6789012345801 /* SQLiteSwiftCatalogManager.swift in Sources */,
 				A1B2C3D4E5F6789012345803 /* DatabaseBackup.swift in Sources */,
 				A1B2C3D4E5F6789012345805 /* DatabaseMigrationService.swift in Sources */,
 				A1B2C3D4E5F6789012345807 /* SQLiteSwiftSyncCoordinator.swift in Sources */,
-				A1B2C3D4E5F6789012345809 /* SQLiteSwiftCatalogSyncService.swift in Sources */,
-				A1B2C3D4E5F6789012345727 /* ProductService.swift in Sources */,
-				A1B2C3D4E5F6789012345729 /* ServiceImplementations.swift in Sources */,
-				A1B2C3D4E5F6789012345751 /* TokenService.swift in Sources */,
-				A1B2C3D4E5F6789012345731 /* EnhancedSearchService.swift in Sources */,
-				A1B2C3D4E5F6789012345733 /* MultiLevelCacheManager.swift in Sources */,
-				A1B2C3D4E5F6789012345735 /* SearchPerformanceMonitor.swift in Sources */,
-				A1B2C3D4E5F6789012345737 /* ErrorRecoveryManager.swift in Sources */,
-				A1B2C3D4E5F6789012345739 /* CircuitBreaker.swift in Sources */,
-				A1B2C3D4E5F6789012345749 /* PKCEGenerator.swift in Sources */,
-				A1B2C3D4E5F6789012345773 /* SquareAPIService.swift in Sources */,
-				A1B2C3D4E5F6789012345757 /* SquareConfiguration.swift in Sources */,
-				A1B2C3D4E5F6789012345759 /* SquareHTTPClient.swift in Sources */,
-				A1B2C3D4E5F6789012345761 /* SquareOAuthService.swift in Sources */,
-				A1B2C3D4E5F6789012345767 /* SquareOAuthCallbackHandler.swift in Sources */,
-				A1B2C3D4E5F6789012345771 /* SquareCatalogAPIClient.swift in Sources */
+				A1B2C3D4E5F6789012345809 /* SQLiteSwiftCatalogSyncService.swift in Sources */
 				);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
