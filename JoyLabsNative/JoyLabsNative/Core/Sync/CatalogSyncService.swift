@@ -251,7 +251,7 @@ class CatalogSyncService: ObservableObject {
                 print("Database corruption detected during sync, attempting recovery...")
                 do {
                     try await databaseManager.recreateDatabase()
-                    // Retry the sync after database recreation
+                    // After recreation, retry the sync (performFullSync will handle schema initialization)
                     let result = try await performFullSync()
                     syncState = .completed
                     lastSyncTime = Date()
@@ -287,7 +287,7 @@ class CatalogSyncService: ObservableObject {
                 print("Database corruption detected during incremental sync, attempting recovery...")
                 do {
                     try await databaseManager.recreateDatabase()
-                    // Retry the sync after database recreation
+                    // After corruption recovery, do a full sync instead of incremental
                     let result = try await performFullSync()
                     syncState = .completed
                     lastSyncTime = Date()

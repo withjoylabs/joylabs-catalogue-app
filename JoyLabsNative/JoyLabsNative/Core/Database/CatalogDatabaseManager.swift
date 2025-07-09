@@ -207,14 +207,14 @@ class CatalogDatabaseManager {
         logger.info("Database recreated successfully")
     }
 
-    /// Clear all catalog-related tables for fresh sync
+    /// Clear all catalog-related tables for fresh sync (matching React Native implementation)
     func clearCatalogData() async throws {
         logger.info("Clearing all catalog data...")
 
         do {
             try await beginTransaction()
 
-            // Clear all catalog tables (matching React Native implementation)
+            // Clear all catalog tables (only tables that exist in our schema)
             let clearStatements = [
                 "DELETE FROM categories",
                 "DELETE FROM catalog_items",
@@ -224,9 +224,8 @@ class CatalogDatabaseManager {
                 "DELETE FROM taxes",
                 "DELETE FROM discounts",
                 "DELETE FROM images",
-                "DELETE FROM catalog_objects",
-                // Reset sync status related to catalog
-                "UPDATE sync_metadata SET last_sync_time = NULL, cursor = NULL WHERE sync_type = 'catalog'"
+                // Reset sync status related to catalog (using sync_metadata table)
+                "UPDATE sync_metadata SET completed_at = NULL, last_cursor = NULL WHERE sync_type = 'catalog'"
             ]
 
             for statement in clearStatements {
