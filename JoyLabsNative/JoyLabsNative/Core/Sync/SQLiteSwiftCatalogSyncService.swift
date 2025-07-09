@@ -91,8 +91,14 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
             // Update sync completion
             syncState = .completed
             lastSyncTime = Date()
-            
+
             logger.info("🎉 Catalog sync completed successfully!")
+            logger.info("📊 Final sync stats: \(catalogData.count) total objects processed")
+
+            // Log summary of object types processed
+            let objectTypeCounts = Dictionary(grouping: catalogData) { $0.type }
+                .mapValues { $0.count }
+            logger.info("📋 Object types processed: \(objectTypeCounts)")
             
         } catch {
             logger.error("❌ Catalog sync failed: \(error)")

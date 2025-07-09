@@ -13,7 +13,7 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
     @Published var lastSyncResult: SyncResult?
     @Published var syncProgress: Double = 0.0
     @Published var error: Error?
-    @Published var isBackgroundSyncEnabled: Bool = true
+    @Published var isBackgroundSyncEnabled: Bool = false  // Disabled to prevent infinite loops
     
     // MARK: - Dependencies
     
@@ -33,7 +33,8 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
         self.catalogSyncService = SQLiteSwiftCatalogSyncService(squareAPIService: squareAPIService)
         
         setupObservers()
-        startBackgroundSyncTimer()
+        // Don't start background sync timer automatically to prevent infinite loops
+        // startBackgroundSyncTimer()
     }
     
     deinit {

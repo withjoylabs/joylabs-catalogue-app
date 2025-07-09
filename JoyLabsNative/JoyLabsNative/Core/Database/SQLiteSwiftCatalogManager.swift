@@ -362,9 +362,36 @@ class SQLiteSwiftCatalogManager {
                 )
                 try db.run(insert)
             }
-            
+
+        case "IMAGE":
+            // Handle Square catalog images - store image URLs for local caching
+            // Note: IMAGE objects don't have imageData property directly, they ARE the image data
+            logger.debug("Processing IMAGE object: \(object.id)")
+            // For now, we'll skip storing images in database until we implement proper image caching
+            // TODO: Implement proper image caching system
+
+        case "MODIFIER":
+            // Handle Square modifiers - store basic info
+            logger.debug("Processing MODIFIER: \(object.id)")
+            // TODO: Implement modifier storage when needed
+
+        case "MODIFIER_LIST":
+            // Handle Square modifier lists
+            logger.debug("Processing MODIFIER_LIST: \(object.id)")
+            // TODO: Implement modifier list storage when needed
+
+        case "TAX":
+            // Handle Square taxes
+            logger.debug("Processing TAX: \(object.id)")
+            // TODO: Implement tax storage when needed
+
+        case "DISCOUNT":
+            // Handle Square discounts
+            logger.debug("Processing DISCOUNT: \(object.id)")
+            // TODO: Implement discount storage when needed
+
         default:
-            logger.warning("Unsupported catalog object type: \(object.type)")
+            logger.debug("Skipping unsupported catalog object type: \(object.type) (ID: \(object.id))")
         }
     }
     
