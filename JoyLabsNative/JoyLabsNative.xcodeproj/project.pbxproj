@@ -11,20 +11,15 @@
 		A1B2C3D4E5F6789012345680 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345681 /* ContentView.swift */; };
 		A1B2C3D4E5F6789012345682 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345683 /* Assets.xcassets */; };
 		A1B2C3D4E5F6789012345684 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345685 /* Preview Assets.xcassets */; };
-		A1B2C3D4E5F6789012345710 /* MockDatabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345711 /* MockDatabaseManager.swift */; };
-		A1B2C3D4E5F6789012345712 /* MockSearchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345713 /* MockSearchManager.swift */; };
+				A1B2C3D4E5F6789012345712 /* MockSearchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345713 /* MockSearchManager.swift */; };
 		A1B2C3D4E5F6789012345714 /* SearchModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345715 /* SearchModels.swift */; };
 		A1B2C3D4E5F6789012345716 /* SQLite in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4E5F6789012345717 /* SQLite */; };
 		A1B2C3D4E5F6789012345719 /* DatabaseModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345720 /* DatabaseModels.swift */; };
-		A1B2C3D4E5F6789012345721 /* EnhancedDatabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345722 /* EnhancedDatabaseManager.swift */; };
-		A1B2C3D4E5F6789012345723 /* DataValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345724 /* DataValidation.swift */; };
-		A1B2C3D4E5F6789012345725 /* ResilientDatabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345726 /* ResilientDatabaseManager.swift */; };
-		A1B2C3D4E5F6789012345727 /* ProductService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345728 /* ProductService.swift */; };
+				A1B2C3D4E5F6789012345723 /* DataValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345724 /* DataValidation.swift */; };
+				A1B2C3D4E5F6789012345727 /* ProductService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345728 /* ProductService.swift */; };
 		A1B2C3D4E5F6789012345729 /* ServiceImplementations.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345730 /* ServiceImplementations.swift */; };
 		A1B2C3D4E5F6789012345751 /* TokenService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345752 /* TokenService.swift */; };
-		A1B2C3D4E5F6789012345753 /* CatalogDatabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345754 /* CatalogDatabaseManager.swift */; };
-		A1B2C3D4E5F6789012345755 /* CatalogDatabaseSchema.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345756 /* CatalogDatabaseSchema.swift */; };
-		A1B2C3D4E5F6789012345771 /* SquareCatalogAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345772 /* SquareCatalogAPIClient.swift */; };
+						A1B2C3D4E5F6789012345771 /* SquareCatalogAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345772 /* SquareCatalogAPIClient.swift */; };
 		A1B2C3D4E5F6789012345731 /* EnhancedSearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345732 /* EnhancedSearchService.swift */; };
 		A1B2C3D4E5F6789012345733 /* MultiLevelCacheManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345734 /* MultiLevelCacheManager.swift */; };
 		A1B2C3D4E5F6789012345735 /* SearchPerformanceMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345736 /* SearchPerformanceMonitor.swift */; };
@@ -36,9 +31,7 @@
 		A1B2C3D4E5F6789012345759 /* SquareHTTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345760 /* SquareHTTPClient.swift */; };
 		A1B2C3D4E5F6789012345761 /* SquareOAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345762 /* SquareOAuthService.swift */; };
 		A1B2C3D4E5F6789012345767 /* SquareOAuthCallbackHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345768 /* SquareOAuthCallbackHandler.swift */; };
-		A1B2C3D4E5F6789012345765 /* SquareSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345766 /* SquareSyncCoordinator.swift */; };
-		A1B2C3D4E5F6789012345769 /* CatalogSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345770 /* CatalogSyncService.swift */; };
-/* End PBXBuildFile section */
+				/* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		A1B2C3D4E5F6789012345679 /* JoyLabsNativeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNativeApp.swift; sourceTree = "<group>"; };
@@ -46,19 +39,14 @@
 		A1B2C3D4E5F6789012345683 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345685 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345686 /* JoyLabsNative.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = JoyLabsNative.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		A1B2C3D4E5F6789012345711 /* MockDatabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Database/MockDatabaseManager.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345713 /* MockSearchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Search/MockSearchManager.swift"; sourceTree = "<group>"; };
+				A1B2C3D4E5F6789012345713 /* MockSearchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Search/MockSearchManager.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345715 /* SearchModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Models/SearchModels.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345720 /* DatabaseModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Database/DatabaseModels.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345722 /* EnhancedDatabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Database/EnhancedDatabaseManager.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345724 /* DataValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Database/DataValidation.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345726 /* ResilientDatabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Database/ResilientDatabaseManager.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345728 /* ProductService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Services/ProductService.swift"; sourceTree = "<group>"; };
+				A1B2C3D4E5F6789012345724 /* DataValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Database/DataValidation.swift"; sourceTree = "<group>"; };
+				A1B2C3D4E5F6789012345728 /* ProductService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Services/ProductService.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345730 /* ServiceImplementations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Services/ServiceImplementations.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345752 /* TokenService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Services/TokenService.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345754 /* CatalogDatabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Database/CatalogDatabaseManager.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345756 /* CatalogDatabaseSchema.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Database/CatalogDatabaseSchema.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345772 /* SquareCatalogAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareCatalogAPIClient.swift"; sourceTree = "<group>"; };
+						A1B2C3D4E5F6789012345772 /* SquareCatalogAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareCatalogAPIClient.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345732 /* EnhancedSearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Search/EnhancedSearchService.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345734 /* MultiLevelCacheManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Search/MultiLevelCacheManager.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345736 /* SearchPerformanceMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Search/SearchPerformanceMonitor.swift"; sourceTree = "<group>"; };
@@ -70,16 +58,14 @@
 		A1B2C3D4E5F6789012345760 /* SquareHTTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareHTTPClient.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345762 /* SquareOAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareOAuthService.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345768 /* SquareOAuthCallbackHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareOAuthCallbackHandler.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345766 /* SquareSyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareSyncCoordinator.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345770 /* CatalogSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Sync/CatalogSyncService.swift"; sourceTree = "<group>"; };
-/* End PBXFileReference section */
+				/* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		A1B2C3D4E5F6789012345687 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A1B2C3D4E5F6789012345716 /* SQLite in Frameworks */,
+				A1B2C3D4E5F6789012345716 /* SQLite in Frameworks */
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -90,7 +76,7 @@
 			isa = PBXGroup;
 			children = (
 				A1B2C3D4E5F6789012345689 /* JoyLabsNative */,
-				A1B2C3D4E5F6789012345690 /* Products */,
+				A1B2C3D4E5F6789012345690 /* Products */
 			);
 			sourceTree = "<group>";
 		};
@@ -99,15 +85,10 @@
 			children = (
 				A1B2C3D4E5F6789012345679 /* JoyLabsNativeApp.swift */,
 				A1B2C3D4E5F6789012345681 /* ContentView.swift */,
-				A1B2C3D4E5F6789012345711 /* MockDatabaseManager.swift */,
 				A1B2C3D4E5F6789012345713 /* MockSearchManager.swift */,
 				A1B2C3D4E5F6789012345715 /* SearchModels.swift */,
 				A1B2C3D4E5F6789012345720 /* DatabaseModels.swift */,
-				A1B2C3D4E5F6789012345722 /* EnhancedDatabaseManager.swift */,
 				A1B2C3D4E5F6789012345724 /* DataValidation.swift */,
-				A1B2C3D4E5F6789012345726 /* ResilientDatabaseManager.swift */,
-				A1B2C3D4E5F6789012345754 /* CatalogDatabaseManager.swift */,
-				A1B2C3D4E5F6789012345756 /* CatalogDatabaseSchema.swift */,
 				A1B2C3D4E5F6789012345728 /* ProductService.swift */,
 				A1B2C3D4E5F6789012345730 /* ServiceImplementations.swift */,
 				A1B2C3D4E5F6789012345752 /* TokenService.swift */,
@@ -122,11 +103,9 @@
 				A1B2C3D4E5F6789012345760 /* SquareHTTPClient.swift */,
 				A1B2C3D4E5F6789012345762 /* SquareOAuthService.swift */,
 				A1B2C3D4E5F6789012345768 /* SquareOAuthCallbackHandler.swift */,
-				A1B2C3D4E5F6789012345766 /* SquareSyncCoordinator.swift */,
 				A1B2C3D4E5F6789012345772 /* SquareCatalogAPIClient.swift */,
-				A1B2C3D4E5F6789012345770 /* CatalogSyncService.swift */,
 				A1B2C3D4E5F6789012345683 /* Assets.xcassets */,
-				A1B2C3D4E5F6789012345691 /* Preview Content */,
+				A1B2C3D4E5F6789012345691 /* Preview Content */
 			);
 			path = JoyLabsNative;
 			sourceTree = "<group>";
@@ -134,7 +113,7 @@
 		A1B2C3D4E5F6789012345690 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				A1B2C3D4E5F6789012345686 /* JoyLabsNative.app */,
+				A1B2C3D4E5F6789012345686 /* JoyLabsNative.app */
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -142,7 +121,7 @@
 		A1B2C3D4E5F6789012345691 /* Preview Content */ = {
 			isa = PBXGroup;
 			children = (
-				A1B2C3D4E5F6789012345685 /* Preview Assets.xcassets */,
+				A1B2C3D4E5F6789012345685 /* Preview Assets.xcassets */
 			);
 			path = "Preview Content";
 			sourceTree = "<group>";
@@ -156,7 +135,7 @@
 			buildPhases = (
 				A1B2C3D4E5F6789012345694 /* Sources */,
 				A1B2C3D4E5F6789012345687 /* Frameworks */,
-				A1B2C3D4E5F6789012345695 /* Resources */,
+				A1B2C3D4E5F6789012345695 /* Resources */
 			);
 			buildRules = (
 			);
@@ -164,7 +143,7 @@
 			);
 			name = JoyLabsNative;
 			packageProductDependencies = (
-				A1B2C3D4E5F6789012345717 /* SQLite */,
+				A1B2C3D4E5F6789012345717 /* SQLite */
 			);
 			productName = JoyLabsNative;
 			productReference = A1B2C3D4E5F6789012345686 /* JoyLabsNative.app */;
@@ -191,17 +170,17 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
-				Base,
+				Base
 			);
 			mainGroup = A1B2C3D4E5F6789012345688;
 			packageReferences = (
-				A1B2C3D4E5F6789012345718 /* XCRemoteSwiftPackageReference "SQLite.swift" */,
+				A1B2C3D4E5F6789012345718 /* XCRemoteSwiftPackageReference "SQLite.swift" */
 			);
 			productRefGroup = A1B2C3D4E5F6789012345690 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				A1B2C3D4E5F6789012345692 /* JoyLabsNative */,
+				A1B2C3D4E5F6789012345692 /* JoyLabsNative */
 			);
 		};
 /* End PBXProject section */
@@ -212,7 +191,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A1B2C3D4E5F6789012345684 /* Preview Assets.xcassets in Resources */,
-				A1B2C3D4E5F6789012345682 /* Assets.xcassets in Resources */,
+				A1B2C3D4E5F6789012345682 /* Assets.xcassets in Resources */
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -225,15 +204,10 @@
 			files = (
 				A1B2C3D4E5F6789012345680 /* ContentView.swift in Sources */,
 				A1B2C3D4E5F6789012345678 /* JoyLabsNativeApp.swift in Sources */,
-				A1B2C3D4E5F6789012345710 /* MockDatabaseManager.swift in Sources */,
 				A1B2C3D4E5F6789012345712 /* MockSearchManager.swift in Sources */,
 				A1B2C3D4E5F6789012345714 /* SearchModels.swift in Sources */,
 				A1B2C3D4E5F6789012345719 /* DatabaseModels.swift in Sources */,
-				A1B2C3D4E5F6789012345721 /* EnhancedDatabaseManager.swift in Sources */,
 				A1B2C3D4E5F6789012345723 /* DataValidation.swift in Sources */,
-				A1B2C3D4E5F6789012345725 /* ResilientDatabaseManager.swift in Sources */,
-				A1B2C3D4E5F6789012345755 /* CatalogDatabaseSchema.swift in Sources */,
-				A1B2C3D4E5F6789012345753 /* CatalogDatabaseManager.swift in Sources */,
 				A1B2C3D4E5F6789012345727 /* ProductService.swift in Sources */,
 				A1B2C3D4E5F6789012345729 /* ServiceImplementations.swift in Sources */,
 				A1B2C3D4E5F6789012345751 /* TokenService.swift in Sources */,
@@ -248,10 +222,8 @@
 				A1B2C3D4E5F6789012345759 /* SquareHTTPClient.swift in Sources */,
 				A1B2C3D4E5F6789012345761 /* SquareOAuthService.swift in Sources */,
 				A1B2C3D4E5F6789012345767 /* SquareOAuthCallbackHandler.swift in Sources */,
-				A1B2C3D4E5F6789012345765 /* SquareSyncCoordinator.swift in Sources */,
-				A1B2C3D4E5F6789012345771 /* SquareCatalogAPIClient.swift in Sources */,
-				A1B2C3D4E5F6789012345769 /* CatalogSyncService.swift in Sources */,
-			);
+				A1B2C3D4E5F6789012345771 /* SquareCatalogAPIClient.swift in Sources */
+				);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
@@ -301,7 +273,7 @@
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"DEBUG=1",
-					"$(inherited)",
+					"$(inherited)"
 				);
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
@@ -397,7 +369,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
-					"@executable_path/Frameworks",
+					"@executable_path/Frameworks"
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.joylabs.native;
@@ -432,7 +404,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
-					"@executable_path/Frameworks",
+					"@executable_path/Frameworks"
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.joylabs.native;
@@ -453,7 +425,7 @@
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A1B2C3D4E5F6789012345700 /* Debug */,
-				A1B2C3D4E5F6789012345701 /* Release */,
+				A1B2C3D4E5F6789012345701 /* Release */
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -462,7 +434,7 @@
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A1B2C3D4E5F6789012345698 /* Debug */,
-				A1B2C3D4E5F6789012345699 /* Release */,
+				A1B2C3D4E5F6789012345699 /* Release */
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

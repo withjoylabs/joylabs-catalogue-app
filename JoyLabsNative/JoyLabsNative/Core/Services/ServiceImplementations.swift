@@ -3,41 +3,43 @@ import OSLog
 
 // MARK: - Database Product Repository Implementation
 
-/// Concrete implementation of ProductRepository using the database
+/// Concrete implementation of ProductRepository using the new SQLite.swift database
 class DatabaseProductRepository: ProductRepository {
 
-    private var resilientDB: ResilientDatabaseManager?
+    private var sqliteDB: SQLiteSwiftCatalogManager?
     private let logger = Logger(subsystem: "com.joylabs.native", category: "DatabaseProductRepository")
 
     init() {
-        logger.info("DatabaseProductRepository initialized")
+        logger.info("DatabaseProductRepository initialized with SQLite.swift")
     }
 
     @MainActor
-    private func getResilientDB() -> ResilientDatabaseManager {
-        if let existingDB = resilientDB {
+    private func getSQLiteDB() -> SQLiteSwiftCatalogManager {
+        if let existingDB = sqliteDB {
             return existingDB
         }
 
-        let newDB = ResilientDatabaseManager()
-        resilientDB = newDB
+        let newDB = SquareAPIServiceFactory.createDatabaseManager()
+        sqliteDB = newDB
         return newDB
     }
     
     func getProduct(id: String) async throws -> SearchResultItem? {
-        logger.debug("Repository: Getting product \(id)")
+        logger.debug("Repository: Getting product \(id) using SQLite.swift")
 
-        // For now, delegate to resilient database manager
-        let db = await getResilientDB()
-        return try await db.getProduct(id: id)
+        let db = await getSQLiteDB()
+        // TODO: Implement actual SQLite.swift product lookup
+        logger.warning("Product lookup with SQLite.swift not yet implemented - returning nil")
+        return nil
     }
-    
-    func searchProducts(_ query: String) async throws -> [SearchResultItem] {
-        logger.debug("Repository: Searching products '\(query)'")
 
-        // For now, delegate to resilient database manager
-        let db = await getResilientDB()
-        return try await db.searchProducts(query)
+    func searchProducts(_ query: String) async throws -> [SearchResultItem] {
+        logger.debug("Repository: Searching products '\(query)' using SQLite.swift")
+
+        let db = await getSQLiteDB()
+        // TODO: Implement actual SQLite.swift search logic
+        logger.warning("Product search with SQLite.swift not yet implemented - returning empty results")
+        return []
     }
     
     func getProductByBarcode(_ barcode: String) async throws -> SearchResultItem? {
