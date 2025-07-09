@@ -259,62 +259,77 @@ struct RefreshTokenResponse: Codable {
 private class KeychainHelper {
     func store(_ value: String, forKey key: String) throws {
         let data = value.data(using: .utf8)!
-        
+
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: key,
             kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+            // Use more persistent accessibility for development
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlocked,
+            // Add service identifier for better isolation
+            kSecAttrService as String: "com.joylabs.native.tokens"
         ]
-        
+
         // Delete any existing item
         SecItemDelete(query as CFDictionary)
-        
+
         // Add new item
         let status = SecItemAdd(query as CFDictionary, nil)
-        
-        guard status == errSecSuccess else {
+
+        if status != errSecSuccess {
+            Logger.error("TokenService", "Failed to store keychain item: \(status)")
             throw TokenError.storageError
         }
+
+        Logger.debug("TokenService", "Successfully stored keychain item for key: \(key)")
     }
     
     func retrieve(forKey key: String) throws -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: key,
+            kSecAttrService as String: "com.joylabs.native.tokens",
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne
         ]
-        
+
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
-        
+
         guard status == errSecSuccess else {
             if status == errSecItemNotFound {
+                Logger.debug("TokenService", "No keychain item found for key: \(key)")
                 return nil
             }
+            Logger.error("TokenService", "Failed to retrieve keychain item: \(status)")
             throw TokenError.storageError
         }
-        
+
         guard let data = result as? Data,
               let string = String(data: data, encoding: .utf8) else {
+            Logger.error("TokenService", "Failed to decode keychain data for key: \(key)")
             throw TokenError.storageError
         }
-        
+
+        Logger.debug("TokenService", "Successfully retrieved keychain item for key: \(key)")
         return string
     }
     
     func delete(forKey key: String) throws {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: key
+            kSecAttrAccount as String: key,
+            kSecAttrService as String: "com.joylabs.native.tokens"
         ]
-        
+
         let status = SecItemDelete(query as CFDictionary)
-        
+
         // Don't throw error if item doesn't exist
         guard status == errSecSuccess || status == errSecItemNotFound else {
+            Logger.error("TokenService", "Failed to delete keychain item: \(status)")
             throw TokenError.storageError
         }
+
+        Logger.debug("TokenService", "Successfully deleted keychain item for key: \(key)")
     }
 }

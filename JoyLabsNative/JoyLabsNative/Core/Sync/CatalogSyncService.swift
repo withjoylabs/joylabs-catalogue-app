@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import SQLite3
 
 /// Comprehensive catalog sync service with full Square API coverage
