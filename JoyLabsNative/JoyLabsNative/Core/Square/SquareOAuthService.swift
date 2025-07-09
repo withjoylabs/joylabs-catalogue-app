@@ -206,25 +206,13 @@ class SquareOAuthService: NSObject, ObservableObject {
 
         // Store tokens securely in keychain
         do {
-            var tokenDict: [String: Any] = [
-                "access_token": tokenResponse.accessToken,
-                "token_type": tokenResponse.tokenType ?? "Bearer"
-            ]
-
-            if let refreshToken = tokenResponse.refreshToken {
-                tokenDict["refresh_token"] = refreshToken
-            }
-            if let merchantId = tokenResponse.merchantId {
-                tokenDict["merchant_id"] = merchantId
-            }
-            if let businessName = tokenResponse.businessName {
-                tokenDict["business_name"] = businessName
-            }
-            if let expiresIn = tokenResponse.expiresIn {
-                tokenDict["expires_in"] = expiresIn
-            }
-
-            try await tokenService.storeTokens(tokenDict)
+            try await tokenService.storeAuthData(
+                accessToken: tokenResponse.accessToken,
+                refreshToken: tokenResponse.refreshToken,
+                merchantId: tokenResponse.merchantId,
+                businessName: tokenResponse.businessName,
+                expiresIn: tokenResponse.expiresIn
+            )
             logger.info("Tokens stored successfully in keychain")
         } catch {
             logger.error("Failed to store tokens: \(error)")
@@ -263,22 +251,12 @@ class SquareOAuthService: NSObject, ObservableObject {
 
         // Store tokens securely in keychain
         do {
-            var tokenDict: [String: Any] = [
-                "access_token": accessToken,
-                "token_type": "Bearer"
-            ]
-
-            if let refreshToken = refreshToken {
-                tokenDict["refresh_token"] = refreshToken
-            }
-            if let merchantId = merchantId {
-                tokenDict["merchant_id"] = merchantId
-            }
-            if let businessName = businessName {
-                tokenDict["business_name"] = businessName
-            }
-
-            try await tokenService.storeTokens(tokenDict)
+            try await tokenService.storeAuthData(
+                accessToken: accessToken,
+                refreshToken: refreshToken,
+                merchantId: merchantId,
+                businessName: businessName
+            )
             logger.info("Tokens stored successfully in keychain")
         } catch {
             logger.error("Failed to store tokens: \(error)")
