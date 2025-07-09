@@ -23,7 +23,7 @@ struct SyncResult {
     }
 }
 
-struct SyncError {
+struct SyncError: Error {
     let message: String
     let code: String?
     let objectId: String?

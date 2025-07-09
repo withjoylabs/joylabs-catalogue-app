@@ -2,112 +2,7 @@ import Foundation
 import SwiftUI
 import SQLite3
 
-// MARK: - Mock Dependencies (temporary for compilation)
 
-class SquareCatalogAPIClient {
-    struct CatalogObject {
-        let id: String
-        let type: String
-        let isDeleted: Bool?
-
-        // Mock data properties
-        let itemData: ItemData?
-        let itemVariationData: ItemVariationData?
-        let categoryData: CategoryData?
-        let taxData: TaxData?
-        let discountData: DiscountData?
-        let modifierListData: ModifierListData?
-        let modifierData: ModifierData?
-        let imageData: ImageData?
-
-        struct ItemData {
-            let name: String?
-        }
-
-        struct ItemVariationData {
-            let name: String?
-        }
-
-        struct CategoryData {
-            let name: String?
-        }
-
-        struct TaxData {
-            let name: String?
-        }
-
-        struct DiscountData {
-            let name: String?
-        }
-
-        struct ModifierListData {
-            let name: String?
-        }
-
-        struct ModifierData {
-            let name: String?
-        }
-
-        struct ImageData {
-            let name: String?
-        }
-    }
-
-    struct SyncProgress {
-        let totalObjects: Int
-        let syncedObjects: Int
-        let currentObject: CatalogObject
-        let progressPercentage: Double
-    }
-
-    init(accessToken: String) {
-        // Mock implementation
-    }
-
-    func performFullCatalogSync() -> AsyncThrowingStream<SyncProgress, Error> {
-        return AsyncThrowingStream { continuation in
-            // Mock implementation - complete immediately
-            continuation.finish()
-        }
-    }
-
-    func performIncrementalCatalogSync(since: String) -> AsyncThrowingStream<SyncProgress, Error> {
-        return AsyncThrowingStream { continuation in
-            // Mock implementation - complete immediately
-            continuation.finish()
-        }
-    }
-}
-
-class CatalogDatabaseManager {
-    func initializeDatabase() async throws {
-        // Mock implementation
-    }
-
-    func startSyncSession(type: String) async throws -> String {
-        return "mock-sync-id"
-    }
-
-    func storeCatalogObject(_ object: SquareCatalogAPIClient.CatalogObject) async throws {
-        // Mock implementation
-    }
-
-    func deleteCatalogObject(_ objectId: String) async throws {
-        // Mock implementation
-    }
-
-    func commitTransaction() async throws {
-        // Mock implementation
-    }
-
-    func beginTransaction() async throws {
-        // Mock implementation
-    }
-
-    func completeSyncSession(syncId: String) async throws {
-        // Mock implementation
-    }
-}
 
 /// Comprehensive catalog sync service with full Square API coverage
 /// Handles 18,000+ item catalogs with efficient batch processing and error recovery
@@ -122,10 +17,11 @@ class CatalogSyncService: ObservableObject {
     @Published var errorMessage: String?
     
     // MARK: - Dependencies
-    
-    private let apiClient: SquareCatalogAPIClient
+
+    private var apiClient: SquareCatalogAPIClient
     private let databaseManager: CatalogDatabaseManager
     private let squareAPIService: SquareAPIService
+    private let tokenService = TokenService()
     
     // MARK: - Sync State
     
@@ -155,7 +51,8 @@ class CatalogSyncService: ObservableObject {
     
     init(squareAPIService: SquareAPIService) {
         self.squareAPIService = squareAPIService
-        self.apiClient = SquareCatalogAPIClient(accessToken: "mock-token")
+        // Initialize with empty token - will be set when needed
+        self.apiClient = SquareCatalogAPIClient(accessToken: "")
         self.databaseManager = CatalogDatabaseManager()
         
         // Load last sync time
@@ -177,7 +74,17 @@ class CatalogSyncService: ObservableObject {
     }
     
     // MARK: - Helper Methods
-    
+
+    /// Ensure API client has a valid access token
+    private func ensureValidAPIClient() async throws {
+        guard let accessToken = await tokenService.ensureValidToken() else {
+            throw SyncError(message: "No valid access token available")
+        }
+
+        // Update API client with fresh token
+        apiClient = SquareCatalogAPIClient(accessToken: accessToken)
+    }
+
     private func extractObjectName(from object: SquareCatalogAPIClient.CatalogObject) -> String {
         switch object.type {
         case "ITEM":
@@ -317,15 +224,78 @@ class CatalogSyncService: ObservableObject {
     }
 
     func performFullSync() async throws -> SyncResult {
-        // Mock implementation for now
+        let startTime = Date()
+        var totalProcessed = 0
+        var inserted = 0
+        var updated = 0
+        var deleted = 0
+        var errors: [SyncError] = []
+
+        do {
+            // Ensure we have a valid API client
+            try await ensureValidAPIClient()
+
+            // Initialize database
+            try await databaseManager.initializeDatabase()
+
+            // Start sync session
+            let syncId = try await databaseManager.startSyncSession(type: "full")
+
+            // Begin transaction
+            try await databaseManager.beginTransaction()
+
+            // Process catalog objects
+            for try await progress in apiClient.performFullCatalogSync() {
+                // Store object in database
+                try await databaseManager.storeCatalogObject(progress.currentObject)
+                totalProcessed += 1
+
+                // Update counters based on object state
+                if progress.currentObject.isDeleted == true {
+                    deleted += 1
+                } else {
+                    // For now, count all as inserted (could be enhanced to detect updates)
+                    inserted += 1
+                }
+
+                // Commit every 100 objects for performance
+                if totalProcessed % 100 == 0 {
+                    try await databaseManager.commitTransaction()
+                    try await databaseManager.beginTransaction()
+                }
+            }
+
+            // Final commit
+            try await databaseManager.commitTransaction()
+
+            // Complete sync session
+            try await databaseManager.completeSyncSession(syncId: syncId)
+
+            // Update last sync time
+            await MainActor.run {
+                lastSyncTime = Date()
+                saveLastSyncTime()
+            }
+
+        } catch {
+            errors.append(SyncError(message: error.localizedDescription))
+
+            // Rollback transaction if active
+            try? await databaseManager.rollbackTransaction()
+
+            throw error
+        }
+
+        let duration = Date().timeIntervalSince(startTime)
+
         return SyncResult(
             syncType: .full,
-            duration: 1.0,
-            totalProcessed: 100,
-            inserted: 50,
-            updated: 30,
-            deleted: 5,
-            errors: []
+            duration: duration,
+            totalProcessed: totalProcessed,
+            inserted: inserted,
+            updated: updated,
+            deleted: deleted,
+            errors: errors
         )
     }
 

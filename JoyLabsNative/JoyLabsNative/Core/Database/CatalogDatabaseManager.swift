@@ -756,21 +756,4 @@ class CatalogDatabaseManager {
     }
 }
 
-// MARK: - Database Errors
 
-enum DatabaseError: Error, LocalizedError {
-    case cannotOpenDatabase
-    case preparationFailed(String)
-    case executionFailed(String)
-
-    var errorDescription: String? {
-        switch self {
-        case .cannotOpenDatabase:
-            return "Cannot open database"
-        case .preparationFailed(let message):
-            return "SQL preparation failed: \(message)"
-        case .executionFailed(let message):
-            return "SQL execution failed: \(message)"
-        }
-    }
-}

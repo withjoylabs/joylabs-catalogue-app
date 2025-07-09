@@ -138,7 +138,6 @@ class SquareCatalogAPIClient {
         let imageIds: [String]?
         let sortName: String?
         let categories: [CatalogObjectCategory]?
-        let descriptionHtml: String?
         let channels: [String]?
         let isArchived: Bool?
         let ecomSeoData: CatalogEcomSeoData?
@@ -459,7 +458,7 @@ class SquareCatalogAPIClient {
 struct CatalogSyncProgress {
     let totalObjects: Int
     let syncedObjects: Int
-    let currentObject: CatalogObject
+    let currentObject: SquareCatalogAPIClient.CatalogObject
     let cursor: String?
 
     var progressPercentage: Double {

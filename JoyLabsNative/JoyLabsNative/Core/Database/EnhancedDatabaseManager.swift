@@ -389,6 +389,9 @@ enum DatabaseError: LocalizedError {
     case queryFailed(Error)
     case invalidData
     case migrationFailed(Error)
+    case cannotOpenDatabase
+    case preparationFailed(String)
+    case executionFailed(String)
     
     var errorDescription: String? {
         switch self {
@@ -402,6 +405,12 @@ enum DatabaseError: LocalizedError {
             return "Invalid data provided to database operation"
         case .migrationFailed(let error):
             return "Database migration failed: \(error.localizedDescription)"
+        case .cannotOpenDatabase:
+            return "Cannot open database"
+        case .preparationFailed(let message):
+            return "SQL preparation failed: \(message)"
+        case .executionFailed(let message):
+            return "SQL execution failed: \(message)"
         }
     }
 }
