@@ -1,6 +1,42 @@
 import Foundation
 import OSLog
 
+// MARK: - Sync Types (shared with CatalogSyncService)
+
+enum SyncType: String, CaseIterable {
+    case full = "full"
+    case incremental = "incremental"
+    case delta = "delta"
+}
+
+struct SyncResult {
+    let syncType: SyncType
+    let duration: TimeInterval
+    let totalProcessed: Int
+    let inserted: Int
+    let updated: Int
+    let deleted: Int
+    let errors: [SyncError]
+
+    var summary: String {
+        return "Processed: \(totalProcessed), Inserted: \(inserted), Updated: \(updated), Deleted: \(deleted), Errors: \(errors.count)"
+    }
+}
+
+struct SyncError {
+    let message: String
+    let code: String?
+    let objectId: String?
+    let timestamp: Date
+
+    init(message: String, code: String? = nil, objectId: String? = nil) {
+        self.message = message
+        self.code = code
+        self.objectId = objectId
+        self.timestamp = Date()
+    }
+}
+
 /// Coordinates Square API synchronization with background scheduling and conflict resolution
 /// Manages sync timing, error recovery, and user notifications
 @MainActor
@@ -53,9 +89,7 @@ class SquareSyncCoordinator: ObservableObject {
         let resilienceService = ErrorRecoveryManager()
 
         let catalogSyncService = CatalogSyncService(
-            squareAPIService: squareAPIService,
-            databaseManager: databaseManager,
-            resilienceService: resilienceService
+            squareAPIService: squareAPIService
         )
 
         return SquareSyncCoordinator(
@@ -580,9 +614,7 @@ struct SquareSyncCoordinatorFactory {
         let resilienceService = BasicResilienceService()
 
         let catalogSyncService = CatalogSyncService(
-            squareAPIService: squareAPIService,
-            databaseManager: databaseManager,
-            resilienceService: resilienceService
+            squareAPIService: squareAPIService
         )
 
         return SquareSyncCoordinator(

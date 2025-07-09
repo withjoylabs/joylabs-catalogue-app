@@ -1,11 +1,13 @@
 import Foundation
 import Security
+import OSLog
 
 /// TokenService - Handles secure token storage and management
 /// Ports the sophisticated token management from React Native
 class TokenService {
     // MARK: - Private Properties
     private let keychain = KeychainHelper()
+    private let logger = Logger(subsystem: "com.joylabs.native", category: "TokenService")
     
     // Token storage keys (port from React Native)
     private enum Keys {
@@ -26,7 +28,7 @@ class TokenService {
         businessName: String?,
         expiresIn: Int? = nil
     ) async throws {
-        Logger.info("TokenService", "Storing authentication data")
+        logger.info("Storing authentication data")
         
         // Store access token
         try keychain.store(accessToken, forKey: Keys.accessToken)
@@ -52,7 +54,7 @@ class TokenService {
             try keychain.store(expiryString, forKey: Keys.tokenExpiry)
         }
         
-        Logger.info("TokenService", "Authentication data stored successfully")
+        logger.info("Authentication data stored successfully")
     }
     
     func getTokenInfo() async -> TokenInfo {
@@ -83,15 +85,15 @@ class TokenService {
             
         case .expired:
             // Try to refresh token
-            if let refreshToken = tokenInfo.refreshToken {
-                return await refreshToken(refreshToken)
+            if let refreshTokenValue = tokenInfo.refreshToken {
+                return await refreshToken(refreshTokenValue)
             } else {
-                Logger.warn("TokenService", "Token expired and no refresh token available")
+                logger.warning("Token expired and no refresh token available")
                 return nil
             }
             
         case .missing:
-            Logger.info("TokenService", "No token available")
+            logger.info("No token available")
             return nil
             
         case .unknown:
@@ -101,15 +103,59 @@ class TokenService {
     }
     
     func clearAuthData() async throws {
-        Logger.info("TokenService", "Clearing all authentication data")
-        
+        logger.info("Clearing all authentication data")
+
         try keychain.delete(forKey: Keys.accessToken)
         try keychain.delete(forKey: Keys.refreshToken)
         try keychain.delete(forKey: Keys.merchantId)
         try keychain.delete(forKey: Keys.businessName)
         try keychain.delete(forKey: Keys.tokenExpiry)
-        
-        Logger.info("TokenService", "Authentication data cleared")
+
+        logger.info("Authentication data cleared")
+    }
+
+    func clearTokens() async throws {
+        // Alias for clearAuthData for compatibility
+        try await clearAuthData()
+    }
+
+    // MARK: - Token Data Management
+
+    func getCurrentTokenData() async throws -> TokenData {
+        let accessToken = try? keychain.retrieve(forKey: Keys.accessToken)
+        let refreshToken = try? keychain.retrieve(forKey: Keys.refreshToken)
+        let merchantId = try? keychain.retrieve(forKey: Keys.merchantId)
+        let businessName = try? keychain.retrieve(forKey: Keys.businessName)
+
+        var expiresAt: Date?
+        if let expiryString = try? keychain.retrieve(forKey: Keys.tokenExpiry),
+           let expiryTimestamp = Double(expiryString) {
+            expiresAt = Date(timeIntervalSince1970: expiryTimestamp)
+        }
+
+        return TokenData(
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+            merchantId: merchantId,
+            businessName: businessName,
+            expiresAt: expiresAt
+        )
+    }
+
+    func isTokenExpired(_ tokenData: TokenData) async -> Bool {
+        guard let expiresAt = tokenData.expiresAt else {
+            return false // If no expiry, assume it doesn't expire
+        }
+        return Date() >= expiresAt
+    }
+
+    func shouldRefreshToken(_ tokenData: TokenData) async -> Bool {
+        guard let expiresAt = tokenData.expiresAt else {
+            return false // If no expiry, no need to refresh
+        }
+        // Refresh if token expires within 5 minutes
+        let refreshThreshold: TimeInterval = 5 * 60
+        return Date().addingTimeInterval(refreshThreshold) >= expiresAt
     }
     
     // MARK: - PKCE Management
@@ -117,7 +163,7 @@ class TokenService {
         try keychain.store(codeVerifier, forKey: Keys.codeVerifier)
         try keychain.store(state, forKey: Keys.state)
         
-        Logger.debug("TokenService", "PKCE values stored")
+        logger.debug("PKCE values stored")
     }
     
     func getStoredCodeVerifier() async throws -> String {
@@ -138,7 +184,7 @@ class TokenService {
         try keychain.delete(forKey: Keys.codeVerifier)
         try keychain.delete(forKey: Keys.state)
         
-        Logger.debug("TokenService", "PKCE values cleared")
+        logger.debug("PKCE values cleared")
     }
     
     // MARK: - Private Methods
@@ -163,7 +209,7 @@ class TokenService {
     }
     
     private func refreshToken(_ refreshToken: String) async -> String? {
-        Logger.info("TokenService", "Attempting to refresh access token")
+        logger.info("Attempting to refresh access token")
         
         do {
             // Call refresh endpoint (port from React Native)
@@ -180,7 +226,7 @@ class TokenService {
             
             guard let httpResponse = response as? HTTPURLResponse,
                   httpResponse.statusCode == 200 else {
-                Logger.error("TokenService", "Token refresh failed with status: \((response as? HTTPURLResponse)?.statusCode ?? 0)")
+                logger.error("Token refresh failed with status: \((response as? HTTPURLResponse)?.statusCode ?? 0)")
                 return nil
             }
             
@@ -195,11 +241,11 @@ class TokenService {
                 expiresIn: refreshResponse.expiresIn
             )
             
-            Logger.info("TokenService", "Token refreshed successfully")
+            logger.info("Token refreshed successfully")
             return refreshResponse.accessToken
             
         } catch {
-            Logger.error("TokenService", "Token refresh failed: \(error)")
+            logger.error("Token refresh failed: \(error)")
             return nil
         }
     }
@@ -220,6 +266,22 @@ enum TokenStatus {
     case expired
     case missing
     case unknown
+}
+
+struct TokenData {
+    let accessToken: String?
+    let refreshToken: String?
+    let merchantId: String?
+    let businessName: String?
+    let expiresAt: Date?
+
+    init(accessToken: String?, refreshToken: String? = nil, merchantId: String? = nil, businessName: String? = nil, expiresAt: Date? = nil) {
+        self.accessToken = accessToken
+        self.refreshToken = refreshToken
+        self.merchantId = merchantId
+        self.businessName = businessName
+        self.expiresAt = expiresAt
+    }
 }
 
 enum TokenError: LocalizedError {
@@ -257,6 +319,7 @@ struct RefreshTokenResponse: Codable {
 
 // MARK: - Keychain Helper
 private class KeychainHelper {
+    private let logger = Logger(subsystem: "com.joylabs.native", category: "KeychainHelper")
     func store(_ value: String, forKey key: String) throws {
         let data = value.data(using: .utf8)!
 
@@ -277,11 +340,11 @@ private class KeychainHelper {
         let status = SecItemAdd(query as CFDictionary, nil)
 
         if status != errSecSuccess {
-            Logger.error("TokenService", "Failed to store keychain item: \(status)")
+            logger.error("Failed to store keychain item: \(status)")
             throw TokenError.storageError
         }
 
-        Logger.debug("TokenService", "Successfully stored keychain item for key: \(key)")
+        logger.debug("Successfully stored keychain item for key: \(key)")
     }
     
     func retrieve(forKey key: String) throws -> String? {
@@ -298,20 +361,20 @@ private class KeychainHelper {
 
         guard status == errSecSuccess else {
             if status == errSecItemNotFound {
-                Logger.debug("TokenService", "No keychain item found for key: \(key)")
+                logger.debug("No keychain item found for key: \(key)")
                 return nil
             }
-            Logger.error("TokenService", "Failed to retrieve keychain item: \(status)")
+            logger.error("Failed to retrieve keychain item: \(status)")
             throw TokenError.storageError
         }
 
         guard let data = result as? Data,
               let string = String(data: data, encoding: .utf8) else {
-            Logger.error("TokenService", "Failed to decode keychain data for key: \(key)")
+            logger.error("Failed to decode keychain data for key: \(key)")
             throw TokenError.storageError
         }
 
-        Logger.debug("TokenService", "Successfully retrieved keychain item for key: \(key)")
+        logger.debug("Successfully retrieved keychain item for key: \(key)")
         return string
     }
     
@@ -326,10 +389,10 @@ private class KeychainHelper {
 
         // Don't throw error if item doesn't exist
         guard status == errSecSuccess || status == errSecItemNotFound else {
-            Logger.error("TokenService", "Failed to delete keychain item: \(status)")
+            logger.error("Failed to delete keychain item: \(status)")
             throw TokenError.storageError
         }
 
-        Logger.debug("TokenService", "Successfully deleted keychain item for key: \(key)")
+        logger.debug("Successfully deleted keychain item for key: \(key)")
     }
 }
