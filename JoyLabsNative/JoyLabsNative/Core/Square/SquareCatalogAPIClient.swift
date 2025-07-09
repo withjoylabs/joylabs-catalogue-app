@@ -289,21 +289,14 @@ class SquareCatalogAPIClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
-        // Create query for sorted results by updated_at
-        let sortQuery = CatalogQuerySortedAttribute(
-            attributeName: "updated_at",
-            initialAttributeValue: beginTime,
-            sortOrder: "ASC"
-        )
-
-        let query = CatalogQuery(sortedAttributeQuery: sortQuery)
-
+        // For full catalog sync, we don't need a specific query - just get all objects
+        // The begin_time parameter handles incremental sync at the API level
         let requestBody = SearchCatalogObjectsRequest(
             objectTypes: objectTypes,
             includeRelatedObjects: includeRelatedObjects,
             includeDeletedObjects: includeDeletedObjects,
             beginTime: beginTime,
-            query: query,
+            query: nil, // No query needed for full catalog retrieval
             limit: limit,
             cursor: cursor
         )

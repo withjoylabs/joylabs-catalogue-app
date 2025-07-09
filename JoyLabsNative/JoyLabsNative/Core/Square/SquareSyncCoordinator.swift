@@ -275,22 +275,8 @@ class SquareSyncCoordinator: ObservableObject {
         }
 
         do {
-            let result = try await resilienceService.executeResilient(
-                operationId: "sync_coordinator_operation",
-                operation: {
-                    return try await self.catalogSyncService.performSync()
-                },
-                fallback: SyncResult(
-                    syncType: .incremental,
-                    duration: 0,
-                    totalProcessed: 0,
-                    inserted: 0,
-                    updated: 0,
-                    deleted: 0,
-                    errors: []
-                ),
-                degradationStrategy: .returnCached
-            )
+            // Direct call without retry logic - if catalog sync fails, it fails
+            let result = try await catalogSyncService.performSync()
 
             progressTask.cancel()
             await handleSyncSuccess(result, isManual: isManual)
