@@ -266,7 +266,12 @@ class SquareCatalogAPIClient {
     
     init(accessToken: String) {
         self.accessToken = accessToken
-        self.session = URLSession(configuration: .default)
+
+        // Configure URLSession with timeouts to prevent hanging
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 60.0  // 60 seconds for individual requests
+        config.timeoutIntervalForResource = 300.0 // 5 minutes for entire resource
+        self.session = URLSession(configuration: config)
     }
 
     // MARK: - API Methods

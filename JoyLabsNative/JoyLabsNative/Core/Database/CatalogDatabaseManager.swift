@@ -42,6 +42,18 @@ class CatalogDatabaseManager {
         }
 
         // Configure SQLite for better performance and corruption resistance
+        try configureSQLiteSettings()
+    }
+    
+    private func closeDatabase() {
+        if db != nil {
+            sqlite3_close(db)
+            db = nil
+        }
+    }
+
+    /// Configure SQLite settings for optimal performance and corruption resistance
+    private func configureSQLiteSettings() throws {
         var statement: OpaquePointer?
 
         // Enable WAL mode for better concurrency and corruption resistance
@@ -67,19 +79,12 @@ class CatalogDatabaseManager {
             sqlite3_step(statement)
         }
         sqlite3_finalize(statement)
-        
-        // Set WAL mode for better performance
-        if sqlite3_prepare_v2(db, "PRAGMA journal_mode = WAL;", -1, &statement, nil) == SQLITE_OK {
+
+        // Set busy timeout to handle concurrent access
+        if sqlite3_prepare_v2(db, "PRAGMA busy_timeout = 30000;", -1, &statement, nil) == SQLITE_OK {
             sqlite3_step(statement)
         }
         sqlite3_finalize(statement)
-    }
-    
-    private func closeDatabase() {
-        if db != nil {
-            sqlite3_close(db)
-            db = nil
-        }
     }
     
     private func createTables() throws {
@@ -211,15 +216,20 @@ class CatalogDatabaseManager {
         logger.info("Recreating corrupted database")
 
         // Close current connection
-        if sqlite3_close(db) != SQLITE_OK {
-            logger.warning("Failed to close corrupted database")
+        if db != nil {
+            sqlite3_close(db)
+            db = nil
         }
 
-        // Delete the corrupted database file
+        // Delete all database-related files (including WAL and SHM files)
         let fileManager = FileManager.default
-        if fileManager.fileExists(atPath: dbPath) {
-            try fileManager.removeItem(atPath: dbPath)
-            logger.info("Deleted corrupted database file")
+        let dbFiles = [dbPath, "\(dbPath)-wal", "\(dbPath)-shm"]
+
+        for filePath in dbFiles {
+            if fileManager.fileExists(atPath: filePath) {
+                try fileManager.removeItem(atPath: filePath)
+                logger.info("Deleted database file: \(filePath)")
+            }
         }
 
         // Reinitialize with fresh database

@@ -345,7 +345,17 @@ class CatalogSyncService: ObservableObject {
             try await databaseManager.initializeDatabase()
 
             // Clear existing catalog data for fresh sync (matching React Native behavior)
-            try await databaseManager.clearCatalogData()
+            // If this fails due to corruption, recreate the database
+            do {
+                try await databaseManager.clearCatalogData()
+            } catch {
+                if isDatabaseCorrupted(error) {
+                    print("Database corruption detected during clear, recreating database...")
+                    try await databaseManager.recreateDatabase()
+                } else {
+                    throw error
+                }
+            }
 
             // Start sync session
             let syncId = try await databaseManager.startSyncSession(type: "full")
