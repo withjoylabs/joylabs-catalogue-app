@@ -1077,7 +1077,7 @@ struct ProfileView: View {
     @State private var showingAlert = false
 
     init() {
-        // CRITICAL FIX: Use SINGLE shared service instance to prevent duplicates
+        // REVERTED: Keep existing implementation for now
         let sharedService = SquareAPIServiceFactory.createService()
         let sharedDatabase = ResilientDatabaseManager()
 
