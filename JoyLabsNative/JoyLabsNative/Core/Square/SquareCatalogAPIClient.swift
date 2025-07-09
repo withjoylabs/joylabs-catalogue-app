@@ -260,12 +260,7 @@ class SquareCatalogAPIClient {
         }
     }
     
-    struct SquareError: Codable {
-        let category: String
-        let code: String
-        let detail: String?
-        let field: String?
-    }
+
     
     // MARK: - Initialization
     

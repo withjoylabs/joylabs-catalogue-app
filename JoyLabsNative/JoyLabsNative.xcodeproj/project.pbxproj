@@ -31,7 +31,7 @@
 		A1B2C3D4E5F6789012345737 /* ErrorRecoveryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345738 /* ErrorRecoveryManager.swift */; };
 		A1B2C3D4E5F6789012345739 /* CircuitBreaker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345740 /* CircuitBreaker.swift */; };
 		A1B2C3D4E5F6789012345749 /* PKCEGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345750 /* PKCEGenerator.swift */; };
-		A1B2C3D4E5F6789012345755 /* SquareAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345756 /* SquareAPIService.swift */; };
+		A1B2C3D4E5F6789012345773 /* SquareAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345774 /* SquareAPIService.swift */; };
 		A1B2C3D4E5F6789012345757 /* SquareConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345758 /* SquareConfiguration.swift */; };
 		A1B2C3D4E5F6789012345759 /* SquareHTTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345760 /* SquareHTTPClient.swift */; };
 		A1B2C3D4E5F6789012345761 /* SquareOAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345762 /* SquareOAuthService.swift */; };
@@ -65,7 +65,7 @@
 		A1B2C3D4E5F6789012345738 /* ErrorRecoveryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Resilience/ErrorRecoveryManager.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345740 /* CircuitBreaker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Resilience/CircuitBreaker.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345750 /* PKCEGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/PKCEGenerator.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345756 /* SquareAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareAPIService.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345774 /* SquareAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareAPIService.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345758 /* SquareConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareConfiguration.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345760 /* SquareHTTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareHTTPClient.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345762 /* SquareOAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareOAuthService.swift"; sourceTree = "<group>"; };
@@ -117,7 +117,7 @@
 				A1B2C3D4E5F6789012345738 /* ErrorRecoveryManager.swift */,
 				A1B2C3D4E5F6789012345740 /* CircuitBreaker.swift */,
 				A1B2C3D4E5F6789012345750 /* PKCEGenerator.swift */,
-				A1B2C3D4E5F6789012345756 /* SquareAPIService.swift */,
+				A1B2C3D4E5F6789012345774 /* SquareAPIService.swift */,
 				A1B2C3D4E5F6789012345758 /* SquareConfiguration.swift */,
 				A1B2C3D4E5F6789012345760 /* SquareHTTPClient.swift */,
 				A1B2C3D4E5F6789012345762 /* SquareOAuthService.swift */,
@@ -232,8 +232,8 @@
 				A1B2C3D4E5F6789012345721 /* EnhancedDatabaseManager.swift in Sources */,
 				A1B2C3D4E5F6789012345723 /* DataValidation.swift in Sources */,
 				A1B2C3D4E5F6789012345725 /* ResilientDatabaseManager.swift in Sources */,
-				A1B2C3D4E5F6789012345753 /* CatalogDatabaseManager.swift in Sources */,
 				A1B2C3D4E5F6789012345755 /* CatalogDatabaseSchema.swift in Sources */,
+				A1B2C3D4E5F6789012345753 /* CatalogDatabaseManager.swift in Sources */,
 				A1B2C3D4E5F6789012345727 /* ProductService.swift in Sources */,
 				A1B2C3D4E5F6789012345729 /* ServiceImplementations.swift in Sources */,
 				A1B2C3D4E5F6789012345751 /* TokenService.swift in Sources */,
@@ -243,7 +243,7 @@
 				A1B2C3D4E5F6789012345737 /* ErrorRecoveryManager.swift in Sources */,
 				A1B2C3D4E5F6789012345739 /* CircuitBreaker.swift in Sources */,
 				A1B2C3D4E5F6789012345749 /* PKCEGenerator.swift in Sources */,
-				A1B2C3D4E5F6789012345755 /* SquareAPIService.swift in Sources */,
+				A1B2C3D4E5F6789012345773 /* SquareAPIService.swift in Sources */,
 				A1B2C3D4E5F6789012345757 /* SquareConfiguration.swift in Sources */,
 				A1B2C3D4E5F6789012345759 /* SquareHTTPClient.swift in Sources */,
 				A1B2C3D4E5F6789012345761 /* SquareOAuthService.swift in Sources */,
