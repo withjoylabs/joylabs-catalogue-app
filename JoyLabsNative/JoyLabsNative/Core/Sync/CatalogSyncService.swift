@@ -350,7 +350,7 @@ class CatalogSyncService: ObservableObject {
             // Start sync session
             let syncId = try await databaseManager.startSyncSession(type: "full")
 
-            // Begin transaction
+            // Begin single large transaction for entire sync
             try await databaseManager.beginTransaction()
 
             // Process catalog objects
@@ -367,14 +367,13 @@ class CatalogSyncService: ObservableObject {
                     inserted += 1
                 }
 
-                // Commit every 100 objects for performance
-                if totalProcessed % 100 == 0 {
-                    try await databaseManager.commitTransaction()
-                    try await databaseManager.beginTransaction()
+                // Log progress every 1000 objects instead of committing
+                if totalProcessed % 1000 == 0 {
+                    print("Processed \(totalProcessed) catalog objects...")
                 }
             }
 
-            // Final commit
+            // Single commit at the end for better performance and corruption resistance
             try await databaseManager.commitTransaction()
 
             // Complete sync session

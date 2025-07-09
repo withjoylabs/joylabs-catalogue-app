@@ -40,10 +40,30 @@ class CatalogDatabaseManager {
         if sqlite3_open(dbPath, &db) != SQLITE_OK {
             throw DatabaseError.cannotOpenDatabase
         }
-        
-        // Enable foreign keys
+
+        // Configure SQLite for better performance and corruption resistance
         var statement: OpaquePointer?
+
+        // Enable WAL mode for better concurrency and corruption resistance
+        if sqlite3_prepare_v2(db, "PRAGMA journal_mode = WAL;", -1, &statement, nil) == SQLITE_OK {
+            sqlite3_step(statement)
+        }
+        sqlite3_finalize(statement)
+
+        // Enable foreign keys
         if sqlite3_prepare_v2(db, "PRAGMA foreign_keys = ON;", -1, &statement, nil) == SQLITE_OK {
+            sqlite3_step(statement)
+        }
+        sqlite3_finalize(statement)
+
+        // Set synchronous mode to NORMAL for better performance while maintaining safety
+        if sqlite3_prepare_v2(db, "PRAGMA synchronous = NORMAL;", -1, &statement, nil) == SQLITE_OK {
+            sqlite3_step(statement)
+        }
+        sqlite3_finalize(statement)
+
+        // Increase cache size for better performance
+        if sqlite3_prepare_v2(db, "PRAGMA cache_size = 10000;", -1, &statement, nil) == SQLITE_OK {
             sqlite3_step(statement)
         }
         sqlite3_finalize(statement)
