@@ -125,12 +125,20 @@ enum AuthenticationState {
     }
 }
 
-// MARK: - Temporary Model Definitions (until proper models are added)
+// MARK: - Square API Response Models
 
-struct SquareCatalogResponse: Codable {
+/// Response type for /v2/catalog/list endpoint (per Square API documentation)
+/// Reference: https://developer.squareup.com/reference/square/catalog-api/list-catalog
+struct ListCatalogResponse: Codable {
     let objects: [CatalogObject]?
     let cursor: String?
-    let relatedObjects: [CatalogObject]?
+    let errors: [SquareError]?
+
+    enum CodingKeys: String, CodingKey {
+        case objects
+        case cursor
+        case errors
+    }
 }
 
 struct SquareCatalogSearchResponse: Codable {
@@ -348,15 +356,39 @@ class SquareAPIService: ObservableObject {
         var cursor: String?
 
         repeat {
+            // Build query parameters
+            var queryItems = [URLQueryItem]()
+
+            // Add object types (comprehensive list covering all Square catalog objects)
+            let objectTypes = SquareConfiguration.catalogObjectTypes
+            queryItems.append(URLQueryItem(name: "types", value: objectTypes))
+
+            // Add cursor for pagination
+            if let cursor = cursor {
+                queryItems.append(URLQueryItem(name: "cursor", value: cursor))
+            }
+
+            // Add limit for pagination (Square API default is 100, max is 1000)
+            queryItems.append(URLQueryItem(name: "limit", value: String(SquareConfiguration.defaultPageSize)))
+
+            // Build endpoint with query parameters
+            let endpoint = buildEndpointWithQuery(
+                base: "/v2/catalog/list",
+                queryItems: queryItems
+            )
+
+            logger.debug("Making Square API request: GET \(endpoint)")
+
             let response = try await httpClient.makeSquareAPIRequest(
-                endpoint: "catalog/list",
+                endpoint: endpoint,
                 method: .GET,
                 body: nil,
-                responseType: SquareCatalogResponse.self
+                responseType: ListCatalogResponse.self
             )
 
             if let objects = response.objects {
                 allObjects.append(contentsOf: objects)
+                logger.debug("Fetched \(objects.count) objects in this page, total: \(allObjects.count)")
             }
 
             cursor = response.cursor
@@ -367,6 +399,20 @@ class SquareAPIService: ObservableObject {
         lastSyncDate = Date()
 
         return allObjects
+    }
+
+    /// Build endpoint URL with query parameters
+    private func buildEndpointWithQuery(base: String, queryItems: [URLQueryItem]) -> String {
+        guard !queryItems.isEmpty else { return base }
+
+        var components = URLComponents()
+        components.queryItems = queryItems
+
+        if let queryString = components.query {
+            return "\(base)?\(queryString)"
+        }
+
+        return base
     }
 
     /// Get cached catalog data as fallback

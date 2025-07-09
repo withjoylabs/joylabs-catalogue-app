@@ -274,10 +274,17 @@ actor SquareHTTPClient {
             throw SquareAPIError.noAccessToken
         }
         
-        // Build URL
-        guard let url = URL(string: "\(configuration.apiBaseURL)\(endpoint)") else {
+        // Build URL - ensure proper slash handling
+        let baseURL = configuration.apiBaseURL.hasSuffix("/") ?
+            String(configuration.apiBaseURL.dropLast()) : configuration.apiBaseURL
+        let cleanEndpoint = endpoint.hasPrefix("/") ? endpoint : "/\(endpoint)"
+
+        guard let url = URL(string: "\(baseURL)\(cleanEndpoint)") else {
+            logger.error("Failed to build URL from base: \(baseURL) and endpoint: \(cleanEndpoint)")
             throw SquareAPIError.invalidURL
         }
+
+        logger.debug("Making Square API request: \(method.rawValue) \(url.absoluteString)")
         
         // Create request
         var request = URLRequest(url: url)
