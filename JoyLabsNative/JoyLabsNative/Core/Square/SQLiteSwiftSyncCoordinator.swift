@@ -46,13 +46,21 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
         // Observe catalog sync service state
         catalogSyncService.$syncState
             .receive(on: DispatchQueue.main)
+            .map { syncState in
+                switch syncState {
+                case .idle: return SyncState.idle
+                case .syncing: return SyncState.syncing
+                case .completed: return SyncState.completed
+                case .failed: return SyncState.failed
+                }
+            }
             .assign(to: &$syncState)
-        
+
         catalogSyncService.$errorMessage
             .receive(on: DispatchQueue.main)
             .map { $0.map { SyncCoordinatorError.syncFailed($0) } }
             .assign(to: &$error)
-        
+
         catalogSyncService.$syncProgress
             .receive(on: DispatchQueue.main)
             .map { $0.progressPercentage }

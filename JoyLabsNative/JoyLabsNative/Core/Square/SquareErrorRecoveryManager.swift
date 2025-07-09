@@ -42,7 +42,7 @@ actor SquareErrorRecoveryManager {
         // Check circuit breaker state
         if await isCircuitBreakerOpen(for: operationId) {
             logger.warning("Circuit breaker open for operation: \(operationId)")
-            throw SquareAPIError.circuitBreakerOpen
+            throw SquareAPIError.unknownError
         }
         
         // Determine recovery strategy
@@ -63,17 +63,17 @@ actor SquareErrorRecoveryManager {
         let errorDescription = error.localizedDescription.lowercased()
         
         if errorDescription.contains("network") || errorDescription.contains("connection") {
-            return .networkUnavailable
+            return .networkError(error)
         } else if errorDescription.contains("timeout") {
-            return .requestTimeout
+            return .networkError(error)
         } else if errorDescription.contains("unauthorized") || errorDescription.contains("authentication") {
-            return .authenticationRequired
+            return .authenticationFailed
         } else if errorDescription.contains("rate limit") {
             return .rateLimitExceeded
         } else if errorDescription.contains("server error") {
             return .serverError(500)
         } else {
-            return .internalError(error.localizedDescription)
+            return .unknownError
         }
     }
     
@@ -82,33 +82,30 @@ actor SquareErrorRecoveryManager {
         let attemptCount = recoveryAttempts[operationId] ?? 0
         
         switch error {
-        case .networkUnavailable, .requestTimeout:
+        case .networkError:
             return attemptCount < maxRecoveryAttempts ? .retryWithBackoff : .useCachedData
-            
-        case .rateLimitExceeded, .quotaExceeded:
+
+        case .rateLimitExceeded:
             return .retryWithExponentialBackoff
-            
-        case .authenticationRequired, .authenticationFailed, .tokenExpired:
+
+        case .authenticationFailed:
             return .reauthenticate
-            
+
         case .serverError(let code) where code >= 500:
             return attemptCount < maxRecoveryAttempts ? .retryWithBackoff : .useCachedData
-            
-        case .invalidRequest, .resourceNotFound, .permissionDenied:
+
+        case .invalidResponse, .invalidURL, .invalidConfiguration:
             return .skipOperation
-            
-        case .invalidData, .serializationError, .validationError:
+
+        case .decodingError:
             return .skipOperation
-            
-        case .serviceUnavailable:
-            return .useAlternativeService
-            
-        case .circuitBreakerOpen:
-            return .useCachedData
-            
-        case .internalError:
+
+        case .noAccessToken:
+            return .reauthenticate
+
+        case .unknownError:
             return attemptCount < maxRecoveryAttempts ? .retryWithBackoff : .skipOperation
-            
+
         default:
             return .skipOperation
         }
@@ -116,7 +113,7 @@ actor SquareErrorRecoveryManager {
     
     /// Execute the recovery strategy
     private func executeRecoveryStrategy(_ strategy: RecoveryStrategy, for operationId: String, originalError: SquareAPIError) async throws {
-        logger.info("Executing recovery strategy: \(strategy) for operation: \(operationId)")
+        logger.info("Executing recovery strategy for operation: \(operationId)")
         
         switch strategy {
         case .retryWithBackoff:
@@ -149,7 +146,7 @@ actor SquareErrorRecoveryManager {
         guard attemptCount < maxRecoveryAttempts else {
             logger.error("Max recovery attempts reached for operation: \(operationId)")
             await recordCircuitBreakerFailure(for: operationId)
-            throw SquareAPIError.internalError("Max recovery attempts exceeded")
+            throw SquareAPIError.unknownError
         }
         
         let backoffTime = recoveryBackoffBase * Double(attemptCount + 1)
@@ -168,7 +165,7 @@ actor SquareErrorRecoveryManager {
         guard attemptCount < maxRecoveryAttempts else {
             logger.error("Max recovery attempts reached for operation: \(operationId)")
             await recordCircuitBreakerFailure(for: operationId)
-            throw SquareAPIError.internalError("Max recovery attempts exceeded")
+            throw SquareAPIError.unknownError
         }
         
         let backoffTime = recoveryBackoffBase * pow(2.0, Double(attemptCount))
@@ -184,7 +181,7 @@ actor SquareErrorRecoveryManager {
     private func reauthenticate() async throws {
         logger.info("Attempting reauthentication")
         // This would integrate with the authentication service
-        throw SquareAPIError.authenticationFailed("Reauthentication not implemented")
+        throw SquareAPIError.authenticationFailed
     }
     
     // MARK: - Circuit Breaker Management

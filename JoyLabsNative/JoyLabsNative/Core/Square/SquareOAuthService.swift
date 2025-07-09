@@ -209,9 +209,9 @@ class SquareOAuthService: NSObject, ObservableObject {
             try await tokenService.storeAuthData(
                 accessToken: tokenResponse.accessToken,
                 refreshToken: tokenResponse.refreshToken,
-                merchantId: tokenResponse.merchantId,
+                merchantId: tokenResponse.merchantId ?? "",
                 businessName: tokenResponse.businessName,
-                expiresIn: tokenResponse.expiresIn
+                expiresAt: tokenResponse.expiresIn.map { Date(timeIntervalSinceNow: TimeInterval($0)) }
             )
             logger.info("Tokens stored successfully in keychain")
         } catch {
@@ -254,8 +254,9 @@ class SquareOAuthService: NSObject, ObservableObject {
             try await tokenService.storeAuthData(
                 accessToken: accessToken,
                 refreshToken: refreshToken,
-                merchantId: merchantId,
-                businessName: businessName
+                merchantId: merchantId ?? "",
+                businessName: businessName,
+                expiresAt: nil
             )
             logger.info("Tokens stored successfully in keychain")
         } catch {

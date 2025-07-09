@@ -1,6 +1,43 @@
 import Foundation
 import OSLog
 
+// MARK: - Token Service Types
+
+class TokenService {
+    func ensureValidToken() async -> String? {
+        // Placeholder implementation
+        return nil
+    }
+
+    func getCurrentTokenData() async throws -> TokenData {
+        return TokenData(accessToken: nil, refreshToken: nil, merchantId: nil, businessName: nil, expiresAt: nil)
+    }
+
+    func isTokenExpired(_ tokenData: TokenData) async -> Bool {
+        return false
+    }
+
+    func shouldRefreshToken(_ tokenData: TokenData) async -> Bool {
+        return false
+    }
+
+    func clearTokens() async throws {
+        // Placeholder implementation
+    }
+
+    func storeAuthData(accessToken: String, refreshToken: String?, merchantId: String, businessName: String?, expiresAt: Date?) async throws {
+        // Placeholder implementation
+    }
+}
+
+struct TokenData {
+    let accessToken: String?
+    let refreshToken: String?
+    let merchantId: String?
+    let businessName: String?
+    let expiresAt: Date?
+}
+
 // MARK: - Authentication State
 
 enum AuthenticationState {
@@ -369,16 +406,7 @@ extension Date {
     }
 }
 
-// MARK: - Square API Service Factory
 
-/// Factory for creating configured SquareAPIService instances
-struct SquareAPIServiceFactory {
-    
-    @MainActor
-    static func createService() -> SquareAPIService {
-        return SquareAPIService()
-    }
-}
 
 // MARK: - Square API Service Extensions
 

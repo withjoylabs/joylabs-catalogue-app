@@ -21,6 +21,7 @@ class SQLiteSwiftCatalogManager {
     private let categoryVersion = Expression<String>("version") // Store as TEXT like React Native
     private let categoryIsDeleted = Expression<Bool>("is_deleted")
     private let categoryName = Expression<String?>("name")
+    private let categoryImageUrl = Expression<String?>("image_url")
     private let categoryDataJson = Expression<String?>("data_json") // Store raw category_data JSON
 
     // Catalog items table (matching React Native schema)
@@ -33,6 +34,11 @@ class SQLiteSwiftCatalogManager {
     private let itemName = Expression<String?>("name")
     private let itemDescription = Expression<String?>("description")
     private let itemCategoryId = Expression<String?>("category_id")
+    private let itemType = Expression<String?>("type")
+    private let itemLabelColor = Expression<String?>("label_color")
+    private let itemAvailableOnline = Expression<Bool?>("available_online")
+    private let itemAvailableForPickup = Expression<Bool?>("available_for_pickup")
+    private let itemAvailableElectronically = Expression<Bool?>("available_electronically")
     private let itemDataJson = Expression<String?>("data_json") // Store raw item_data JSON
     
     // Item variations table (matching React Native schema)
@@ -49,6 +55,11 @@ class SQLiteSwiftCatalogManager {
     private let variationPricingType = Expression<String?>("pricing_type")
     private let variationPriceMoneyAmount = Expression<Int64?>("price_money_amount")
     private let variationPriceMoneyCurrency = Expression<String?>("price_money_currency")
+    private let variationBasePriceMoney = Expression<String?>("base_price_money")
+    private let variationDefaultUnitCost = Expression<String?>("default_unit_cost")
+    private let variationMeasurementUnitId = Expression<String?>("measurement_unit_id")
+    private let variationSellable = Expression<Bool?>("sellable")
+    private let variationStockable = Expression<Bool?>("stockable")
     private let variationDataJson = Expression<String?>("data_json") // Store raw variation_data JSON
 
     // Additional tables matching React Native schema
@@ -89,13 +100,27 @@ class SQLiteSwiftCatalogManager {
     private let teamCreatedAt = Expression<String>("created_at")
     private let teamUpdatedAt = Expression<String>("updated_at")
     private let teamOwner = Expression<String?>("owner")
+
+    // Sync status table (matching React Native schema)
+    private let syncStatus = Table("sync_status")
+    private let syncId = Expression<Int>("id")
+    private let syncLastSyncTime = Expression<String?>("last_sync_time")
+    private let syncIsSyncing = Expression<Bool>("is_syncing")
+    private let syncError = Expression<String?>("sync_error")
+    private let syncProgress = Expression<Int>("sync_progress")
+    private let syncTotal = Expression<Int>("sync_total")
+    private let syncType = Expression<String?>("sync_type")
+    private let syncLastPageCursor = Expression<String?>("last_page_cursor")
+    private let syncLastSyncAttempt = Expression<String?>("last_sync_attempt")
+    private let syncAttemptCount = Expression<Int>("sync_attempt_count")
+    private let syncLastIncrementalSyncCursor = Expression<String?>("last_incremental_sync_cursor")
     
     // MARK: - Initialization
     
     init() {
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
         self.dbPath = documentsPath.appendingPathComponent("catalog.sqlite").path
-        logger.info("SQLiteSwift database path: \(dbPath)")
+        logger.info("SQLiteSwift database path: \(self.dbPath)")
     }
     
     // MARK: - Database Connection
@@ -139,6 +164,7 @@ class SQLiteSwiftCatalogManager {
             t.column(categoryVersion)
             t.column(categoryIsDeleted, defaultValue: false)
             t.column(categoryName)
+            t.column(categoryImageUrl)
             t.column(categoryDataJson) // Store raw category_data JSON
         })
 
@@ -152,6 +178,11 @@ class SQLiteSwiftCatalogManager {
             t.column(itemName)
             t.column(itemDescription)
             t.column(itemCategoryId)
+            t.column(itemType)
+            t.column(itemLabelColor)
+            t.column(itemAvailableOnline)
+            t.column(itemAvailableForPickup)
+            t.column(itemAvailableElectronically)
             t.column(itemDataJson) // Store raw item_data JSON
 
             // Foreign key constraint
@@ -172,6 +203,11 @@ class SQLiteSwiftCatalogManager {
             t.column(variationPricingType)
             t.column(variationPriceMoneyAmount)
             t.column(variationPriceMoneyCurrency, defaultValue: "USD")
+            t.column(variationBasePriceMoney)
+            t.column(variationDefaultUnitCost)
+            t.column(variationMeasurementUnitId)
+            t.column(variationSellable)
+            t.column(variationStockable)
             t.column(variationDataJson) // Store raw variation_data JSON
 
             // Foreign key constraint
@@ -223,6 +259,21 @@ class SQLiteSwiftCatalogManager {
             t.column(teamOwner)
         })
 
+        // Create sync_status table (matching React Native schema)
+        try db.run(syncStatus.create(ifNotExists: true) { t in
+            t.column(syncId, primaryKey: true)
+            t.column(syncLastSyncTime)
+            t.column(syncIsSyncing, defaultValue: false)
+            t.column(syncError)
+            t.column(syncProgress, defaultValue: 0)
+            t.column(syncTotal, defaultValue: 0)
+            t.column(syncType)
+            t.column(syncLastPageCursor)
+            t.column(syncLastSyncAttempt)
+            t.column(syncAttemptCount, defaultValue: 0)
+            t.column(syncLastIncrementalSyncCursor)
+        })
+
         logger.info("SQLiteSwift tables created successfully (matching React Native schema)")
     }
     
@@ -239,8 +290,8 @@ class SQLiteSwiftCatalogManager {
             try db.run(catalogItems.delete())
             try db.run(categories.delete())
             
-            // Reset sync metadata
-            try db.run(syncMetadata.delete())
+            // Reset sync status
+            try db.run(syncStatus.delete())
         }
         
         // Verify clear operation
@@ -266,7 +317,7 @@ class SQLiteSwiftCatalogManager {
                     categoryImageUrl <- categoryData.imageUrl,
                     categoryIsDeleted <- (object.isDeleted ?? false),
                     categoryUpdatedAt <- timestamp,
-                    categoryVersion <- (object.version ?? 1)
+                    categoryVersion <- String(object.version ?? 1)
                 )
                 try db.run(insert)
             }
@@ -277,7 +328,7 @@ class SQLiteSwiftCatalogManager {
                     itemId <- object.id,
                     itemType <- object.type,
                     itemUpdatedAt <- timestamp,
-                    itemVersion <- (object.version ?? 1),
+                    itemVersion <- String(object.version ?? 1),
                     itemIsDeleted <- (object.isDeleted ?? false),
                     itemPresentAtAllLocations <- (object.presentAtAllLocations ?? true),
                     itemCategoryId <- itemData.categoryId,
@@ -307,7 +358,7 @@ class SQLiteSwiftCatalogManager {
                     variationSellable <- variationData.sellable,
                     variationStockable <- variationData.stockable,
                     variationUpdatedAt <- timestamp,
-                    variationVersion <- (object.version ?? 1)
+                    variationVersion <- String(object.version ?? 1)
                 )
                 try db.run(insert)
             }

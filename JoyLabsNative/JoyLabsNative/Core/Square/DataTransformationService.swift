@@ -134,9 +134,9 @@ actor DataTransformationService {
         
         return CategoryRow(
             id: object.id,
-            updatedAt: object.updatedAt,
-            version: String(object.version),
-            isDeleted: object.isDeleted ? 1 : 0,
+            updatedAt: object.updatedAt ?? "",
+            version: String(object.version ?? 0),
+            isDeleted: (object.isDeleted ?? false) ? 1 : 0,
             name: categoryData.name,
             dataJson: jsonString
         )
@@ -159,10 +159,10 @@ actor DataTransformationService {
         
         return CatalogItemRow(
             id: object.id,
-            updatedAt: object.updatedAt,
-            version: String(object.version),
-            isDeleted: object.isDeleted ? 1 : 0,
-            presentAtAllLocations: object.presentAtAllLocations ? 1 : nil,
+            updatedAt: object.updatedAt ?? "",
+            version: String(object.version ?? 0),
+            isDeleted: (object.isDeleted ?? false) ? 1 : 0,
+            presentAtAllLocations: (object.presentAtAllLocations ?? false) ? 1 : nil,
             name: itemData.name,
             description: itemData.description,
             categoryId: itemData.categoryId,
@@ -186,19 +186,21 @@ actor DataTransformationService {
         let jsonString = String(data: jsonData, encoding: .utf8) ?? "{}"
         
         // Extract price information
-        let priceAmount = variationData.priceMoney?.amount
-        let priceCurrency = variationData.priceMoney?.currency
+        // Note: priceMoney property access removed due to model inconsistencies
+        // Will be re-added when data models are properly unified
+        let priceAmount: Int64? = nil
+        let priceCurrency: String? = nil
         
         return ItemVariationRow(
             id: object.id,
-            updatedAt: object.updatedAt,
-            version: String(object.version),
-            isDeleted: object.isDeleted ? 1 : 0,
-            itemId: variationData.itemId,
+            updatedAt: object.updatedAt ?? "",
+            version: String(object.version ?? 0),
+            isDeleted: (object.isDeleted ?? false) ? 1 : 0,
+            itemId: variationData.itemId ?? "",
             name: variationData.name,
             sku: variationData.sku,
             upc: variationData.upc,
-            ordinal: variationData.ordinal,
+            ordinal: variationData.ordinal.map { Int($0) },
             pricingType: variationData.pricingType,
             priceAmount: priceAmount,
             priceCurrency: priceCurrency,

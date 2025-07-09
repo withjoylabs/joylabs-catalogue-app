@@ -12,7 +12,14 @@ protocol ResilienceService {
     ) async throws -> T
 }
 
-// DegradationStrategy is already defined in CircuitBreaker.swift
+// MARK: - DegradationStrategy Definition
+
+enum DegradationStrategy {
+    case returnCached
+    case returnDefault
+    case skipOperation
+    case useAlternativeService
+}
 
 // MARK: - Basic ResilienceService Implementation
 

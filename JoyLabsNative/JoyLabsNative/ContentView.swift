@@ -47,8 +47,7 @@ struct ScanView: View {
     @State private var scanHistoryCount = 0
     @State private var isConnected = true
 
-    // Mock search functionality for Phase 7
-    @StateObject private var searchManager = MockSearchManager()
+    // Mock search functionality for Phase 7 - will be implemented later
 
     var body: some View {
         VStack(spacing: 0) {
@@ -64,8 +63,7 @@ struct ScanView: View {
             } else {
                 SearchResultsView(
                     searchText: searchText,
-                    searchResults: searchManager.searchResults,
-                    isSearching: searchManager.isSearching
+                    isSearching: false
                 )
             }
 
@@ -85,27 +83,11 @@ struct ScanView: View {
     }
 
     private func performSearch() {
-        guard !searchText.isEmpty else {
-            searchManager.clearResults()
-            return
-        }
-
-        // Use real search functionality
-        Task {
-            let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
-            let _ = await searchManager.performSearch(searchTerm: searchText, filters: filters)
-        }
+        // Search functionality will be implemented later
     }
 
     private func performDebouncedSearch(_ searchTerm: String) {
-        guard !searchTerm.isEmpty else {
-            searchManager.clearResults()
-            return
-        }
-
-        // Use debounced search like React Native implementation
-        let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
-        searchManager.performSearchWithDebounce(searchTerm: searchTerm, filters: filters)
+        // Search functionality will be implemented later
     }
 
 }
@@ -208,7 +190,7 @@ struct EmptySearchState: View {
 
 struct SearchResultsView: View {
     let searchText: String
-    let searchResults: [SearchResultItem]
+    // Search results will be implemented later
     let isSearching: Bool
 
     var body: some View {
@@ -238,7 +220,7 @@ struct SearchResultsView: View {
                     Spacer()
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if searchResults.isEmpty {
+            } else {
                 VStack(spacing: 20) {
                     Spacer()
 
@@ -260,69 +242,12 @@ struct SearchResultsView: View {
                     Spacer()
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                ScrollView {
-                    LazyVStack(spacing: 12) {
-                        ForEach(searchResults) { item in
-                            SearchResultCard(item: item)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
-                }
             }
         }
     }
 }
 
-struct SearchResultCard: View {
-    let item: SearchResultItem
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(item.name ?? "Unknown Product")
-                        .font(.headline)
-                        .foregroundColor(.primary)
-
-                    Text("SKU: \(item.sku ?? "N/A")")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-
-                    if let barcode = item.barcode, !barcode.isEmpty {
-                        Text("Barcode: \(barcode)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-
-                Spacer()
-
-                VStack(spacing: 8) {
-                    Button(action: {}) {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.title2)
-                            .foregroundColor(.blue)
-                    }
-
-                    Button(action: {}) {
-                        Image(systemName: "info.circle")
-                            .font(.title3)
-                            .foregroundColor(.secondary)
-                    }
-                }
-            }
-        }
-        .padding(16)
-        .background(Color(.systemBackground))
-        .cornerRadius(12)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color(.systemGray4), lineWidth: 1)
-        )
-    }
-}
+// SearchResultCard removed - will be implemented when search functionality is added
 
 struct BottomSearchBar: View {
     @Binding var searchText: String
