@@ -65,7 +65,7 @@ class SquareCatalogAPIClient {
         let id: String
         let updatedAt: String?
         let createdAt: String?
-        let version: Int?
+        let version: Int64?  // Use Int64 for Square's 64-bit version numbers
         let isDeleted: Bool?
         let presentAtAllLocations: Bool?
         let presentAtLocationIds: [String]?
@@ -271,38 +271,37 @@ class SquareCatalogAPIClient {
 
     // MARK: - API Methods
 
-    /// Search catalog objects with pagination support
-    /// Implements: POST /v2/catalog/search
-    func searchCatalogObjects(
+    /// List catalog objects with pagination support (matches React Native implementation)
+    /// Implements: GET /v2/catalog/list
+    func listCatalogObjects(
         objectTypes: [String] = ["ITEM", "ITEM_VARIATION", "CATEGORY", "TAX", "DISCOUNT", "MODIFIER_LIST", "MODIFIER", "IMAGE"],
-        includeRelatedObjects: Bool = true,
-        includeDeletedObjects: Bool = true,
-        beginTime: String? = nil,
-        limit: Int = 1000,
         cursor: String? = nil
     ) async throws -> SearchCatalogObjectsResponse {
 
-        let url = URL(string: "\(baseURL)/v2/catalog/search")!
+        // Build URL with query parameters
+        var urlComponents = URLComponents(string: "\(baseURL)/v2/catalog/list")!
+        var queryItems: [URLQueryItem] = []
+
+        // Add object types as comma-separated string
+        let typesString = objectTypes.joined(separator: ",")
+        queryItems.append(URLQueryItem(name: "types", value: typesString))
+
+        // Add cursor if provided
+        if let cursor = cursor {
+            queryItems.append(URLQueryItem(name: "cursor", value: cursor))
+        }
+
+        urlComponents.queryItems = queryItems
+
+        guard let url = urlComponents.url else {
+            throw SquareCatalogError.invalidResponse
+        }
+
         var request = URLRequest(url: url)
-        request.httpMethod = "POST"
+        request.httpMethod = "GET"
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-
-        // For full catalog sync, we don't need a specific query - just get all objects
-        // The begin_time parameter handles incremental sync at the API level
-        let requestBody = SearchCatalogObjectsRequest(
-            objectTypes: objectTypes,
-            includeRelatedObjects: includeRelatedObjects,
-            includeDeletedObjects: includeDeletedObjects,
-            beginTime: beginTime,
-            query: nil, // No query needed for full catalog retrieval
-            limit: limit,
-            cursor: cursor
-        )
-
-        let encoder = JSONEncoder()
-        request.httpBody = try encoder.encode(requestBody)
+        request.setValue("2025-06-18", forHTTPHeaderField: "Square-Version")
 
         let (data, response) = try await session.data(for: request)
 
@@ -315,13 +314,13 @@ class SquareCatalogAPIClient {
         }
 
         let decoder = JSONDecoder()
-        let searchResponse = try decoder.decode(SearchCatalogObjectsResponse.self, from: data)
+        let listResponse = try decoder.decode(SearchCatalogObjectsResponse.self, from: data)
 
-        if let errors = searchResponse.errors, !errors.isEmpty {
+        if let errors = listResponse.errors, !errors.isEmpty {
             throw SquareCatalogError.squareAPIError(errors)
         }
 
-        return searchResponse
+        return listResponse
     }
 
     /// Perform full catalog sync with pagination
@@ -334,7 +333,7 @@ class SquareCatalogAPIClient {
                     var syncedObjects = 0
 
                     repeat {
-                        let response = try await searchCatalogObjects(cursor: cursor)
+                        let response = try await listCatalogObjects(cursor: cursor)
 
                         if let objects = response.objects {
                             totalObjects += objects.count
@@ -391,10 +390,9 @@ class SquareCatalogAPIClient {
                     var syncedObjects = 0
 
                     repeat {
-                        let response = try await searchCatalogObjects(
-                            beginTime: since,
-                            cursor: cursor
-                        )
+                        // For now, use list endpoint for incremental sync too
+                        // TODO: Implement proper incremental sync with search endpoint
+                        let response = try await listCatalogObjects(cursor: cursor)
 
                         if let objects = response.objects {
                             totalObjects += objects.count

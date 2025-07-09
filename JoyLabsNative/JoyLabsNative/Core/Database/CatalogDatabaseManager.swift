@@ -254,7 +254,7 @@ class CatalogDatabaseManager {
             sqlite3_bind_text(statement, 2, object.type, -1, nil)
             bindOptionalText(statement, 3, object.updatedAt)
             bindOptionalText(statement, 4, object.createdAt)
-            bindOptionalInt(statement, 5, object.version)
+            bindOptionalInt64(statement, 5, object.version)
             sqlite3_bind_int(statement, 6, (object.isDeleted ?? false) ? 1 : 0)
             sqlite3_bind_int(statement, 7, (object.presentAtAllLocations ?? true) ? 1 : 0)
             bindOptionalJSONArray(statement, 8, object.presentAtLocationIds)
@@ -332,7 +332,7 @@ class CatalogDatabaseManager {
             sqlite3_bind_text(statement, 2, object.type, -1, nil)
             bindOptionalText(statement, 3, object.updatedAt)
             bindOptionalText(statement, 4, object.createdAt)
-            bindOptionalInt(statement, 5, object.version)
+            bindOptionalInt64(statement, 5, object.version)
             sqlite3_bind_int(statement, 6, (object.isDeleted ?? false) ? 1 : 0)
             sqlite3_bind_int(statement, 7, (object.presentAtAllLocations ?? true) ? 1 : 0)
             bindOptionalJSONArray(statement, 8, object.presentAtLocationIds)
@@ -403,7 +403,7 @@ class CatalogDatabaseManager {
             sqlite3_bind_text(statement, 2, object.type, -1, nil)
             bindOptionalText(statement, 3, object.updatedAt)
             bindOptionalText(statement, 4, object.createdAt)
-            bindOptionalInt(statement, 5, object.version)
+            bindOptionalInt64(statement, 5, object.version)
             sqlite3_bind_int(statement, 6, (object.isDeleted ?? false) ? 1 : 0)
             sqlite3_bind_int(statement, 7, (object.presentAtAllLocations ?? true) ? 1 : 0)
             bindOptionalJSONArray(statement, 8, object.presentAtLocationIds)
@@ -463,7 +463,7 @@ class CatalogDatabaseManager {
             sqlite3_bind_text(statement, 2, object.type, -1, nil)
             bindOptionalText(statement, 3, object.updatedAt)
             bindOptionalText(statement, 4, object.createdAt)
-            bindOptionalInt(statement, 5, object.version)
+            bindOptionalInt64(statement, 5, object.version)
             sqlite3_bind_int(statement, 6, (object.isDeleted ?? false) ? 1 : 0)
             bindOptionalText(statement, 7, imageData.name)
             bindOptionalText(statement, 8, imageData.url)
@@ -509,7 +509,7 @@ class CatalogDatabaseManager {
             sqlite3_bind_text(statement, 2, object.type, -1, nil)
             bindOptionalText(statement, 3, object.updatedAt)
             bindOptionalText(statement, 4, object.createdAt)
-            bindOptionalInt(statement, 5, object.version)
+            bindOptionalInt64(statement, 5, object.version)
             sqlite3_bind_int(statement, 6, (object.isDeleted ?? false) ? 1 : 0)
             sqlite3_bind_int(statement, 7, (object.presentAtAllLocations ?? true) ? 1 : 0)
             bindOptionalJSONArray(statement, 8, object.presentAtLocationIds)
@@ -561,7 +561,7 @@ class CatalogDatabaseManager {
             sqlite3_bind_text(statement, 2, object.type, -1, nil)
             bindOptionalText(statement, 3, object.updatedAt)
             bindOptionalText(statement, 4, object.createdAt)
-            bindOptionalInt(statement, 5, object.version)
+            bindOptionalInt64(statement, 5, object.version)
             sqlite3_bind_int(statement, 6, (object.isDeleted ?? false) ? 1 : 0)
             sqlite3_bind_int(statement, 7, (object.presentAtAllLocations ?? true) ? 1 : 0)
             bindOptionalJSONArray(statement, 8, object.presentAtLocationIds)
@@ -615,7 +615,7 @@ class CatalogDatabaseManager {
             sqlite3_bind_text(statement, 2, object.type, -1, nil)
             bindOptionalText(statement, 3, object.updatedAt)
             bindOptionalText(statement, 4, object.createdAt)
-            bindOptionalInt(statement, 5, object.version)
+            bindOptionalInt64(statement, 5, object.version)
             sqlite3_bind_int(statement, 6, (object.isDeleted ?? false) ? 1 : 0)
             sqlite3_bind_int(statement, 7, (object.presentAtAllLocations ?? true) ? 1 : 0)
             bindOptionalJSONArray(statement, 8, object.presentAtLocationIds)
@@ -665,7 +665,7 @@ class CatalogDatabaseManager {
             sqlite3_bind_text(statement, 2, object.type, -1, nil)
             bindOptionalText(statement, 3, object.updatedAt)
             bindOptionalText(statement, 4, object.createdAt)
-            bindOptionalInt(statement, 5, object.version)
+            bindOptionalInt64(statement, 5, object.version)
             sqlite3_bind_int(statement, 6, (object.isDeleted ?? false) ? 1 : 0)
             sqlite3_bind_int(statement, 7, (object.presentAtAllLocations ?? true) ? 1 : 0)
             bindOptionalJSONArray(statement, 8, object.presentAtLocationIds)
@@ -708,6 +708,14 @@ class CatalogDatabaseManager {
     private func bindOptionalInt(_ statement: OpaquePointer?, _ index: Int32, _ value: Int?) {
         if let value = value {
             sqlite3_bind_int(statement, index, Int32(value))
+        } else {
+            sqlite3_bind_null(statement, index)
+        }
+    }
+
+    private func bindOptionalInt64(_ statement: OpaquePointer?, _ index: Int32, _ value: Int64?) {
+        if let value = value {
+            sqlite3_bind_int64(statement, index, value)
         } else {
             sqlite3_bind_null(statement, index)
         }
