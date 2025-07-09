@@ -28,6 +28,8 @@
 		A1B2C3D4E5F6789012345827 /* PKCEGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345828 /* PKCEGenerator.swift */; };
 		A1B2C3D4E5F6789012345829 /* DataTransformationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345830 /* DataTransformationService.swift */; };
 		A1B2C3D4E5F6789012345831 /* DataValidationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345832 /* DataValidationService.swift */; };
+		A1B2C3D4E5F6789012345833 /* DatabaseModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345834 /* DatabaseModels.swift */; };
+		A1B2C3D4E5F6789012345835 /* DataValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345836 /* DataValidation.swift */; };
 																																								/* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -36,22 +38,24 @@
 		A1B2C3D4E5F6789012345683 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345685 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345686 /* JoyLabsNative.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = JoyLabsNative.app; sourceTree = BUILT_PRODUCTS_DIR; };
-														A1B2C3D4E5F6789012345802 /* SQLiteSwiftCatalogManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Database/SQLiteSwiftCatalogManager.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345804 /* DatabaseBackup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Database/DatabaseBackup.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345806 /* DatabaseMigrationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Database/DatabaseMigrationService.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345808 /* SQLiteSwiftSyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SQLiteSwiftSyncCoordinator.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345810 /* SQLiteSwiftCatalogSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Sync/SQLiteSwiftCatalogSyncService.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345812 /* SquareAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareAPIService.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345814 /* SquareOAuthCallbackHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareOAuthCallbackHandler.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345816 /* SquareOAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareOAuthService.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345818 /* SquareAPIServiceFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareAPIServiceFactory.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345820 /* SquareCatalogAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareCatalogAPIClient.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345822 /* SquareConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareConfiguration.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345824 /* SquareErrorRecoveryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareErrorRecoveryManager.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345826 /* SquareHTTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareHTTPClient.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345828 /* PKCEGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/PKCEGenerator.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345830 /* DataTransformationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/DataTransformationService.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345832 /* DataValidationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/DataValidationService.swift"; sourceTree = "<group>"; };
+														A1B2C3D4E5F6789012345802 /* SQLiteSwiftCatalogManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Database/SQLiteSwiftCatalogManager.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345804 /* DatabaseBackup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Database/DatabaseBackup.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345806 /* DatabaseMigrationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Database/DatabaseMigrationService.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345808 /* SQLiteSwiftSyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Square/SQLiteSwiftSyncCoordinator.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345810 /* SQLiteSwiftCatalogSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Sync/SQLiteSwiftCatalogSyncService.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345812 /* SquareAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Square/SquareAPIService.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345814 /* SquareOAuthCallbackHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Square/SquareOAuthCallbackHandler.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345816 /* SquareOAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Square/SquareOAuthService.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345818 /* SquareAPIServiceFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Square/SquareAPIServiceFactory.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345820 /* SquareCatalogAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Square/SquareCatalogAPIClient.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345822 /* SquareConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Square/SquareConfiguration.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345824 /* SquareErrorRecoveryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Square/SquareErrorRecoveryManager.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345826 /* SquareHTTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Square/SquareHTTPClient.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345828 /* PKCEGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Square/PKCEGenerator.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345830 /* DataTransformationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Square/DataTransformationService.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345832 /* DataValidationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Square/DataValidationService.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345834 /* DatabaseModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Database/DatabaseModels.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345836 /* DataValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Database/DataValidation.swift"; sourceTree = "<group>"; };
 																																								/* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -194,7 +198,9 @@
 				A1B2C3D4E5F6789012345825 /* SquareHTTPClient.swift in Sources */,
 				A1B2C3D4E5F6789012345827 /* PKCEGenerator.swift in Sources */,
 				A1B2C3D4E5F6789012345829 /* DataTransformationService.swift in Sources */,
-				A1B2C3D4E5F6789012345831 /* DataValidationService.swift in Sources */
+				A1B2C3D4E5F6789012345831 /* DataValidationService.swift in Sources */,
+				A1B2C3D4E5F6789012345833 /* DatabaseModels.swift in Sources */,
+				A1B2C3D4E5F6789012345835 /* DataValidation.swift in Sources */
 				);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
