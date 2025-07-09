@@ -16,6 +16,7 @@ class ServiceContainer: ObservableObject {
     private var _dataTransformationService: DataTransformationService?
     private var _squareAPIService: SquareAPIService?
     private var _databaseManager: ResilientDatabaseManager?
+    private var _catalogDatabaseManager: CatalogDatabaseManager?
     private var _catalogSyncService: CatalogSyncService?
     private var _squareSyncCoordinator: SquareSyncCoordinator?
     
@@ -71,24 +72,39 @@ class ServiceContainer: ObservableObject {
         if let manager = _databaseManager {
             return manager
         }
-        
+
         logger.info("Creating ResilientDatabaseManager")
         let manager = ResilientDatabaseManager()
         _databaseManager = manager
         return manager
     }
+
+    /// Get or create shared CatalogDatabaseManager
+    /// CRITICAL: This prevents multiple database connections to the same file
+    func catalogDatabaseManager() async -> CatalogDatabaseManager {
+        if let manager = _catalogDatabaseManager {
+            return manager
+        }
+
+        logger.info("Creating shared CatalogDatabaseManager")
+        let manager = CatalogDatabaseManager()
+        _catalogDatabaseManager = manager
+        return manager
+    }
     
-    /// Get or create CatalogSyncService
+    /// Get or create CatalogSyncService with shared database manager
     func catalogSyncService() async -> CatalogSyncService {
         if let service = _catalogSyncService {
             return service
         }
 
-        logger.info("Creating CatalogSyncService with dependencies")
+        logger.info("Creating CatalogSyncService with shared dependencies")
         let apiService = await squareAPIService()
+        let dbManager = await catalogDatabaseManager()
 
         let service = CatalogSyncService(
-            squareAPIService: apiService
+            squareAPIService: apiService,
+            databaseManager: dbManager
         )
         _catalogSyncService = service
         return service
@@ -101,12 +117,12 @@ class ServiceContainer: ObservableObject {
         }
 
         logger.info("Creating SquareSyncCoordinator with shared dependencies")
-        let catalogService = await catalogSyncService()
+        let dbManager = await databaseManager()
         let apiService = await squareAPIService()
         let catalogService = await catalogSyncService() // Use shared instance
 
-        let coordinator = SquareSyncCoordinator(
-            catalogSyncService: catalogService,
+        let coordinator = SquareSyncCoordinator.createCoordinator(
+            databaseManager: dbManager,
             squareAPIService: apiService,
             catalogSyncService: catalogService
         )

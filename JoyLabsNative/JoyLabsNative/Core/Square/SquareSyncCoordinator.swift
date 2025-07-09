@@ -590,27 +590,8 @@ struct WebhookNotification {
 }
 
 // MARK: - Sync Coordinator Factory
-
-struct SquareSyncCoordinatorFactory {
-
-    @MainActor
-    static func createCoordinator(
-        databaseManager: ResilientDatabaseManager,
-        squareAPIService: SquareAPIService
-    ) -> SquareSyncCoordinator {
-        let resilienceService = BasicResilienceService()
-
-        let catalogSyncService = CatalogSyncService(
-            squareAPIService: squareAPIService
-        )
-
-        return SquareSyncCoordinator(
-            catalogSyncService: catalogSyncService,
-            squareAPIService: squareAPIService,
-            resilienceService: resilienceService
-        )
-    }
-}
+// REMOVED: This factory was creating duplicate CatalogSyncService instances
+// Use SquareSyncCoordinator.createCoordinator() with shared services instead
 
 // MARK: - Sync Coordinator Extensions
 

@@ -102,13 +102,17 @@ class CatalogSyncService: ObservableObject {
 
     // MARK: - Initialization
     
-    init(squareAPIService: SquareAPIService) {
+    init(squareAPIService: SquareAPIService, databaseManager: CatalogDatabaseManager? = nil) {
         self.squareAPIService = squareAPIService
         // Initialize with empty token - will be set when needed
         self.apiClient = SquareCatalogAPIClient(accessToken: "")
-        // DO NOT create a separate database manager - use the shared one from ServiceContainer
-        // This was causing multiple database connections and corruption
-        self.databaseManager = CatalogDatabaseManager()
+
+        // CRITICAL FIX: Use shared database manager to prevent multiple connections
+        // Creating separate CatalogDatabaseManager instances was causing:
+        // - Multiple database connections to same file
+        // - UNIQUE constraint failures
+        // - Database corruption
+        self.databaseManager = databaseManager ?? CatalogDatabaseManager()
 
         // Load last sync time
         loadLastSyncTime()
