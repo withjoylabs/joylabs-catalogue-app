@@ -13,18 +13,11 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
     @Published var lastSyncResult: SyncResult?
     @Published var syncProgress: Double = 0.0
     @Published var error: Error?
-    @Published var isBackgroundSyncEnabled: Bool = false  // Disabled to prevent infinite loops
-    
     // MARK: - Dependencies
-    
-    private let catalogSyncService: SQLiteSwiftCatalogSyncService
+
+    let catalogSyncService: SQLiteSwiftCatalogSyncService  // Made public for UI access
     private let squareAPIService: SquareAPIService
     private let logger = Logger(subsystem: "com.joylabs.native", category: "SQLiteSwiftSyncCoordinator")
-    
-    // MARK: - Background Sync
-    
-    private var backgroundSyncTimer: Timer?
-    private let backgroundSyncInterval: TimeInterval = 300 // 5 minutes
     
     // MARK: - Initialization
     
@@ -33,12 +26,10 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
         self.catalogSyncService = SQLiteSwiftCatalogSyncService(squareAPIService: squareAPIService)
         
         setupObservers()
-        // Don't start background sync timer automatically to prevent infinite loops
-        // startBackgroundSyncTimer()
     }
     
     deinit {
-        backgroundSyncTimer?.invalidate()
+        // No background timer to clean up
     }
     
     // MARK: - Setup
@@ -100,60 +91,55 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
         }
     }
     
-    func performBackgroundSync() async {
-        logger.info("Background sync triggered")
-        
-        guard syncState != .syncing else {
-            logger.info("Sync already in progress, skipping background sync")
-            return
-        }
-        
-        guard isBackgroundSyncEnabled else {
-            logger.info("Background sync disabled, skipping")
-            return
-        }
-        
-        do {
-            try await catalogSyncService.performSync(isManual: false)
-            logger.info("Background sync completed successfully")
-        } catch {
-            logger.error("Background sync failed: \(error)")
-            // Don't update UI error for background sync failures
-        }
+    // MARK: - Computed Properties for UI
+
+    var syncProgressPercentage: Int {
+        return Int(syncProgress * 100)
     }
-    
-    func toggleBackgroundSync() {
-        isBackgroundSyncEnabled.toggle()
-        
-        if isBackgroundSyncEnabled {
-            startBackgroundSyncTimer()
-            logger.info("Background sync enabled")
-        } else {
-            stopBackgroundSyncTimer()
-            logger.info("Background sync disabled")
-        }
-    }
-    
-    // MARK: - Background Timer
-    
-    private func startBackgroundSyncTimer() {
-        guard isBackgroundSyncEnabled else { return }
-        
-        backgroundSyncTimer?.invalidate()
-        backgroundSyncTimer = Timer.scheduledTimer(withTimeInterval: backgroundSyncInterval, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                await self?.performBackgroundSync()
+
+    var syncStatusSummary: String {
+        switch syncState {
+        case .idle:
+            return "Ready to sync"
+        case .syncing:
+            let progress = catalogSyncService.syncProgress
+            if progress.totalObjects > 0 {
+                return "\(progress.syncedObjects) / \(progress.totalObjects) objects"
+            } else {
+                return "\(progress.syncedObjects) objects processed"
             }
+        case .completed:
+            if let result = lastSyncResult {
+                return "Completed: \(result.totalProcessed) objects"
+            }
+            return "Sync completed"
+        case .failed:
+            return "Sync failed"
         }
-        
-        logger.info("Starting background sync timer")
     }
-    
-    private func stopBackgroundSyncTimer() {
-        backgroundSyncTimer?.invalidate()
-        backgroundSyncTimer = nil
-        logger.info("Background sync timer stopped")
+
+    var timeSinceLastSync: String? {
+        guard let lastResult = lastSyncResult else { return nil }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: Date(), relativeTo: Date())
     }
+
+    var canTriggerManualSync: Bool {
+        return syncState != .syncing
+    }
+
+    // MARK: - Public Sync Methods
+
+    func triggerSync() async {
+        await performManualSync()
+    }
+
+    func forceFullSync() async {
+        await performManualSync()
+    }
+
+    // Background sync methods removed - no automatic syncing
     
     // MARK: - Factory Method
     
@@ -174,6 +160,15 @@ extension SQLiteSwiftSyncCoordinator {
         
         var isActive: Bool {
             return self == .syncing
+        }
+
+        var description: String {
+            switch self {
+            case .idle: return "Idle"
+            case .syncing: return "Syncing"
+            case .completed: return "Completed"
+            case .failed: return "Failed"
+            }
         }
     }
 }

@@ -22,9 +22,10 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
     private let logger = Logger(subsystem: "com.joylabs.native", category: "SQLiteSwiftCatalogSync")
     
     // MARK: - State
-    
+
     private var isSyncInProgress = false
     private var hasMigrated = false
+    private var progressUpdateTimer: Timer?
     
     // MARK: - Initialization
     
@@ -75,22 +76,37 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
         
         do {
             logger.info("Starting catalog sync with SQLite.swift - manual: \(isManual)")
-            
+
+            // Initialize progress tracking
+            syncProgress = SyncProgress()
+            syncProgress.startTime = Date()
+
+            // Start UI update timer (every 1 second)
+            startProgressUpdateTimer()
+
             // Clear existing data
             try databaseManager.clearAllData()
             logger.info("✅ Existing data cleared")
-            
-            // Fetch catalog data from Square API
-            let catalogData = try await fetchCatalogFromSquare()
+
+            // Fetch catalog data from Square API with progress tracking
+            let catalogData = try await fetchCatalogFromSquareWithProgress()
             logger.info("✅ Fetched \(catalogData.count) objects from Square API")
-            
-            // Process and insert data
-            try await processCatalogData(catalogData)
+
+            // Process and insert data with progress tracking
+            try await processCatalogDataWithProgress(catalogData)
             logger.info("✅ Catalog data processed successfully")
-            
+
+            // Stop progress timer
+            stopProgressUpdateTimer()
+
             // Update sync completion
             syncState = .completed
             lastSyncTime = Date()
+
+            // Final progress update
+            syncProgress.syncedObjects = catalogData.count
+            syncProgress.totalObjects = catalogData.count
+            syncProgress.progressPercentage = 1.0
 
             logger.info("🎉 Catalog sync completed successfully!")
             logger.info("📊 Final sync stats: \(catalogData.count) total objects processed")
@@ -104,50 +120,101 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
             logger.error("❌ Catalog sync failed: \(error)")
             syncState = .failed
             errorMessage = error.localizedDescription
+            stopProgressUpdateTimer()
             throw error
         }
+    }
+
+    // MARK: - Progress Tracking
+
+    private func startProgressUpdateTimer() {
+        progressUpdateTimer?.invalidate()
+        progressUpdateTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.updateProgressPercentage()
+            }
+        }
+    }
+
+    private func stopProgressUpdateTimer() {
+        progressUpdateTimer?.invalidate()
+        progressUpdateTimer = nil
+    }
+
+    private func updateProgressPercentage() {
+        if syncProgress.totalObjects > 0 {
+            syncProgress.progressPercentage = Double(syncProgress.syncedObjects) / Double(syncProgress.totalObjects)
+        }
+        // This will trigger UI updates via @Published
     }
     
     // MARK: - Private Methods
     
-    private func fetchCatalogFromSquare() async throws -> [CatalogObject] {
+    private func fetchCatalogFromSquareWithProgress() async throws -> [CatalogObject] {
         logger.info("Fetching catalog data from Square API...")
+
+        // Update progress for fetch phase
+        syncProgress.currentObjectType = "FETCHING"
+        syncProgress.currentObjectName = "Connecting to Square API..."
 
         // Use the actual Square API service to fetch catalog data
         let catalogObjects = try await squareAPIService.fetchCatalog()
 
         logger.info("✅ Fetched \(catalogObjects.count) objects from Square API")
+
+        // Update progress with total count
+        syncProgress.totalObjects = catalogObjects.count
+        syncProgress.currentObjectName = "Ready to process \(catalogObjects.count) objects"
+
         return catalogObjects
     }
     
-    private func processCatalogData(_ objects: [CatalogObject]) async throws {
+    private func processCatalogDataWithProgress(_ objects: [CatalogObject]) async throws {
         syncProgress.totalObjects = objects.count
         syncProgress.syncedObjects = 0
-        
+
+        logger.info("Processing \(objects.count) catalog objects...")
+
         for (index, object) in objects.enumerated() {
             try databaseManager.insertCatalogObject(object)
-            
+
+            // Update progress
             syncProgress.syncedObjects = index + 1
             syncProgress.progressPercentage = Double(syncProgress.syncedObjects) / Double(syncProgress.totalObjects)
             syncProgress.currentObjectType = object.type
             syncProgress.currentObjectName = extractObjectName(from: object)
-            
-            // Update UI every 10 objects
-            if index % 10 == 0 {
+
+            // Log progress every 1000 objects
+            if index % 1000 == 0 && index > 0 {
+                logger.info("📊 Processed \(index) / \(objects.count) objects (\(Int(self.syncProgress.progressPercentage * 100))%)")
+            }
+
+            // Small delay every 100 objects to allow UI updates
+            if index % 100 == 0 {
                 try await Task.sleep(nanoseconds: 1_000_000) // 1ms to allow UI updates
             }
         }
+
+        logger.info("✅ Processed all \(objects.count) catalog objects")
     }
-    
+
     private func extractObjectName(from object: CatalogObject) -> String {
-        if let categoryData = object.categoryData {
-            return categoryData.name ?? "Unnamed Category"
-        } else if let itemData = object.itemData {
-            return itemData.name ?? "Unnamed Item"
-        } else if let variationData = object.itemVariationData {
-            return variationData.name ?? "Unnamed Variation"
+        switch object.type {
+        case "ITEM":
+            return object.itemData?.name ?? "Unnamed Item"
+        case "CATEGORY":
+            return object.categoryData?.name ?? "Unnamed Category"
+        case "ITEM_VARIATION":
+            return object.itemVariationData?.name ?? "Unnamed Variation"
+        case "IMAGE":
+            return "Image \(object.id)"
+        case "TAX":
+            return "Tax \(object.id)"
+        case "DISCOUNT":
+            return "Discount \(object.id)"
+        default:
+            return object.type
         }
-        return "Unknown Object"
     }
 }
 
@@ -169,9 +236,30 @@ extension SQLiteSwiftCatalogSyncService {
         var currentObjectName: String = ""
         var progressPercentage: Double = 0.0
         var estimatedTimeRemaining: TimeInterval = 0
-        
+        var currentPage: Int = 0
+        var totalPages: Int = 0
+        var objectsThisPage: Int = 0
+        var startTime: Date = Date()
+
         var isActive: Bool {
             return totalObjects > 0 && syncedObjects < totalObjects
+        }
+
+        var progressText: String {
+            if totalObjects > 0 {
+                return "\(syncedObjects) / \(totalObjects) objects (\(Int(progressPercentage * 100))%)"
+            } else {
+                return "\(syncedObjects) objects synced"
+            }
+        }
+
+        var rateText: String {
+            let elapsed = Date().timeIntervalSince(startTime)
+            if elapsed > 0 && syncedObjects > 0 {
+                let rate = Double(syncedObjects) / elapsed
+                return String(format: "%.1f objects/sec", rate)
+            }
+            return ""
         }
     }
     

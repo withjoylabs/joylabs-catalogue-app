@@ -285,22 +285,56 @@ struct SquareIntegrationView: View {
     }
     
     private var syncProgressView: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 12) {
+            // Progress header
             HStack {
-                Text("Syncing...")
+                Text("Syncing Catalog...")
                     .font(.subheadline)
                     .fontWeight(.medium)
-                
+
                 Spacer()
-                
+
                 Text("\(syncCoordinator.syncProgressPercentage)%")
                     .font(.caption)
                     .fontWeight(.medium)
+                    .foregroundColor(.blue)
             }
-            
+
+            // Progress bar
             ProgressView(value: syncCoordinator.syncProgress)
                 .progressViewStyle(LinearProgressViewStyle())
+                .scaleEffect(y: 1.5) // Make progress bar thicker
+
+            // Detailed progress info
+            VStack(spacing: 4) {
+                HStack {
+                    Text(syncCoordinator.catalogSyncService.syncProgress.progressText)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Spacer()
+
+                    if !syncCoordinator.catalogSyncService.syncProgress.rateText.isEmpty {
+                        Text(syncCoordinator.catalogSyncService.syncProgress.rateText)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                if !syncCoordinator.catalogSyncService.syncProgress.currentObjectName.isEmpty {
+                    HStack {
+                        Text("Processing: \(syncCoordinator.catalogSyncService.syncProgress.currentObjectType)")
+                            .font(.caption2)
+                            .foregroundColor(.tertiary)
+
+                        Spacer()
+                    }
+                }
+            }
         }
+        .padding(12)
+        .background(Color.blue.opacity(0.1))
+        .cornerRadius(8)
     }
     
     private var syncStatusView: some View {
