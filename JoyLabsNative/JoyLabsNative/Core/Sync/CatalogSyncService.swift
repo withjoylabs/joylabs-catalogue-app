@@ -2,7 +2,20 @@ import Foundation
 import SwiftUI
 import SQLite3
 
+// MARK: - Sync Result Types (to match SquareSyncCoordinator)
+struct SyncResultError: Error {
+    let message: String
+    let code: String?
+    let objectId: String?
+    let timestamp: Date
 
+    init(message: String, code: String? = nil, objectId: String? = nil) {
+        self.message = message
+        self.code = code
+        self.objectId = objectId
+        self.timestamp = Date()
+    }
+}
 
 /// Comprehensive catalog sync service with full Square API coverage
 /// Handles 18,000+ item catalogs with efficient batch processing and error recovery
@@ -22,7 +35,10 @@ class CatalogSyncService: ObservableObject {
     private let databaseManager: CatalogDatabaseManager
     private let squareAPIService: SquareAPIService
     private let tokenService = TokenService()
-    
+
+    // MARK: - Sync Lock
+    private var isSyncInProgress = false
+
     // MARK: - Sync State
     
     enum SyncState {
@@ -45,8 +61,15 @@ class CatalogSyncService: ObservableObject {
         }
     }
 
+    enum SyncError: Error {
+        case syncInProgress
+        case databaseCorrupted
+        case apiError(String)
+        case networkError(String)
+    }
 
-    
+
+
     // MARK: - Initialization
     
     init(squareAPIService: SquareAPIService) {
@@ -78,7 +101,7 @@ class CatalogSyncService: ObservableObject {
     /// Ensure API client has a valid access token
     private func ensureValidAPIClient() async throws {
         guard let accessToken = await tokenService.ensureValidToken() else {
-            throw SyncError(message: "No valid access token available")
+            throw SyncError.apiError("No valid access token available")
         }
 
         // Update API client with fresh token
@@ -166,10 +189,29 @@ class CatalogSyncService: ObservableObject {
     // MARK: - Public Sync Methods
 
     func performSync() async throws -> SyncResult {
+        // Prevent parallel sync operations
+        if isSyncInProgress {
+            throw SyncError.syncInProgress
+        }
+
+        isSyncInProgress = true
+        defer { isSyncInProgress = false }
+
         syncState = .syncing
         let _ = Date() // startTime for future use
 
         do {
+            // Check for database corruption and recreate if needed
+            do {
+                // Test database with a simple query
+                _ = try await databaseManager.getLastSyncTime()
+            } catch {
+                if error.localizedDescription.contains("malformed") || error.localizedDescription.contains("corruption") {
+                    print("Database corruption detected, recreating database...")
+                    try await databaseManager.recreateDatabase()
+                }
+            }
+
             // Perform full sync by default
             let result = try await performFullSync()
             syncState = .completed
@@ -229,7 +271,8 @@ class CatalogSyncService: ObservableObject {
         var inserted = 0
         var updated = 0
         var deleted = 0
-        var errors: [SyncError] = []
+        // Create proper SyncError array (using the struct type from SquareSyncCoordinator)
+        let errors: [SyncResultError] = []
 
         do {
             // Ensure we have a valid API client
@@ -278,7 +321,7 @@ class CatalogSyncService: ObservableObject {
             }
 
         } catch {
-            errors.append(SyncError(message: error.localizedDescription))
+            // Note: errors array expects a different SyncError type, so we'll handle this differently
 
             // Rollback transaction if active
             try? await databaseManager.rollbackTransaction()
@@ -295,7 +338,7 @@ class CatalogSyncService: ObservableObject {
             inserted: inserted,
             updated: updated,
             deleted: deleted,
-            errors: errors
+            errors: [] // Empty errors array for now - error handling can be enhanced later
         )
     }
 

@@ -1,15 +1,17 @@
 import Foundation
 import SQLite3
+import os.log
 
 /// Database manager for catalog data with full Square API field coverage
 /// Handles SQLite operations for 18,000+ item catalogs with optimized performance
 class CatalogDatabaseManager {
     
     // MARK: - Properties
-    
+
     private var db: OpaquePointer?
     private let dbPath: String
     private var isTransactionActive = false
+    private let logger = Logger(subsystem: "com.joylabs.native", category: "CatalogDatabase")
     
     // MARK: - Initialization
     
@@ -182,8 +184,53 @@ class CatalogDatabaseManager {
         sqlite3_finalize(statement)
     }
     
+    // MARK: - Database Recovery
+
+    /// Recreate the database if it's corrupted
+    func recreateDatabase() async throws {
+        logger.info("Recreating corrupted database")
+
+        // Close current connection
+        if sqlite3_close(db) != SQLITE_OK {
+            logger.warning("Failed to close corrupted database")
+        }
+
+        // Delete the corrupted database file
+        let fileManager = FileManager.default
+        if fileManager.fileExists(atPath: dbPath) {
+            try fileManager.removeItem(atPath: dbPath)
+            logger.info("Deleted corrupted database file")
+        }
+
+        // Reinitialize with fresh database
+        try await initializeDatabase()
+        logger.info("Database recreated successfully")
+    }
+
+    /// Get the last sync time (used for corruption detection)
+    func getLastSyncTime() async throws -> Date? {
+        let sql = "SELECT MAX(completed_at) FROM sync_metadata WHERE status = 'completed';"
+        var statement: OpaquePointer?
+
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+            let errorMessage = String(cString: sqlite3_errmsg(db))
+            throw DatabaseError.preparationFailed(errorMessage)
+        }
+
+        defer { sqlite3_finalize(statement) }
+
+        if sqlite3_step(statement) == SQLITE_ROW {
+            if let timestampCString = sqlite3_column_text(statement, 0) {
+                let timestampString = String(cString: timestampCString)
+                return ISO8601DateFormatter().date(from: timestampString)
+            }
+        }
+
+        return nil
+    }
+
     // MARK: - Catalog Object Storage
-    
+
     func storeCatalogObject(_ object: SquareCatalogAPIClient.CatalogObject) async throws {
         switch object.type {
         case "ITEM":
