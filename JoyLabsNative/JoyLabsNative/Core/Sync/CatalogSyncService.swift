@@ -344,6 +344,9 @@ class CatalogSyncService: ObservableObject {
             // Initialize database
             try await databaseManager.initializeDatabase()
 
+            // Clear existing catalog data for fresh sync (matching React Native behavior)
+            try await databaseManager.clearCatalogData()
+
             // Start sync session
             let syncId = try await databaseManager.startSyncSession(type: "full")
 

@@ -207,6 +207,42 @@ class CatalogDatabaseManager {
         logger.info("Database recreated successfully")
     }
 
+    /// Clear all catalog-related tables for fresh sync
+    func clearCatalogData() async throws {
+        logger.info("Clearing all catalog data...")
+
+        do {
+            try await beginTransaction()
+
+            // Clear all catalog tables (matching React Native implementation)
+            let clearStatements = [
+                "DELETE FROM categories",
+                "DELETE FROM catalog_items",
+                "DELETE FROM item_variations",
+                "DELETE FROM modifier_lists",
+                "DELETE FROM modifiers",
+                "DELETE FROM taxes",
+                "DELETE FROM discounts",
+                "DELETE FROM images",
+                "DELETE FROM catalog_objects",
+                // Reset sync status related to catalog
+                "UPDATE sync_metadata SET last_sync_time = NULL, cursor = NULL WHERE sync_type = 'catalog'"
+            ]
+
+            for statement in clearStatements {
+                try executeSQL(statement)
+            }
+
+            try await commitTransaction()
+            logger.info("Catalog data cleared successfully")
+        } catch {
+            if isTransactionActive {
+                try? await rollbackTransaction()
+            }
+            throw error
+        }
+    }
+
     /// Get the last sync time (used for corruption detection)
     func getLastSyncTime() async throws -> Date? {
         // First perform a basic integrity check
