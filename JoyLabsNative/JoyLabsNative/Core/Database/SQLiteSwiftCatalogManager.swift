@@ -12,58 +12,83 @@ class SQLiteSwiftCatalogManager {
     private let dbPath: String
     private let logger = Logger(subsystem: "com.joylabs.native", category: "SQLiteSwiftCatalog")
     
-    // MARK: - Table Definitions (SQLite.swift style)
-    
-    // Categories table
+    // MARK: - Table Definitions (SQLite.swift style - matching React Native schema)
+
+    // Categories table (matching React Native: id, updated_at, version, is_deleted, name, data_json)
     private let categories = Table("categories")
     private let categoryId = Expression<String>("id")
-    private let categoryName = Expression<String?>("name")
-    private let categoryImageUrl = Expression<String?>("image_url")
-    private let categoryIsDeleted = Expression<Bool>("is_deleted")
     private let categoryUpdatedAt = Expression<String>("updated_at")
-    private let categoryVersion = Expression<Int64>("version")
-    
-    // Catalog items table
+    private let categoryVersion = Expression<String>("version") // Store as TEXT like React Native
+    private let categoryIsDeleted = Expression<Bool>("is_deleted")
+    private let categoryName = Expression<String?>("name")
+    private let categoryDataJson = Expression<String?>("data_json") // Store raw category_data JSON
+
+    // Catalog items table (matching React Native schema)
     private let catalogItems = Table("catalog_items")
     private let itemId = Expression<String>("id")
-    private let itemType = Expression<String>("type")
     private let itemUpdatedAt = Expression<String>("updated_at")
-    private let itemVersion = Expression<Int64>("version")
+    private let itemVersion = Expression<String>("version") // Store as TEXT like React Native
     private let itemIsDeleted = Expression<Bool>("is_deleted")
-    private let itemPresentAtAllLocations = Expression<Bool>("present_at_all_locations")
-    private let itemCategoryId = Expression<String?>("category_id")
+    private let itemPresentAtAllLocations = Expression<Bool?>("present_at_all_locations")
     private let itemName = Expression<String?>("name")
     private let itemDescription = Expression<String?>("description")
-    private let itemLabelColor = Expression<String?>("label_color")
-    private let itemAvailableOnline = Expression<Bool?>("available_online")
-    private let itemAvailableForPickup = Expression<Bool?>("available_for_pickup")
-    private let itemAvailableElectronically = Expression<Bool?>("available_electronically")
+    private let itemCategoryId = Expression<String?>("category_id")
+    private let itemDataJson = Expression<String?>("data_json") // Store raw item_data JSON
     
-    // Item variations table
+    // Item variations table (matching React Native schema)
     private let itemVariations = Table("item_variations")
     private let variationId = Expression<String>("id")
+    private let variationUpdatedAt = Expression<String>("updated_at")
+    private let variationVersion = Expression<String>("version") // Store as TEXT like React Native
+    private let variationIsDeleted = Expression<Bool>("is_deleted")
     private let variationItemId = Expression<String>("item_id")
     private let variationName = Expression<String?>("name")
     private let variationSku = Expression<String?>("sku")
     private let variationUpc = Expression<String?>("upc")
     private let variationOrdinal = Expression<Int64?>("ordinal")
     private let variationPricingType = Expression<String?>("pricing_type")
-    private let variationBasePriceMoney = Expression<String?>("base_price_money")
-    private let variationDefaultUnitCost = Expression<String?>("default_unit_cost")
-    private let variationMeasurementUnitId = Expression<String?>("measurement_unit_id")
-    private let variationSellable = Expression<Bool?>("sellable")
-    private let variationStockable = Expression<Bool?>("stockable")
-    private let variationUpdatedAt = Expression<String>("updated_at")
-    private let variationVersion = Expression<Int64>("version")
-    
-    // Sync metadata table
-    private let syncMetadata = Table("sync_metadata")
-    private let syncType = Expression<String>("sync_type")
-    private let syncStartedAt = Expression<String?>("started_at")
-    private let syncCompletedAt = Expression<String?>("completed_at")
-    private let syncLastCursor = Expression<String?>("last_cursor")
-    private let syncTotalItems = Expression<Int64?>("total_items")
-    private let syncProcessedItems = Expression<Int64?>("processed_items")
+    private let variationPriceMoneyAmount = Expression<Int64?>("price_money_amount")
+    private let variationPriceMoneyCurrency = Expression<String?>("price_money_currency")
+    private let variationDataJson = Expression<String?>("data_json") // Store raw variation_data JSON
+
+    // Additional tables matching React Native schema
+    private let taxes = Table("taxes")
+    private let taxId = Expression<String>("id")
+    private let taxUpdatedAt = Expression<String>("updated_at")
+    private let taxVersion = Expression<String>("version")
+    private let taxIsDeleted = Expression<Bool>("is_deleted")
+    private let taxName = Expression<String?>("name")
+    private let taxDataJson = Expression<String?>("data_json")
+
+    private let discounts = Table("discounts")
+    private let discountId = Expression<String>("id")
+    private let discountUpdatedAt = Expression<String>("updated_at")
+    private let discountVersion = Expression<String>("version")
+    private let discountIsDeleted = Expression<Bool>("is_deleted")
+    private let discountName = Expression<String?>("name")
+    private let discountDataJson = Expression<String?>("data_json")
+
+    private let images = Table("images")
+    private let imageId = Expression<String>("id")
+    private let imageUpdatedAt = Expression<String>("updated_at")
+    private let imageVersion = Expression<String>("version")
+    private let imageIsDeleted = Expression<Bool>("is_deleted")
+    private let imageName = Expression<String?>("name")
+    private let imageUrl = Expression<String?>("url")
+    private let imageDataJson = Expression<String?>("data_json")
+
+    // Team data table (matching React Native schema)
+    private let teamData = Table("team_data")
+    private let teamItemId = Expression<String>("item_id")
+    private let teamCaseUpc = Expression<String?>("case_upc")
+    private let teamCaseCost = Expression<Double?>("case_cost")
+    private let teamCaseQuantity = Expression<Int64?>("case_quantity")
+    private let teamVendor = Expression<String?>("vendor")
+    private let teamDiscontinued = Expression<Bool>("discontinued")
+    private let teamNotes = Expression<String?>("notes")
+    private let teamCreatedAt = Expression<String>("created_at")
+    private let teamUpdatedAt = Expression<String>("updated_at")
+    private let teamOwner = Expression<String?>("owner")
     
     // MARK: - Initialization
     
@@ -102,73 +127,103 @@ class SQLiteSwiftCatalogManager {
         logger.info("SQLiteSwift database disconnected")
     }
     
-    // MARK: - Table Creation
-    
+    // MARK: - Table Creation (matching React Native schema)
+
     private func createTables() throws {
         guard let db = db else { throw SQLiteSwiftError.noConnection }
-        
-        // Create categories table
+
+        // Create categories table (matching React Native schema)
         try db.run(categories.create(ifNotExists: true) { t in
             t.column(categoryId, primaryKey: true)
-            t.column(categoryName)
-            t.column(categoryImageUrl)
-            t.column(categoryIsDeleted, defaultValue: false)
             t.column(categoryUpdatedAt)
-            t.column(categoryVersion, defaultValue: 1)
+            t.column(categoryVersion)
+            t.column(categoryIsDeleted, defaultValue: false)
+            t.column(categoryName)
+            t.column(categoryDataJson) // Store raw category_data JSON
         })
-        
-        // Create catalog_items table
+
+        // Create catalog_items table (matching React Native schema)
         try db.run(catalogItems.create(ifNotExists: true) { t in
             t.column(itemId, primaryKey: true)
-            t.column(itemType)
             t.column(itemUpdatedAt)
-            t.column(itemVersion, defaultValue: 1)
+            t.column(itemVersion)
             t.column(itemIsDeleted, defaultValue: false)
             t.column(itemPresentAtAllLocations, defaultValue: true)
-            t.column(itemCategoryId)
             t.column(itemName)
             t.column(itemDescription)
-            t.column(itemLabelColor)
-            t.column(itemAvailableOnline)
-            t.column(itemAvailableForPickup)
-            t.column(itemAvailableElectronically)
-            
+            t.column(itemCategoryId)
+            t.column(itemDataJson) // Store raw item_data JSON
+
             // Foreign key constraint
             t.foreignKey(itemCategoryId, references: categories, categoryId, delete: .setNull)
         })
-        
-        // Create item_variations table
+
+        // Create item_variations table (matching React Native schema)
         try db.run(itemVariations.create(ifNotExists: true) { t in
             t.column(variationId, primaryKey: true)
+            t.column(variationUpdatedAt)
+            t.column(variationVersion)
+            t.column(variationIsDeleted, defaultValue: false)
             t.column(variationItemId)
             t.column(variationName)
             t.column(variationSku)
             t.column(variationUpc)
             t.column(variationOrdinal)
             t.column(variationPricingType)
-            t.column(variationBasePriceMoney)
-            t.column(variationDefaultUnitCost)
-            t.column(variationMeasurementUnitId)
-            t.column(variationSellable)
-            t.column(variationStockable)
-            t.column(variationUpdatedAt)
-            t.column(variationVersion, defaultValue: 1)
-            
+            t.column(variationPriceMoneyAmount)
+            t.column(variationPriceMoneyCurrency, defaultValue: "USD")
+            t.column(variationDataJson) // Store raw variation_data JSON
+
             // Foreign key constraint
             t.foreignKey(variationItemId, references: catalogItems, itemId, delete: .cascade)
         })
-        
-        // Create sync_metadata table
-        try db.run(syncMetadata.create(ifNotExists: true) { t in
-            t.column(syncType, primaryKey: true)
-            t.column(syncStartedAt)
-            t.column(syncCompletedAt)
-            t.column(syncLastCursor)
-            t.column(syncTotalItems)
-            t.column(syncProcessedItems)
+
+        // Create taxes table
+        try db.run(taxes.create(ifNotExists: true) { t in
+            t.column(taxId, primaryKey: true)
+            t.column(taxUpdatedAt)
+            t.column(taxVersion)
+            t.column(taxIsDeleted, defaultValue: false)
+            t.column(taxName)
+            t.column(taxDataJson)
         })
-        
-        logger.info("SQLiteSwift tables created successfully")
+
+        // Create discounts table
+        try db.run(discounts.create(ifNotExists: true) { t in
+            t.column(discountId, primaryKey: true)
+            t.column(discountUpdatedAt)
+            t.column(discountVersion)
+            t.column(discountIsDeleted, defaultValue: false)
+            t.column(discountName)
+            t.column(discountDataJson)
+        })
+
+        // Create images table
+        try db.run(images.create(ifNotExists: true) { t in
+            t.column(imageId, primaryKey: true)
+            t.column(imageUpdatedAt)
+            t.column(imageVersion)
+            t.column(imageIsDeleted, defaultValue: false)
+            t.column(imageName)
+            t.column(imageUrl)
+            t.column(imageDataJson)
+        })
+
+        // Create team_data table (matching React Native schema)
+        try db.run(teamData.create(ifNotExists: true) { t in
+            t.column(teamItemId, primaryKey: true)
+            t.column(teamCaseUpc)
+            t.column(teamCaseCost)
+            t.column(teamCaseQuantity)
+            t.column(teamVendor)
+            t.column(teamDiscontinued, defaultValue: false)
+            t.column(teamNotes)
+            t.column(teamCreatedAt)
+            t.column(teamUpdatedAt)
+            t.column(teamOwner)
+        })
+
+        logger.info("SQLiteSwift tables created successfully (matching React Native schema)")
     }
     
     // MARK: - Data Operations

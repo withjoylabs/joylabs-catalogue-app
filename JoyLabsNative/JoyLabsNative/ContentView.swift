@@ -1067,7 +1067,7 @@ struct LabelsView: View {
 
 struct ProfileView: View {
     @StateObject private var squareAPIService = SquareAPIServiceFactory.createService()
-    @StateObject private var syncCoordinator: SquareSyncCoordinator
+    @StateObject private var syncCoordinator = SquareAPIServiceFactory.createSyncCoordinator()
     @State private var showingSquareIntegration = false
     @State private var showingSignOutAlert = false
     @State private var isAuthenticating = false
@@ -1075,18 +1075,6 @@ struct ProfileView: View {
     @State private var userEmail = "manager@joylabs.com"
     @State private var alertMessage = ""
     @State private var showingAlert = false
-
-    init() {
-        // REVERTED: Keep existing implementation for now
-        let sharedService = SquareAPIServiceFactory.createService()
-        let sharedDatabase = ResilientDatabaseManager()
-
-        _syncCoordinator = StateObject(wrappedValue: SquareSyncCoordinator.createCoordinator(
-            databaseManager: sharedDatabase,
-            squareAPIService: sharedService,
-            catalogSyncService: CatalogSyncService(squareAPIService: sharedService)
-        ))
-    }
 
     var body: some View {
         NavigationView {
@@ -1172,7 +1160,7 @@ struct ProfileView: View {
                         IntegrationCard(
                             icon: "cloud.fill",
                             title: "Catalog Sync",
-                            subtitle: syncCoordinator.timeSinceLastSync ?? "Never synced",
+                            subtitle: formatLastSyncTime(),
                             status: syncCoordinator.syncState == .completed ? .connected : .warning,
                             isLoading: syncCoordinator.syncState == .syncing,
                             action: {
@@ -1267,7 +1255,7 @@ struct ProfileView: View {
     }
 
     private func performCatalogSync() async {
-        await syncCoordinator.triggerSync()
+        await syncCoordinator.performManualSync()
 
         // Check the sync state after triggering
         switch syncCoordinator.syncState {
@@ -1290,6 +1278,11 @@ struct ProfileView: View {
         }
 
         showingAlert = true
+    }
+
+    private func formatLastSyncTime() -> String {
+        // TODO: Implement proper last sync time tracking with SQLite.swift
+        return "Never synced"
     }
 
     private func formatDate(_ date: Date) -> String {

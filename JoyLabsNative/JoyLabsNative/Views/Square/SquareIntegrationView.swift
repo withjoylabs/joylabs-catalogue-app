@@ -7,28 +7,14 @@ struct SquareIntegrationView: View {
     // MARK: - Dependencies
     
     @StateObject private var squareAPIService = SquareAPIServiceFactory.createService()
-    @StateObject private var syncCoordinator: SquareSyncCoordinator
-    
+    @StateObject private var syncCoordinator = SquareAPIServiceFactory.createSyncCoordinator()
+
     // MARK: - UI State
-    
+
     @State private var showingAuthenticationSheet = false
     @State private var showingSyncDetails = false
     @State private var alertMessage = ""
     @State private var showingAlert = false
-    
-    // MARK: - Initialization
-    
-    init() {
-        // CRITICAL FIX: Use SINGLE shared service instance to prevent duplicates
-        let sharedService = SquareAPIServiceFactory.createService()
-        let sharedDatabase = ResilientDatabaseManager()
-
-        _syncCoordinator = StateObject(wrappedValue: SquareSyncCoordinator.createCoordinator(
-            databaseManager: sharedDatabase,
-            squareAPIService: sharedService,
-            catalogSyncService: CatalogSyncService(squareAPIService: sharedService)
-        ))
-    }
     
     var body: some View {
         NavigationView {
