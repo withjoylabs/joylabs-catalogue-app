@@ -17,6 +17,17 @@
 		A1B2C3D4E5F6789012345805 /* DatabaseMigrationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345806 /* DatabaseMigrationService.swift */; };
 		A1B2C3D4E5F6789012345807 /* SQLiteSwiftSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345808 /* SQLiteSwiftSyncCoordinator.swift */; };
 		A1B2C3D4E5F6789012345809 /* SQLiteSwiftCatalogSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345810 /* SQLiteSwiftCatalogSyncService.swift */; };
+		A1B2C3D4E5F6789012345811 /* SquareAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345812 /* SquareAPIService.swift */; };
+		A1B2C3D4E5F6789012345813 /* SquareOAuthCallbackHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345814 /* SquareOAuthCallbackHandler.swift */; };
+		A1B2C3D4E5F6789012345815 /* SquareOAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345816 /* SquareOAuthService.swift */; };
+		A1B2C3D4E5F6789012345817 /* SquareAPIServiceFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345818 /* SquareAPIServiceFactory.swift */; };
+		A1B2C3D4E5F6789012345819 /* SquareCatalogAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345820 /* SquareCatalogAPIClient.swift */; };
+		A1B2C3D4E5F6789012345821 /* SquareConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345822 /* SquareConfiguration.swift */; };
+		A1B2C3D4E5F6789012345823 /* SquareErrorRecoveryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345824 /* SquareErrorRecoveryManager.swift */; };
+		A1B2C3D4E5F6789012345825 /* SquareHTTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345826 /* SquareHTTPClient.swift */; };
+		A1B2C3D4E5F6789012345827 /* PKCEGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345828 /* PKCEGenerator.swift */; };
+		A1B2C3D4E5F6789012345829 /* DataTransformationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345830 /* DataTransformationService.swift */; };
+		A1B2C3D4E5F6789012345831 /* DataValidationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345832 /* DataValidationService.swift */; };
 																																								/* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -30,6 +41,17 @@
 		A1B2C3D4E5F6789012345806 /* DatabaseMigrationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Database/DatabaseMigrationService.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345808 /* SQLiteSwiftSyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SQLiteSwiftSyncCoordinator.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345810 /* SQLiteSwiftCatalogSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Sync/SQLiteSwiftCatalogSyncService.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345812 /* SquareAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareAPIService.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345814 /* SquareOAuthCallbackHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareOAuthCallbackHandler.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345816 /* SquareOAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareOAuthService.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345818 /* SquareAPIServiceFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareAPIServiceFactory.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345820 /* SquareCatalogAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareCatalogAPIClient.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345822 /* SquareConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareConfiguration.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345824 /* SquareErrorRecoveryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareErrorRecoveryManager.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345826 /* SquareHTTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/SquareHTTPClient.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345828 /* PKCEGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/PKCEGenerator.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345830 /* DataTransformationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/DataTransformationService.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345832 /* DataValidationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Square/DataValidationService.swift"; sourceTree = "<group>"; };
 																																								/* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -161,7 +183,18 @@
 				A1B2C3D4E5F6789012345803 /* DatabaseBackup.swift in Sources */,
 				A1B2C3D4E5F6789012345805 /* DatabaseMigrationService.swift in Sources */,
 				A1B2C3D4E5F6789012345807 /* SQLiteSwiftSyncCoordinator.swift in Sources */,
-				A1B2C3D4E5F6789012345809 /* SQLiteSwiftCatalogSyncService.swift in Sources */
+				A1B2C3D4E5F6789012345809 /* SQLiteSwiftCatalogSyncService.swift in Sources */,
+				A1B2C3D4E5F6789012345811 /* SquareAPIService.swift in Sources */,
+				A1B2C3D4E5F6789012345813 /* SquareOAuthCallbackHandler.swift in Sources */,
+				A1B2C3D4E5F6789012345815 /* SquareOAuthService.swift in Sources */,
+				A1B2C3D4E5F6789012345817 /* SquareAPIServiceFactory.swift in Sources */,
+				A1B2C3D4E5F6789012345819 /* SquareCatalogAPIClient.swift in Sources */,
+				A1B2C3D4E5F6789012345821 /* SquareConfiguration.swift in Sources */,
+				A1B2C3D4E5F6789012345823 /* SquareErrorRecoveryManager.swift in Sources */,
+				A1B2C3D4E5F6789012345825 /* SquareHTTPClient.swift in Sources */,
+				A1B2C3D4E5F6789012345827 /* PKCEGenerator.swift in Sources */,
+				A1B2C3D4E5F6789012345829 /* DataTransformationService.swift in Sources */,
+				A1B2C3D4E5F6789012345831 /* DataValidationService.swift in Sources */
 				);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
