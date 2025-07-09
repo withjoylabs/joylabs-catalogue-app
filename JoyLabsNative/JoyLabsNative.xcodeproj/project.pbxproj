@@ -16,6 +16,11 @@
 		A1B2C3D4E5F6789012345716 /* SQLite in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4E5F6789012345717 /* SQLite */; };
 		A1B2C3D4E5F6789012345719 /* DatabaseModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345720 /* DatabaseModels.swift */; };
 				A1B2C3D4E5F6789012345723 /* DataValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345724 /* DataValidation.swift */; };
+		A1B2C3D4E5F6789012345801 /* SQLiteSwiftCatalogManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345802 /* SQLiteSwiftCatalogManager.swift */; };
+		A1B2C3D4E5F6789012345803 /* DatabaseBackup.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345804 /* DatabaseBackup.swift */; };
+		A1B2C3D4E5F6789012345805 /* DatabaseMigrationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345806 /* DatabaseMigrationService.swift */; };
+		A1B2C3D4E5F6789012345807 /* SQLiteSwiftSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345808 /* SQLiteSwiftSyncCoordinator.swift */; };
+		A1B2C3D4E5F6789012345809 /* SQLiteSwiftCatalogSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345810 /* SQLiteSwiftCatalogSyncService.swift */; };
 				A1B2C3D4E5F6789012345727 /* ProductService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345728 /* ProductService.swift */; };
 		A1B2C3D4E5F6789012345729 /* ServiceImplementations.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345730 /* ServiceImplementations.swift */; };
 		A1B2C3D4E5F6789012345751 /* TokenService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345752 /* TokenService.swift */; };
@@ -43,6 +48,11 @@
 		A1B2C3D4E5F6789012345715 /* SearchModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Models/SearchModels.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345720 /* DatabaseModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Database/DatabaseModels.swift"; sourceTree = "<group>"; };
 				A1B2C3D4E5F6789012345724 /* DataValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Database/DataValidation.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345802 /* SQLiteSwiftCatalogManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Database/SQLiteSwiftCatalogManager.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345804 /* DatabaseBackup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Database/DatabaseBackup.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345806 /* DatabaseMigrationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Database/DatabaseMigrationService.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345808 /* SQLiteSwiftSyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Square/SQLiteSwiftSyncCoordinator.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345810 /* SQLiteSwiftCatalogSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Sync/SQLiteSwiftCatalogSyncService.swift"; sourceTree = "<group>"; };
 				A1B2C3D4E5F6789012345728 /* ProductService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Services/ProductService.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345730 /* ServiceImplementations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Services/ServiceImplementations.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345752 /* TokenService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Services/TokenService.swift"; sourceTree = "<group>"; };
@@ -208,6 +218,11 @@
 				A1B2C3D4E5F6789012345714 /* SearchModels.swift in Sources */,
 				A1B2C3D4E5F6789012345719 /* DatabaseModels.swift in Sources */,
 				A1B2C3D4E5F6789012345723 /* DataValidation.swift in Sources */,
+				A1B2C3D4E5F6789012345801 /* SQLiteSwiftCatalogManager.swift in Sources */,
+				A1B2C3D4E5F6789012345803 /* DatabaseBackup.swift in Sources */,
+				A1B2C3D4E5F6789012345805 /* DatabaseMigrationService.swift in Sources */,
+				A1B2C3D4E5F6789012345807 /* SQLiteSwiftSyncCoordinator.swift in Sources */,
+				A1B2C3D4E5F6789012345809 /* SQLiteSwiftCatalogSyncService.swift in Sources */,
 				A1B2C3D4E5F6789012345727 /* ProductService.swift in Sources */,
 				A1B2C3D4E5F6789012345729 /* ServiceImplementations.swift in Sources */,
 				A1B2C3D4E5F6789012345751 /* TokenService.swift in Sources */,
