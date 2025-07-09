@@ -50,7 +50,7 @@ class SquareOAuthService: NSObject, ObservableObject {
         
         do {
             // Register this service to receive callbacks
-            await SquareOAuthCallbackHandler.shared.registerOAuthService(self)
+            SquareOAuthCallbackHandler.shared.registerOAuthService(self)
 
             // Create OAuth state with PKCE parameters
             let oauthState = await stateManager.createOAuthState()

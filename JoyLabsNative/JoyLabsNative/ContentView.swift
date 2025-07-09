@@ -1082,18 +1082,25 @@ struct ProfileView: View {
                             }
                         )
 
-                        IntegrationCard(
-                            icon: "cloud.fill",
-                            title: "Catalog Sync",
-                            subtitle: formatLastSyncTime(),
-                            status: syncCoordinator.syncState == .completed ? .connected : .warning,
-                            isLoading: syncCoordinator.syncState == .syncing,
-                            action: {
-                                Task {
-                                    await performCatalogSync()
+                        VStack(spacing: 8) {
+                            IntegrationCard(
+                                icon: "cloud.fill",
+                                title: "Catalog Sync",
+                                subtitle: formatLastSyncTime(),
+                                status: syncCoordinator.syncState == .completed ? .connected : .warning,
+                                isLoading: syncCoordinator.syncState == .syncing,
+                                action: {
+                                    Task {
+                                        await performCatalogSync()
+                                    }
                                 }
+                            )
+
+                            // Show progress when syncing
+                            if syncCoordinator.syncState == .syncing {
+                                syncProgressView
                             }
-                        )
+                        }
                     }
                     .padding(.horizontal, 20)
 
@@ -1180,34 +1187,81 @@ struct ProfileView: View {
     }
 
     private func performCatalogSync() async {
+        // Start the sync and wait for completion
         await syncCoordinator.performManualSync()
 
-        // Check the sync state after triggering
+        // Only show alert for failures, not for successful completion
         switch syncCoordinator.syncState {
         case .completed:
-            if let result = syncCoordinator.lastSyncResult {
-                alertMessage = "Catalog sync completed successfully. Processed \(result.totalProcessed) items."
-            } else {
-                alertMessage = "Catalog sync completed successfully."
-            }
+            // Success - no alert needed, user can see progress in UI
+            break
         case .failed:
             if let error = syncCoordinator.error {
                 alertMessage = "Catalog sync failed: \(error.localizedDescription)"
+                showingAlert = true
             } else {
                 alertMessage = "Catalog sync failed with unknown error."
+                showingAlert = true
             }
         case .syncing:
-            alertMessage = "Catalog sync is in progress..."
+            // This shouldn't happen since we awaited completion
+            break
         case .idle:
-            alertMessage = "Catalog sync initiated."
+            // This shouldn't happen either
+            break
         }
-
-        showingAlert = true
     }
 
     private func formatLastSyncTime() -> String {
         // TODO: Implement proper last sync time tracking with SQLite.swift
         return "Never synced"
+    }
+
+    // MARK: - Sync Progress View
+
+    private var syncProgressView: some View {
+        VStack(spacing: 8) {
+            // Progress header
+            HStack {
+                Text("Syncing Catalog...")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+
+                Spacer()
+
+                Text("\(syncCoordinator.syncProgressPercentage)%")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(.blue)
+            }
+
+            // Progress bar
+            ProgressView(value: syncCoordinator.syncProgress)
+                .progressViewStyle(LinearProgressViewStyle())
+                .scaleEffect(y: 1.5) // Make progress bar thicker
+
+            // Progress details
+            HStack {
+                Text(syncCoordinator.catalogSyncService.syncProgress.progressText)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Spacer()
+            }
+
+            if !syncCoordinator.catalogSyncService.syncProgress.currentObjectType.isEmpty {
+                HStack {
+                    Text("Processing: \(syncCoordinator.catalogSyncService.syncProgress.currentObjectType)")
+                        .font(.caption2)
+                        .foregroundColor(.gray)
+
+                    Spacer()
+                }
+            }
+        }
+        .padding(12)
+        .background(Color.blue.opacity(0.1))
+        .cornerRadius(8)
     }
 
     private func formatDate(_ date: Date) -> String {

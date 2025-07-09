@@ -196,7 +196,7 @@ actor DataTransformationService {
             updatedAt: object.updatedAt ?? "",
             version: String(object.version ?? 0),
             isDeleted: (object.isDeleted ?? false) ? 1 : 0,
-            itemId: variationData.itemId ?? "",
+            itemId: variationData.itemId,
             name: variationData.name,
             sku: variationData.sku,
             upc: variationData.upc,

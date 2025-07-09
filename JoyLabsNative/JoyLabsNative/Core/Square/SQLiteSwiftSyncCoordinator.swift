@@ -119,7 +119,7 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
     }
 
     var timeSinceLastSync: String? {
-        guard let lastResult = lastSyncResult else { return nil }
+        guard lastSyncResult != nil else { return nil }
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
         return formatter.localizedString(for: Date(), relativeTo: Date())

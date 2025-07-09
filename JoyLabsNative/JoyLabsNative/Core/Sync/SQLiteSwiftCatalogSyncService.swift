@@ -254,12 +254,7 @@ extension SQLiteSwiftCatalogSyncService {
         }
 
         var rateText: String {
-            let elapsed = Date().timeIntervalSince(startTime)
-            if elapsed > 0 && syncedObjects > 0 {
-                let rate = Double(syncedObjects) / elapsed
-                return String(format: "%.1f objects/sec", rate)
-            }
-            return ""
+            return "" // Rate display removed per user request
         }
     }
     

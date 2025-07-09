@@ -229,24 +229,20 @@ class SquareAPIService: ObservableObject {
     // MARK: - Authentication Methods
 
     private func fetchMerchantInfo() async {
-        do {
-            // Get merchant info from the OAuth service's last token response
-            if let tokenResponse = oauthService.lastTokenResponse {
-                currentMerchant = MerchantInfo(
-                    id: tokenResponse.merchantId ?? "unknown_merchant",
-                    businessName: tokenResponse.businessName ?? "Square Account"
-                )
-                logger.info("Merchant info fetched from OAuth response: \(tokenResponse.merchantId ?? "unknown")")
-            } else {
-                // Fallback if no token response available
-                currentMerchant = MerchantInfo(
-                    id: "unknown_merchant",
-                    businessName: "Square Account"
-                )
-                logger.warning("No token response available, using fallback merchant info")
-            }
-        } catch {
-            logger.error("Failed to fetch merchant info: \(error.localizedDescription)")
+        // Get merchant info from the OAuth service's last token response
+        if let tokenResponse = oauthService.lastTokenResponse {
+            currentMerchant = MerchantInfo(
+                id: tokenResponse.merchantId ?? "unknown_merchant",
+                businessName: tokenResponse.businessName ?? "Square Account"
+            )
+            logger.info("Merchant info fetched from OAuth response: \(tokenResponse.merchantId ?? "unknown")")
+        } else {
+            // Fallback if no token response available
+            currentMerchant = MerchantInfo(
+                id: "unknown_merchant",
+                businessName: "Square Account"
+            )
+            logger.warning("No token response available, using fallback merchant info")
         }
     }
 
