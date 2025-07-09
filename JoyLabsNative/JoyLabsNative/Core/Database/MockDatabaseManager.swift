@@ -11,8 +11,8 @@ class MockDatabaseManager: ObservableObject {
     
     // MARK: - Initialization
     init() {
-        // Pre-populate with sample data
-        populateSampleData()
+        // REMOVED: Mock data population to prevent startup logs
+        // populateSampleData()
     }
     
     // MARK: - Public Methods

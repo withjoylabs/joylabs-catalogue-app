@@ -19,14 +19,14 @@ struct SquareIntegrationView: View {
     // MARK: - Initialization
     
     init() {
-        // CRITICAL FIX: Use ServiceContainer to prevent duplicate services
-        // This was causing multiple keychain access and database corruption
+        // CRITICAL FIX: Use SINGLE shared service instance to prevent duplicates
+        let sharedService = SquareAPIServiceFactory.createService()
+        let sharedDatabase = ResilientDatabaseManager()
 
-        // Create a minimal temporary coordinator - will be replaced with shared one in onAppear
         _syncCoordinator = StateObject(wrappedValue: SquareSyncCoordinator.createCoordinator(
-            databaseManager: ResilientDatabaseManager(),
-            squareAPIService: SquareAPIServiceFactory.createService(),
-            catalogSyncService: CatalogSyncService(squareAPIService: SquareAPIServiceFactory.createService())
+            databaseManager: sharedDatabase,
+            squareAPIService: sharedService,
+            catalogSyncService: CatalogSyncService(squareAPIService: sharedService)
         ))
     }
     

@@ -18,21 +18,22 @@ struct TestRunnerView: View {
     // MARK: - Initialization
     
     init() {
-        let squareAPIService = SquareAPIServiceFactory.createService()
-        let databaseManager = ResilientDatabaseManager()
-        
+        // CRITICAL FIX: Use SINGLE shared service instance to prevent duplicates
+        let sharedService = SquareAPIServiceFactory.createService()
+        let sharedDatabase = ResilientDatabaseManager()
+
         let catalogSyncService = CatalogSyncService(
-            squareAPIService: squareAPIService,
-            databaseManager: databaseManager
+            squareAPIService: sharedService,
+            databaseManager: sharedDatabase
         )
-        
+
         let syncCoordinator = SquareSyncCoordinator(
             catalogSyncService: catalogSyncService,
-            squareAPIService: squareAPIService
+            squareAPIService: sharedService
         )
-        
+
         _testRunner = StateObject(wrappedValue: SquareIntegrationTests(
-            squareAPIService: squareAPIService,
+            squareAPIService: sharedService,
             catalogSyncService: catalogSyncService,
             syncCoordinator: syncCoordinator
         ))

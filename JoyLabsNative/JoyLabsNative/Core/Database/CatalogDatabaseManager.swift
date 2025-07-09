@@ -209,6 +209,32 @@ class CatalogDatabaseManager {
         sqlite3_finalize(statement)
     }
     
+    // MARK: - Database Corruption Detection
+
+    /// Detects various types of SQLite database corruption
+    private func isDatabaseCorrupted(_ error: Error) -> Bool {
+        let errorDescription = error.localizedDescription.lowercased()
+
+        // Common SQLite corruption indicators
+        let corruptionIndicators = [
+            "malformed",
+            "corruption",
+            "corrupt",
+            "database disk image is malformed",
+            "index corruption",
+            "sqlite_corrupt",
+            "sqlite_notadb",
+            "file is not a database",
+            "database schema has changed",
+            "no such table",
+            "sql logic error"
+        ]
+
+        return corruptionIndicators.contains { indicator in
+            errorDescription.contains(indicator)
+        }
+    }
+
     // MARK: - Database Recovery
 
     /// Recreate the database if it's corrupted
@@ -242,6 +268,9 @@ class CatalogDatabaseManager {
         logger.info("Clearing all catalog data...")
 
         do {
+            // CRITICAL FIX: Force database recreation if corrupted
+            try await performIntegrityCheck()
+
             try await beginTransaction()
 
             // Clear all catalog tables (only tables that exist in our schema)
@@ -259,15 +288,38 @@ class CatalogDatabaseManager {
             ]
 
             for statement in clearStatements {
+                logger.debug("Executing: \(statement)")
                 try executeSQL(statement)
             }
 
             try await commitTransaction()
-            logger.info("Catalog data cleared successfully")
+
+            // Verify the clear actually worked
+            let countSQL = "SELECT COUNT(*) FROM catalog_items;"
+            var countStatement: OpaquePointer?
+            if sqlite3_prepare_v2(db, countSQL, -1, &countStatement, nil) == SQLITE_OK {
+                if sqlite3_step(countStatement) == SQLITE_ROW {
+                    let count = sqlite3_column_int(countStatement, 0)
+                    logger.info("Catalog data cleared successfully. Remaining items: \(count)")
+                    if count > 0 {
+                        logger.warning("WARNING: \(count) items still remain after clear operation")
+                    }
+                }
+            }
+            sqlite3_finalize(countStatement)
+
         } catch {
             if isTransactionActive {
                 try? await rollbackTransaction()
             }
+
+            // If clear fails due to corruption, recreate database
+            if isDatabaseCorrupted(error) {
+                logger.warning("Database corruption detected during clear, recreating database...")
+                try await recreateDatabase()
+                return
+            }
+
             throw error
         }
     }
