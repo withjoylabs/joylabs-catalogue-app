@@ -83,16 +83,12 @@ class ServiceContainer: ObservableObject {
         if let service = _catalogSyncService {
             return service
         }
-        
+
         logger.info("Creating CatalogSyncService with dependencies")
         let apiService = await squareAPIService()
-        let dbManager = await databaseManager()
-        let transformationService = await dataTransformationService()
-        
+
         let service = CatalogSyncService(
-            squareAPIService: apiService,
-            databaseManager: dbManager,
-            dataTransformationService: transformationService
+            squareAPIService: apiService
         )
         _catalogSyncService = service
         return service
