@@ -1,5 +1,5 @@
 import Foundation
-import SQLite
+import SQLite3
 import os.log
 
 /// Database manager for catalog data with full Square API field coverage
@@ -8,7 +8,7 @@ class CatalogDatabaseManager {
 
     // MARK: - Properties
 
-    private var db: Connection?
+    private var db: OpaquePointer?
     private let dbPath: String
     private var isTransactionActive = false
     private let logger = Logger(subsystem: "com.joylabs.native", category: "CatalogDatabase")
@@ -37,38 +37,54 @@ class CatalogDatabaseManager {
     }
     
     private func openDatabase() throws {
-        do {
-            db = try Connection(dbPath)
-
-            // Configure SQLite for better performance and corruption resistance
-            try configureSQLiteSettings()
-        } catch {
+        if sqlite3_open(dbPath, &db) != SQLITE_OK {
             throw DatabaseError.cannotOpenDatabase
         }
+
+        // Configure SQLite for better performance and corruption resistance
+        try configureSQLiteSettings()
     }
 
     private func closeDatabase() {
-        db = nil
+        if db != nil {
+            sqlite3_close(db)
+            db = nil
+        }
     }
 
     /// Configure SQLite settings for optimal performance and corruption resistance
     private func configureSQLiteSettings() throws {
-        guard let db = db else { throw DatabaseError.cannotOpenDatabase }
+        var statement: OpaquePointer?
 
         // Enable WAL mode for better concurrency and corruption resistance
-        try db.execute("PRAGMA journal_mode = WAL;")
+        if sqlite3_prepare_v2(db, "PRAGMA journal_mode = WAL;", -1, &statement, nil) == SQLITE_OK {
+            sqlite3_step(statement)
+        }
+        sqlite3_finalize(statement)
 
         // Enable foreign keys
-        try db.execute("PRAGMA foreign_keys = ON;")
+        if sqlite3_prepare_v2(db, "PRAGMA foreign_keys = ON;", -1, &statement, nil) == SQLITE_OK {
+            sqlite3_step(statement)
+        }
+        sqlite3_finalize(statement)
 
         // Set synchronous mode to NORMAL for better performance while maintaining safety
-        try db.execute("PRAGMA synchronous = NORMAL;")
+        if sqlite3_prepare_v2(db, "PRAGMA synchronous = NORMAL;", -1, &statement, nil) == SQLITE_OK {
+            sqlite3_step(statement)
+        }
+        sqlite3_finalize(statement)
 
         // Increase cache size for better performance
-        try db.execute("PRAGMA cache_size = 10000;")
+        if sqlite3_prepare_v2(db, "PRAGMA cache_size = 10000;", -1, &statement, nil) == SQLITE_OK {
+            sqlite3_step(statement)
+        }
+        sqlite3_finalize(statement)
 
         // Set busy timeout to handle concurrent access
-        try db.execute("PRAGMA busy_timeout = 30000;")
+        if sqlite3_prepare_v2(db, "PRAGMA busy_timeout = 30000;", -1, &statement, nil) == SQLITE_OK {
+            sqlite3_step(statement)
+        }
+        sqlite3_finalize(statement)
     }
     
     private func createTables() throws {
@@ -92,8 +108,21 @@ class CatalogDatabaseManager {
     }
     
     private func executeSQL(_ sql: String) throws {
-        guard let db = db else { throw DatabaseError.cannotOpenDatabase }
-        try db.execute(sql)
+        var statement: OpaquePointer?
+
+        if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
+            if sqlite3_step(statement) != SQLITE_DONE {
+                let errorMessage = String(cString: sqlite3_errmsg(db))
+                sqlite3_finalize(statement)
+                throw DatabaseError.executionFailed(errorMessage)
+            }
+        } else {
+            let errorMessage = String(cString: sqlite3_errmsg(db))
+            sqlite3_finalize(statement)
+            throw DatabaseError.preparationFailed(errorMessage)
+        }
+
+        sqlite3_finalize(statement)
     }
     
     // MARK: - Transaction Management
