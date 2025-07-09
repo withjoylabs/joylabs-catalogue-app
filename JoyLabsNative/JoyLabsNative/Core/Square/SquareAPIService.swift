@@ -1,32 +1,106 @@
 import Foundation
 import OSLog
 
+// Import TokenService from Core/Services
+// Note: TokenService and TokenData are defined in Core/Services/TokenService.swift
+
 // MARK: - Token Service Types
+// Temporary forward declarations until import issues are resolved
+// TODO: These should be imported from Core/Services/TokenService.swift
+
+// Simple KeychainHelper for temporary use
+class KeychainHelper {
+    func store(_ value: String, forKey key: String) throws {
+        let data = value.data(using: .utf8)!
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: key,
+            kSecValueData as String: data
+        ]
+
+        SecItemDelete(query as CFDictionary)
+        let status = SecItemAdd(query as CFDictionary, nil)
+        guard status == errSecSuccess else {
+            throw NSError(domain: "KeychainError", code: Int(status), userInfo: nil)
+        }
+    }
+
+    func retrieve(forKey key: String) throws -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: key,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+
+        guard status == errSecSuccess else {
+            if status == errSecItemNotFound {
+                return nil
+            }
+            throw NSError(domain: "KeychainError", code: Int(status), userInfo: nil)
+        }
+
+        guard let data = result as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+}
 
 class TokenService {
+    private let keychain = KeychainHelper()
+    private let logger = Logger(subsystem: "com.joylabs.native", category: "TokenService")
+
     func ensureValidToken() async -> String? {
-        // Placeholder implementation
+        // This will be implemented by the real TokenService
+        do {
+            let tokenData = try await getCurrentTokenData()
+            if let accessToken = tokenData.accessToken, !accessToken.isEmpty {
+                return accessToken
+            }
+        } catch {
+            logger.error("Failed to get token data: \(error)")
+        }
         return nil
     }
 
     func getCurrentTokenData() async throws -> TokenData {
-        return TokenData(accessToken: nil, refreshToken: nil, merchantId: nil, businessName: nil, expiresAt: nil)
-    }
+        let accessToken = try? keychain.retrieve(forKey: "square_access_token")
+        let refreshToken = try? keychain.retrieve(forKey: "square_refresh_token")
+        let merchantId = try? keychain.retrieve(forKey: "square_merchant_id")
+        let businessName = try? keychain.retrieve(forKey: "square_business_name")
 
-    func isTokenExpired(_ tokenData: TokenData) async -> Bool {
-        return false
-    }
-
-    func shouldRefreshToken(_ tokenData: TokenData) async -> Bool {
-        return false
-    }
-
-    func clearTokens() async throws {
-        // Placeholder implementation
+        return TokenData(
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+            merchantId: merchantId,
+            businessName: businessName,
+            expiresAt: nil
+        )
     }
 
     func storeAuthData(accessToken: String, refreshToken: String?, merchantId: String, businessName: String?, expiresAt: Date?) async throws {
-        // Placeholder implementation
+        try keychain.store(accessToken, forKey: "square_access_token")
+        if let refreshToken = refreshToken {
+            try keychain.store(refreshToken, forKey: "square_refresh_token")
+        }
+        try keychain.store(merchantId, forKey: "square_merchant_id")
+        if let businessName = businessName {
+            try keychain.store(businessName, forKey: "square_business_name")
+        }
+    }
+
+    func clearTokens() async throws {
+        // Clear all stored tokens
+        let keys = ["square_access_token", "square_refresh_token", "square_merchant_id", "square_business_name", "square_token_expiry"]
+        for key in keys {
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrAccount as String: key
+            ]
+            SecItemDelete(query as CFDictionary)
+        }
     }
 }
 

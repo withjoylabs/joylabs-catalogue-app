@@ -105,15 +105,13 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
     // MARK: - Private Methods
     
     private func fetchCatalogFromSquare() async throws -> [CatalogObject] {
-        // This would integrate with your existing Square API service
-        // For now, return empty array to avoid compilation errors
         logger.info("Fetching catalog data from Square API...")
-        
-        // TODO: Implement actual Square API integration
-        // let response = try await squareAPIService.listCatalog()
-        // return response.objects ?? []
-        
-        return []
+
+        // Use the actual Square API service to fetch catalog data
+        let catalogObjects = try await squareAPIService.fetchCatalog()
+
+        logger.info("✅ Fetched \(catalogObjects.count) objects from Square API")
+        return catalogObjects
     }
     
     private func processCatalogData(_ objects: [CatalogObject]) async throws {
