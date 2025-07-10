@@ -5,12 +5,16 @@ import os.log
 /// Modern SQLite.swift implementation for catalog database management
 /// Replaces the broken raw SQLite3 implementation with proper type safety
 class SQLiteSwiftCatalogManager {
-    
+
     // MARK: - Properties
-    
+
     private var db: Connection?
     private let dbPath: String
     private let logger = Logger(subsystem: "com.joylabs.native", category: "SQLiteSwiftCatalog")
+
+    // MARK: - Helper Components
+    private let tableCreator = CatalogTableCreator()
+    private let objectInserters = CatalogObjectInserters()
     
     // MARK: - Table Definitions (SQLite.swift style - matching React Native schema)
 
@@ -69,7 +73,35 @@ class SQLiteSwiftCatalogManager {
     private let taxVersion = Expression<String>("version")
     private let taxIsDeleted = Expression<Bool>("is_deleted")
     private let taxName = Expression<String?>("name")
+    private let taxCalculationPhase = Expression<String?>("calculation_phase")
+    private let taxInclusionType = Expression<String?>("inclusion_type")
+    private let taxPercentage = Expression<String?>("percentage")
+    private let taxAppliesToCustomAmounts = Expression<Bool?>("applies_to_custom_amounts")
+    private let taxEnabled = Expression<Bool?>("enabled")
     private let taxDataJson = Expression<String?>("data_json")
+
+    private let modifiers = Table("modifiers")
+    private let modifierId = Expression<String>("id")
+    private let modifierUpdatedAt = Expression<String>("updated_at")
+    private let modifierVersion = Expression<String>("version")
+    private let modifierIsDeleted = Expression<Bool>("is_deleted")
+    private let modifierName = Expression<String?>("name")
+    private let modifierListId = Expression<String?>("modifier_list_id")
+    private let modifierPriceAmount = Expression<Int64?>("price_amount")
+    private let modifierPriceCurrency = Expression<String?>("price_currency")
+    private let modifierOrdinal = Expression<Int64?>("ordinal")
+    private let modifierOnByDefault = Expression<Bool?>("on_by_default")
+    private let modifierDataJson = Expression<String?>("data_json")
+
+    private let modifierLists = Table("modifier_lists")
+    private let modifierListPrimaryId = Expression<String>("id")
+    private let modifierListUpdatedAt = Expression<String>("updated_at")
+    private let modifierListVersion = Expression<String>("version")
+    private let modifierListIsDeleted = Expression<Bool>("is_deleted")
+    private let modifierListName = Expression<String?>("name")
+    private let modifierListSelectionType = Expression<String?>("selection_type")
+    private let modifierListOrdinal = Expression<Int64?>("ordinal")
+    private let modifierListDataJson = Expression<String?>("data_json")
 
     private let discounts = Table("discounts")
     private let discountId = Expression<String>("id")
@@ -165,122 +197,22 @@ class SQLiteSwiftCatalogManager {
         let imageURLManager = ImageURLManager(databaseManager: self)
         try imageURLManager.createImageMappingTable()
 
-        // Create categories table (matching React Native schema)
-        try db.run(categories.create(ifNotExists: true) { t in
-            t.column(categoryId, primaryKey: true)
-            t.column(categoryUpdatedAt)
-            t.column(categoryVersion)
-            t.column(categoryIsDeleted, defaultValue: false)
-            t.column(categoryName)
-            t.column(categoryImageUrl)
-            t.column(categoryDataJson) // Store raw category_data JSON
-        })
+        // Use table creator component
+        try tableCreator.createTables(in: db)
 
-        // Create catalog_items table (matching React Native schema)
-        try db.run(catalogItems.create(ifNotExists: true) { t in
-            t.column(itemId, primaryKey: true)
-            t.column(itemUpdatedAt)
-            t.column(itemVersion)
-            t.column(itemIsDeleted, defaultValue: false)
-            t.column(itemPresentAtAllLocations, defaultValue: true)
-            t.column(itemName)
-            t.column(itemDescription)
-            t.column(itemCategoryId)
-            t.column(itemType)
-            t.column(itemLabelColor)
-            t.column(itemAvailableOnline)
-            t.column(itemAvailableForPickup)
-            t.column(itemAvailableElectronically)
-            t.column(itemDataJson) // Store raw item_data JSON
 
-            // Foreign key constraint
-            t.foreignKey(itemCategoryId, references: categories, categoryId, delete: .setNull)
-        })
 
-        // Create item_variations table (matching React Native schema)
-        try db.run(itemVariations.create(ifNotExists: true) { t in
-            t.column(variationId, primaryKey: true)
-            t.column(variationUpdatedAt)
-            t.column(variationVersion)
-            t.column(variationIsDeleted, defaultValue: false)
-            t.column(variationItemId)
-            t.column(variationName)
-            t.column(variationSku)
-            t.column(variationUpc)
-            t.column(variationOrdinal)
-            t.column(variationPricingType)
-            t.column(variationPriceMoneyAmount)
-            t.column(variationPriceMoneyCurrency, defaultValue: "USD")
-            t.column(variationBasePriceMoney)
-            t.column(variationDefaultUnitCost)
-            t.column(variationMeasurementUnitId)
-            t.column(variationSellable)
-            t.column(variationStockable)
-            t.column(variationDataJson) // Store raw variation_data JSON
 
-            // Foreign key constraint
-            t.foreignKey(variationItemId, references: catalogItems, itemId, delete: .cascade)
-        })
 
-        // Create taxes table
-        try db.run(taxes.create(ifNotExists: true) { t in
-            t.column(taxId, primaryKey: true)
-            t.column(taxUpdatedAt)
-            t.column(taxVersion)
-            t.column(taxIsDeleted, defaultValue: false)
-            t.column(taxName)
-            t.column(taxDataJson)
-        })
 
-        // Create discounts table
-        try db.run(discounts.create(ifNotExists: true) { t in
-            t.column(discountId, primaryKey: true)
-            t.column(discountUpdatedAt)
-            t.column(discountVersion)
-            t.column(discountIsDeleted, defaultValue: false)
-            t.column(discountName)
-            t.column(discountDataJson)
-        })
 
-        // Create images table
-        try db.run(images.create(ifNotExists: true) { t in
-            t.column(imageId, primaryKey: true)
-            t.column(imageUpdatedAt)
-            t.column(imageVersion)
-            t.column(imageIsDeleted, defaultValue: false)
-            t.column(imageName)
-            t.column(imageUrl)
-            t.column(imageDataJson)
-        })
 
-        // Create team_data table (matching React Native schema)
-        try db.run(teamData.create(ifNotExists: true) { t in
-            t.column(teamItemId, primaryKey: true)
-            t.column(teamCaseUpc)
-            t.column(teamCaseCost)
-            t.column(teamCaseQuantity)
-            t.column(teamVendor)
-            t.column(teamDiscontinued, defaultValue: false)
-            t.column(teamNotes)
-            t.column(teamCreatedAt)
-            t.column(teamUpdatedAt)
-            t.column(teamOwner)
-        })
 
-        // Create sync_status table (matching React Native schema)
-        try db.run(syncStatus.create(ifNotExists: true) { t in
-            t.column(syncId, primaryKey: true)
-            t.column(syncLastSyncTime)
-            t.column(syncIsSyncing, defaultValue: false)
-            t.column(syncError)
-            t.column(syncProgress, defaultValue: 0)
-            t.column(syncTotal, defaultValue: 0)
-            t.column(syncType)
-            t.column(syncLastPageCursor)
-            t.column(syncLastSyncAttempt)
-            t.column(syncAttemptCount, defaultValue: 0)
-            t.column(syncLastIncrementalSyncCursor)
-        })
+
+
+
+
+
 
         logger.info("SQLiteSwift tables created successfully (matching React Native schema)")
     }
@@ -294,19 +226,19 @@ class SQLiteSwiftCatalogManager {
         
         try db.transaction {
             // Clear in reverse dependency order
-            try db.run(itemVariations.delete())
-            try db.run(catalogItems.delete())
-            try db.run(categories.delete())
-            try db.run(taxes.delete())
-            try db.run(discounts.delete())
-            try db.run(images.delete())
+            try db.run(CatalogTableDefinitions.itemVariations.delete())
+            try db.run(CatalogTableDefinitions.catalogItems.delete())
+            try db.run(CatalogTableDefinitions.categories.delete())
+            try db.run(CatalogTableDefinitions.taxes.delete())
+            try db.run(CatalogTableDefinitions.discounts.delete())
+            try db.run(CatalogTableDefinitions.images.delete())
 
             // Reset sync status
-            try db.run(syncStatus.delete())
+            try db.run(CatalogTableDefinitions.syncStatus.delete())
         }
-        
+
         // Verify clear operation
-        let itemCount = try db.scalar(catalogItems.count)
+        let itemCount = try db.scalar(CatalogTableDefinitions.catalogItems.count)
         logger.info("Data cleared successfully. Remaining items: \(itemCount)")
         
         if itemCount > 0 {
@@ -321,86 +253,80 @@ class SQLiteSwiftCatalogManager {
         
         switch object.type {
         case "CATEGORY":
-            // Store Square categories with comprehensive data extraction
-            try insertCategoryObject(object, timestamp: timestamp)
+            // Use object inserters component
+            try objectInserters.insertCategoryObject(object, timestamp: timestamp, in: db)
             
         case "ITEM":
             if let itemData = object.itemData {
-                let insert = catalogItems.insert(or: .replace,
-                    itemId <- object.id,
-                    itemType <- object.type,
-                    itemUpdatedAt <- timestamp,
-                    itemVersion <- String(object.version ?? 1),
-                    itemIsDeleted <- (object.isDeleted ?? false),
-                    itemPresentAtAllLocations <- (object.presentAtAllLocations ?? true),
-                    itemCategoryId <- itemData.categoryId,
-                    itemName <- itemData.name,
-                    itemDescription <- itemData.description,
-                    itemLabelColor <- itemData.labelColor,
-                    itemAvailableOnline <- itemData.availableOnline,
-                    itemAvailableForPickup <- itemData.availableForPickup,
-                    itemAvailableElectronically <- itemData.availableElectronically
+                let insert = CatalogTableDefinitions.catalogItems.insert(or: .replace,
+                    CatalogTableDefinitions.itemId <- object.id,
+                    CatalogTableDefinitions.itemUpdatedAt <- timestamp,
+                    CatalogTableDefinitions.itemVersion <- String(object.version ?? 1),
+                    CatalogTableDefinitions.itemIsDeleted <- (object.isDeleted ?? false),
+                    CatalogTableDefinitions.itemCategoryId <- itemData.categoryId,
+                    CatalogTableDefinitions.itemName <- itemData.name,
+                    CatalogTableDefinitions.itemDescription <- itemData.description,
+                    CatalogTableDefinitions.itemDataJson <- encodeJSON(itemData)
                 )
                 try db.run(insert)
             }
             
         case "ITEM_VARIATION":
             if let variationData = object.itemVariationData {
-                let insert = itemVariations.insert(or: .replace,
-                    variationId <- object.id,
-                    variationItemId <- variationData.itemId,
-                    variationName <- variationData.name,
-                    variationSku <- variationData.sku,
-                    variationUpc <- variationData.upc,
-                    variationOrdinal <- variationData.ordinal,
-                    variationPricingType <- variationData.pricingType,
-                    variationBasePriceMoney <- encodeJSON(variationData.basePriceMoney),
-                    variationDefaultUnitCost <- encodeJSON(variationData.defaultUnitCost),
-                    variationMeasurementUnitId <- variationData.measurementUnitId,
-                    variationSellable <- variationData.sellable,
-                    variationStockable <- variationData.stockable,
-                    variationUpdatedAt <- timestamp,
-                    variationVersion <- String(object.version ?? 1)
+                let insert = CatalogTableDefinitions.itemVariations.insert(or: .replace,
+                    CatalogTableDefinitions.variationId <- object.id,
+                    CatalogTableDefinitions.variationItemId <- variationData.itemId,
+                    CatalogTableDefinitions.variationName <- variationData.name,
+                    CatalogTableDefinitions.variationSku <- variationData.sku,
+                    CatalogTableDefinitions.variationUpc <- variationData.upc,
+                    CatalogTableDefinitions.variationOrdinal <- variationData.ordinal.map { Int64($0) },
+                    CatalogTableDefinitions.variationPricingType <- variationData.pricingType,
+                    CatalogTableDefinitions.variationPriceAmount <- variationData.priceMoney?.amount,
+                    CatalogTableDefinitions.variationPriceCurrency <- variationData.priceMoney?.currency,
+                    CatalogTableDefinitions.variationIsDeleted <- (object.isDeleted ?? false),
+                    CatalogTableDefinitions.variationUpdatedAt <- timestamp,
+                    CatalogTableDefinitions.variationVersion <- String(object.version ?? 1),
+                    CatalogTableDefinitions.variationDataJson <- encodeJSON(variationData)
                 )
                 try db.run(insert)
             }
 
         case "IMAGE":
             // Store Square catalog images - simplified approach
-            let insert = images.insert(or: .replace,
-                imageId <- object.id,
-                imageName <- "Image \(object.id)",
-                imageUrl <- nil, // Will be extracted from raw JSON later
-                imageIsDeleted <- (object.isDeleted ?? false),
-                imageUpdatedAt <- timestamp,
-                imageVersion <- String(object.version ?? 1),
-                imageDataJson <- nil // Store raw object JSON later if needed
+            let insert = CatalogTableDefinitions.images.insert(or: .replace,
+                CatalogTableDefinitions.imageId <- object.id,
+                CatalogTableDefinitions.imageName <- "Image \(object.id)",
+                CatalogTableDefinitions.imageUrl <- nil,
+                CatalogTableDefinitions.imageIsDeleted <- (object.isDeleted ?? false),
+                CatalogTableDefinitions.imageUpdatedAt <- timestamp,
+                CatalogTableDefinitions.imageVersion <- String(object.version ?? 1),
+                CatalogTableDefinitions.imageDataJson <- nil
             )
             try db.run(insert)
 
         case "TAX":
-            // Store Square taxes with comprehensive data extraction
-            try insertTaxObject(object, timestamp: timestamp)
+            // Use object inserters component
+            try objectInserters.insertTaxObject(object, timestamp: timestamp, in: db)
 
         case "DISCOUNT":
             // Store Square discounts - simplified approach
-            let discountInsert = discounts.insert(or: .replace,
-                discountId <- object.id,
-                discountName <- "Discount \(object.id)",
-                discountIsDeleted <- (object.isDeleted ?? false),
-                discountUpdatedAt <- timestamp,
-                discountVersion <- String(object.version ?? 1),
-                discountDataJson <- nil // Store raw object JSON later if needed
+            let discountInsert = CatalogTableDefinitions.discounts.insert(or: .replace,
+                CatalogTableDefinitions.discountId <- object.id,
+                CatalogTableDefinitions.discountName <- "Discount \(object.id)",
+                CatalogTableDefinitions.discountIsDeleted <- (object.isDeleted ?? false),
+                CatalogTableDefinitions.discountUpdatedAt <- timestamp,
+                CatalogTableDefinitions.discountVersion <- String(object.version ?? 1),
+                CatalogTableDefinitions.discountDataJson <- nil
             )
             try db.run(discountInsert)
 
         case "MODIFIER":
-            // Store Square modifiers with comprehensive data extraction
-            try insertModifierObject(object, timestamp: timestamp)
+            // Use object inserters component
+            try objectInserters.insertModifierObject(object, timestamp: timestamp, in: db)
 
         case "MODIFIER_LIST":
-            // Store Square modifier lists with comprehensive data extraction
-            try insertModifierListObject(object, timestamp: timestamp)
+            // Use object inserters component
+            try objectInserters.insertModifierListObject(object, timestamp: timestamp, in: db)
 
         default:
             logger.debug("Skipping unsupported catalog object type: \(object.type) (ID: \(object.id))")
@@ -420,145 +346,13 @@ class SQLiteSwiftCatalogManager {
         }
     }
 
-    // MARK: - Categories/Taxes/Modifiers Conversion System
 
-    /// Comprehensive category insertion with full Square API data extraction
-    private func insertCategoryObject(_ object: CatalogObject, timestamp: String) throws {
-        guard let categoryData = object.categoryData else {
-            logger.warning("Category object \(object.id) missing categoryData - skipping")
-            return
-        }
 
-        // Extract comprehensive category information
-        let categoryName = categoryData.name ?? "Category \(object.id)"
-        let imageUrl = categoryData.imageUrl
 
-        // Encode full category data as JSON for future extensibility
-        let categoryDataJson = try encodeJSON(categoryData)
 
-        logger.debug("📁 Inserting category: \(categoryName) (ID: \(object.id))")
 
-        let insert = categories.insert(or: .replace,
-            categoryId <- object.id,
-            categoryName <- categoryName,
-            categoryImageUrl <- imageUrl,
-            categoryIsDeleted <- (object.isDeleted ?? false),
-            categoryUpdatedAt <- timestamp,
-            categoryVersion <- String(object.version ?? 1),
-            categoryDataJson <- categoryDataJson
-        )
-        try db.run(insert)
 
-        logger.debug("✅ Category inserted successfully: \(categoryName)")
-    }
 
-    /// Comprehensive tax insertion with full Square API data extraction
-    private func insertTaxObject(_ object: CatalogObject, timestamp: String) throws {
-        guard let taxData = object.taxData else {
-            logger.warning("Tax object \(object.id) missing taxData - skipping")
-            return
-        }
-
-        // Extract comprehensive tax information
-        let taxName = taxData.name ?? "Tax \(object.id)"
-        let calculationPhase = taxData.calculationPhase
-        let inclusionType = taxData.inclusionType
-        let percentage = taxData.percentage
-        let appliesToCustomAmounts = taxData.appliesToCustomAmounts ?? false
-        let enabled = taxData.enabled ?? true
-
-        // Encode full tax data as JSON for future extensibility
-        let taxDataJson = try encodeJSON(taxData)
-
-        logger.debug("💰 Inserting tax: \(taxName) (\(percentage ?? "0")%) (ID: \(object.id))")
-
-        let insert = taxes.insert(or: .replace,
-            taxId <- object.id,
-            taxName <- taxName,
-            taxCalculationPhase <- calculationPhase,
-            taxInclusionType <- inclusionType,
-            taxPercentage <- percentage,
-            taxAppliesToCustomAmounts <- appliesToCustomAmounts,
-            taxEnabled <- enabled,
-            taxIsDeleted <- (object.isDeleted ?? false),
-            taxUpdatedAt <- timestamp,
-            taxVersion <- String(object.version ?? 1),
-            taxDataJson <- taxDataJson
-        )
-        try db.run(insert)
-
-        logger.debug("✅ Tax inserted successfully: \(taxName)")
-    }
-
-    /// Comprehensive modifier insertion with full Square API data extraction
-    private func insertModifierObject(_ object: CatalogObject, timestamp: String) throws {
-        guard let modifierData = object.modifierData else {
-            logger.warning("Modifier object \(object.id) missing modifierData - skipping")
-            return
-        }
-
-        // Extract comprehensive modifier information
-        let modifierName = modifierData.name ?? "Modifier \(object.id)"
-        let modifierListId = modifierData.modifierListId
-        let priceMoney = modifierData.priceMoney
-        let ordinal = modifierData.ordinal
-        let onByDefault = modifierData.onByDefault ?? false
-
-        // Encode full modifier data as JSON for future extensibility
-        let modifierDataJson = try encodeJSON(modifierData)
-
-        logger.debug("🔧 Inserting modifier: \(modifierName) (List: \(modifierListId ?? "none")) (ID: \(object.id))")
-
-        let insert = modifiers.insert(or: .replace,
-            modifierId <- object.id,
-            modifierName <- modifierName,
-            modifierListId <- modifierListId,
-            modifierPriceAmount <- priceMoney?.amount,
-            modifierPriceCurrency <- priceMoney?.currency,
-            modifierOrdinal <- ordinal,
-            modifierOnByDefault <- onByDefault,
-            modifierIsDeleted <- (object.isDeleted ?? false),
-            modifierUpdatedAt <- timestamp,
-            modifierVersion <- String(object.version ?? 1),
-            modifierDataJson <- modifierDataJson
-        )
-        try db.run(insert)
-
-        logger.debug("✅ Modifier inserted successfully: \(modifierName)")
-    }
-
-    /// Comprehensive modifier list insertion with full Square API data extraction
-    private func insertModifierListObject(_ object: CatalogObject, timestamp: String) throws {
-        guard let modifierListData = object.modifierListData else {
-            logger.warning("ModifierList object \(object.id) missing modifierListData - skipping")
-            return
-        }
-
-        // Extract comprehensive modifier list information
-        let modifierListName = modifierListData.name ?? "Modifier List \(object.id)"
-        let selectionType = modifierListData.selectionType
-        let ordinal = modifierListData.ordinal
-        let modifierIds = modifierListData.modifiers?.map { $0.id } ?? []
-
-        // Encode full modifier list data as JSON for future extensibility
-        let modifierListDataJson = try encodeJSON(modifierListData)
-
-        logger.debug("📋 Inserting modifier list: \(modifierListName) (\(modifierIds.count) modifiers) (ID: \(object.id))")
-
-        let insert = modifierLists.insert(or: .replace,
-            modifierListId <- object.id,
-            modifierListName <- modifierListName,
-            modifierListSelectionType <- selectionType,
-            modifierListOrdinal <- ordinal,
-            modifierListIsDeleted <- (object.isDeleted ?? false),
-            modifierListUpdatedAt <- timestamp,
-            modifierListVersion <- String(object.version ?? 1),
-            modifierListDataJson <- modifierListDataJson
-        )
-        try db.run(insert)
-
-        logger.debug("✅ Modifier list inserted successfully: \(modifierListName)")
-    }
 }
 
 // MARK: - Error Types

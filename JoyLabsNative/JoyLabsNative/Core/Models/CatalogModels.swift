@@ -107,16 +107,40 @@ struct ItemData: Codable {
     let itemOptions: [ItemOption]?
     let modifierListInfo: [ModifierListInfo]?
     let images: [CatalogImage]?
-    
+    let labelColor: String?
+    let availableOnline: Bool?
+    let availableForPickup: Bool?
+    let availableElectronically: Bool?
+    let abbreviation: String?
+    let categories: [CategoryReference]?
+    let reportingCategory: ReportingCategory?
+    let imageIds: [String]?
+
     enum CodingKeys: String, CodingKey {
-        case name, description, variations, images
+        case name, description, variations, images, abbreviation
         case categoryId = "category_id"
         case taxIds = "tax_ids"
         case productType = "product_type"
         case skipModifierScreen = "skip_modifier_screen"
         case itemOptions = "item_options"
         case modifierListInfo = "modifier_list_info"
+        case labelColor = "label_color"
+        case availableOnline = "available_online"
+        case availableForPickup = "available_for_pickup"
+        case availableElectronically = "available_electronically"
+        case categories
+        case reportingCategory = "reporting_category"
+        case imageIds = "image_ids"
     }
+}
+
+struct CategoryReference: Codable {
+    let id: String
+    let ordinal: Int?
+}
+
+struct ReportingCategory: Codable {
+    let id: String
 }
 
 struct ItemVariation: Codable {
@@ -138,13 +162,15 @@ struct ItemVariation: Codable {
 }
 
 struct ItemVariationData: Codable {
-    let itemId: String?
+    let itemId: String
     let name: String?
     let sku: String?
     let upc: String?
     let ordinal: Int?
     let pricingType: String?
     let priceMoney: Money?
+    let basePriceMoney: Money?
+    let defaultUnitCost: Money?
     let locationOverrides: [LocationOverride]?
     let trackInventory: Bool?
     let inventoryAlertType: String?
@@ -162,6 +188,8 @@ struct ItemVariationData: Codable {
         case itemId = "item_id"
         case pricingType = "pricing_type"
         case priceMoney = "price_money"
+        case basePriceMoney = "base_price_money"
+        case defaultUnitCost = "default_unit_cost"
         case locationOverrides = "location_overrides"
         case trackInventory = "track_inventory"
         case inventoryAlertType = "inventory_alert_type"
@@ -179,6 +207,7 @@ struct ItemVariationData: Codable {
 struct CategoryData: Codable {
     let name: String?
     let imageIds: [String]?
+    let imageUrl: String?
     let categoryType: String?
     let parentCategory: ParentCategory?
     let isTopLevel: Bool?
@@ -192,6 +221,7 @@ struct CategoryData: Codable {
     enum CodingKeys: String, CodingKey {
         case name
         case imageIds = "image_ids"
+        case imageUrl = "image_url"
         case categoryType = "category_type"
         case parentCategory = "parent_category"
         case isTopLevel = "is_top_level"
@@ -339,13 +369,15 @@ struct ModifierData: Codable {
     let priceMoney: Money?
     let ordinal: Int?
     let modifierListId: String?
+    let onByDefault: Bool?
     let locationOverrides: [LocationOverride]?
     let imageId: String?
-    
+
     enum CodingKeys: String, CodingKey {
         case name, ordinal
         case priceMoney = "price_money"
         case modifierListId = "modifier_list_id"
+        case onByDefault = "on_by_default"
         case locationOverrides = "location_overrides"
         case imageId = "image_id"
     }

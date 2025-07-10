@@ -1,0 +1,141 @@
+import Foundation
+import SQLite
+import os.log
+
+/// Handles creation of all catalog database tables
+/// Separated from main manager for better organization
+class CatalogTableCreator {
+    private let logger = Logger(subsystem: "com.joylabs.native", category: "CatalogTableCreator")
+    
+    /// Creates all catalog tables in the database
+    func createTables(in db: Connection) throws {
+        logger.info("Creating catalog database tables...")
+        
+        // Create categories table
+        try db.run(CatalogTableDefinitions.categories.create(ifNotExists: true) { t in
+            t.column(CatalogTableDefinitions.categoryId, primaryKey: true)
+            t.column(CatalogTableDefinitions.categoryName)
+            t.column(CatalogTableDefinitions.categoryImageUrl)
+            t.column(CatalogTableDefinitions.categoryIsDeleted, defaultValue: false)
+            t.column(CatalogTableDefinitions.categoryUpdatedAt)
+            t.column(CatalogTableDefinitions.categoryVersion)
+            t.column(CatalogTableDefinitions.categoryDataJson)
+        })
+        
+        // Create catalog_items table
+        try db.run(CatalogTableDefinitions.catalogItems.create(ifNotExists: true) { t in
+            t.column(CatalogTableDefinitions.itemId, primaryKey: true)
+            t.column(CatalogTableDefinitions.itemName)
+            t.column(CatalogTableDefinitions.itemDescription)
+            t.column(CatalogTableDefinitions.itemCategoryId)
+            t.column(CatalogTableDefinitions.itemIsDeleted, defaultValue: false)
+            t.column(CatalogTableDefinitions.itemUpdatedAt)
+            t.column(CatalogTableDefinitions.itemVersion)
+            t.column(CatalogTableDefinitions.itemDataJson)
+            
+            // Foreign key constraint
+            t.foreignKey(CatalogTableDefinitions.itemCategoryId, references: CatalogTableDefinitions.categories, CatalogTableDefinitions.categoryId)
+        })
+        
+        // Create item_variations table
+        try db.run(CatalogTableDefinitions.itemVariations.create(ifNotExists: true) { t in
+            t.column(CatalogTableDefinitions.variationId, primaryKey: true)
+            t.column(CatalogTableDefinitions.variationItemId)
+            t.column(CatalogTableDefinitions.variationName)
+            t.column(CatalogTableDefinitions.variationSku)
+            t.column(CatalogTableDefinitions.variationUpc)
+            t.column(CatalogTableDefinitions.variationOrdinal)
+            t.column(CatalogTableDefinitions.variationPricingType)
+            t.column(CatalogTableDefinitions.variationPriceAmount)
+            t.column(CatalogTableDefinitions.variationPriceCurrency)
+            t.column(CatalogTableDefinitions.variationIsDeleted, defaultValue: false)
+            t.column(CatalogTableDefinitions.variationUpdatedAt)
+            t.column(CatalogTableDefinitions.variationVersion)
+            t.column(CatalogTableDefinitions.variationDataJson)
+            
+            // Foreign key constraint
+            t.foreignKey(CatalogTableDefinitions.variationItemId, references: CatalogTableDefinitions.catalogItems, CatalogTableDefinitions.itemId)
+        })
+        
+        // Create taxes table
+        try db.run(CatalogTableDefinitions.taxes.create(ifNotExists: true) { t in
+            t.column(CatalogTableDefinitions.taxId, primaryKey: true)
+            t.column(CatalogTableDefinitions.taxUpdatedAt)
+            t.column(CatalogTableDefinitions.taxVersion)
+            t.column(CatalogTableDefinitions.taxIsDeleted, defaultValue: false)
+            t.column(CatalogTableDefinitions.taxName)
+            t.column(CatalogTableDefinitions.taxCalculationPhase)
+            t.column(CatalogTableDefinitions.taxInclusionType)
+            t.column(CatalogTableDefinitions.taxPercentage)
+            t.column(CatalogTableDefinitions.taxAppliesToCustomAmounts)
+            t.column(CatalogTableDefinitions.taxEnabled)
+            t.column(CatalogTableDefinitions.taxDataJson)
+        })
+
+        // Create modifiers table
+        try db.run(CatalogTableDefinitions.modifiers.create(ifNotExists: true) { t in
+            t.column(CatalogTableDefinitions.modifierId, primaryKey: true)
+            t.column(CatalogTableDefinitions.modifierUpdatedAt)
+            t.column(CatalogTableDefinitions.modifierVersion)
+            t.column(CatalogTableDefinitions.modifierIsDeleted, defaultValue: false)
+            t.column(CatalogTableDefinitions.modifierName)
+            t.column(CatalogTableDefinitions.modifierListId)
+            t.column(CatalogTableDefinitions.modifierPriceAmount)
+            t.column(CatalogTableDefinitions.modifierPriceCurrency)
+            t.column(CatalogTableDefinitions.modifierOrdinal)
+            t.column(CatalogTableDefinitions.modifierOnByDefault)
+            t.column(CatalogTableDefinitions.modifierDataJson)
+        })
+
+        // Create modifier_lists table
+        try db.run(CatalogTableDefinitions.modifierLists.create(ifNotExists: true) { t in
+            t.column(CatalogTableDefinitions.modifierListPrimaryId, primaryKey: true)
+            t.column(CatalogTableDefinitions.modifierListUpdatedAt)
+            t.column(CatalogTableDefinitions.modifierListVersion)
+            t.column(CatalogTableDefinitions.modifierListIsDeleted, defaultValue: false)
+            t.column(CatalogTableDefinitions.modifierListName)
+            t.column(CatalogTableDefinitions.modifierListSelectionType)
+            t.column(CatalogTableDefinitions.modifierListOrdinal)
+            t.column(CatalogTableDefinitions.modifierListDataJson)
+        })
+
+        // Create discounts table
+        try db.run(CatalogTableDefinitions.discounts.create(ifNotExists: true) { t in
+            t.column(CatalogTableDefinitions.discountId, primaryKey: true)
+            t.column(CatalogTableDefinitions.discountName)
+            t.column(CatalogTableDefinitions.discountIsDeleted, defaultValue: false)
+            t.column(CatalogTableDefinitions.discountUpdatedAt)
+            t.column(CatalogTableDefinitions.discountVersion)
+            t.column(CatalogTableDefinitions.discountDataJson)
+        })
+        
+        // Create images table
+        try db.run(CatalogTableDefinitions.images.create(ifNotExists: true) { t in
+            t.column(CatalogTableDefinitions.imageId, primaryKey: true)
+            t.column(CatalogTableDefinitions.imageName)
+            t.column(CatalogTableDefinitions.imageUrl)
+            t.column(CatalogTableDefinitions.imageCaption)
+            t.column(CatalogTableDefinitions.imageIsDeleted, defaultValue: false)
+            t.column(CatalogTableDefinitions.imageUpdatedAt)
+            t.column(CatalogTableDefinitions.imageVersion)
+            t.column(CatalogTableDefinitions.imageDataJson)
+        })
+        
+        // Create team_data table
+        try db.run(CatalogTableDefinitions.teamData.create(ifNotExists: true) { t in
+            t.column(CatalogTableDefinitions.teamDataId, primaryKey: true)
+            t.column(CatalogTableDefinitions.teamDataName)
+            t.column(CatalogTableDefinitions.teamDataValue)
+            t.column(CatalogTableDefinitions.teamDataUpdatedAt)
+        })
+        
+        // Create sync_status table
+        try db.run(CatalogTableDefinitions.syncStatus.create(ifNotExists: true) { t in
+            t.column(CatalogTableDefinitions.syncKey, primaryKey: true)
+            t.column(CatalogTableDefinitions.syncValue)
+            t.column(CatalogTableDefinitions.syncUpdatedAt)
+        })
+        
+        logger.info("Successfully created all catalog database tables")
+    }
+}
