@@ -1082,25 +1082,17 @@ struct ProfileView: View {
                             }
                         )
 
-                        VStack(spacing: 8) {
+                        NavigationLink(destination: CatalogManagementView()) {
                             IntegrationCard(
-                                icon: "cloud.fill",
-                                title: "Catalog Sync",
+                                icon: "square.grid.3x3.fill",
+                                title: "Catalog Management",
                                 subtitle: formatLastSyncTime(),
                                 status: syncCoordinator.syncState == .completed ? .connected : .warning,
                                 isLoading: syncCoordinator.syncState == .syncing,
-                                action: {
-                                    Task {
-                                        await performCatalogSync()
-                                    }
-                                }
+                                action: nil // Navigation handled by NavigationLink
                             )
-
-                            // Show progress when syncing
-                            if syncCoordinator.syncState == .syncing {
-                                syncProgressView
-                            }
                         }
+                        .buttonStyle(PlainButtonStyle())
                     }
                     .padding(.horizontal, 20)
 
@@ -1186,31 +1178,7 @@ struct ProfileView: View {
         }
     }
 
-    private func performCatalogSync() async {
-        // Start the sync and wait for completion
-        await syncCoordinator.performManualSync()
-
-        // Only show alert for failures, not for successful completion
-        switch syncCoordinator.syncState {
-        case .completed:
-            // Success - no alert needed, user can see progress in UI
-            break
-        case .failed:
-            if let error = syncCoordinator.error {
-                alertMessage = "Catalog sync failed: \(error.localizedDescription)"
-                showingAlert = true
-            } else {
-                alertMessage = "Catalog sync failed with unknown error."
-                showingAlert = true
-            }
-        case .syncing:
-            // This shouldn't happen since we awaited completion
-            break
-        case .idle:
-            // This shouldn't happen either
-            break
-        }
-    }
+    // Catalog sync is now handled in CatalogManagementView
 
     private func formatLastSyncTime() -> String {
         if let result = syncCoordinator.lastSyncResult {
@@ -1222,47 +1190,7 @@ struct ProfileView: View {
         return "Never synced"
     }
 
-    // MARK: - Sync Progress View
-
-    private var syncProgressView: some View {
-        VStack(spacing: 8) {
-            // Progress header
-            HStack {
-                Text("Syncing Catalog...")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-
-                Spacer()
-            }
-
-            // Indeterminate progress bar (no percentage)
-            ProgressView()
-                .progressViewStyle(LinearProgressViewStyle())
-                .scaleEffect(y: 1.5)
-
-            // Progress details
-            HStack {
-                Text(syncCoordinator.catalogSyncService.syncProgress.progressText)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
-                Spacer()
-            }
-
-            if !syncCoordinator.catalogSyncService.syncProgress.currentObjectType.isEmpty {
-                HStack {
-                    Text("Processing: \(syncCoordinator.catalogSyncService.syncProgress.currentObjectType)")
-                        .font(.caption2)
-                        .foregroundColor(.gray)
-
-                    Spacer()
-                }
-            }
-        }
-        .padding(12)
-        .background(Color.blue.opacity(0.1))
-        .cornerRadius(8)
-    }
+    // Sync progress is now handled in CatalogManagementView
 
     private func formatDate(_ date: Date) -> String {
         let formatter = RelativeDateTimeFormatter()

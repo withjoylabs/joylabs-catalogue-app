@@ -124,27 +124,31 @@ class SQLiteSwiftCatalogManager {
     }
     
     // MARK: - Database Connection
-    
+
     func connect() throws {
         do {
             db = try Connection(dbPath)
-            
+
             // Configure SQLite for optimal performance
             try db?.execute("PRAGMA journal_mode = WAL")
             try db?.execute("PRAGMA synchronous = NORMAL")
             try db?.execute("PRAGMA cache_size = 10000")
             try db?.execute("PRAGMA foreign_keys = ON")
             try db?.execute("PRAGMA busy_timeout = 30000")
-            
+
             logger.info("SQLiteSwift database connected successfully")
-            
+
             // Create tables if they don't exist
             try createTables()
-            
+
         } catch {
             logger.error("Failed to connect to SQLiteSwift database: \(error)")
             throw error
         }
+    }
+
+    func getConnection() -> Connection? {
+        return db
     }
     
     func disconnect() {
