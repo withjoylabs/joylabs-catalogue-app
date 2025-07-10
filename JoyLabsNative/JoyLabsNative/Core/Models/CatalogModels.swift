@@ -1,4 +1,5 @@
 import Foundation
+import os.log
 
 // MARK: - Search Models
 struct SearchFilters {
@@ -87,7 +88,8 @@ struct CatalogObject: Codable {
             let dictionary = try JSONSerialization.jsonObject(with: data) as? [String: Any]
             return dictionary ?? [:]
         } catch {
-            Logger.error("CatalogObject", "Failed to convert to dictionary: \(error)")
+            let logger = Logger(subsystem: "com.joylabs.native", category: "CatalogModels")
+            logger.error("Failed to convert CatalogObject to dictionary: \(error)")
             return [:]
         }
     }

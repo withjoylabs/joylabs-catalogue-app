@@ -321,17 +321,8 @@ class SQLiteSwiftCatalogManager {
         
         switch object.type {
         case "CATEGORY":
-            if let categoryData = object.categoryData {
-                let insert = categories.insert(or: .replace,
-                    categoryId <- object.id,
-                    categoryName <- categoryData.name,
-                    categoryImageUrl <- categoryData.imageUrl,
-                    categoryIsDeleted <- (object.isDeleted ?? false),
-                    categoryUpdatedAt <- timestamp,
-                    categoryVersion <- String(object.version ?? 1)
-                )
-                try db.run(insert)
-            }
+            // Store Square categories with comprehensive data extraction
+            try insertCategoryObject(object, timestamp: timestamp)
             
         case "ITEM":
             if let itemData = object.itemData {
@@ -388,16 +379,8 @@ class SQLiteSwiftCatalogManager {
             try db.run(insert)
 
         case "TAX":
-            // Store Square taxes - simplified approach
-            let taxInsert = taxes.insert(or: .replace,
-                taxId <- object.id,
-                taxName <- "Tax \(object.id)",
-                taxIsDeleted <- (object.isDeleted ?? false),
-                taxUpdatedAt <- timestamp,
-                taxVersion <- String(object.version ?? 1),
-                taxDataJson <- nil // Store raw object JSON later if needed
-            )
-            try db.run(taxInsert)
+            // Store Square taxes with comprehensive data extraction
+            try insertTaxObject(object, timestamp: timestamp)
 
         case "DISCOUNT":
             // Store Square discounts - simplified approach
@@ -412,14 +395,12 @@ class SQLiteSwiftCatalogManager {
             try db.run(discountInsert)
 
         case "MODIFIER":
-            // Handle Square modifiers - store in data_json for now
-            logger.debug("Processing MODIFIER: \(object.id) - storing as JSON")
-            // TODO: Create dedicated modifier table if needed
+            // Store Square modifiers with comprehensive data extraction
+            try insertModifierObject(object, timestamp: timestamp)
 
         case "MODIFIER_LIST":
-            // Handle Square modifier lists - store in data_json for now
-            logger.debug("Processing MODIFIER_LIST: \(object.id) - storing as JSON")
-            // TODO: Create dedicated modifier_list table if needed
+            // Store Square modifier lists with comprehensive data extraction
+            try insertModifierListObject(object, timestamp: timestamp)
 
         default:
             logger.debug("Skipping unsupported catalog object type: \(object.type) (ID: \(object.id))")
@@ -437,6 +418,146 @@ class SQLiteSwiftCatalogManager {
             logger.error("Failed to encode JSON: \(error)")
             return nil
         }
+    }
+
+    // MARK: - Categories/Taxes/Modifiers Conversion System
+
+    /// Comprehensive category insertion with full Square API data extraction
+    private func insertCategoryObject(_ object: CatalogObject, timestamp: String) throws {
+        guard let categoryData = object.categoryData else {
+            logger.warning("Category object \(object.id) missing categoryData - skipping")
+            return
+        }
+
+        // Extract comprehensive category information
+        let categoryName = categoryData.name ?? "Category \(object.id)"
+        let imageUrl = categoryData.imageUrl
+
+        // Encode full category data as JSON for future extensibility
+        let categoryDataJson = try encodeJSON(categoryData)
+
+        logger.debug("📁 Inserting category: \(categoryName) (ID: \(object.id))")
+
+        let insert = categories.insert(or: .replace,
+            categoryId <- object.id,
+            categoryName <- categoryName,
+            categoryImageUrl <- imageUrl,
+            categoryIsDeleted <- (object.isDeleted ?? false),
+            categoryUpdatedAt <- timestamp,
+            categoryVersion <- String(object.version ?? 1),
+            categoryDataJson <- categoryDataJson
+        )
+        try db.run(insert)
+
+        logger.debug("✅ Category inserted successfully: \(categoryName)")
+    }
+
+    /// Comprehensive tax insertion with full Square API data extraction
+    private func insertTaxObject(_ object: CatalogObject, timestamp: String) throws {
+        guard let taxData = object.taxData else {
+            logger.warning("Tax object \(object.id) missing taxData - skipping")
+            return
+        }
+
+        // Extract comprehensive tax information
+        let taxName = taxData.name ?? "Tax \(object.id)"
+        let calculationPhase = taxData.calculationPhase
+        let inclusionType = taxData.inclusionType
+        let percentage = taxData.percentage
+        let appliesToCustomAmounts = taxData.appliesToCustomAmounts ?? false
+        let enabled = taxData.enabled ?? true
+
+        // Encode full tax data as JSON for future extensibility
+        let taxDataJson = try encodeJSON(taxData)
+
+        logger.debug("💰 Inserting tax: \(taxName) (\(percentage ?? "0")%) (ID: \(object.id))")
+
+        let insert = taxes.insert(or: .replace,
+            taxId <- object.id,
+            taxName <- taxName,
+            taxCalculationPhase <- calculationPhase,
+            taxInclusionType <- inclusionType,
+            taxPercentage <- percentage,
+            taxAppliesToCustomAmounts <- appliesToCustomAmounts,
+            taxEnabled <- enabled,
+            taxIsDeleted <- (object.isDeleted ?? false),
+            taxUpdatedAt <- timestamp,
+            taxVersion <- String(object.version ?? 1),
+            taxDataJson <- taxDataJson
+        )
+        try db.run(insert)
+
+        logger.debug("✅ Tax inserted successfully: \(taxName)")
+    }
+
+    /// Comprehensive modifier insertion with full Square API data extraction
+    private func insertModifierObject(_ object: CatalogObject, timestamp: String) throws {
+        guard let modifierData = object.modifierData else {
+            logger.warning("Modifier object \(object.id) missing modifierData - skipping")
+            return
+        }
+
+        // Extract comprehensive modifier information
+        let modifierName = modifierData.name ?? "Modifier \(object.id)"
+        let modifierListId = modifierData.modifierListId
+        let priceMoney = modifierData.priceMoney
+        let ordinal = modifierData.ordinal
+        let onByDefault = modifierData.onByDefault ?? false
+
+        // Encode full modifier data as JSON for future extensibility
+        let modifierDataJson = try encodeJSON(modifierData)
+
+        logger.debug("🔧 Inserting modifier: \(modifierName) (List: \(modifierListId ?? "none")) (ID: \(object.id))")
+
+        let insert = modifiers.insert(or: .replace,
+            modifierId <- object.id,
+            modifierName <- modifierName,
+            modifierListId <- modifierListId,
+            modifierPriceAmount <- priceMoney?.amount,
+            modifierPriceCurrency <- priceMoney?.currency,
+            modifierOrdinal <- ordinal,
+            modifierOnByDefault <- onByDefault,
+            modifierIsDeleted <- (object.isDeleted ?? false),
+            modifierUpdatedAt <- timestamp,
+            modifierVersion <- String(object.version ?? 1),
+            modifierDataJson <- modifierDataJson
+        )
+        try db.run(insert)
+
+        logger.debug("✅ Modifier inserted successfully: \(modifierName)")
+    }
+
+    /// Comprehensive modifier list insertion with full Square API data extraction
+    private func insertModifierListObject(_ object: CatalogObject, timestamp: String) throws {
+        guard let modifierListData = object.modifierListData else {
+            logger.warning("ModifierList object \(object.id) missing modifierListData - skipping")
+            return
+        }
+
+        // Extract comprehensive modifier list information
+        let modifierListName = modifierListData.name ?? "Modifier List \(object.id)"
+        let selectionType = modifierListData.selectionType
+        let ordinal = modifierListData.ordinal
+        let modifierIds = modifierListData.modifiers?.map { $0.id } ?? []
+
+        // Encode full modifier list data as JSON for future extensibility
+        let modifierListDataJson = try encodeJSON(modifierListData)
+
+        logger.debug("📋 Inserting modifier list: \(modifierListName) (\(modifierIds.count) modifiers) (ID: \(object.id))")
+
+        let insert = modifierLists.insert(or: .replace,
+            modifierListId <- object.id,
+            modifierListName <- modifierListName,
+            modifierListSelectionType <- selectionType,
+            modifierListOrdinal <- ordinal,
+            modifierListIsDeleted <- (object.isDeleted ?? false),
+            modifierListUpdatedAt <- timestamp,
+            modifierListVersion <- String(object.version ?? 1),
+            modifierListDataJson <- modifierListDataJson
+        )
+        try db.run(insert)
+
+        logger.debug("✅ Modifier list inserted successfully: \(modifierListName)")
     }
 }
 

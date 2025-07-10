@@ -83,39 +83,4 @@ class DatabaseMigrationService {
 }
 
 // MARK: - Sample Data Models for Testing
-
-struct CategoryData: Codable {
-    let name: String?
-    let imageUrl: String?
-}
-
-// NOTE: CatalogObject definition removed - using the comprehensive version from CatalogModels.swift
-
-struct ItemData: Codable {
-    let categoryId: String?
-    let name: String?
-    let description: String?
-    let labelColor: String?
-    let availableOnline: Bool?
-    let availableForPickup: Bool?
-    let availableElectronically: Bool?
-}
-
-struct ItemVariationData: Codable {
-    let itemId: String
-    let name: String?
-    let sku: String?
-    let upc: String?
-    let ordinal: Int64?
-    let pricingType: String?
-    let basePriceMoney: Money?
-    let defaultUnitCost: Money?
-    let measurementUnitId: String?
-    let sellable: Bool?
-    let stockable: Bool?
-}
-
-struct Money: Codable {
-    let amount: Int64?
-    let currency: String?
-}
+// All model definitions moved to CatalogModels.swift for consistency

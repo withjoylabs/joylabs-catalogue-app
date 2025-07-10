@@ -31,34 +31,7 @@ struct CatalogItem: Codable, Identifiable {
     }
 }
 
-/// Represents a Square item variation (exact port from React Native schema)
-struct ItemVariation: Codable, Identifiable {
-    let id: String
-    let updatedAt: String
-    let version: String
-    let isDeleted: Bool
-    let itemId: String
-    let name: String?
-    let sku: String?
-    let pricingType: String?
-    let priceAmount: Int?  // Store amount in cents/smallest unit
-    let priceCurrency: String?
-    let dataJson: String  // Store the raw Square API JSON
-    
-    enum CodingKeys: String, CodingKey {
-        case id
-        case updatedAt = "updated_at"
-        case version
-        case isDeleted = "is_deleted"
-        case itemId = "item_id"
-        case name
-        case sku
-        case pricingType = "pricing_type"
-        case priceAmount = "price_amount"
-        case priceCurrency = "price_currency"
-        case dataJson = "data_json"
-    }
-}
+// ItemVariation is now defined in CatalogModels.swift
 
 /// Represents a Square category (exact port from React Native schema)
 struct Category: Codable, Identifiable {
@@ -202,45 +175,9 @@ enum DatabaseTables {
 
 // MARK: - Database Row Types (for transformation)
 
-/// Database row representation for catalog items
-struct CatalogItemRow {
-    let id: String
-    let updatedAt: String
-    let version: String
-    let isDeleted: Int
-    let presentAtAllLocations: Int?
-    let name: String?
-    let description: String?
-    let categoryId: String?
-    let dataJson: String
-}
+// CatalogItemRow and CategoryRow are now defined in CatalogModels.swift
 
-/// Database row representation for categories
-struct CategoryRow {
-    let id: String
-    let updatedAt: String
-    let version: String
-    let isDeleted: Int
-    let name: String?
-    let dataJson: String
-}
-
-/// Database row representation for item variations
-struct ItemVariationRow {
-    let id: String
-    let updatedAt: String
-    let version: String
-    let isDeleted: Int
-    let itemId: String?
-    let name: String?
-    let sku: String?
-    let upc: String?
-    let ordinal: Int?
-    let pricingType: String?
-    let priceAmount: Int64?
-    let priceCurrency: String?
-    let dataJson: String
-}
+// ItemVariationRow is now defined in CatalogModels.swift
 
 // MARK: - Column Definitions (Type-safe)
 

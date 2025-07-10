@@ -199,7 +199,7 @@ actor SquareHTTPClient {
     }
     
     /// Search catalog objects with timestamp filter
-    func searchCatalogObjects(beginTime: String? = nil) async throws -> CatalogSearchResponse {
+    func searchCatalogObjects(beginTime: String? = nil) async throws -> CatalogResponse {
         logger.debug("Searching catalog objects with beginTime: \(beginTime ?? "none")")
         
         var queryItems = [URLQueryItem]()
@@ -217,7 +217,7 @@ actor SquareHTTPClient {
             endpoint: endpoint,
             method: .GET,
             body: nil,
-            responseType: CatalogSearchResponse.self
+            responseType: CatalogResponse.self
         )
     }
     
@@ -420,61 +420,7 @@ struct EmptyResponse: Codable {
     // Empty response for endpoints that don't return data
 }
 
-struct CatalogResponse: Codable {
-    let objects: [[String: Any]]? // Using raw JSON to avoid CatalogObject dependency
-    let cursor: String?
-    let relatedObjects: [[String: Any]]?
-
-    enum CodingKeys: String, CodingKey {
-        case objects
-        case cursor
-        case relatedObjects = "related_objects"
-    }
-
-    // Custom decoding to handle raw JSON
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.cursor = try container.decodeIfPresent(String.self, forKey: .cursor)
-
-        // For now, we'll skip decoding objects - this HTTP client isn't used in current sync
-        self.objects = nil
-        self.relatedObjects = nil
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encodeIfPresent(cursor, forKey: .cursor)
-        // Skip encoding objects for now
-    }
-}
-
-struct CatalogSearchResponse: Codable {
-    let objects: [[String: Any]]? // Using raw JSON to avoid CatalogObject dependency
-    let cursor: String?
-    let relatedObjects: [[String: Any]]?
-
-    enum CodingKeys: String, CodingKey {
-        case objects
-        case cursor
-        case relatedObjects = "related_objects"
-    }
-
-    // Custom decoding to handle raw JSON
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.cursor = try container.decodeIfPresent(String.self, forKey: .cursor)
-
-        // For now, we'll skip decoding objects - this HTTP client isn't used in current sync
-        self.objects = nil
-        self.relatedObjects = nil
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encodeIfPresent(cursor, forKey: .cursor)
-        // Skip encoding objects for now
-    }
-}
+// CatalogResponse and CatalogSearchResponse are now defined in CatalogModels.swift
 
 // CatalogObject is defined in SearchModels.swift - using that definition
 
