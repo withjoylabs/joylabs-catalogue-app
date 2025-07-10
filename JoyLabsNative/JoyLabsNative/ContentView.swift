@@ -1083,13 +1083,46 @@ struct ProfileView: View {
                         )
 
                         NavigationLink(destination: CatalogManagementView()) {
-                            IntegrationCard(
-                                icon: "square.grid.3x3.fill",
-                                title: "Catalog Management",
-                                subtitle: formatLastSyncTime(),
-                                status: syncCoordinator.syncState == .completed ? .connected : .warning,
-                                isLoading: syncCoordinator.syncState == .syncing,
-                                action: { } // Empty action since navigation is handled by NavigationLink
+                            HStack {
+                                Image(systemName: "square.grid.3x3.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.blue)
+                                    .frame(width: 30)
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Catalog Management")
+                                        .font(.headline)
+                                        .foregroundColor(.primary)
+
+                                    Text(formatLastSyncTime())
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                }
+
+                                Spacer()
+
+                                VStack(spacing: 4) {
+                                    if syncCoordinator.syncState == .syncing {
+                                        ProgressView()
+                                            .scaleEffect(0.8)
+                                            .frame(width: 20, height: 20)
+                                    } else {
+                                        Image(systemName: (syncCoordinator.syncState == .completed ? ConnectionStatus.connected : ConnectionStatus.warning).icon)
+                                            .font(.title3)
+                                            .foregroundColor((syncCoordinator.syncState == .completed ? ConnectionStatus.connected : ConnectionStatus.warning).color)
+
+                                        Image(systemName: "chevron.right")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                            }
+                            .padding(16)
+                            .background(Color(.systemBackground))
+                            .cornerRadius(12)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color(.systemGray4), lineWidth: 1)
                             )
                         }
                         .buttonStyle(PlainButtonStyle())
