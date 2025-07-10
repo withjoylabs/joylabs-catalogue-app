@@ -105,8 +105,6 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
 
             // Final progress update
             syncProgress.syncedObjects = catalogData.count
-            syncProgress.totalObjects = catalogData.count
-            syncProgress.progressPercentage = 1.0
 
             logger.info("🎉 Catalog sync completed successfully!")
             logger.info("📊 Final sync stats: \(catalogData.count) total objects processed")
@@ -142,9 +140,6 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
     }
 
     private func updateProgressPercentage() {
-        if syncProgress.totalObjects > 0 {
-            syncProgress.progressPercentage = Double(syncProgress.syncedObjects) / Double(syncProgress.totalObjects)
-        }
         // This will trigger UI updates via @Published
     }
     
@@ -162,15 +157,13 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
 
         logger.info("✅ Fetched \(catalogObjects.count) objects from Square API")
 
-        // Update progress with total count
-        syncProgress.totalObjects = catalogObjects.count
+        // Update progress
         syncProgress.currentObjectName = "Ready to process \(catalogObjects.count) objects"
 
         return catalogObjects
     }
     
     private func processCatalogDataWithProgress(_ objects: [CatalogObject]) async throws {
-        syncProgress.totalObjects = objects.count
         syncProgress.syncedObjects = 0
 
         logger.info("Processing \(objects.count) catalog objects...")
@@ -180,13 +173,12 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
 
             // Update progress
             syncProgress.syncedObjects = index + 1
-            syncProgress.progressPercentage = Double(syncProgress.syncedObjects) / Double(syncProgress.totalObjects)
             syncProgress.currentObjectType = object.type
             syncProgress.currentObjectName = extractObjectName(from: object)
 
             // Log progress every 1000 objects
             if index % 1000 == 0 && index > 0 {
-                logger.info("📊 Processed \(index) / \(objects.count) objects (\(Int(self.syncProgress.progressPercentage * 100))%)")
+                logger.info("📊 Processed \(index) objects so far...")
             }
 
             // Small delay every 100 objects to allow UI updates
@@ -230,27 +222,17 @@ extension SQLiteSwiftCatalogSyncService {
     }
     
     struct SyncProgress {
-        var totalObjects: Int = 0
         var syncedObjects: Int = 0
         var currentObjectType: String = ""
         var currentObjectName: String = ""
-        var progressPercentage: Double = 0.0
-        var estimatedTimeRemaining: TimeInterval = 0
-        var currentPage: Int = 0
-        var totalPages: Int = 0
-        var objectsThisPage: Int = 0
         var startTime: Date = Date()
 
         var isActive: Bool {
-            return totalObjects > 0 && syncedObjects < totalObjects
+            return syncedObjects > 0
         }
 
         var progressText: String {
-            if totalObjects > 0 {
-                return "\(syncedObjects) / \(totalObjects) objects (\(Int(progressPercentage * 100))%)"
-            } else {
-                return "\(syncedObjects) objects synced"
-            }
+            return "\(syncedObjects) objects synced"
         }
 
         var rateText: String {

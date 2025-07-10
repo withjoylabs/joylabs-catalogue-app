@@ -1213,7 +1213,12 @@ struct ProfileView: View {
     }
 
     private func formatLastSyncTime() -> String {
-        // TODO: Implement proper last sync time tracking with SQLite.swift
+        if let result = syncCoordinator.lastSyncResult {
+            let formatter = RelativeDateTimeFormatter()
+            formatter.unitsStyle = .abbreviated
+            let timeAgo = formatter.localizedString(for: result.timestamp, relativeTo: Date())
+            return "\(result.totalProcessed) objects - \(timeAgo)"
+        }
         return "Never synced"
     }
 
@@ -1228,17 +1233,12 @@ struct ProfileView: View {
                     .fontWeight(.medium)
 
                 Spacer()
-
-                Text("\(syncCoordinator.syncProgressPercentage)%")
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundColor(.blue)
             }
 
-            // Progress bar
-            ProgressView(value: syncCoordinator.syncProgress)
+            // Indeterminate progress bar (no percentage)
+            ProgressView()
                 .progressViewStyle(LinearProgressViewStyle())
-                .scaleEffect(y: 1.5) // Make progress bar thicker
+                .scaleEffect(y: 1.5)
 
             // Progress details
             HStack {

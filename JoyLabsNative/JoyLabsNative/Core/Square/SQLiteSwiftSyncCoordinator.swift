@@ -11,7 +11,7 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
     
     @Published var syncState: SyncState = .idle
     @Published var lastSyncResult: SyncResult?
-    @Published var syncProgress: Double = 0.0
+    // Removed syncProgress - using direct object count instead
     @Published var error: Error?
     // MARK: - Dependencies
 
@@ -26,6 +26,7 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
         self.catalogSyncService = SQLiteSwiftCatalogSyncService(squareAPIService: squareAPIService)
         
         setupObservers()
+        loadLastSyncResult()
     }
     
     deinit {
@@ -33,7 +34,23 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
     }
     
     // MARK: - Setup
-    
+
+    private func loadLastSyncResult() {
+        // Load last sync result from UserDefaults for persistence
+        if let data = UserDefaults.standard.data(forKey: "lastSyncResult"),
+           let result = try? JSONDecoder().decode(SyncResult.self, from: data) {
+            self.lastSyncResult = result
+            logger.info("Loaded previous sync result: \(result.totalProcessed) objects at \(result.timestamp)")
+        }
+    }
+
+    private func saveLastSyncResult(_ result: SyncResult) {
+        if let data = try? JSONEncoder().encode(result) {
+            UserDefaults.standard.set(data, forKey: "lastSyncResult")
+            logger.info("Saved sync result: \(result.totalProcessed) objects")
+        }
+    }
+
     private func setupObservers() {
         // Observe catalog sync service state
         catalogSyncService.$syncState
@@ -53,10 +70,7 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
             .map { $0.map { SyncCoordinatorError.syncFailed($0) } }
             .assign(to: &$error)
 
-        catalogSyncService.$syncProgress
-            .receive(on: DispatchQueue.main)
-            .map { $0.progressPercentage }
-            .assign(to: &$syncProgress)
+        // No need to observe progress percentage since we removed it
     }
     
     // MARK: - Public Methods
@@ -75,14 +89,16 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
             let result = SyncResult(
                 syncType: .full,
                 duration: 0, // TODO: Track actual duration
-                totalProcessed: catalogSyncService.syncProgress.totalObjects,
+                totalProcessed: catalogSyncService.syncProgress.syncedObjects,
                 inserted: catalogSyncService.syncProgress.syncedObjects,
                 updated: 0,
                 deleted: 0,
-                errors: []
+                errors: [],
+                timestamp: Date()
             )
-            
+
             lastSyncResult = result
+            saveLastSyncResult(result)
             logger.info("Manual sync completed: \(result.summary)")
             
         } catch {
@@ -93,8 +109,8 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
     
     // MARK: - Computed Properties for UI
 
-    var syncProgressPercentage: Int {
-        return Int(syncProgress * 100)
+    var syncedObjectsCount: Int {
+        return catalogSyncService.syncProgress.syncedObjects
     }
 
     var syncStatusSummary: String {
@@ -103,11 +119,7 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
             return "Ready to sync"
         case .syncing:
             let progress = catalogSyncService.syncProgress
-            if progress.totalObjects > 0 {
-                return "\(progress.syncedObjects) / \(progress.totalObjects) objects"
-            } else {
-                return "\(progress.syncedObjects) objects processed"
-            }
+            return "\(progress.syncedObjects) objects synced"
         case .completed:
             if let result = lastSyncResult {
                 return "Completed: \(result.totalProcessed) objects"
@@ -175,13 +187,13 @@ extension SQLiteSwiftSyncCoordinator {
 
 // MARK: - Shared Types
 
-enum SyncType: String, CaseIterable {
+enum SyncType: String, CaseIterable, Codable {
     case full = "full"
     case incremental = "incremental"
     case delta = "delta"
 }
 
-struct SyncResult {
+struct SyncResult: Codable {
     let syncType: SyncType
     let duration: TimeInterval
     let totalProcessed: Int
@@ -189,13 +201,14 @@ struct SyncResult {
     let updated: Int
     let deleted: Int
     let errors: [SyncError]
-    
+    let timestamp: Date
+
     var summary: String {
         return "Processed: \(totalProcessed), Inserted: \(inserted), Updated: \(updated), Deleted: \(deleted), Errors: \(errors.count)"
     }
 }
 
-struct SyncError: Error {
+struct SyncError: Error, Codable {
     let message: String
     let code: String?
     let objectId: String?
