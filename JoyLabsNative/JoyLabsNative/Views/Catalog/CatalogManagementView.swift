@@ -2,9 +2,7 @@ import SwiftUI
 import os.log
 
 struct CatalogManagementView: View {
-    @StateObject private var syncCoordinator = SQLiteSwiftSyncCoordinator(
-        squareAPIService: SquareAPIServiceFactory.shared.createAPIService()
-    )
+    @StateObject private var syncCoordinator = SquareAPIServiceFactory.createSyncCoordinator()
     @StateObject private var locationsService = SquareLocationsService()
     @StateObject private var catalogStatsService = CatalogStatsService()
     

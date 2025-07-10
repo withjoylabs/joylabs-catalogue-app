@@ -89,7 +89,7 @@ class CatalogStatsService: ObservableObject {
             
             self.lastUpdated = Date()
             
-            logger.info("✅ Stats loaded: \(totalObjectsCount) total objects (\(itemsCount) items)")
+            logger.info("✅ Stats loaded: \(self.totalObjectsCount) total objects (\(self.itemsCount) items)")
             
         } catch {
             logger.error("❌ Failed to load stats: \(error.localizedDescription)")
@@ -101,21 +101,7 @@ class CatalogStatsService: ObservableObject {
     // MARK: - Private Methods
     
     private func calculateStats() async throws -> CatalogStats {
-        return try await withCheckedThrowingContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                guard let self = self else {
-                    continuation.resume(throwing: CatalogStatsError.serviceDeallocated)
-                    return
-                }
-                
-                do {
-                    let stats = try self.performStatsCalculation()
-                    continuation.resume(returning: stats)
-                } catch {
-                    continuation.resume(throwing: error)
-                }
-            }
-        }
+        return try performStatsCalculation()
     }
     
     private func performStatsCalculation() throws -> CatalogStats {

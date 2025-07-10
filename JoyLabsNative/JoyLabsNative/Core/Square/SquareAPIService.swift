@@ -326,8 +326,25 @@ class SquareAPIService: ObservableObject {
 
 
     
+    // MARK: - Generic API Methods
+
+    /// Make a generic Square API request
+    func makeAPIRequest<T: Codable>(
+        endpoint: String,
+        method: HTTPMethod = .GET,
+        body: Data? = nil,
+        responseType: T.Type
+    ) async throws -> T {
+        return try await httpClient.makeSquareAPIRequest(
+            endpoint: endpoint,
+            method: method,
+            body: body,
+            responseType: responseType
+        )
+    }
+
     // MARK: - Catalog API Methods
-    
+
     /// Fetch complete catalog from Square with resilience
     func fetchCatalog() async throws -> [CatalogObject] {
         logger.info("Fetching complete catalog from Square with resilience")

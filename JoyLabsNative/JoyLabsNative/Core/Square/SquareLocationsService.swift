@@ -19,8 +19,8 @@ class SquareLocationsService: ObservableObject {
     
     // MARK: - Initialization
     
-    init(squareAPIService: SquareAPIService = SquareAPIServiceFactory.shared.createAPIService()) {
-        self.squareAPIService = squareAPIService
+    init(squareAPIService: SquareAPIService? = nil) {
+        self.squareAPIService = squareAPIService ?? SquareAPIServiceFactory.createService()
     }
     
     // MARK: - Public Methods
@@ -159,15 +159,16 @@ struct SquareTaxIds: Codable {
 // MARK: - SquareAPIService Extension
 
 extension SquareAPIService {
-    
+
     func fetchLocations() async throws -> [SquareLocation] {
         let endpoint = "/v2/locations"
-        
-        let response: SquareLocationsResponse = try await makeRequest(
+
+        let response: SquareLocationsResponse = try await makeAPIRequest(
             endpoint: endpoint,
-            method: "GET"
+            method: .GET,
+            responseType: SquareLocationsResponse.self
         )
-        
+
         return response.locations ?? []
     }
 }
@@ -176,5 +177,5 @@ extension SquareAPIService {
 
 private struct SquareLocationsResponse: Codable {
     let locations: [SquareLocation]?
-    let errors: [SquareAPIError]?
+    let errors: [SquareError]?
 }

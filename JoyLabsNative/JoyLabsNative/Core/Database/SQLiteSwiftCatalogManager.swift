@@ -158,7 +158,7 @@ class SQLiteSwiftCatalogManager {
     
     // MARK: - Table Creation (matching React Native schema)
 
-    private func createTables() throws {
+    func createTables() throws {
         guard let db = db else { throw SQLiteSwiftError.noConnection }
 
         // Create categories table (matching React Native schema)

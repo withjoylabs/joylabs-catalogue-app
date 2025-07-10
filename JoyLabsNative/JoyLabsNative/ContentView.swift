@@ -1089,7 +1089,7 @@ struct ProfileView: View {
                                 subtitle: formatLastSyncTime(),
                                 status: syncCoordinator.syncState == .completed ? .connected : .warning,
                                 isLoading: syncCoordinator.syncState == .syncing,
-                                action: nil // Navigation handled by NavigationLink
+                                action: { } // Empty action since navigation is handled by NavigationLink
                             )
                         }
                         .buttonStyle(PlainButtonStyle())
