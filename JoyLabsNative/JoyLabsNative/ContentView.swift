@@ -1217,7 +1217,7 @@ struct ProfileView: View {
             let formatter = RelativeDateTimeFormatter()
             formatter.unitsStyle = .abbreviated
             let timeAgo = formatter.localizedString(for: result.timestamp, relativeTo: Date())
-            return "\(result.totalProcessed) objects - \(timeAgo)"
+            return "\(result.itemsProcessed) items - \(timeAgo)"
         }
         return "Never synced"
     }

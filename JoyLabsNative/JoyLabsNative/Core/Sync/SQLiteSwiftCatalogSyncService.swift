@@ -140,7 +140,9 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
     }
 
     private func updateProgressPercentage() {
-        // This will trigger UI updates via @Published
+        // Force UI update by reassigning the published property
+        let currentProgress = syncProgress
+        syncProgress = currentProgress
     }
     
     // MARK: - Private Methods
@@ -165,6 +167,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
     
     private func processCatalogDataWithProgress(_ objects: [CatalogObject]) async throws {
         syncProgress.syncedObjects = 0
+        syncProgress.syncedItems = 0
 
         logger.info("Processing \(objects.count) catalog objects...")
 
@@ -173,6 +176,12 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
 
             // Update progress
             syncProgress.syncedObjects = index + 1
+
+            // Count items specifically
+            if object.type == "ITEM" {
+                syncProgress.syncedItems += 1
+            }
+
             syncProgress.currentObjectType = object.type
             syncProgress.currentObjectName = extractObjectName(from: object)
 
@@ -223,6 +232,7 @@ extension SQLiteSwiftCatalogSyncService {
     
     struct SyncProgress {
         var syncedObjects: Int = 0
+        var syncedItems: Int = 0  // Track items specifically
         var currentObjectType: String = ""
         var currentObjectName: String = ""
         var startTime: Date = Date()
@@ -232,7 +242,7 @@ extension SQLiteSwiftCatalogSyncService {
         }
 
         var progressText: String {
-            return "\(syncedObjects) objects synced"
+            return "\(syncedItems) items synced (\(syncedObjects) total objects)"
         }
 
         var rateText: String {

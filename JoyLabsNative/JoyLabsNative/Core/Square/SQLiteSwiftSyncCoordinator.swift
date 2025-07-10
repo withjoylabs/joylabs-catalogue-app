@@ -90,6 +90,7 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
                 syncType: .full,
                 duration: 0, // TODO: Track actual duration
                 totalProcessed: catalogSyncService.syncProgress.syncedObjects,
+                itemsProcessed: catalogSyncService.syncProgress.syncedItems,
                 inserted: catalogSyncService.syncProgress.syncedObjects,
                 updated: 0,
                 deleted: 0,
@@ -197,6 +198,7 @@ struct SyncResult: Codable {
     let syncType: SyncType
     let duration: TimeInterval
     let totalProcessed: Int
+    let itemsProcessed: Int  // Track items specifically
     let inserted: Int
     let updated: Int
     let deleted: Int
@@ -204,7 +206,7 @@ struct SyncResult: Codable {
     let timestamp: Date
 
     var summary: String {
-        return "Processed: \(totalProcessed), Inserted: \(inserted), Updated: \(updated), Deleted: \(deleted), Errors: \(errors.count)"
+        return "Processed: \(itemsProcessed) items (\(totalProcessed) total objects), Inserted: \(inserted), Updated: \(updated), Deleted: \(deleted), Errors: \(errors.count)"
     }
 }
 
