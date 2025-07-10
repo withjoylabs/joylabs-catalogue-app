@@ -68,21 +68,7 @@ struct CaseUpcData: Codable {
 }
 
 // MARK: - Catalog Models (simplified for Phase 7)
-struct CatalogObject: Codable {
-    let id: String
-    let type: String
-    let updatedAt: String
-    let version: Int?
-    let isDeleted: Bool
-    let presentAtAllLocations: Bool
-    let itemData: ItemData?
-    let categoryData: CategoryData?
-    let itemVariationData: ItemVariationData?
-    let modifierData: ModifierData?
-    let modifierListData: ModifierListData?
-    let taxData: TaxData?
-    let discountData: DiscountData?
-}
+// NOTE: CatalogObject definition removed - using the comprehensive version from CatalogModels.swift
 
 struct ItemData: Codable {
     let name: String?
