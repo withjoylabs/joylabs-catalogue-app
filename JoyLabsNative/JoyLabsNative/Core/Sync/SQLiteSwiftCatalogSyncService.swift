@@ -19,6 +19,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
     private let squareAPIService: SquareAPIService
     private var databaseManager: SQLiteSwiftCatalogManager
     private let migrationService = DatabaseMigrationService()
+    private let imageCacheService = ImageCacheService()
     private let logger = Logger(subsystem: "com.joylabs.native", category: "SQLiteSwiftCatalogSync")
     
     // MARK: - State
@@ -87,6 +88,10 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
             // Clear existing data
             try databaseManager.clearAllData()
             logger.info("✅ Existing data cleared")
+
+            // Clear image cache for clean slate
+            await imageCacheService.clearAllImages()
+            logger.info("🖼️ Cleared image cache for fresh start")
 
             // Fetch catalog data from Square API with progress tracking
             let catalogData = try await fetchCatalogFromSquareWithProgress()
@@ -172,6 +177,9 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
         logger.info("Processing \(objects.count) catalog objects...")
 
         for (index, object) in objects.enumerated() {
+            // Process images for this object before inserting
+            await processCatalogObjectImages(object)
+
             try databaseManager.insertCatalogObject(object)
 
             // Update progress
@@ -197,6 +205,38 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
         }
 
         logger.info("✅ Processed all \(objects.count) catalog objects")
+    }
+
+    /// Process and cache images for a catalog object
+    private func processCatalogObjectImages(_ object: CatalogObject) async {
+        let objectId = object.id // id is not optional
+
+        // Handle IMAGE objects directly - check if this object has image data
+        if object.type == "IMAGE" {
+            // For IMAGE type objects, we'd need to extract the image URL from the object
+            // This would typically be in a nested structure - for now we'll log it
+            logger.debug("📷 Processing IMAGE object: \(objectId)")
+            return
+        }
+
+        // Process item images - check if itemData has images property
+        if let itemData = object.itemData {
+            // For now, just log that we found item data
+            // The actual image processing will be implemented when we have the correct model structure
+            logger.debug("📷 Found item data for \(objectId), name: \(itemData.name ?? "unknown")")
+
+            // TODO: Process item images when model structure is confirmed
+            // This would involve checking for images array or imageIds array depending on the actual model
+        }
+
+        // Process category image references
+        if let categoryData = object.categoryData {
+            // For now, just log that we found category data
+            logger.debug("📷 Found category data for \(objectId), name: \(categoryData.name ?? "unknown")")
+
+            // TODO: Process category images when model structure is confirmed
+            // This would involve checking for imageIds array depending on the actual model
+        }
     }
 
     private func extractObjectName(from object: CatalogObject) -> String {

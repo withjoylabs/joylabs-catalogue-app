@@ -33,6 +33,9 @@
 		A1B2C3D4E5F6789012345837 /* CatalogManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345838 /* CatalogManagementView.swift */; };
 		A1B2C3D4E5F6789012345839 /* SquareLocationsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345840 /* SquareLocationsService.swift */; };
 		A1B2C3D4E5F6789012345841 /* CatalogStatsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345842 /* CatalogStatsService.swift */; };
+		A1B2C3D4E5F6789012345843 /* ImageCacheService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345844 /* ImageCacheService.swift */; };
+		A1B2C3D4E5F6789012345845 /* ImageURLManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345846 /* ImageURLManager.swift */; };
+		A1B2C3D4E5F6789012345847 /* CachedImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345848 /* CachedImageView.swift */; };
 																																								/* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -62,6 +65,9 @@
 		A1B2C3D4E5F6789012345838 /* CatalogManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Views/Catalog/CatalogManagementView.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345840 /* SquareLocationsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Square/SquareLocationsService.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345842 /* CatalogStatsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Database/CatalogStatsService.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345844 /* ImageCacheService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Images/ImageCacheService.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345846 /* ImageURLManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Images/ImageURLManager.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345848 /* CachedImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Views/Components/CachedImageView.swift"; sourceTree = "<group>"; };
 																																								/* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -209,7 +215,10 @@
 				A1B2C3D4E5F6789012345835 /* DataValidation.swift in Sources */,
 				A1B2C3D4E5F6789012345837 /* CatalogManagementView.swift in Sources */,
 				A1B2C3D4E5F6789012345839 /* SquareLocationsService.swift in Sources */,
-				A1B2C3D4E5F6789012345841 /* CatalogStatsService.swift in Sources */
+				A1B2C3D4E5F6789012345841 /* CatalogStatsService.swift in Sources */,
+				A1B2C3D4E5F6789012345843 /* ImageCacheService.swift in Sources */,
+				A1B2C3D4E5F6789012345845 /* ImageURLManager.swift in Sources */,
+				A1B2C3D4E5F6789012345847 /* CachedImageView.swift in Sources */
 				);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

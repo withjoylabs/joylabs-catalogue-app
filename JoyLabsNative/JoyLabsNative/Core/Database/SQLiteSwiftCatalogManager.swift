@@ -161,6 +161,10 @@ class SQLiteSwiftCatalogManager {
     func createTables() throws {
         guard let db = db else { throw SQLiteSwiftError.noConnection }
 
+        // Create image URL mapping table first
+        let imageURLManager = ImageURLManager(databaseManager: self)
+        try imageURLManager.createImageMappingTable()
+
         // Create categories table (matching React Native schema)
         try db.run(categories.create(ifNotExists: true) { t in
             t.column(categoryId, primaryKey: true)
