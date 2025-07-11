@@ -19,26 +19,29 @@ struct CatalogManagementView: View {
                 VStack(spacing: 20) {
                     // Header
                     headerSection
-                    
+
                     // Sync Section
                     syncSection
-                    
+
                     // Statistics Section
                     statisticsSection
-                    
+
                     // Locations Section
                     locationsSection
-                    
+
                     // Categories, Taxes, Modifiers Section
                     catalogObjectsSection
-                    
+
                     // Database Management Section
                     databaseManagementSection
                 }
-                .padding()
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 20)
             }
             .navigationTitle("Catalog Management")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
+            .background(Color(.systemGroupedBackground))
             .onAppear {
                 loadInitialData()
             }
@@ -69,38 +72,46 @@ struct CatalogManagementView: View {
     // MARK: - Header Section
     
     private var headerSection: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 12) {
             Image(systemName: "square.grid.3x3.fill")
                 .font(.system(size: 40))
                 .foregroundColor(.blue)
-            
+
             Text("Square Catalog Management")
                 .font(.title2)
                 .fontWeight(.semibold)
-            
+                .foregroundColor(.primary)
+
             Text("Manage your Square catalog data, locations, and database")
-                .font(.caption)
+                .font(.subheadline)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
         }
-        .padding()
-        .background(Color.blue.opacity(0.1))
-        .cornerRadius(12)
+        .padding(20)
+        .frame(maxWidth: .infinity)
+        .background(Color(.systemBackground))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color(.systemGray4), lineWidth: 1)
+        )
+        .cornerRadius(16)
     }
     
     // MARK: - Sync Section
     
     private var syncSection: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 16) {
             HStack {
                 Text("Catalog Sync")
                     .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
                 Spacer()
             }
-            
+
             // Sync Status Card
             syncStatusCard
-            
+
             // Full Sync Button
             Button(action: {
                 if catalogStatsService.hasData {
@@ -109,16 +120,17 @@ struct CatalogManagementView: View {
                     performFullSync()
                 }
             }) {
-                HStack {
+                HStack(spacing: 8) {
                     Image(systemName: "arrow.clockwise.circle.fill")
+                        .font(.title3)
                     Text("Full Catalog Sync")
-                        .fontWeight(.medium)
+                        .fontWeight(.semibold)
                 }
                 .frame(maxWidth: .infinity)
-                .padding()
-                .background(syncCoordinator.syncState == .syncing ? Color.gray : Color.blue)
+                .padding(.vertical, 14)
+                .background(syncCoordinator.syncState == .syncing ? Color(.systemGray3) : Color.blue)
                 .foregroundColor(.white)
-                .cornerRadius(10)
+                .cornerRadius(12)
             }
             .disabled(syncCoordinator.syncState == .syncing)
             
@@ -138,20 +150,24 @@ struct CatalogManagementView: View {
                 Text("Last Sync")
                     .font(.caption)
                     .foregroundColor(.secondary)
-                
+
                 Text(formatLastSyncTime())
                     .font(.subheadline)
                     .fontWeight(.medium)
+                    .foregroundColor(.primary)
             }
-            
+
             Spacer()
-            
+
             syncStatusBadge
         }
-        .padding()
-        .background(Color.white)
-        .cornerRadius(8)
-        .shadow(radius: 1)
+        .padding(16)
+        .background(Color(.systemBackground))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(.systemGray4), lineWidth: 1)
+        )
+        .cornerRadius(12)
     }
     
     private var syncStatusBadge: some View {
@@ -168,55 +184,83 @@ struct CatalogManagementView: View {
     }
     
     private var syncProgressView: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 12) {
             HStack {
                 Text("Syncing Catalog...")
                     .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+
+                Spacer()
+
+                // Show actual numbers being synced
+                Text("\(syncCoordinator.catalogSyncService.syncProgress.syncedObjects) objects")
+                    .font(.subheadline)
                     .fontWeight(.medium)
-                
-                Spacer()
+                    .foregroundColor(.blue)
             }
-            
+
+            // Progress bar with indeterminate animation
             ProgressView()
-                .progressViewStyle(LinearProgressViewStyle())
-                .scaleEffect(y: 1.5)
-            
-            HStack {
-                Text(syncCoordinator.catalogSyncService.syncProgress.progressText)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                
-                Spacer()
-            }
-            
-            if !syncCoordinator.catalogSyncService.syncProgress.currentObjectType.isEmpty {
+                .progressViewStyle(LinearProgressViewStyle(tint: .blue))
+                .scaleEffect(y: 2.0)
+
+            VStack(spacing: 4) {
                 HStack {
-                    Text("Processing: \(syncCoordinator.catalogSyncService.syncProgress.currentObjectType)")
-                        .font(.caption2)
-                        .foregroundColor(.gray)
-                    
+                    Text(syncCoordinator.catalogSyncService.syncProgress.progressText)
+                        .font(.caption)
+                        .foregroundColor(.primary)
+
                     Spacer()
+                }
+
+                if !syncCoordinator.catalogSyncService.syncProgress.currentObjectType.isEmpty {
+                    HStack {
+                        Text("Processing: \(syncCoordinator.catalogSyncService.syncProgress.currentObjectType)")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+
+                        Spacer()
+                    }
+                }
+
+                if !syncCoordinator.catalogSyncService.syncProgress.currentObjectName.isEmpty {
+                    HStack {
+                        Text(syncCoordinator.catalogSyncService.syncProgress.currentObjectName)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+
+                        Spacer()
+                    }
                 }
             }
         }
-        .padding()
-        .background(Color.blue.opacity(0.1))
-        .cornerRadius(8)
+        .padding(16)
+        .background(Color(.systemGray6))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.blue.opacity(0.3), lineWidth: 1)
+        )
+        .cornerRadius(12)
     }
     
     // MARK: - Statistics Section
 
     private var statisticsSection: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 16) {
             HStack {
                 Text("Catalog Statistics")
                     .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
                 Spacer()
 
                 Button("Refresh") {
                     catalogStatsService.refreshStats()
                 }
-                .font(.caption)
+                .font(.subheadline)
+                .fontWeight(.medium)
                 .foregroundColor(.blue)
             }
 
@@ -230,18 +274,24 @@ struct CatalogManagementView: View {
                 StatCard(title: "Total Objects", count: catalogStatsService.totalObjectsCount, icon: "square.grid.3x3")
             }
         }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
+        .padding(20)
+        .background(Color(.systemBackground))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color(.systemGray4), lineWidth: 1)
+        )
+        .cornerRadius(16)
     }
 
     // MARK: - Locations Section
 
     private var locationsSection: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 16) {
             HStack {
                 Text("Square Locations")
                     .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
                 Spacer()
 
                 Button("Refresh") {
@@ -249,7 +299,8 @@ struct CatalogManagementView: View {
                         await locationsService.refreshLocations()
                     }
                 }
-                .font(.caption)
+                .font(.subheadline)
+                .fontWeight(.medium)
                 .foregroundColor(.blue)
             }
 
@@ -258,14 +309,14 @@ struct CatalogManagementView: View {
                     ProgressView()
                         .scaleEffect(0.8)
                     Text("Loading locations...")
-                        .font(.caption)
+                        .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
             } else if locationsService.locations.isEmpty {
                 Text("No locations found")
-                    .font(.caption)
+                    .font(.subheadline)
                     .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity)
                     .padding()
@@ -275,9 +326,13 @@ struct CatalogManagementView: View {
                 }
             }
         }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
+        .padding(20)
+        .background(Color(.systemBackground))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color(.systemGray4), lineWidth: 1)
+        )
+        .cornerRadius(16)
     }
 
     // MARK: - Catalog Objects Section
@@ -449,16 +504,21 @@ struct StatCard: View {
             Text("\(count)")
                 .font(.title2)
                 .fontWeight(.bold)
+                .foregroundColor(.primary)
 
             Text(title)
                 .font(.caption)
+                .fontWeight(.medium)
                 .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity)
-        .padding()
-        .background(Color.white)
-        .cornerRadius(8)
-        .shadow(radius: 1)
+        .padding(16)
+        .background(Color(.systemGray6))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(.systemGray5), lineWidth: 1)
+        )
+        .cornerRadius(12)
     }
 }
 

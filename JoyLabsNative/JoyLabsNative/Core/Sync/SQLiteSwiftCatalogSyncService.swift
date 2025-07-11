@@ -25,35 +25,38 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
     // MARK: - State
 
     private var isSyncInProgress = false
-    private var hasMigrated = false
     private var progressUpdateTimer: Timer?
-    
+
     // MARK: - Initialization
-    
+
     init(squareAPIService: SquareAPIService) {
         self.squareAPIService = squareAPIService
         self.databaseManager = SQLiteSwiftCatalogManager()
-        
-        // Perform migration on first use
+
+        // Initialize database connection without forced migration
         Task {
-            await performMigrationIfNeeded()
+            await initializeDatabaseConnection()
         }
     }
     
-    // MARK: - Migration
-    
-    private func performMigrationIfNeeded() async {
-        guard !hasMigrated else { return }
-        
+    // MARK: - Database Initialization
+
+    private func initializeDatabaseConnection() async {
         do {
-            logger.info("Performing database migration to SQLite.swift...")
-            try await migrationService.migrateToSQLiteSwift()
-            self.databaseManager = migrationService.getNewDatabaseManager()
-            hasMigrated = true
-            logger.info("✅ Database migration completed successfully")
+            // Only migrate if actually needed (not on every app launch)
+            if migrationService.isMigrationNeeded() {
+                logger.info("Database migration needed - performing migration...")
+                try await migrationService.migrateToSQLiteSwift()
+                self.databaseManager = migrationService.getNewDatabaseManager()
+                logger.info("✅ Database migration completed successfully")
+            } else {
+                // Just connect to existing database
+                try databaseManager.connect()
+                logger.info("✅ Connected to existing SQLite.swift database")
+            }
         } catch {
-            logger.error("❌ Database migration failed: \(error)")
-            errorMessage = "Database migration failed: \(error.localizedDescription)"
+            logger.error("❌ Database initialization failed: \(error)")
+            errorMessage = "Database initialization failed: \(error.localizedDescription)"
         }
     }
     
@@ -64,8 +67,8 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
             throw SyncError.syncInProgress
         }
         
-        // Ensure migration is complete
-        await performMigrationIfNeeded()
+        // Ensure database is connected
+        await initializeDatabaseConnection()
         
         isSyncInProgress = true
         syncState = .syncing
