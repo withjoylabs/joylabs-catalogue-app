@@ -20,6 +20,12 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
     private var databaseManager: SQLiteSwiftCatalogManager
     private let imageCacheService = ImageCacheService()
     private let logger = Logger(subsystem: "com.joylabs.native", category: "SQLiteSwiftCatalogSync")
+
+    // MARK: - Public Access
+
+    var sharedDatabaseManager: SQLiteSwiftCatalogManager {
+        return databaseManager
+    }
     
     // MARK: - State
 

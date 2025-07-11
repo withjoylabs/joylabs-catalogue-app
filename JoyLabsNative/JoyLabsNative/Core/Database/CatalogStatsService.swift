@@ -23,7 +23,7 @@ class CatalogStatsService: ObservableObject {
     
     // MARK: - Dependencies
     
-    private let databaseManager: SQLiteSwiftCatalogManager
+    private var databaseManager: SQLiteSwiftCatalogManager?
     private let logger = Logger(subsystem: "com.joylabs.native", category: "CatalogStats")
     
     // MARK: - Computed Properties
@@ -43,24 +43,13 @@ class CatalogStatsService: ObservableObject {
     // MARK: - Initialization
     
     init() {
-        self.databaseManager = SQLiteSwiftCatalogManager()
-
-        // Initialize database connection and load initial stats
-        Task {
-            await initializeAndLoadStats()
-        }
+        // Don't create database manager here - will be set from sync coordinator
     }
 
-    private func initializeAndLoadStats() async {
-        do {
-            try databaseManager.connect()
-            try databaseManager.createTables()
-            logger.info("✅ Database connected for stats service")
-
-            // Load initial stats
+    func setDatabaseManager(_ manager: SQLiteSwiftCatalogManager) {
+        self.databaseManager = manager
+        Task {
             await loadStats()
-        } catch {
-            logger.error("Failed to initialize database: \(error.localizedDescription)")
         }
     }
     
@@ -75,11 +64,16 @@ class CatalogStatsService: ObservableObject {
     }
     
     func loadStats() async {
+        guard databaseManager != nil else {
+            logger.warning("Database manager not set - cannot load stats")
+            return
+        }
+
         isLoading = true
-        
+
         do {
             logger.info("📊 Loading catalog statistics...")
-            
+
             // Get counts for each object type
             let stats = try await calculateStats()
             
@@ -115,7 +109,8 @@ class CatalogStatsService: ObservableObject {
     }
     
     private func performStatsCalculation() throws -> CatalogStats {
-        guard let db = databaseManager.getConnection() else {
+        guard let databaseManager = databaseManager,
+              let db = databaseManager.getConnection() else {
             throw CatalogStatsError.databaseNotConnected
         }
         

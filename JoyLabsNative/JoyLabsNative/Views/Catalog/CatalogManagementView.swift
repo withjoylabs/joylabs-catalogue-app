@@ -14,34 +14,30 @@ struct CatalogManagementView: View {
     private let logger = Logger(subsystem: "com.joylabs.native", category: "CatalogManagement")
     
     var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(spacing: 20) {
-                    // Header
-                    headerSection
+        ScrollView {
+            VStack(spacing: 20) {
+                // Sync Section
+                syncSection
 
-                    // Sync Section
-                    syncSection
+                // Statistics Section
+                statisticsSection
 
-                    // Statistics Section
-                    statisticsSection
+                // Locations Section
+                locationsSection
 
-                    // Locations Section
-                    locationsSection
+                // Categories, Taxes, Modifiers Section
+                catalogObjectsSection
 
-                    // Categories, Taxes, Modifiers Section
-                    catalogObjectsSection
-
-                    // Database Management Section
-                    databaseManagementSection
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-                .padding(.bottom, 20)
+                // Database Management Section
+                databaseManagementSection
             }
-            .navigationTitle("Catalog Management")
-            .navigationBarTitleDisplayMode(.inline)
-            .background(Color(.systemGroupedBackground))
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .padding(.bottom, 20)
+        }
+        .navigationTitle("Catalog Management")
+        .navigationBarTitleDisplayMode(.large)
+        .background(Color(.systemGroupedBackground))
             .onAppear {
                 loadInitialData()
             }
@@ -397,47 +393,19 @@ struct CatalogManagementView: View {
                 Spacer()
             }
 
-            VStack(spacing: 12) {
-                Button(action: {
-                    showingClearDatabaseConfirmation = true
-                }) {
-                    HStack {
-                        Image(systemName: "trash.circle.fill")
-                            .foregroundColor(.red)
-                        Text("Clear Database")
-                            .fontWeight(.medium)
-                            .foregroundColor(.red)
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(16)
-                    .background(Color(.systemGray6))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color(.systemGray5), lineWidth: 1)
-                    )
-                    .cornerRadius(12)
-                }
-
+            Button(action: {
+                showingClearDatabaseConfirmation = true
+            }) {
                 HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Last Updated")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text(catalogStatsService.formattedLastUpdated)
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(.primary)
-                    }
-
+                    Image(systemName: "trash.circle.fill")
+                        .foregroundColor(.red)
+                    Text("Clear Database")
+                        .fontWeight(.medium)
+                        .foregroundColor(.red)
                     Spacer()
-
-                    if catalogStatsService.isLoading {
-                        ProgressView()
-                            .scaleEffect(0.8)
-                    }
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
                 .padding(16)
                 .background(Color(.systemGray6))
@@ -460,6 +428,9 @@ struct CatalogManagementView: View {
     // MARK: - Helper Methods
     
     private func loadInitialData() {
+        // Set the database manager for stats service
+        catalogStatsService.setDatabaseManager(syncCoordinator.catalogSyncService.sharedDatabaseManager)
+
         Task {
             await locationsService.fetchLocations()
             catalogStatsService.refreshStats()
@@ -585,10 +556,13 @@ struct LocationCard: View {
                 }
             }
         }
-        .padding()
-        .background(Color.white)
-        .cornerRadius(8)
-        .shadow(radius: 1)
+        .padding(16)
+        .background(Color(.systemGray6))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(.systemGray5), lineWidth: 1)
+        )
+        .cornerRadius(12)
     }
 }
 
@@ -635,22 +609,40 @@ struct CatalogObjectRow: View {
 
 struct CategoriesListView: View {
     var body: some View {
-        Text("Categories List")
-            .navigationTitle("Categories")
+        VStack {
+            Text("Categories List")
+                .font(.title2)
+                .padding()
+            Spacer()
+        }
+        .navigationTitle("Categories")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
 struct TaxesListView: View {
     var body: some View {
-        Text("Taxes List")
-            .navigationTitle("Taxes")
+        VStack {
+            Text("Taxes List")
+                .font(.title2)
+                .padding()
+            Spacer()
+        }
+        .navigationTitle("Taxes")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
 struct ModifiersListView: View {
     var body: some View {
-        Text("Modifiers List")
-            .navigationTitle("Modifiers")
+        VStack {
+            Text("Modifiers List")
+                .font(.title2)
+                .padding()
+            Spacer()
+        }
+        .navigationTitle("Modifiers")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
