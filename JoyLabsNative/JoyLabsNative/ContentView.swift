@@ -1107,10 +1107,6 @@ struct ProfileView: View {
                                             .scaleEffect(0.8)
                                             .frame(width: 20, height: 20)
                                     } else {
-                                        Image(systemName: (syncCoordinator.syncState == .completed ? ConnectionStatus.connected : ConnectionStatus.warning).icon)
-                                            .font(.title3)
-                                            .foregroundColor((syncCoordinator.syncState == .completed ? ConnectionStatus.connected : ConnectionStatus.warning).color)
-
                                         Image(systemName: "chevron.right")
                                             .font(.caption)
                                             .foregroundColor(.secondary)

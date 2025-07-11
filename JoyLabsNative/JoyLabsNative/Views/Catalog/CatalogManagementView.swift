@@ -72,29 +72,29 @@ struct CatalogManagementView: View {
     // MARK: - Header Section
     
     private var headerSection: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 8) {
             Image(systemName: "square.grid.3x3.fill")
-                .font(.system(size: 40))
+                .font(.system(size: 32))
                 .foregroundColor(.blue)
 
             Text("Square Catalog Management")
-                .font(.title2)
+                .font(.headline)
                 .fontWeight(.semibold)
                 .foregroundColor(.primary)
 
             Text("Manage your Square catalog data, locations, and database")
-                .font(.subheadline)
+                .font(.caption)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
         }
-        .padding(20)
+        .padding(12)
         .frame(maxWidth: .infinity)
         .background(Color(.systemBackground))
         .overlay(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: 12)
                 .stroke(Color(.systemGray4), lineWidth: 1)
         )
-        .cornerRadius(16)
+        .cornerRadius(12)
     }
     
     // MARK: - Sync Section
@@ -338,10 +338,12 @@ struct CatalogManagementView: View {
     // MARK: - Catalog Objects Section
 
     private var catalogObjectsSection: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 16) {
             HStack {
                 Text("Catalog Objects")
                     .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
                 Spacer()
             }
 
@@ -374,22 +376,28 @@ struct CatalogManagementView: View {
                 }
             }
         }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
+        .padding(20)
+        .background(Color(.systemBackground))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color(.systemGray4), lineWidth: 1)
+        )
+        .cornerRadius(16)
     }
 
     // MARK: - Database Management Section
 
     private var databaseManagementSection: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 16) {
             HStack {
                 Text("Database Management")
                     .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
                 Spacer()
             }
 
-            VStack(spacing: 8) {
+            VStack(spacing: 12) {
                 Button(action: {
                     showingClearDatabaseConfirmation = true
                 }) {
@@ -398,16 +406,20 @@ struct CatalogManagementView: View {
                             .foregroundColor(.red)
                         Text("Clear Database")
                             .fontWeight(.medium)
+                            .foregroundColor(.red)
                         Spacer()
                         Image(systemName: "chevron.right")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
-                    .padding()
-                    .background(Color.white)
-                    .cornerRadius(8)
+                    .padding(16)
+                    .background(Color(.systemGray6))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color(.systemGray5), lineWidth: 1)
+                    )
+                    .cornerRadius(12)
                 }
-                .foregroundColor(.red)
 
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
@@ -417,6 +429,7 @@ struct CatalogManagementView: View {
                         Text(catalogStatsService.formattedLastUpdated)
                             .font(.subheadline)
                             .fontWeight(.medium)
+                            .foregroundColor(.primary)
                     }
 
                     Spacer()
@@ -426,14 +439,22 @@ struct CatalogManagementView: View {
                             .scaleEffect(0.8)
                     }
                 }
-                .padding()
-                .background(Color.white)
-                .cornerRadius(8)
+                .padding(16)
+                .background(Color(.systemGray6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color(.systemGray5), lineWidth: 1)
+                )
+                .cornerRadius(12)
             }
         }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
+        .padding(20)
+        .background(Color(.systemBackground))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color(.systemGray4), lineWidth: 1)
+        )
+        .cornerRadius(16)
     }
     
     // MARK: - Helper Methods
@@ -587,6 +608,7 @@ struct CatalogObjectRow: View {
                 Text(title)
                     .font(.subheadline)
                     .fontWeight(.medium)
+                    .foregroundColor(.primary)
 
                 Text("\(count) items")
                     .font(.caption)
@@ -599,10 +621,13 @@ struct CatalogObjectRow: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
-        .padding()
-        .background(Color.white)
-        .cornerRadius(8)
-        .foregroundColor(.primary)
+        .padding(16)
+        .background(Color(.systemGray6))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(.systemGray5), lineWidth: 1)
+        )
+        .cornerRadius(12)
     }
 }
 

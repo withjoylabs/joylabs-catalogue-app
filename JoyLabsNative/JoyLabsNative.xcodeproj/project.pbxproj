@@ -16,8 +16,7 @@
 		A1B2C3D4E5F6789012345901 /* CatalogTableDefinitions.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345902 /* CatalogTableDefinitions.swift */; };
 		A1B2C3D4E5F6789012345903 /* CatalogTableCreator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345904 /* CatalogTableCreator.swift */; };
 		A1B2C3D4E5F6789012345905 /* CatalogObjectInserters.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345906 /* CatalogObjectInserters.swift */; };
-		A1B2C3D4E5F6789012345803 /* DatabaseBackup.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345804 /* DatabaseBackup.swift */; };
-		A1B2C3D4E5F6789012345805 /* DatabaseMigrationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345806 /* DatabaseMigrationService.swift */; };
+
 		A1B2C3D4E5F6789012345807 /* SQLiteSwiftSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345808 /* SQLiteSwiftSyncCoordinator.swift */; };
 		A1B2C3D4E5F6789012345809 /* SQLiteSwiftCatalogSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345810 /* SQLiteSwiftCatalogSyncService.swift */; };
 		A1B2C3D4E5F6789012345811 /* SquareAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345812 /* SquareAPIService.swift */; };
@@ -51,8 +50,7 @@
 		A1B2C3D4E5F6789012345902 /* CatalogTableDefinitions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Database/CatalogTableDefinitions.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345904 /* CatalogTableCreator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Database/CatalogTableCreator.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345906 /* CatalogObjectInserters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Database/CatalogObjectInserters.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345804 /* DatabaseBackup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Database/DatabaseBackup.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345806 /* DatabaseMigrationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Database/DatabaseMigrationService.swift"; sourceTree = "<group>"; };
+
 		A1B2C3D4E5F6789012345808 /* SQLiteSwiftSyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Square/SQLiteSwiftSyncCoordinator.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345810 /* SQLiteSwiftCatalogSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Sync/SQLiteSwiftCatalogSyncService.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345812 /* SquareAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Square/SquareAPIService.swift"; sourceTree = "<group>"; };
@@ -205,8 +203,7 @@
 				A1B2C3D4E5F6789012345901 /* CatalogTableDefinitions.swift in Sources */,
 				A1B2C3D4E5F6789012345903 /* CatalogTableCreator.swift in Sources */,
 				A1B2C3D4E5F6789012345905 /* CatalogObjectInserters.swift in Sources */,
-				A1B2C3D4E5F6789012345803 /* DatabaseBackup.swift in Sources */,
-				A1B2C3D4E5F6789012345805 /* DatabaseMigrationService.swift in Sources */,
+
 				A1B2C3D4E5F6789012345807 /* SQLiteSwiftSyncCoordinator.swift in Sources */,
 				A1B2C3D4E5F6789012345809 /* SQLiteSwiftCatalogSyncService.swift in Sources */,
 				A1B2C3D4E5F6789012345811 /* SquareAPIService.swift in Sources */,

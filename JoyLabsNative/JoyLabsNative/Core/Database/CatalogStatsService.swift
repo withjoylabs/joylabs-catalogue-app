@@ -44,11 +44,21 @@ class CatalogStatsService: ObservableObject {
     
     init() {
         self.databaseManager = SQLiteSwiftCatalogManager()
-        
-        // Initialize database connection
+
+        // Initialize database connection and load initial stats
+        Task {
+            await initializeAndLoadStats()
+        }
+    }
+
+    private func initializeAndLoadStats() async {
         do {
             try databaseManager.connect()
             try databaseManager.createTables()
+            logger.info("✅ Database connected for stats service")
+
+            // Load initial stats
+            await loadStats()
         } catch {
             logger.error("Failed to initialize database: \(error.localizedDescription)")
         }

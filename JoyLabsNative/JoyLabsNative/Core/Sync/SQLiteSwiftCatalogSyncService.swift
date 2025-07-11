@@ -15,10 +15,9 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
     @Published var errorMessage: String?
     
     // MARK: - Dependencies
-    
+
     private let squareAPIService: SquareAPIService
     private var databaseManager: SQLiteSwiftCatalogManager
-    private let migrationService = DatabaseMigrationService()
     private let imageCacheService = ImageCacheService()
     private let logger = Logger(subsystem: "com.joylabs.native", category: "SQLiteSwiftCatalogSync")
     
@@ -33,30 +32,22 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
         self.squareAPIService = squareAPIService
         self.databaseManager = SQLiteSwiftCatalogManager()
 
-        // Initialize database connection without forced migration
+        // Initialize database connection
         Task {
             await initializeDatabaseConnection()
         }
     }
-    
+
     // MARK: - Database Initialization
 
     private func initializeDatabaseConnection() async {
         do {
-            // Only migrate if actually needed (not on every app launch)
-            if migrationService.isMigrationNeeded() {
-                logger.info("Database migration needed - performing migration...")
-                try await migrationService.migrateToSQLiteSwift()
-                self.databaseManager = migrationService.getNewDatabaseManager()
-                logger.info("✅ Database migration completed successfully")
-            } else {
-                // Just connect to existing database
-                try databaseManager.connect()
-                logger.info("✅ Connected to existing SQLite.swift database")
-            }
+            // Simply connect to SQLite.swift database
+            try databaseManager.connect()
+            logger.info("✅ Connected to SQLite.swift database")
         } catch {
-            logger.error("❌ Database initialization failed: \(error)")
-            errorMessage = "Database initialization failed: \(error.localizedDescription)"
+            logger.error("❌ Database connection failed: \(error)")
+            errorMessage = "Database connection failed: \(error.localizedDescription)"
         }
     }
     
@@ -68,7 +59,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
         }
         
         // Ensure database is connected
-        await initializeDatabaseConnection()
+        try databaseManager.connect()
         
         isSyncInProgress = true
         syncState = .syncing
