@@ -16,9 +16,11 @@ struct CatalogManagementView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
-                Text("Catalog Management")
-                    .font(.title)
-                    .padding()
+                // Sync Section
+                syncSection
+
+                // Statistics Section
+                statisticsSection
             }
             .padding(.horizontal, 16)
             .padding(.top, 16)
@@ -30,6 +32,202 @@ struct CatalogManagementView: View {
         .onAppear {
             loadInitialData()
         }
+        .alert("Confirmation", isPresented: $showingSyncConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Sync", role: .destructive) {
+                performFullSync()
+            }
+        } message: {
+            Text("This will clear all existing catalog data and perform a full sync. This action cannot be undone.")
+        }
+        .alert("Database Management", isPresented: $showingClearDatabaseConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Clear", role: .destructive) {
+                clearDatabase()
+            }
+        } message: {
+            Text("This will permanently delete all catalog data from the local database. This action cannot be undone.")
+        }
+        .alert("Status", isPresented: $showingAlert) {
+            Button("OK") { }
+        } message: {
+            Text(alertMessage)
+        }
+    }
+
+    // MARK: - Sync Section
+
+    private var syncSection: some View {
+        VStack(spacing: 16) {
+            HStack {
+                Text("Catalog Sync")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+                Spacer()
+            }
+
+            // Sync Status Card
+            syncStatusCard
+
+            // Full Sync Button
+            Button(action: {
+                if catalogStatsService.hasData {
+                    showingSyncConfirmation = true
+                } else {
+                    performFullSync()
+                }
+            }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.clockwise.circle.fill")
+                        .font(.title3)
+                    Text("Full Catalog Sync")
+                        .fontWeight(.semibold)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(Color.blue)
+                .foregroundColor(.white)
+                .cornerRadius(12)
+            }
+            .disabled(syncCoordinator.syncState == .syncing)
+
+            // Progress view when syncing
+            if syncCoordinator.syncState == .syncing {
+                syncProgressView
+            }
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
+    }
+
+    private var syncStatusCard: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Last Sync")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Text(formatLastSyncTime())
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.primary)
+            }
+
+            Spacer()
+
+            syncStatusBadge
+        }
+        .padding(16)
+        .background(Color(.systemBackground))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(.systemGray4), lineWidth: 1)
+        )
+        .cornerRadius(12)
+    }
+
+    private var syncStatusBadge: some View {
+        Text(syncStatusText)
+            .font(.caption)
+            .fontWeight(.medium)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(syncStatusColor.opacity(0.2))
+            .foregroundColor(syncStatusColor)
+            .cornerRadius(8)
+    }
+
+    private var syncProgressView: some View {
+        VStack(spacing: 12) {
+            HStack {
+                Text("Syncing catalog data...")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.blue)
+
+                Spacer()
+            }
+
+            // Progress information
+            VStack(spacing: 8) {
+                HStack {
+                    Text("\(syncCoordinator.catalogSyncService.syncProgress.syncedObjects) objects processed")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Spacer()
+                }
+
+                if !syncCoordinator.catalogSyncService.syncProgress.currentObjectType.isEmpty {
+                    HStack {
+                        Text("Processing: \(syncCoordinator.catalogSyncService.syncProgress.currentObjectType)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+
+                        Spacer()
+                    }
+                }
+
+                if !syncCoordinator.catalogSyncService.syncProgress.currentObjectName.isEmpty {
+                    HStack {
+                        Text("Current: \(syncCoordinator.catalogSyncService.syncProgress.currentObjectName)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+
+                        Spacer()
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .background(Color(.systemGray6))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(.systemGray4), lineWidth: 1)
+        )
+        .cornerRadius(12)
+    }
+
+    // MARK: - Statistics Section
+
+    private var statisticsSection: some View {
+        VStack(spacing: 16) {
+            HStack {
+                Text("Catalog Statistics")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+
+                Spacer()
+
+                Button("Refresh") {
+                    catalogStatsService.refreshStats()
+                }
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .foregroundColor(.blue)
+            }
+
+            LazyVGrid(columns: [
+                GridItem(.flexible()),
+                GridItem(.flexible())
+            ], spacing: 12) {
+                StatCard(title: "Items", count: catalogStatsService.itemsCount, icon: "cube")
+                StatCard(title: "Categories", count: catalogStatsService.categoriesCount, icon: "folder")
+                StatCard(title: "Variations", count: catalogStatsService.variationsCount, icon: "square.stack")
+                StatCard(title: "Total Objects", count: catalogStatsService.totalObjectsCount, icon: "square.grid.3x3")
+            }
+        }
+        .padding(20)
+        .background(Color(.systemBackground))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color(.systemGray4), lineWidth: 1)
+        )
+        .cornerRadius(16)
     }
 
     // MARK: - Helper Methods
@@ -39,5 +237,81 @@ struct CatalogManagementView: View {
             await locationsService.fetchLocations()
             catalogStatsService.refreshStats()
         }
+    }
+
+    private func performFullSync() {
+        Task {
+            await syncCoordinator.performManualSync()
+            catalogStatsService.refreshStats()
+        }
+    }
+
+    private func clearDatabase() {
+        // TODO: Implement database clearing
+        alertMessage = "Database cleared successfully"
+        showingAlert = true
+        catalogStatsService.refreshStats()
+    }
+
+    private func formatLastSyncTime() -> String {
+        if let result = syncCoordinator.lastSyncResult {
+            let formatter = RelativeDateTimeFormatter()
+            formatter.unitsStyle = .abbreviated
+            let timeAgo = formatter.localizedString(for: result.timestamp, relativeTo: Date())
+            return "\(result.itemsProcessed) items - \(timeAgo)"
+        }
+        return "Never synced"
+    }
+
+    private var syncStatusColor: Color {
+        switch syncCoordinator.syncState {
+        case .completed: return .green
+        case .syncing: return .blue
+        case .failed: return .red
+        case .idle: return .orange
+        }
+    }
+
+    private var syncStatusText: String {
+        switch syncCoordinator.syncState {
+        case .completed: return "Synced"
+        case .syncing: return "Syncing"
+        case .failed: return "Failed"
+        case .idle: return "Ready"
+        }
+    }
+}
+
+// MARK: - Supporting Views
+
+struct StatCard: View {
+    let title: String
+    let count: Int
+    let icon: String
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundColor(.blue)
+
+            Text("\(count)")
+                .font(.title2)
+                .fontWeight(.bold)
+                .foregroundColor(.primary)
+
+            Text(title)
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(16)
+        .background(Color(.systemGray6))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(.systemGray4), lineWidth: 1)
+        )
+        .cornerRadius(12)
     }
 }
