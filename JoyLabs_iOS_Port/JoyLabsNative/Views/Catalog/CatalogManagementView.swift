@@ -168,13 +168,14 @@ struct CatalogManagementView: View {
                 Spacer()
             }
 
-            // Simple progress message - just display what's in the console
-            if !syncCoordinator.catalogSyncService.currentProgressMessage.isEmpty {
+            // Simple loading indicator
+            if syncCoordinator.catalogSyncService.syncState == .syncing {
                 HStack {
-                    Text(syncCoordinator.catalogSyncService.currentProgressMessage)
+                    ProgressView()
+                        .scaleEffect(0.8)
+                    Text("Syncing catalog...")
                         .font(.caption)
                         .foregroundColor(.secondary)
-                        .lineLimit(2)
 
                     Spacer()
                 }
