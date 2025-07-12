@@ -168,35 +168,15 @@ struct CatalogManagementView: View {
                 Spacer()
             }
 
-            // Progress information
-            VStack(spacing: 8) {
+            // Simple progress message - just display what's in the console
+            if !syncCoordinator.catalogSyncService.currentProgressMessage.isEmpty {
                 HStack {
-                    Text("\(syncCoordinator.catalogSyncService.syncProgress.syncedItems) items processed (\(syncCoordinator.catalogSyncService.syncProgress.syncedObjects) total objects)")
+                    Text(syncCoordinator.catalogSyncService.currentProgressMessage)
                         .font(.caption)
                         .foregroundColor(.secondary)
+                        .lineLimit(2)
 
                     Spacer()
-                }
-
-                if !syncCoordinator.catalogSyncService.syncProgress.currentObjectType.isEmpty {
-                    HStack {
-                        Text("Processing: \(syncCoordinator.catalogSyncService.syncProgress.currentObjectType)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-
-                        Spacer()
-                    }
-                }
-
-                if !syncCoordinator.catalogSyncService.syncProgress.currentObjectName.isEmpty {
-                    HStack {
-                        Text("Current: \(syncCoordinator.catalogSyncService.syncProgress.currentObjectName)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
-
-                        Spacer()
-                    }
                 }
             }
         }
