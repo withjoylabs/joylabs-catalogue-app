@@ -162,7 +162,7 @@ struct CatalogManagementView: View {
             // Progress information
             VStack(spacing: 8) {
                 HStack {
-                    Text("\(syncCoordinator.catalogSyncService.syncProgress.syncedObjects) objects processed")
+                    Text("\(syncCoordinator.catalogSyncService.syncProgress.syncedItems) items processed (\(syncCoordinator.catalogSyncService.syncProgress.syncedObjects) total objects)")
                         .font(.caption)
                         .foregroundColor(.secondary)
 
@@ -582,46 +582,11 @@ struct CatalogObjectRow: View {
     }
 }
 
-// MARK: - Placeholder Views for Navigation
-
-struct CategoriesListView: View {
-    var body: some View {
-        VStack {
-            Text("Categories List")
-                .font(.title2)
-                .padding()
-            Spacer()
-        }
-        .navigationTitle("Categories")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-}
-
-struct TaxesListView: View {
-    var body: some View {
-        VStack {
-            Text("Taxes List")
-                .font(.title2)
-                .padding()
-            Spacer()
-        }
-        .navigationTitle("Taxes")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-}
-
-struct ModifiersListView: View {
-    var body: some View {
-        VStack {
-            Text("Modifiers List")
-                .font(.title2)
-                .padding()
-            Spacer()
-        }
-        .navigationTitle("Modifiers")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-}
+// MARK: - Navigation Views
+// The actual list views are now in separate files:
+// - CategoriesListView.swift
+// - TaxesListView.swift
+// - ModifiersListView.swift
 
 #Preview {
     CatalogManagementView()

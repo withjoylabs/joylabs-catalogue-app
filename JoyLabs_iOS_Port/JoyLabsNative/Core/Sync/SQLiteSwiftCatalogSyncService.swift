@@ -164,17 +164,23 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
 
         logger.info("✅ Fetched \(catalogObjects.count) objects from Square API")
 
-        // Update progress
-        syncProgress.currentObjectName = "Ready to process \(catalogObjects.count) objects"
+        // Update progress with fetched data immediately
+        syncProgress.syncedObjects = catalogObjects.count
+        let itemCount = catalogObjects.filter { $0.type == "ITEM" }.count
+        syncProgress.syncedItems = itemCount
+        syncProgress.currentObjectType = "PROCESSING"
+        syncProgress.currentObjectName = "Ready to process \(catalogObjects.count) objects (\(itemCount) items)"
 
         return catalogObjects
     }
     
     private func processCatalogDataWithProgress(_ objects: [CatalogObject]) async throws {
-        syncProgress.syncedObjects = 0
-        syncProgress.syncedItems = 0
+        // Don't reset counters - keep the fetched count and update as we process
+        logger.info("🔄 Starting to process \(objects.count) objects into database...")
 
         logger.info("Processing \(objects.count) catalog objects...")
+
+        var processedItems = 0
 
         for (index, object) in objects.enumerated() {
             // Process images for this object before inserting
@@ -182,20 +188,20 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
 
             try databaseManager.insertCatalogObject(object)
 
-            // Update progress
-            syncProgress.syncedObjects = index + 1
-
-            // Count items specifically
+            // Count items specifically as we process them
             if object.type == "ITEM" {
-                syncProgress.syncedItems += 1
+                processedItems += 1
             }
 
+            // Update progress with processed counts
+            syncProgress.syncedObjects = index + 1
+            syncProgress.syncedItems = processedItems
             syncProgress.currentObjectType = object.type
             syncProgress.currentObjectName = extractObjectName(from: object)
 
             // Log progress every 1000 objects
             if index % 1000 == 0 && index > 0 {
-                logger.info("📊 Processed \(index) objects so far...")
+                logger.info("📊 Processed \(index) objects so far (\(processedItems) items)...")
             }
 
             // Small delay every 100 objects to allow UI updates
