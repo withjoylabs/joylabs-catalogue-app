@@ -24,6 +24,7 @@ class CatalogStatsService: ObservableObject {
     // MARK: - Dependencies
     
     private var databaseManager: SQLiteSwiftCatalogManager?
+    private var hasLoadedStats = false
     private let logger = Logger(subsystem: "com.joylabs.native", category: "CatalogStats")
     
     // MARK: - Computed Properties
@@ -48,8 +49,12 @@ class CatalogStatsService: ObservableObject {
 
     func setDatabaseManager(_ manager: SQLiteSwiftCatalogManager) {
         self.databaseManager = manager
-        Task {
-            await loadStats()
+
+        // Only load stats if we haven't loaded them before
+        if !hasLoadedStats {
+            Task {
+                await loadStats()
+            }
         }
     }
     
@@ -57,7 +62,10 @@ class CatalogStatsService: ObservableObject {
     
     func refreshStats() {
         guard !isLoading else { return }
-        
+
+        logger.debug("🔄 Manually refreshing stats...")
+        hasLoadedStats = false // Reset flag to allow refresh
+
         Task {
             await loadStats()
         }
@@ -98,11 +106,12 @@ class CatalogStatsService: ObservableObject {
                                    stats.modifiers + stats.modifierLists
 
             self.lastUpdated = Date()
+            self.hasLoadedStats = true
 
             if self.totalObjectsCount > 0 {
-                logger.info("✅ Stats loaded: \(self.totalObjectsCount) total objects (\(self.itemsCount) items)")
+                logger.debug("✅ Stats loaded: \(self.totalObjectsCount) total objects (\(self.itemsCount) items)")
             } else {
-                logger.info("📊 Stats loaded: Database appears empty (0 objects)")
+                logger.debug("📊 Stats loaded: Database appears empty (0 objects)")
             }
 
         } catch {

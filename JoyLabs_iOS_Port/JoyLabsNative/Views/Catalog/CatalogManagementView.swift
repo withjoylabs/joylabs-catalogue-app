@@ -10,6 +10,7 @@ struct CatalogManagementView: View {
     @State private var showingSyncConfirmation = false
     @State private var alertMessage = ""
     @State private var showingAlert = false
+    @State private var hasInitialized = false
 
     private let logger = Logger(subsystem: "com.joylabs.native", category: "CatalogManagement")
 
@@ -39,7 +40,10 @@ struct CatalogManagementView: View {
         .navigationBarTitleDisplayMode(.large)
         .background(Color(.systemGroupedBackground))
         .onAppear {
-            loadInitialData()
+            if !hasInitialized {
+                loadInitialData()
+                hasInitialized = true
+            }
         }
         .alert("Confirmation", isPresented: $showingSyncConfirmation) {
             Button("Cancel", role: .cancel) { }
@@ -388,20 +392,18 @@ struct CatalogManagementView: View {
     // MARK: - Helper Methods
 
     private func loadInitialData() {
-        // Set the database manager for stats service
+        logger.debug("📱 Initializing catalog management page...")
+
+        // Set the database manager for stats service (this triggers stats calculation)
         let databaseManager = syncCoordinator.catalogSyncService.sharedDatabaseManager
         catalogStatsService.setDatabaseManager(databaseManager)
 
-        // Debug database connection
-        logger.info("🔍 Database verification: \(catalogStatsService.verifyDatabaseConnection())")
-
-        // Investigate database contents thoroughly
-        logger.info("🔍 Database investigation:\n\(catalogStatsService.investigateDatabase())")
-
+        // Load locations in background
         Task {
             await locationsService.fetchLocations()
-            // Don't refresh stats again - setDatabaseManager already triggered it
         }
+
+        logger.debug("✅ Catalog management page initialized")
     }
 
     private func performFullSync() {
@@ -645,8 +647,10 @@ struct CategoriesListView: View {
         .navigationTitle("Categories")
         .navigationBarTitleDisplayMode(.large)
         .onAppear {
-            Task {
-                await viewModel.loadCategories()
+            if viewModel.categories.isEmpty && !viewModel.isLoading {
+                Task {
+                    await viewModel.loadCategories()
+                }
             }
         }
     }
@@ -827,8 +831,10 @@ struct TaxesListView: View {
         .navigationTitle("Taxes")
         .navigationBarTitleDisplayMode(.large)
         .onAppear {
-            Task {
-                await viewModel.loadTaxes()
+            if viewModel.taxes.isEmpty && !viewModel.isLoading {
+                Task {
+                    await viewModel.loadTaxes()
+                }
             }
         }
     }
@@ -1031,8 +1037,10 @@ struct ModifiersListView: View {
         .navigationTitle("Modifiers")
         .navigationBarTitleDisplayMode(.large)
         .onAppear {
-            Task {
-                await viewModel.loadModifiers()
+            if viewModel.modifiers.isEmpty && !viewModel.isLoading {
+                Task {
+                    await viewModel.loadModifiers()
+                }
             }
         }
     }
