@@ -212,32 +212,27 @@ class CatalogStatsService: ObservableObject {
             return "❌ No database connection"
         }
 
-        do {
-            let dbPath = databaseManager.getDatabasePath()
+        let dbPath = databaseManager.getDatabasePath()
 
-            // Check all tables and their row counts
-            let tables = ["catalog_items", "categories", "item_variations", "images", "taxes", "discounts"]
-            var report = "🔍 Database Investigation at \(dbPath):\n"
+        // Check all tables and their row counts
+        let tables = ["catalog_items", "categories", "item_variations", "images", "taxes", "discounts"]
+        var report = "🔍 Database Investigation at \(dbPath):\n"
 
-            for tableName in tables {
-                do {
-                    let totalRowsInt64 = try db.scalar("SELECT COUNT(*) FROM \(tableName)") as! Int64
-                    let totalRows = Int(totalRowsInt64)
+        for tableName in tables {
+            do {
+                let totalRowsInt64 = try db.scalar("SELECT COUNT(*) FROM \(tableName)") as! Int64
+                let totalRows = Int(totalRowsInt64)
 
-                    let nonDeletedInt64 = try db.scalar("SELECT COUNT(*) FROM \(tableName) WHERE is_deleted = 0") as! Int64
-                    let nonDeleted = Int(nonDeletedInt64)
+                let nonDeletedInt64 = try db.scalar("SELECT COUNT(*) FROM \(tableName) WHERE is_deleted = 0") as! Int64
+                let nonDeleted = Int(nonDeletedInt64)
 
-                    report += "  \(tableName): \(totalRows) total, \(nonDeleted) active\n"
-                } catch {
-                    report += "  \(tableName): ERROR - \(error.localizedDescription)\n"
-                }
+                report += "  \(tableName): \(totalRows) total, \(nonDeleted) active\n"
+            } catch {
+                report += "  \(tableName): ERROR - \(error.localizedDescription)\n"
             }
-
-            return report
-
-        } catch {
-            return "❌ Investigation failed: \(error.localizedDescription)"
         }
+
+        return report
     }
 
     // MARK: - Debug Methods

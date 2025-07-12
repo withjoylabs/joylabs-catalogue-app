@@ -122,35 +122,37 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
         syncState = .syncing
 
         // Run sync in detached task so it can't be interrupted by navigation
-        Task.detached { [weak self] in
+        Task.detached { @Sendable [weak self] in
             do {
-                guard let self = self else { return }
-                try await self.catalogSyncService.performSync(isManual: true)
+                guard let strongSelf = self else { return }
+                try await strongSelf.catalogSyncService.performSync(isManual: true)
 
-                await MainActor.run {
+                await MainActor.run { @Sendable in
+                    guard let strongSelf = self else { return }
                     let result = SyncResult(
                         syncType: .full,
                         duration: 0, // TODO: Track actual duration
-                        totalProcessed: self.catalogSyncService.syncProgress.syncedObjects,
-                        itemsProcessed: self.catalogSyncService.syncProgress.syncedItems,
-                        inserted: self.catalogSyncService.syncProgress.syncedObjects,
+                        totalProcessed: strongSelf.catalogSyncService.syncProgress.syncedObjects,
+                        itemsProcessed: strongSelf.catalogSyncService.syncProgress.syncedItems,
+                        inserted: strongSelf.catalogSyncService.syncProgress.syncedObjects,
                         updated: 0,
                         deleted: 0,
                         errors: [],
                         timestamp: Date()
                     )
 
-                    self.lastSyncResult = result
-                    self.saveLastSyncResult(result)
-                    self.syncState = .idle
-                    self.logger.info("Manual sync completed: \(result.summary)")
+                    strongSelf.lastSyncResult = result
+                    strongSelf.saveLastSyncResult(result)
+                    strongSelf.syncState = .idle
+                    strongSelf.logger.info("Manual sync completed: \(result.summary)")
                 }
 
             } catch {
-                await MainActor.run {
-                    self?.logger.error("Manual sync failed: \(error)")
-                    self?.error = error
-                    self?.syncState = .idle
+                await MainActor.run { @Sendable in
+                    guard let strongSelf = self else { return }
+                    strongSelf.logger.error("Manual sync failed: \(error)")
+                    strongSelf.error = error
+                    strongSelf.syncState = .idle
                 }
             }
         }
