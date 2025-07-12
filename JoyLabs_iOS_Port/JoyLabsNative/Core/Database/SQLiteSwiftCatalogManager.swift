@@ -187,6 +187,15 @@ class SQLiteSwiftCatalogManager {
         return dbPath
     }
 
+    func getItemCount() async throws -> Int {
+        guard let db = db else {
+            throw SQLiteSwiftError.noConnection
+        }
+
+        let countInt64 = try db.scalar(CatalogTableDefinitions.catalogItems.filter(Expression<Bool>("is_deleted") == false).count)
+        return Int(countInt64)
+    }
+
     func disconnect() {
         db = nil
         logger.info("SQLiteSwift database disconnected")

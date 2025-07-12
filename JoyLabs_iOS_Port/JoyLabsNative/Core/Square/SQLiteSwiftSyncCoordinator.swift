@@ -39,8 +39,39 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
         // Load last sync result from UserDefaults for persistence
         if let data = UserDefaults.standard.data(forKey: "lastSyncResult"),
            let result = try? JSONDecoder().decode(SyncResult.self, from: data) {
-            self.lastSyncResult = result
-            logger.info("Loaded previous sync result: \(result.totalProcessed) objects at \(result.timestamp)")
+
+            // Validate cache against actual database contents
+            Task {
+                await validateSyncResultCache(result)
+            }
+        }
+    }
+
+    private func validateSyncResultCache(_ cachedResult: SyncResult) async {
+        do {
+            // Get actual database counts
+            let actualItemCount = try await catalogSyncService.sharedDatabaseManager.getItemCount()
+
+            // Check if cached result matches reality
+            if cachedResult.totalProcessed > 0 && actualItemCount == 0 {
+                logger.warning("🚨 STALE CACHE DETECTED: Cached result shows \(cachedResult.totalProcessed) objects but database has 0 items")
+                logger.info("Clearing stale sync result cache")
+
+                // Clear the stale cache
+                UserDefaults.standard.removeObject(forKey: "lastSyncResult")
+                self.lastSyncResult = nil
+
+            } else {
+                // Cache appears valid
+                self.lastSyncResult = cachedResult
+                logger.info("Loaded previous sync result: \(cachedResult.totalProcessed) objects at \(cachedResult.timestamp)")
+            }
+
+        } catch {
+            logger.error("Failed to validate sync cache: \(error)")
+            // Keep the cached result if we can't validate
+            self.lastSyncResult = cachedResult
+            logger.info("Loaded previous sync result (unvalidated): \(cachedResult.totalProcessed) objects at \(cachedResult.timestamp)")
         }
     }
 

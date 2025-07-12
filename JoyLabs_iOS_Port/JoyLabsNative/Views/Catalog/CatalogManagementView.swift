@@ -400,7 +400,7 @@ struct CatalogManagementView: View {
 
         Task {
             await locationsService.fetchLocations()
-            catalogStatsService.refreshStats()
+            // Don't refresh stats again - setDatabaseManager already triggered it
         }
     }
 
