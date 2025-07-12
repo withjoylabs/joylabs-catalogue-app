@@ -192,7 +192,8 @@ class CatalogStatsService: ObservableObject {
 
         do {
             // Check if tables exist
-            let tableCount = try db.scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('catalog_items', 'categories', 'item_variations')") as! Int
+            let tableCountInt64 = try db.scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('catalog_items', 'categories', 'item_variations')") as! Int64
+            let tableCount = Int(tableCountInt64)
 
             if tableCount < 3 {
                 return "⚠️ Missing required tables (found \(tableCount)/3)"
