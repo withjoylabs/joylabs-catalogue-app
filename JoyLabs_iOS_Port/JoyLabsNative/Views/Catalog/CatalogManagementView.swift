@@ -1,6 +1,11 @@
 import SwiftUI
 import os.log
 
+// Notification for refreshing catalog data after sync
+extension Notification.Name {
+    static let catalogDataDidUpdate = Notification.Name("catalogDataDidUpdate")
+}
+
 struct CatalogManagementView: View {
     @StateObject private var syncCoordinator = SquareAPIServiceFactory.createSyncCoordinator()
     @StateObject private var locationsService = SquareLocationsService()
@@ -410,6 +415,10 @@ struct CatalogManagementView: View {
         Task {
             await syncCoordinator.performManualSync()
             catalogStatsService.refreshStats()
+
+            // Notify all catalog views to refresh their data
+            NotificationCenter.default.post(name: .catalogDataDidUpdate, object: nil)
+            logger.debug("📡 Posted catalog data update notification")
         }
     }
 
@@ -422,6 +431,9 @@ struct CatalogManagementView: View {
 
                 // Refresh stats to show 0 counts
                 catalogStatsService.refreshStats()
+
+                // Notify all catalog views to refresh their data
+                NotificationCenter.default.post(name: .catalogDataDidUpdate, object: nil)
             } catch {
                 alertMessage = "Failed to clear database: \(error.localizedDescription)"
                 logger.error("Failed to clear database: \(error)")
@@ -646,6 +658,14 @@ struct CategoriesListView: View {
         }
         .navigationTitle("Categories")
         .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("Refresh") {
+                    viewModel.refreshData()
+                }
+                .disabled(viewModel.isLoading)
+            }
+        }
         .onAppear {
             if viewModel.categories.isEmpty && !viewModel.isLoading {
                 Task {
@@ -745,6 +765,23 @@ class CategoriesViewModel: ObservableObject {
     private let logger = Logger(subsystem: "com.joylabs.native", category: "CategoriesViewModel")
     private let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
 
+    init() {
+        // Listen for catalog data updates
+        NotificationCenter.default.addObserver(
+            forName: .catalogDataDidUpdate,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.refreshData()
+            }
+        }
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
     func loadCategories() async {
         isLoading = true
         errorMessage = nil
@@ -780,6 +817,13 @@ class CategoriesViewModel: ObservableObject {
         }
 
         isLoading = false
+    }
+
+    func refreshData() {
+        logger.debug("🔄 Refreshing categories data...")
+        Task {
+            await loadCategories()
+        }
     }
 }
 
@@ -830,6 +874,14 @@ struct TaxesListView: View {
         }
         .navigationTitle("Taxes")
         .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("Refresh") {
+                    viewModel.refreshData()
+                }
+                .disabled(viewModel.isLoading)
+            }
+        }
         .onAppear {
             if viewModel.taxes.isEmpty && !viewModel.isLoading {
                 Task {
@@ -948,6 +1000,23 @@ class TaxesViewModel: ObservableObject {
     private let logger = Logger(subsystem: "com.joylabs.native", category: "TaxesViewModel")
     private let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
 
+    init() {
+        // Listen for catalog data updates
+        NotificationCenter.default.addObserver(
+            forName: .catalogDataDidUpdate,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.refreshData()
+            }
+        }
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
     func loadTaxes() async {
         isLoading = true
         errorMessage = nil
@@ -986,6 +1055,13 @@ class TaxesViewModel: ObservableObject {
         }
 
         isLoading = false
+    }
+
+    func refreshData() {
+        logger.debug("🔄 Refreshing taxes data...")
+        Task {
+            await loadTaxes()
+        }
     }
 }
 
@@ -1036,6 +1112,14 @@ struct ModifiersListView: View {
         }
         .navigationTitle("Modifiers")
         .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("Refresh") {
+                    viewModel.refreshData()
+                }
+                .disabled(viewModel.isLoading)
+            }
+        }
         .onAppear {
             if viewModel.modifiers.isEmpty && !viewModel.isLoading {
                 Task {
@@ -1147,6 +1231,23 @@ class ModifiersViewModel: ObservableObject {
     private let logger = Logger(subsystem: "com.joylabs.native", category: "ModifiersViewModel")
     private let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
 
+    init() {
+        // Listen for catalog data updates
+        NotificationCenter.default.addObserver(
+            forName: .catalogDataDidUpdate,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.refreshData()
+            }
+        }
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
     func loadModifiers() async {
         isLoading = true
         errorMessage = nil
@@ -1185,6 +1286,13 @@ class ModifiersViewModel: ObservableObject {
         }
 
         isLoading = false
+    }
+
+    func refreshData() {
+        logger.debug("🔄 Refreshing modifiers data...")
+        Task {
+            await loadModifiers()
+        }
     }
 }
 
