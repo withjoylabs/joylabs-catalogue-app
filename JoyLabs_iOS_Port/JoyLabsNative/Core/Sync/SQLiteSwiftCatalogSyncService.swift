@@ -78,9 +78,15 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
         do {
             logger.info("Starting catalog sync with SQLite.swift - manual: \(isManual)")
 
-            // Initialize progress tracking
+            // Initialize progress tracking - RESET TO ZERO
             syncProgress = SyncProgress()
             syncProgress.startTime = Date()
+            syncProgress.syncedObjects = 0
+            syncProgress.syncedItems = 0
+            syncProgress.currentObjectType = "INITIALIZING"
+            syncProgress.currentObjectName = "Starting sync..."
+
+            logger.info("🔄 Progress initialized: \(self.syncProgress.syncedItems) items, \(self.syncProgress.syncedObjects) objects")
 
             // Start UI update timer (every 1 second)
             startProgressUpdateTimer()
@@ -173,12 +179,18 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
     }
     
     private func processCatalogDataWithProgress(_ objects: [CatalogObject]) async throws {
-        // Don't reset counters - keep the fetched count and update as we process
         logger.info("🔄 Starting to process \(objects.count) objects into database...")
 
-        logger.info("Processing \(objects.count) catalog objects...")
+        // RESET PROGRESS TO ZERO AT START OF PROCESSING
+        syncProgress.syncedObjects = 0
+        syncProgress.syncedItems = 0
+        syncProgress.currentObjectType = "PROCESSING"
+        syncProgress.currentObjectName = "Starting to process objects..."
+
+        logger.info("📊 PROGRESS RESET: \(self.syncProgress.syncedItems) items, \(self.syncProgress.syncedObjects) objects")
 
         var processedItems = 0
+        let totalObjects = objects.count
 
         for (index, object) in objects.enumerated() {
             // Process images for this object before inserting
@@ -191,22 +203,28 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
                 processedItems += 1
             }
 
-            // Update progress with processed counts
-            syncProgress.syncedObjects = index + 1
+            // Update progress with processed counts - FORCE UI UPDATE
+            let currentObjectCount = index + 1
+            syncProgress.syncedObjects = currentObjectCount
             syncProgress.syncedItems = processedItems
             syncProgress.currentObjectType = object.type
             syncProgress.currentObjectName = extractObjectName(from: object)
 
-            // Log progress every 1000 objects
-            if index % 1000 == 0 && index > 0 {
-                logger.info("📊 Processed \(index) objects so far (\(processedItems) items)...")
+            // FORCE OBJECTWILLCHANGE TO FIRE
+            objectWillChange.send()
+
+            // Log progress every 500 objects to see what's happening
+            if index % 500 == 0 {
+                logger.info("📊 PROGRESS UPDATE: \(processedItems) items, \(currentObjectCount)/\(totalObjects) objects")
             }
 
-            // Small delay every 100 objects to allow UI updates
-            if index % 100 == 0 {
-                try await Task.sleep(nanoseconds: 1_000_000) // 1ms to allow UI updates
+            // Small delay every 50 objects to allow UI updates
+            if index % 50 == 0 {
+                try await Task.sleep(nanoseconds: 5_000_000) // 5ms to allow UI updates
             }
         }
+
+        logger.info("✅ FINAL PROGRESS: \(processedItems) items, \(objects.count) objects processed")
 
         logger.info("✅ Processed all \(objects.count) catalog objects")
     }
