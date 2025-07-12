@@ -167,6 +167,9 @@ class SquareAPIService: ObservableObject {
     private let oauthService: SquareOAuthService
     private let resilienceService: any ResilienceService
     private let logger = Logger(subsystem: "com.joylabs.native", category: "SquareAPIService")
+
+    // MARK: - State Management
+    private var isCheckingAuthentication = false
     
     // MARK: - Initialization
 
@@ -280,23 +283,32 @@ class SquareAPIService: ObservableObject {
 
     /// Check for cached authentication credentials
     private func checkCachedAuthentication() async {
-        logger.info("Checking cached authentication")
+        logger.debug("Checking cached authentication")
 
         do {
             _ = try await tokenService.getCurrentTokenData()
             authenticationState = .authenticated
             isAuthenticated = true
-            logger.info("Found valid cached authentication")
+            logger.debug("Found valid cached authentication")
         } catch {
             logger.error("Error checking cached authentication: \(error.localizedDescription)")
             authenticationState = .unauthenticated
             isAuthenticated = false
-            logger.info("No valid cached authentication found")
+            logger.debug("No valid cached authentication found")
         }
     }
 
     /// Public method to check authentication state
     func checkAuthenticationState() async {
+        // Prevent duplicate simultaneous authentication checks
+        guard !isCheckingAuthentication else {
+            logger.debug("Authentication check already in progress, skipping")
+            return
+        }
+
+        isCheckingAuthentication = true
+        defer { isCheckingAuthentication = false }
+
         await checkCachedAuthentication()
     }
     

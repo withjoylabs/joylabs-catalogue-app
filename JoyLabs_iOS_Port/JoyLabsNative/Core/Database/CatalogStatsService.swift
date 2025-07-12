@@ -126,27 +126,33 @@ class CatalogStatsService: ObservableObject {
         
         // Count items (not deleted)
         let itemsTable = Table("catalog_items")
-        let itemsCount = try db.scalar(itemsTable.filter(Expression<Bool>("is_deleted") == false).count)
-        
+        let itemsCountInt64 = try db.scalar(itemsTable.filter(Expression<Bool>("is_deleted") == false).count)
+        let itemsCount = Int(itemsCountInt64)
+
         // Count categories (not deleted)
         let categoriesTable = Table("categories")
-        let categoriesCount = try db.scalar(categoriesTable.filter(Expression<Bool>("is_deleted") == false).count)
-        
+        let categoriesCountInt64 = try db.scalar(categoriesTable.filter(Expression<Bool>("is_deleted") == false).count)
+        let categoriesCount = Int(categoriesCountInt64)
+
         // Count variations (not deleted)
         let variationsTable = Table("item_variations")
-        let variationsCount = try db.scalar(variationsTable.filter(Expression<Bool>("is_deleted") == false).count)
-        
+        let variationsCountInt64 = try db.scalar(variationsTable.filter(Expression<Bool>("is_deleted") == false).count)
+        let variationsCount = Int(variationsCountInt64)
+
         // Count images (not deleted)
         let imagesTable = Table("images")
-        let imagesCount = try db.scalar(imagesTable.filter(Expression<Bool>("is_deleted") == false).count)
-        
+        let imagesCountInt64 = try db.scalar(imagesTable.filter(Expression<Bool>("is_deleted") == false).count)
+        let imagesCount = Int(imagesCountInt64)
+
         // Count taxes (not deleted)
         let taxesTable = Table("taxes")
-        let taxesCount = try db.scalar(taxesTable.filter(Expression<Bool>("is_deleted") == false).count)
-        
+        let taxesCountInt64 = try db.scalar(taxesTable.filter(Expression<Bool>("is_deleted") == false).count)
+        let taxesCount = Int(taxesCountInt64)
+
         // Count discounts (not deleted)
         let discountsTable = Table("discounts")
-        let discountsCount = try db.scalar(discountsTable.filter(Expression<Bool>("is_deleted") == false).count)
+        let discountsCountInt64 = try db.scalar(discountsTable.filter(Expression<Bool>("is_deleted") == false).count)
+        let discountsCount = Int(discountsCountInt64)
         
         // Count modifiers (not deleted) - if table exists
         var modifiersCount = 0
@@ -155,14 +161,16 @@ class CatalogStatsService: ObservableObject {
         // These tables might not exist yet, so handle gracefully
         do {
             let modifiersTable = Table("modifiers")
-            modifiersCount = try db.scalar(modifiersTable.filter(Expression<Bool>("is_deleted") == false).count)
+            let modifiersCountInt64 = try db.scalar(modifiersTable.filter(Expression<Bool>("is_deleted") == false).count)
+            modifiersCount = Int(modifiersCountInt64)
         } catch {
             // Table doesn't exist yet, that's okay
         }
-        
+
         do {
             let modifierListsTable = Table("modifier_lists")
-            modifierListsCount = try db.scalar(modifierListsTable.filter(Expression<Bool>("is_deleted") == false).count)
+            let modifierListsCountInt64 = try db.scalar(modifierListsTable.filter(Expression<Bool>("is_deleted") == false).count)
+            modifierListsCount = Int(modifierListsCountInt64)
         } catch {
             // Table doesn't exist yet, that's okay
         }
@@ -200,7 +208,8 @@ class CatalogStatsService: ObservableObject {
             }
 
             // Quick count check
-            let itemCount = try db.scalar(CatalogTableDefinitions.catalogItems.count)
+            let itemCountInt64 = try db.scalar(CatalogTableDefinitions.catalogItems.count)
+            let itemCount = Int(itemCountInt64)
             return "✅ Database connected - \(itemCount) items in catalog_items table"
 
         } catch {
