@@ -582,11 +582,76 @@ struct CatalogObjectRow: View {
     }
 }
 
-// MARK: - Navigation Views
-// The actual list views are now in separate files:
-// - CategoriesListView.swift
-// - TaxesListView.swift
-// - ModifiersListView.swift
+// MARK: - Placeholder Views for Navigation
+
+struct CategoriesListView: View {
+    var body: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "folder.fill")
+                .font(.system(size: 48))
+                .foregroundColor(.orange)
+
+            Text("Categories")
+                .font(.title2)
+                .fontWeight(.semibold)
+
+            Text("Categories list will be implemented here")
+                .font(.body)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .navigationTitle("Categories")
+        .navigationBarTitleDisplayMode(.large)
+    }
+}
+
+struct TaxesListView: View {
+    var body: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "percent")
+                .font(.system(size: 48))
+                .foregroundColor(.green)
+
+            Text("Taxes")
+                .font(.title2)
+                .fontWeight(.semibold)
+
+            Text("Tax configurations will be shown here")
+                .font(.body)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .navigationTitle("Taxes")
+        .navigationBarTitleDisplayMode(.large)
+    }
+}
+
+struct ModifiersListView: View {
+    var body: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "slider.horizontal.3")
+                .font(.system(size: 48))
+                .foregroundColor(.purple)
+
+            Text("Modifiers")
+                .font(.title2)
+                .fontWeight(.semibold)
+
+            Text("Modifiers will be displayed here")
+                .font(.body)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .navigationTitle("Modifiers")
+        .navigationBarTitleDisplayMode(.large)
+    }
+}
 
 #Preview {
     CatalogManagementView()
