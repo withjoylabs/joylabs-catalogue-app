@@ -414,6 +414,13 @@ class SquareAPIService: ObservableObject {
             if let objects = response.objects {
                 allObjects.append(contentsOf: objects)
                 logger.debug("Fetched \(objects.count) objects in this page, total: \(allObjects.count)")
+
+                // Post notification with progress for UI
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("SquareAPIProgress"),
+                    object: nil,
+                    userInfo: ["message": "Fetched \(objects.count) objects in this page, total: \(allObjects.count)"]
+                )
             }
 
             cursor = response.cursor

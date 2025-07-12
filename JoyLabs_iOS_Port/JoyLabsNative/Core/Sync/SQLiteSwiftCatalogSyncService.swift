@@ -39,10 +39,27 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
         self.squareAPIService = squareAPIService
         self.databaseManager = SquareAPIServiceFactory.createDatabaseManager()
 
+        // Listen for Square API progress updates
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("SquareAPIProgress"),
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            if let message = notification.userInfo?["message"] as? String {
+                Task { @MainActor in
+                    self?.currentProgressMessage = message
+                }
+            }
+        }
+
         // Initialize database connection
         Task {
             await initializeDatabaseConnection()
         }
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 
     // MARK: - Database Initialization
@@ -209,8 +226,8 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
             syncProgress.syncedObjects = currentObjectCount
             syncProgress.syncedItems = processedItems
 
-            // Update the progress message that UI will display
-            currentProgressMessage = "Processing: \(processedItems) items processed (\(currentObjectCount) of \(totalObjects) objects)"
+            // Update the progress message that UI will display - just show the fucking count
+            currentProgressMessage = "Processed \(processedItems) items (\(currentObjectCount) total objects)"
 
             // Log progress every 500 objects to see what's happening
             if index % 500 == 0 {
