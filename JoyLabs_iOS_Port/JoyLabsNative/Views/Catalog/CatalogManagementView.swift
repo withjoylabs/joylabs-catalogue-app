@@ -88,7 +88,7 @@ struct CatalogManagementView: View {
             // Sync Status Card
             syncStatusCard
 
-            // Full Sync Button
+            // Full Sync Button with loading state
             Button(action: {
                 if catalogStatsService.hasData {
                     showingSyncConfirmation = true
@@ -97,23 +97,26 @@ struct CatalogManagementView: View {
                 }
             }) {
                 HStack(spacing: 8) {
-                    Image(systemName: "arrow.clockwise.circle.fill")
-                        .font(.title3)
-                    Text("Full Catalog Sync")
-                        .fontWeight(.semibold)
+                    if syncCoordinator.syncState == .syncing {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        Text("Syncing catalog...")
+                            .fontWeight(.semibold)
+                    } else {
+                        Image(systemName: "arrow.clockwise.circle.fill")
+                            .font(.title3)
+                        Text("Full Catalog Sync")
+                            .fontWeight(.semibold)
+                    }
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
-                .background(Color.blue)
+                .background(syncCoordinator.syncState == .syncing ? Color.gray : Color.blue)
                 .foregroundColor(.white)
                 .cornerRadius(12)
             }
             .disabled(syncCoordinator.syncState == .syncing)
-
-            // Progress view when syncing
-            if syncCoordinator.syncState == .syncing {
-                syncProgressView
-            }
         }
         .padding()
         .background(Color(.systemGray6))
@@ -157,38 +160,7 @@ struct CatalogManagementView: View {
             .cornerRadius(8)
     }
 
-    private var syncProgressView: some View {
-        VStack(spacing: 12) {
-            HStack {
-                Text("Syncing catalog data...")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundColor(.blue)
 
-                Spacer()
-            }
-
-            // Simple loading indicator
-            if syncCoordinator.catalogSyncService.syncState == .syncing {
-                HStack {
-                    ProgressView()
-                        .scaleEffect(0.8)
-                    Text("Syncing catalog...")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    Spacer()
-                }
-            }
-        }
-        .padding(16)
-        .background(Color(.systemGray6))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color(.systemGray4), lineWidth: 1)
-        )
-        .cornerRadius(12)
-    }
 
     // MARK: - Statistics Section
 
