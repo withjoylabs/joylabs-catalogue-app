@@ -561,7 +561,7 @@ struct CatalogObjectRow: View {
                     .fontWeight(.medium)
                     .foregroundColor(.primary)
 
-                Text("\(count) items")
+                Text("\(count) \(getCountLabel())")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -580,76 +580,603 @@ struct CatalogObjectRow: View {
         )
         .cornerRadius(12)
     }
+
+    private func getCountLabel() -> String {
+        switch title.lowercased() {
+        case "categories":
+            return count == 1 ? "category" : "categories"
+        case "taxes":
+            return count == 1 ? "tax" : "taxes"
+        case "modifiers":
+            return count == 1 ? "modifier" : "modifiers"
+        default:
+            return count == 1 ? "item" : "items"
+        }
+    }
 }
 
 // MARK: - Placeholder Views for Navigation
 
 struct CategoriesListView: View {
+    @StateObject private var viewModel = CategoriesViewModel()
+    @State private var searchText = ""
+
     var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "folder.fill")
-                .font(.system(size: 48))
-                .foregroundColor(.orange)
+        VStack(spacing: 0) {
+            // Search bar
+            HStack {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.secondary)
 
-            Text("Categories")
-                .font(.title2)
-                .fontWeight(.semibold)
+                TextField("Search categories...", text: $searchText)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+            }
+            .padding(.horizontal)
+            .padding(.top, 8)
 
-            Text("Categories list will be implemented here")
-                .font(.body)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
+            if viewModel.isLoading {
+                ProgressView("Loading categories...")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if viewModel.categories.isEmpty {
+                VStack(spacing: 16) {
+                    Image(systemName: "folder.fill")
+                        .font(.system(size: 48))
+                        .foregroundColor(.secondary)
+
+                    Text("No Categories")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+
+                    Text("No categories found in the catalog.")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List(filteredCategories, id: \.id) { category in
+                    CategoryRowView(category: category)
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                }
+                .listStyle(PlainListStyle())
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .navigationTitle("Categories")
         .navigationBarTitleDisplayMode(.large)
+        .onAppear {
+            Task {
+                await viewModel.loadCategories()
+            }
+        }
+    }
+
+    private var filteredCategories: [CategoryDisplayData] {
+        if searchText.isEmpty {
+            return viewModel.categories
+        } else {
+            return viewModel.categories.filter { category in
+                category.name.localizedCaseInsensitiveContains(searchText)
+            }
+        }
+    }
+}
+
+struct CategoryRowView: View {
+    let category: CategoryDisplayData
+
+    var body: some View {
+        HStack(spacing: 12) {
+            // Category icon
+            Image(systemName: "folder.fill")
+                .foregroundColor(.orange)
+                .font(.title2)
+                .frame(width: 32, height: 32)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(category.name)
+                    .font(.headline)
+                    .foregroundColor(.primary)
+
+                if category.isDeleted {
+                    Text("DELETED")
+                        .font(.caption)
+                        .foregroundColor(.red)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.red.opacity(0.1))
+                        .cornerRadius(4)
+                } else {
+                    Text("Active Category")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Text("Updated: \(formatDate(category.updatedAt))")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: 4) {
+                Text("v\(category.version)")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.gray.opacity(0.2))
+                    .cornerRadius(4)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func formatDate(_ dateString: String) -> String {
+        let formatter = ISO8601DateFormatter()
+        if let date = formatter.date(from: dateString) {
+            let displayFormatter = DateFormatter()
+            displayFormatter.dateStyle = .short
+            displayFormatter.timeStyle = .short
+            return displayFormatter.string(from: date)
+        }
+        return dateString
+    }
+}
+
+struct CategoryDisplayData {
+    let id: String
+    let name: String
+    let isDeleted: Bool
+    let updatedAt: String
+    let version: String
+}
+
+@MainActor
+class CategoriesViewModel: ObservableObject {
+    @Published var categories: [CategoryDisplayData] = []
+    @Published var isLoading = false
+    @Published var errorMessage: String?
+
+    private let logger = Logger(subsystem: "com.joylabs.native", category: "CategoriesViewModel")
+    private let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
+
+    func loadCategories() async {
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            try databaseManager.connect()
+            guard let db = databaseManager.getConnection() else {
+                throw NSError(domain: "Database", code: 1, userInfo: [NSLocalizedDescriptionKey: "No database connection"])
+            }
+
+            let rows = try db.prepare(CatalogTableDefinitions.categories.order(CatalogTableDefinitions.categoryName.asc))
+
+            var loadedCategories: [CategoryDisplayData] = []
+
+            for row in rows {
+                let category = CategoryDisplayData(
+                    id: row[CatalogTableDefinitions.categoryId],
+                    name: row[CatalogTableDefinitions.categoryName] ?? "Unknown Category",
+                    isDeleted: row[CatalogTableDefinitions.categoryIsDeleted],
+                    updatedAt: row[CatalogTableDefinitions.categoryUpdatedAt],
+                    version: row[CatalogTableDefinitions.categoryVersion]
+                )
+
+                loadedCategories.append(category)
+            }
+
+            self.categories = loadedCategories
+            logger.info("Loaded \(loadedCategories.count) categories")
+
+        } catch {
+            logger.error("Failed to load categories: \(error)")
+            errorMessage = error.localizedDescription
+        }
+
+        isLoading = false
     }
 }
 
 struct TaxesListView: View {
+    @StateObject private var viewModel = TaxesViewModel()
+    @State private var searchText = ""
+
     var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "percent")
-                .font(.system(size: 48))
-                .foregroundColor(.green)
+        VStack(spacing: 0) {
+            // Search bar
+            HStack {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.secondary)
 
-            Text("Taxes")
-                .font(.title2)
-                .fontWeight(.semibold)
+                TextField("Search taxes...", text: $searchText)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+            }
+            .padding(.horizontal)
+            .padding(.top, 8)
 
-            Text("Tax configurations will be shown here")
-                .font(.body)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
+            if viewModel.isLoading {
+                ProgressView("Loading taxes...")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if viewModel.taxes.isEmpty {
+                VStack(spacing: 16) {
+                    Image(systemName: "percent")
+                        .font(.system(size: 48))
+                        .foregroundColor(.secondary)
+
+                    Text("No Taxes")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+
+                    Text("No tax configurations found.")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List(filteredTaxes, id: \.id) { tax in
+                    TaxRowView(tax: tax)
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                }
+                .listStyle(PlainListStyle())
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .navigationTitle("Taxes")
         .navigationBarTitleDisplayMode(.large)
+        .onAppear {
+            Task {
+                await viewModel.loadTaxes()
+            }
+        }
+    }
+
+    private var filteredTaxes: [TaxDisplayData] {
+        if searchText.isEmpty {
+            return viewModel.taxes
+        } else {
+            return viewModel.taxes.filter { tax in
+                tax.name.localizedCaseInsensitiveContains(searchText)
+            }
+        }
+    }
+}
+
+struct TaxRowView: View {
+    let tax: TaxDisplayData
+
+    var body: some View {
+        HStack(spacing: 12) {
+            // Tax icon
+            Image(systemName: "percent")
+                .foregroundColor(.green)
+                .font(.title2)
+                .frame(width: 32, height: 32)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(tax.name)
+                    .font(.headline)
+                    .foregroundColor(.primary)
+
+                if let percentage = tax.percentage {
+                    Text("\(percentage)% tax rate")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+
+                if let calculationPhase = tax.calculationPhase {
+                    Text("Phase: \(calculationPhase)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Text("Updated: \(formatDate(tax.updatedAt))")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: 4) {
+                Text("v\(tax.version)")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.gray.opacity(0.2))
+                    .cornerRadius(4)
+
+                if tax.isDeleted {
+                    Text("DELETED")
+                        .font(.caption2)
+                        .foregroundColor(.red)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.red.opacity(0.1))
+                        .cornerRadius(4)
+                } else if tax.enabled == true {
+                    Text("ACTIVE")
+                        .font(.caption2)
+                        .foregroundColor(.green)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.green.opacity(0.1))
+                        .cornerRadius(4)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func formatDate(_ dateString: String) -> String {
+        let formatter = ISO8601DateFormatter()
+        if let date = formatter.date(from: dateString) {
+            let displayFormatter = DateFormatter()
+            displayFormatter.dateStyle = .short
+            displayFormatter.timeStyle = .short
+            return displayFormatter.string(from: date)
+        }
+        return dateString
+    }
+}
+
+struct TaxDisplayData {
+    let id: String
+    let name: String
+    let isDeleted: Bool
+    let updatedAt: String
+    let version: String
+    let calculationPhase: String?
+    let percentage: String?
+    let enabled: Bool?
+}
+
+@MainActor
+class TaxesViewModel: ObservableObject {
+    @Published var taxes: [TaxDisplayData] = []
+    @Published var isLoading = false
+    @Published var errorMessage: String?
+
+    private let logger = Logger(subsystem: "com.joylabs.native", category: "TaxesViewModel")
+    private let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
+
+    func loadTaxes() async {
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            try databaseManager.connect()
+            guard let db = databaseManager.getConnection() else {
+                throw NSError(domain: "Database", code: 1, userInfo: [NSLocalizedDescriptionKey: "No database connection"])
+            }
+
+            let rows = try db.prepare(CatalogTableDefinitions.taxes.order(CatalogTableDefinitions.taxName.asc))
+
+            var loadedTaxes: [TaxDisplayData] = []
+
+            for row in rows {
+                let tax = TaxDisplayData(
+                    id: row[CatalogTableDefinitions.taxId],
+                    name: row[CatalogTableDefinitions.taxName] ?? "Unknown Tax",
+                    isDeleted: row[CatalogTableDefinitions.taxIsDeleted],
+                    updatedAt: row[CatalogTableDefinitions.taxUpdatedAt],
+                    version: row[CatalogTableDefinitions.taxVersion],
+                    calculationPhase: row[CatalogTableDefinitions.taxCalculationPhase],
+                    percentage: row[CatalogTableDefinitions.taxPercentage],
+                    enabled: row[CatalogTableDefinitions.taxEnabled]
+                )
+
+                loadedTaxes.append(tax)
+            }
+
+            self.taxes = loadedTaxes
+            logger.info("Loaded \(loadedTaxes.count) taxes")
+
+        } catch {
+            logger.error("Failed to load taxes: \(error)")
+            errorMessage = error.localizedDescription
+        }
+
+        isLoading = false
     }
 }
 
 struct ModifiersListView: View {
+    @StateObject private var viewModel = ModifiersViewModel()
+    @State private var searchText = ""
+
     var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "slider.horizontal.3")
-                .font(.system(size: 48))
-                .foregroundColor(.purple)
+        VStack(spacing: 0) {
+            // Search bar
+            HStack {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.secondary)
 
-            Text("Modifiers")
-                .font(.title2)
-                .fontWeight(.semibold)
+                TextField("Search modifiers...", text: $searchText)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+            }
+            .padding(.horizontal)
+            .padding(.top, 8)
 
-            Text("Modifiers will be displayed here")
-                .font(.body)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
+            if viewModel.isLoading {
+                ProgressView("Loading modifiers...")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if viewModel.modifiers.isEmpty {
+                VStack(spacing: 16) {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 48))
+                        .foregroundColor(.secondary)
+
+                    Text("No Modifiers")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+
+                    Text("No modifiers found in the catalog.")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List(filteredModifiers, id: \.id) { modifier in
+                    ModifierRowView(modifier: modifier)
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                }
+                .listStyle(PlainListStyle())
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .navigationTitle("Modifiers")
         .navigationBarTitleDisplayMode(.large)
+        .onAppear {
+            Task {
+                await viewModel.loadModifiers()
+            }
+        }
+    }
+
+    private var filteredModifiers: [ModifierDisplayData] {
+        if searchText.isEmpty {
+            return viewModel.modifiers
+        } else {
+            return viewModel.modifiers.filter { modifier in
+                modifier.name.localizedCaseInsensitiveContains(searchText)
+            }
+        }
+    }
+}
+
+struct ModifierRowView: View {
+    let modifier: ModifierDisplayData
+
+    var body: some View {
+        HStack(spacing: 12) {
+            // Modifier icon
+            Image(systemName: "slider.horizontal.3")
+                .foregroundColor(.purple)
+                .font(.title2)
+                .frame(width: 32, height: 32)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(modifier.name)
+                    .font(.headline)
+                    .foregroundColor(.primary)
+
+                if let priceAmount = modifier.priceAmount, let currency = modifier.priceCurrency {
+                    let price = Double(priceAmount) / 100.0 // Convert cents to dollars
+                    Text("\(currency) \(price, specifier: "%.2f")")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+
+                if modifier.onByDefault == true {
+                    Text("Default selection")
+                        .font(.caption)
+                        .foregroundColor(.blue)
+                }
+
+                Text("Updated: \(formatDate(modifier.updatedAt))")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: 4) {
+                Text("v\(modifier.version)")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.gray.opacity(0.2))
+                    .cornerRadius(4)
+
+                if modifier.isDeleted {
+                    Text("DELETED")
+                        .font(.caption2)
+                        .foregroundColor(.red)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.red.opacity(0.1))
+                        .cornerRadius(4)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func formatDate(_ dateString: String) -> String {
+        let formatter = ISO8601DateFormatter()
+        if let date = formatter.date(from: dateString) {
+            let displayFormatter = DateFormatter()
+            displayFormatter.dateStyle = .short
+            displayFormatter.timeStyle = .short
+            return displayFormatter.string(from: date)
+        }
+        return dateString
+    }
+}
+
+struct ModifierDisplayData {
+    let id: String
+    let name: String
+    let isDeleted: Bool
+    let updatedAt: String
+    let version: String
+    let priceAmount: Int64?
+    let priceCurrency: String?
+    let onByDefault: Bool?
+}
+
+@MainActor
+class ModifiersViewModel: ObservableObject {
+    @Published var modifiers: [ModifierDisplayData] = []
+    @Published var isLoading = false
+    @Published var errorMessage: String?
+
+    private let logger = Logger(subsystem: "com.joylabs.native", category: "ModifiersViewModel")
+    private let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
+
+    func loadModifiers() async {
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            try databaseManager.connect()
+            guard let db = databaseManager.getConnection() else {
+                throw NSError(domain: "Database", code: 1, userInfo: [NSLocalizedDescriptionKey: "No database connection"])
+            }
+
+            let rows = try db.prepare(CatalogTableDefinitions.modifiers.order(CatalogTableDefinitions.modifierName.asc))
+
+            var loadedModifiers: [ModifierDisplayData] = []
+
+            for row in rows {
+                let modifier = ModifierDisplayData(
+                    id: row[CatalogTableDefinitions.modifierId],
+                    name: row[CatalogTableDefinitions.modifierName] ?? "Unknown Modifier",
+                    isDeleted: row[CatalogTableDefinitions.modifierIsDeleted],
+                    updatedAt: row[CatalogTableDefinitions.modifierUpdatedAt],
+                    version: row[CatalogTableDefinitions.modifierVersion],
+                    priceAmount: row[CatalogTableDefinitions.modifierPriceAmount],
+                    priceCurrency: row[CatalogTableDefinitions.modifierPriceCurrency],
+                    onByDefault: row[CatalogTableDefinitions.modifierOnByDefault]
+                )
+
+                loadedModifiers.append(modifier)
+            }
+
+            self.modifiers = loadedModifiers
+            logger.info("Loaded \(loadedModifiers.count) modifiers")
+
+        } catch {
+            logger.error("Failed to load modifiers: \(error)")
+            errorMessage = error.localizedDescription
+        }
+
+        isLoading = false
     }
 }
 

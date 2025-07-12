@@ -164,10 +164,8 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
 
         logger.info("✅ Fetched \(catalogObjects.count) objects from Square API")
 
-        // Update progress with fetched data immediately
-        syncProgress.syncedObjects = catalogObjects.count
+        // Don't set the final counts here - let processing update them incrementally
         let itemCount = catalogObjects.filter { $0.type == "ITEM" }.count
-        syncProgress.syncedItems = itemCount
         syncProgress.currentObjectType = "PROCESSING"
         syncProgress.currentObjectName = "Ready to process \(catalogObjects.count) objects (\(itemCount) items)"
 
