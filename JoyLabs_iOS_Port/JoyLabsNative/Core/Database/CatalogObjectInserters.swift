@@ -19,15 +19,15 @@ class CatalogObjectInserters {
         let imageUrl = categoryData.imageUrl
 
         // Encode category data as JSON for full preservation
-        let categoryDataJson = try encodeJSON(categoryData)
+        let categoryDataJson = encodeJSON(categoryData)
 
         let insert = CatalogTableDefinitions.categories.insert(or: .replace,
             CatalogTableDefinitions.categoryId <- object.id,
             CatalogTableDefinitions.categoryName <- categoryName,
             CatalogTableDefinitions.categoryImageUrl <- imageUrl,
-            CatalogTableDefinitions.categoryIsDeleted <- (object.isDeleted ?? false),
+            CatalogTableDefinitions.categoryIsDeleted <- object.isDeleted,
             CatalogTableDefinitions.categoryUpdatedAt <- timestamp,
-            CatalogTableDefinitions.categoryVersion <- String(object.version ?? 1),
+            CatalogTableDefinitions.categoryVersion <- String(object.version),
             CatalogTableDefinitions.categoryDataJson <- categoryDataJson
         )
 
@@ -51,7 +51,7 @@ class CatalogObjectInserters {
         let enabled = taxData.enabled
 
         // Encode tax data as JSON for full preservation
-        let taxDataJson = try encodeJSON(taxData)
+        let taxDataJson = encodeJSON(taxData)
 
         let insert = CatalogTableDefinitions.taxes.insert(or: .replace,
             CatalogTableDefinitions.taxId <- object.id,
@@ -61,9 +61,9 @@ class CatalogObjectInserters {
             CatalogTableDefinitions.taxPercentage <- percentage,
             CatalogTableDefinitions.taxAppliesToCustomAmounts <- appliesToCustomAmounts,
             CatalogTableDefinitions.taxEnabled <- enabled,
-            CatalogTableDefinitions.taxIsDeleted <- (object.isDeleted ?? false),
+            CatalogTableDefinitions.taxIsDeleted <- object.isDeleted,
             CatalogTableDefinitions.taxUpdatedAt <- timestamp,
-            CatalogTableDefinitions.taxVersion <- String(object.version ?? 1),
+            CatalogTableDefinitions.taxVersion <- String(object.version),
             CatalogTableDefinitions.taxDataJson <- taxDataJson
         )
 
@@ -86,7 +86,7 @@ class CatalogObjectInserters {
         let onByDefault = modifierData.onByDefault
 
         // Encode modifier data as JSON for full preservation
-        let modifierDataJson = try encodeJSON(modifierData)
+        let modifierDataJson = encodeJSON(modifierData)
 
         let insert = CatalogTableDefinitions.modifiers.insert(or: .replace,
             CatalogTableDefinitions.modifierId <- object.id,
@@ -96,9 +96,9 @@ class CatalogObjectInserters {
             CatalogTableDefinitions.modifierPriceCurrency <- priceMoney?.currency,
             CatalogTableDefinitions.modifierOrdinal <- ordinal.map { Int64($0) },
             CatalogTableDefinitions.modifierOnByDefault <- onByDefault,
-            CatalogTableDefinitions.modifierIsDeleted <- (object.isDeleted ?? false),
+            CatalogTableDefinitions.modifierIsDeleted <- object.isDeleted,
             CatalogTableDefinitions.modifierUpdatedAt <- timestamp,
-            CatalogTableDefinitions.modifierVersion <- String(object.version ?? 1),
+            CatalogTableDefinitions.modifierVersion <- String(object.version),
             CatalogTableDefinitions.modifierDataJson <- modifierDataJson
         )
 
@@ -119,16 +119,16 @@ class CatalogObjectInserters {
         let ordinal = modifierListData.ordinal
 
         // Encode modifier list data as JSON for full preservation
-        let modifierListDataJson = try encodeJSON(modifierListData)
+        let modifierListDataJson = encodeJSON(modifierListData)
 
         let insert = CatalogTableDefinitions.modifierLists.insert(or: .replace,
             CatalogTableDefinitions.modifierListPrimaryId <- object.id,
             CatalogTableDefinitions.modifierListName <- modifierListName,
             CatalogTableDefinitions.modifierListSelectionType <- selectionType,
             CatalogTableDefinitions.modifierListOrdinal <- ordinal.map { Int64($0) },
-            CatalogTableDefinitions.modifierListIsDeleted <- (object.isDeleted ?? false),
+            CatalogTableDefinitions.modifierListIsDeleted <- object.isDeleted,
             CatalogTableDefinitions.modifierListUpdatedAt <- timestamp,
-            CatalogTableDefinitions.modifierListVersion <- String(object.version ?? 1),
+            CatalogTableDefinitions.modifierListVersion <- String(object.version),
             CatalogTableDefinitions.modifierListDataJson <- modifierListDataJson
         )
 

@@ -261,8 +261,8 @@ class SQLiteSwiftCatalogManager {
                 let insert = CatalogTableDefinitions.catalogItems.insert(or: .replace,
                     CatalogTableDefinitions.itemId <- object.id,
                     CatalogTableDefinitions.itemUpdatedAt <- timestamp,
-                    CatalogTableDefinitions.itemVersion <- String(object.version ?? 1),
-                    CatalogTableDefinitions.itemIsDeleted <- (object.isDeleted ?? false),
+                    CatalogTableDefinitions.itemVersion <- String(object.version),
+                    CatalogTableDefinitions.itemIsDeleted <- object.isDeleted,
                     CatalogTableDefinitions.itemCategoryId <- itemData.categoryId,
                     CatalogTableDefinitions.itemName <- itemData.name,
                     CatalogTableDefinitions.itemDescription <- itemData.description,
@@ -283,9 +283,9 @@ class SQLiteSwiftCatalogManager {
                     CatalogTableDefinitions.variationPricingType <- variationData.pricingType,
                     CatalogTableDefinitions.variationPriceAmount <- variationData.priceMoney?.amount,
                     CatalogTableDefinitions.variationPriceCurrency <- variationData.priceMoney?.currency,
-                    CatalogTableDefinitions.variationIsDeleted <- (object.isDeleted ?? false),
+                    CatalogTableDefinitions.variationIsDeleted <- object.isDeleted,
                     CatalogTableDefinitions.variationUpdatedAt <- timestamp,
-                    CatalogTableDefinitions.variationVersion <- String(object.version ?? 1),
+                    CatalogTableDefinitions.variationVersion <- String(object.version),
                     CatalogTableDefinitions.variationDataJson <- encodeJSON(variationData)
                 )
                 try db.run(insert)
@@ -297,9 +297,9 @@ class SQLiteSwiftCatalogManager {
                 CatalogTableDefinitions.imageId <- object.id,
                 CatalogTableDefinitions.imageName <- "Image \(object.id)",
                 CatalogTableDefinitions.imageUrl <- nil,
-                CatalogTableDefinitions.imageIsDeleted <- (object.isDeleted ?? false),
+                CatalogTableDefinitions.imageIsDeleted <- object.isDeleted,
                 CatalogTableDefinitions.imageUpdatedAt <- timestamp,
-                CatalogTableDefinitions.imageVersion <- String(object.version ?? 1),
+                CatalogTableDefinitions.imageVersion <- String(object.version),
                 CatalogTableDefinitions.imageDataJson <- nil
             )
             try db.run(insert)
@@ -313,9 +313,9 @@ class SQLiteSwiftCatalogManager {
             let discountInsert = CatalogTableDefinitions.discounts.insert(or: .replace,
                 CatalogTableDefinitions.discountId <- object.id,
                 CatalogTableDefinitions.discountName <- "Discount \(object.id)",
-                CatalogTableDefinitions.discountIsDeleted <- (object.isDeleted ?? false),
+                CatalogTableDefinitions.discountIsDeleted <- object.isDeleted,
                 CatalogTableDefinitions.discountUpdatedAt <- timestamp,
-                CatalogTableDefinitions.discountVersion <- String(object.version ?? 1),
+                CatalogTableDefinitions.discountVersion <- String(object.version),
                 CatalogTableDefinitions.discountDataJson <- nil
             )
             try db.run(discountInsert)
