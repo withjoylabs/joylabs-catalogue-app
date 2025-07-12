@@ -21,6 +21,15 @@ struct CatalogManagementView: View {
 
                 // Statistics Section
                 statisticsSection
+
+                // Locations Section
+                locationsSection
+
+                // Categories, Taxes, Modifiers Section
+                catalogObjectsSection
+
+                // Database Management Section
+                databaseManagementSection
             }
             .padding(.horizontal, 16)
             .padding(.top, 16)
@@ -230,9 +239,158 @@ struct CatalogManagementView: View {
         .cornerRadius(16)
     }
 
+    // MARK: - Locations Section
+
+    private var locationsSection: some View {
+        VStack(spacing: 16) {
+            HStack {
+                Text("Square Locations")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+                Spacer()
+
+                Button("Refresh") {
+                    Task {
+                        await locationsService.refreshLocations()
+                    }
+                }
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .foregroundColor(.blue)
+            }
+
+            if locationsService.isLoading {
+                HStack {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                    Text("Loading locations...")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+            } else if locationsService.locations.isEmpty {
+                Text("No locations found")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+            } else {
+                ForEach(locationsService.locations) { location in
+                    LocationCard(location: location)
+                }
+            }
+        }
+        .padding(20)
+        .background(Color(.systemBackground))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color(.systemGray4), lineWidth: 1)
+        )
+        .cornerRadius(16)
+    }
+
+    // MARK: - Catalog Objects Section
+
+    private var catalogObjectsSection: some View {
+        VStack(spacing: 16) {
+            HStack {
+                Text("Catalog Objects")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+                Spacer()
+            }
+
+            VStack(spacing: 8) {
+                NavigationLink(destination: CategoriesListView()) {
+                    CatalogObjectRow(
+                        title: "Categories",
+                        count: catalogStatsService.categoriesCount,
+                        icon: "folder.fill",
+                        color: .orange
+                    )
+                }
+
+                NavigationLink(destination: TaxesListView()) {
+                    CatalogObjectRow(
+                        title: "Taxes",
+                        count: catalogStatsService.taxesCount,
+                        icon: "percent",
+                        color: .green
+                    )
+                }
+
+                NavigationLink(destination: ModifiersListView()) {
+                    CatalogObjectRow(
+                        title: "Modifiers",
+                        count: catalogStatsService.modifiersCount,
+                        icon: "slider.horizontal.3",
+                        color: .purple
+                    )
+                }
+            }
+        }
+        .padding(20)
+        .background(Color(.systemBackground))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color(.systemGray4), lineWidth: 1)
+        )
+        .cornerRadius(16)
+    }
+
+    // MARK: - Database Management Section
+
+    private var databaseManagementSection: some View {
+        VStack(spacing: 16) {
+            HStack {
+                Text("Database Management")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+                Spacer()
+            }
+
+            Button(action: {
+                showingClearDatabaseConfirmation = true
+            }) {
+                HStack {
+                    Image(systemName: "trash.circle.fill")
+                        .foregroundColor(.red)
+                    Text("Clear Database")
+                        .fontWeight(.medium)
+                        .foregroundColor(.red)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(16)
+                .background(Color(.systemGray6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color(.systemGray5), lineWidth: 1)
+                )
+                .cornerRadius(12)
+            }
+        }
+        .padding(20)
+        .background(Color(.systemBackground))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color(.systemGray4), lineWidth: 1)
+        )
+        .cornerRadius(16)
+    }
+
     // MARK: - Helper Methods
 
     private func loadInitialData() {
+        // Set the database manager for stats service
+        catalogStatsService.setDatabaseManager(syncCoordinator.catalogSyncService.sharedDatabaseManager)
+
         Task {
             await locationsService.fetchLocations()
             catalogStatsService.refreshStats()
@@ -247,10 +405,20 @@ struct CatalogManagementView: View {
     }
 
     private func clearDatabase() {
-        // TODO: Implement database clearing
-        alertMessage = "Database cleared successfully"
-        showingAlert = true
-        catalogStatsService.refreshStats()
+        Task {
+            do {
+                try syncCoordinator.catalogSyncService.sharedDatabaseManager.clearAllData()
+                alertMessage = "Database cleared successfully"
+                logger.info("Database cleared successfully")
+
+                // Refresh stats to show 0 counts
+                catalogStatsService.refreshStats()
+            } catch {
+                alertMessage = "Failed to clear database: \(error.localizedDescription)"
+                logger.error("Failed to clear database: \(error)")
+            }
+            showingAlert = true
+        }
     }
 
     private func formatLastSyncTime() -> String {
@@ -314,4 +482,140 @@ struct StatCard: View {
         )
         .cornerRadius(12)
     }
+}
+
+struct LocationCard: View {
+    let location: SquareLocation
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(location.displayName)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+
+                    if !location.formattedAddress.isEmpty {
+                        Text(location.formattedAddress)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Spacer()
+
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(location.isActive ? .green : .red)
+                        .frame(width: 8, height: 8)
+
+                    Text(location.status?.capitalized ?? "Unknown")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(location.isActive ? .green : .red)
+                }
+            }
+
+            if let currency = location.currency {
+                HStack {
+                    Image(systemName: "dollarsign.circle")
+                        .foregroundColor(.secondary)
+                    Text("Currency: \(currency)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .padding(16)
+        .background(Color(.systemGray6))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(.systemGray5), lineWidth: 1)
+        )
+        .cornerRadius(12)
+    }
+}
+
+struct CatalogObjectRow: View {
+    let title: String
+    let count: Int
+    let icon: String
+    let color: Color
+
+    var body: some View {
+        HStack {
+            Image(systemName: icon)
+                .foregroundColor(color)
+                .frame(width: 24)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.primary)
+
+                Text("\(count) items")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .padding(16)
+        .background(Color(.systemGray6))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(.systemGray5), lineWidth: 1)
+        )
+        .cornerRadius(12)
+    }
+}
+
+// MARK: - Placeholder Views for Navigation
+
+struct CategoriesListView: View {
+    var body: some View {
+        VStack {
+            Text("Categories List")
+                .font(.title2)
+                .padding()
+            Spacer()
+        }
+        .navigationTitle("Categories")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct TaxesListView: View {
+    var body: some View {
+        VStack {
+            Text("Taxes List")
+                .font(.title2)
+                .padding()
+            Spacer()
+        }
+        .navigationTitle("Taxes")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct ModifiersListView: View {
+    var body: some View {
+        VStack {
+            Text("Modifiers List")
+                .font(.title2)
+                .padding()
+            Spacer()
+        }
+        .navigationTitle("Modifiers")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+#Preview {
+    CatalogManagementView()
 }
