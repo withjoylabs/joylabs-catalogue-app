@@ -356,6 +356,9 @@ struct CatalogManagementView: View {
         let databaseManager = syncCoordinator.catalogSyncService.sharedDatabaseManager
         catalogStatsService.setDatabaseManager(databaseManager)
 
+        // Force refresh stats to ensure they're loaded
+        catalogStatsService.refreshStats()
+
         // Load locations in background
         Task {
             await locationsService.fetchLocations()
