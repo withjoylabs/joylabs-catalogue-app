@@ -32,6 +32,8 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
 
     private var isSyncInProgress = false
     private var progressUpdateTimer: Timer?
+    private var syncTask: Task<Void, Error>?
+    private var isCancellationRequested = false
 
     // MARK: - Initialization
 
@@ -62,7 +64,18 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
     }
     
     // MARK: - Sync Operations
-    
+
+    func cancelSync() {
+        logger.info("🛑 Sync cancellation requested")
+        isCancellationRequested = true
+        syncTask?.cancel()
+
+        // Clean up state
+        isSyncInProgress = false
+        syncState = .idle
+        stopProgressUpdateTimer()
+    }
+
     func performSync(isManual: Bool = false) async throws {
         guard !isSyncInProgress else {
             throw SyncError.syncInProgress
@@ -72,11 +85,13 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
         try databaseManager.connect()
         
         isSyncInProgress = true
+        isCancellationRequested = false
         syncState = .syncing
         errorMessage = nil
-        
+
         defer {
             isSyncInProgress = false
+            syncTask = nil
         }
         
         do {
@@ -195,6 +210,12 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
         let totalObjects = objects.count
 
         for (index, object) in objects.enumerated() {
+            // Check for cancellation
+            if isCancellationRequested {
+                logger.info("🛑 Sync cancelled during processing at object \(index + 1)/\(totalObjects)")
+                throw SyncError.cancelled
+            }
+
             // Process images for this object before inserting
             await processCatalogObjectImages(object)
 
@@ -210,14 +231,12 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
             syncProgress.syncedObjects = currentObjectCount
             syncProgress.syncedItems = processedItems
 
-
-
             // Log progress every 500 objects to see what's happening
             if index % 500 == 0 {
                 logger.info("📊 PROGRESS UPDATE: \(processedItems) items, \(currentObjectCount)/\(totalObjects) objects")
             }
 
-            // Small delay every 50 objects to allow UI updates
+            // Small delay every 50 objects to allow UI updates and check for cancellation
             if index % 50 == 0 {
                 try await Task.sleep(nanoseconds: 5_000_000) // 5ms to allow UI updates
             }
@@ -313,6 +332,7 @@ extension SQLiteSwiftCatalogSyncService {
     
     enum SyncError: Error {
         case syncInProgress
+        case cancelled
         case migrationFailed
         case apiError(String)
         case databaseError(String)

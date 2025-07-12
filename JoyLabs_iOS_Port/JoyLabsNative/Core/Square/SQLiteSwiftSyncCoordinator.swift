@@ -105,7 +105,12 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
     }
     
     // MARK: - Public Methods
-    
+
+    func cancelSync() {
+        logger.info("🛑 Manual sync cancellation requested")
+        catalogSyncService.cancelSync()
+    }
+
     func performManualSync() async {
         logger.info("Manual sync triggered")
 

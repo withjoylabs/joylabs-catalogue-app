@@ -6,6 +6,136 @@ extension Notification.Name {
     static let catalogDataDidUpdate = Notification.Name("catalogDataDidUpdate")
 }
 
+// MARK: - Modal Components
+
+struct SyncConfirmationModal: View {
+    let onConfirm: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(spacing: 20) {
+            VStack(spacing: 12) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 48))
+                    .foregroundColor(.orange)
+
+                Text("Confirm Full Sync")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+
+                Text("This will clear all existing catalog data and perform a full sync. This action cannot be undone.")
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+            }
+
+            HStack(spacing: 16) {
+                Button("Cancel") {
+                    onCancel()
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(Color(.systemGray5))
+                .foregroundColor(.primary)
+                .cornerRadius(8)
+
+                Button("Sync") {
+                    onConfirm()
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(Color.red)
+                .foregroundColor(.white)
+                .cornerRadius(8)
+            }
+            .padding(.horizontal)
+        }
+        .padding()
+    }
+}
+
+struct StopSyncConfirmationModal: View {
+    let onConfirm: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(spacing: 20) {
+            VStack(spacing: 12) {
+                Image(systemName: "stop.circle.fill")
+                    .font(.system(size: 48))
+                    .foregroundColor(.red)
+
+                Text("Stop Sync?")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+
+                Text("Are you sure you want to stop the catalog sync? Progress will be lost.")
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+            }
+
+            HStack(spacing: 16) {
+                Button("Continue Sync") {
+                    onCancel()
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(Color(.systemGray5))
+                .foregroundColor(.primary)
+                .cornerRadius(8)
+
+                Button("Stop") {
+                    onConfirm()
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(Color.red)
+                .foregroundColor(.white)
+                .cornerRadius(8)
+            }
+            .padding(.horizontal)
+        }
+        .padding()
+    }
+}
+
+struct SyncSuccessModal: View {
+    let onDismiss: () -> Void
+
+    var body: some View {
+        VStack(spacing: 20) {
+            VStack(spacing: 12) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 48))
+                    .foregroundColor(.green)
+
+                Text("Sync Complete!")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+
+                Text("Catalog has been successfully synced.")
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+
+            Button("Done") {
+                onDismiss()
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(Color.blue)
+            .foregroundColor(.white)
+            .cornerRadius(8)
+            .padding(.horizontal)
+        }
+        .padding()
+    }
+}
+
 struct CatalogManagementView: View {
     @StateObject private var syncCoordinator = SquareAPIServiceFactory.createSyncCoordinator()
     @StateObject private var locationsService = SquareLocationsService()
@@ -13,6 +143,8 @@ struct CatalogManagementView: View {
 
     @State private var showingClearDatabaseConfirmation = false
     @State private var showingSyncConfirmation = false
+    @State private var showingStopSyncConfirmation = false
+    @State private var showingSyncSuccessModal = false
     @State private var alertMessage = ""
     @State private var showingAlert = false
     @State private var hasInitialized = false
@@ -50,13 +182,38 @@ struct CatalogManagementView: View {
                 hasInitialized = true
             }
         }
-        .alert("Confirmation", isPresented: $showingSyncConfirmation) {
-            Button("Cancel", role: .cancel) { }
-            Button("Sync", role: .destructive) {
-                performFullSync()
-            }
-        } message: {
-            Text("This will clear all existing catalog data and perform a full sync. This action cannot be undone.")
+        // Modal presentations
+        .sheet(isPresented: $showingSyncConfirmation) {
+            SyncConfirmationModal(
+                onConfirm: {
+                    showingSyncConfirmation = false
+                    performFullSync()
+                },
+                onCancel: {
+                    showingSyncConfirmation = false
+                }
+            )
+            .presentationDetents([.height(300)])
+        }
+        .sheet(isPresented: $showingStopSyncConfirmation) {
+            StopSyncConfirmationModal(
+                onConfirm: {
+                    showingStopSyncConfirmation = false
+                    syncCoordinator.cancelSync()
+                },
+                onCancel: {
+                    showingStopSyncConfirmation = false
+                }
+            )
+            .presentationDetents([.height(250)])
+        }
+        .sheet(isPresented: $showingSyncSuccessModal) {
+            SyncSuccessModal(
+                onDismiss: {
+                    showingSyncSuccessModal = false
+                }
+            )
+            .presentationDetents([.height(200)])
         }
         .alert("Database Management", isPresented: $showingClearDatabaseConfirmation) {
             Button("Cancel", role: .cancel) { }
@@ -88,12 +245,18 @@ struct CatalogManagementView: View {
             // Sync Status Card
             syncStatusCard
 
-            // Full Sync Button with loading state
+            // Full Sync Button with loading state and stop functionality
             Button(action: {
-                if catalogStatsService.hasData {
-                    showingSyncConfirmation = true
+                if syncCoordinator.syncState == .syncing {
+                    // Show stop confirmation
+                    showingStopSyncConfirmation = true
                 } else {
-                    performFullSync()
+                    // Start sync
+                    if catalogStatsService.hasData {
+                        showingSyncConfirmation = true
+                    } else {
+                        performFullSync()
+                    }
                 }
             }) {
                 HStack(spacing: 8) {
@@ -101,7 +264,7 @@ struct CatalogManagementView: View {
                         ProgressView()
                             .scaleEffect(0.8)
                             .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                        Text("Syncing catalog...")
+                        Text("Stop Sync")
                             .fontWeight(.semibold)
                     } else {
                         Image(systemName: "arrow.clockwise.circle.fill")
@@ -112,11 +275,10 @@ struct CatalogManagementView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
-                .background(syncCoordinator.syncState == .syncing ? Color.gray : Color.blue)
+                .background(syncCoordinator.syncState == .syncing ? Color.red : Color.blue)
                 .foregroundColor(.white)
                 .cornerRadius(12)
             }
-            .disabled(syncCoordinator.syncState == .syncing)
         }
         .padding()
         .background(Color(.systemGray6))
@@ -375,6 +537,11 @@ struct CatalogManagementView: View {
             // Notify all catalog views to refresh their data
             NotificationCenter.default.post(name: .catalogDataDidUpdate, object: nil)
             logger.debug("📡 Posted catalog data update notification")
+
+            // Show success modal if sync completed successfully
+            if syncCoordinator.syncState == .completed {
+                showingSyncSuccessModal = true
+            }
         }
     }
 
