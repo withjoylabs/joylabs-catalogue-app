@@ -389,7 +389,11 @@ struct CatalogManagementView: View {
 
     private func loadInitialData() {
         // Set the database manager for stats service
-        catalogStatsService.setDatabaseManager(syncCoordinator.catalogSyncService.sharedDatabaseManager)
+        let databaseManager = syncCoordinator.catalogSyncService.sharedDatabaseManager
+        catalogStatsService.setDatabaseManager(databaseManager)
+
+        // Debug database connection
+        logger.info("🔍 Database verification: \(catalogStatsService.verifyDatabaseConnection())")
 
         Task {
             await locationsService.fetchLocations()

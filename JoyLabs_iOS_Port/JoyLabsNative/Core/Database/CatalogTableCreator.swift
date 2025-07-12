@@ -9,8 +9,8 @@ class CatalogTableCreator {
     
     /// Creates all catalog tables in the database
     func createTables(in db: Connection) throws {
-        logger.info("Creating catalog database tables...")
-        
+        logger.debug("Ensuring catalog database tables exist...")
+
         // Create categories table
         try db.run(CatalogTableDefinitions.categories.create(ifNotExists: true) { t in
             t.column(CatalogTableDefinitions.categoryId, primaryKey: true)
@@ -136,6 +136,6 @@ class CatalogTableCreator {
             t.column(CatalogTableDefinitions.syncUpdatedAt)
         })
         
-        logger.info("Successfully created all catalog database tables")
+        logger.debug("Catalog database tables verified/created successfully")
     }
 }

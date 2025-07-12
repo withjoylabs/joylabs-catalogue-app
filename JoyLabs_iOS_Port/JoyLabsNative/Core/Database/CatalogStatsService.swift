@@ -64,7 +64,7 @@ class CatalogStatsService: ObservableObject {
     }
     
     func loadStats() async {
-        guard databaseManager != nil else {
+        guard let databaseManager = databaseManager else {
             logger.warning("Database manager not set - cannot load stats")
             return
         }
@@ -72,11 +72,17 @@ class CatalogStatsService: ObservableObject {
         isLoading = true
 
         do {
-            logger.info("📊 Loading catalog statistics...")
+            logger.debug("📊 Loading catalog statistics...")
+
+            // Verify database connection
+            if databaseManager.getConnection() == nil {
+                logger.warning("Database connection not available - attempting to connect")
+                try databaseManager.connect()
+            }
 
             // Get counts for each object type
             let stats = try await calculateStats()
-            
+
             // Update published properties
             self.itemsCount = stats.items
             self.categoriesCount = stats.categories
@@ -86,19 +92,23 @@ class CatalogStatsService: ObservableObject {
             self.discountsCount = stats.discounts
             self.modifiersCount = stats.modifiers
             self.modifierListsCount = stats.modifierLists
-            
-            self.totalObjectsCount = stats.items + stats.categories + stats.variations + 
-                                   stats.images + stats.taxes + stats.discounts + 
+
+            self.totalObjectsCount = stats.items + stats.categories + stats.variations +
+                                   stats.images + stats.taxes + stats.discounts +
                                    stats.modifiers + stats.modifierLists
-            
+
             self.lastUpdated = Date()
-            
-            logger.info("✅ Stats loaded: \(self.totalObjectsCount) total objects (\(self.itemsCount) items)")
-            
+
+            if self.totalObjectsCount > 0 {
+                logger.info("✅ Stats loaded: \(self.totalObjectsCount) total objects (\(self.itemsCount) items)")
+            } else {
+                logger.info("📊 Stats loaded: Database appears empty (0 objects)")
+            }
+
         } catch {
             logger.error("❌ Failed to load stats: \(error.localizedDescription)")
         }
-        
+
         isLoading = false
     }
     
@@ -167,6 +177,34 @@ class CatalogStatsService: ObservableObject {
             modifiers: modifiersCount,
             modifierLists: modifierListsCount
         )
+    }
+
+    // MARK: - Debug Methods
+
+    func verifyDatabaseConnection() -> String {
+        guard let databaseManager = databaseManager else {
+            return "❌ No database manager set"
+        }
+
+        guard let db = databaseManager.getConnection() else {
+            return "❌ No database connection available"
+        }
+
+        do {
+            // Check if tables exist
+            let tableCount = try db.scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('catalog_items', 'categories', 'item_variations')") as! Int
+
+            if tableCount < 3 {
+                return "⚠️ Missing required tables (found \(tableCount)/3)"
+            }
+
+            // Quick count check
+            let itemCount = try db.scalar(CatalogTableDefinitions.catalogItems.count)
+            return "✅ Database connected - \(itemCount) items in catalog_items table"
+
+        } catch {
+            return "❌ Database error: \(error.localizedDescription)"
+        }
     }
 }
 

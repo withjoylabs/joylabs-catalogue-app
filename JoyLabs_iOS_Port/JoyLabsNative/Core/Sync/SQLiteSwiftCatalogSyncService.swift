@@ -36,7 +36,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
 
     init(squareAPIService: SquareAPIService) {
         self.squareAPIService = squareAPIService
-        self.databaseManager = SQLiteSwiftCatalogManager()
+        self.databaseManager = SquareAPIServiceFactory.createDatabaseManager()
 
         // Initialize database connection
         Task {

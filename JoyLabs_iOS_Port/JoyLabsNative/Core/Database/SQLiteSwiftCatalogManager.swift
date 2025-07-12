@@ -214,7 +214,7 @@ class SQLiteSwiftCatalogManager {
 
 
 
-        logger.info("SQLiteSwift tables created successfully (matching React Native schema)")
+        logger.debug("SQLiteSwift tables verified (matching React Native schema)")
     }
     
     // MARK: - Data Operations
