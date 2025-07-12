@@ -395,6 +395,9 @@ struct CatalogManagementView: View {
         // Debug database connection
         logger.info("🔍 Database verification: \(catalogStatsService.verifyDatabaseConnection())")
 
+        // Investigate database contents thoroughly
+        logger.info("🔍 Database investigation:\n\(catalogStatsService.investigateDatabase())")
+
         Task {
             await locationsService.fetchLocations()
             catalogStatsService.refreshStats()

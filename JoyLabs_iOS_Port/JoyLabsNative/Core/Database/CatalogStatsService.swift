@@ -123,16 +123,21 @@ class CatalogStatsService: ObservableObject {
               let db = databaseManager.getConnection() else {
             throw CatalogStatsError.databaseNotConnected
         }
-        
+
+        let dbPath = databaseManager.getDatabasePath()
+        logger.debug("🔍 Calculating stats from database: \(dbPath)")
+
         // Count items (not deleted)
         let itemsTable = Table("catalog_items")
         let itemsCountInt64 = try db.scalar(itemsTable.filter(Expression<Bool>("is_deleted") == false).count)
         let itemsCount = Int(itemsCountInt64)
+        logger.debug("📊 Items count: \(itemsCount)")
 
         // Count categories (not deleted)
         let categoriesTable = Table("categories")
         let categoriesCountInt64 = try db.scalar(categoriesTable.filter(Expression<Bool>("is_deleted") == false).count)
         let categoriesCount = Int(categoriesCountInt64)
+        logger.debug("📊 Categories count: \(categoriesCount)")
 
         // Count variations (not deleted)
         let variationsTable = Table("item_variations")
@@ -175,6 +180,9 @@ class CatalogStatsService: ObservableObject {
             // Table doesn't exist yet, that's okay
         }
         
+        let totalCount = itemsCount + categoriesCount + variationsCount + imagesCount + taxesCount + discountsCount + modifiersCount + modifierListsCount
+        logger.debug("📊 Total calculated objects: \(totalCount)")
+
         return CatalogStats(
             items: itemsCount,
             categories: categoriesCount,
@@ -185,6 +193,42 @@ class CatalogStatsService: ObservableObject {
             modifiers: modifiersCount,
             modifierLists: modifierListsCount
         )
+    }
+
+    // MARK: - Database Investigation Methods
+
+    func investigateDatabase() -> String {
+        guard let databaseManager = databaseManager,
+              let db = databaseManager.getConnection() else {
+            return "❌ No database connection"
+        }
+
+        do {
+            let dbPath = databaseManager.getDatabasePath()
+
+            // Check all tables and their row counts
+            let tables = ["catalog_items", "categories", "item_variations", "images", "taxes", "discounts"]
+            var report = "🔍 Database Investigation at \(dbPath):\n"
+
+            for tableName in tables {
+                do {
+                    let totalRowsInt64 = try db.scalar("SELECT COUNT(*) FROM \(tableName)") as! Int64
+                    let totalRows = Int(totalRowsInt64)
+
+                    let nonDeletedInt64 = try db.scalar("SELECT COUNT(*) FROM \(tableName) WHERE is_deleted = 0") as! Int64
+                    let nonDeleted = Int(nonDeletedInt64)
+
+                    report += "  \(tableName): \(totalRows) total, \(nonDeleted) active\n"
+                } catch {
+                    report += "  \(tableName): ERROR - \(error.localizedDescription)\n"
+                }
+            }
+
+            return report
+
+        } catch {
+            return "❌ Investigation failed: \(error.localizedDescription)"
+        }
     }
 
     // MARK: - Debug Methods
@@ -199,18 +243,30 @@ class CatalogStatsService: ObservableObject {
         }
 
         do {
+            // Get database file path for verification
+            let dbPath = databaseManager.getDatabasePath()
+
             // Check if tables exist
             let tableCountInt64 = try db.scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('catalog_items', 'categories', 'item_variations')") as! Int64
             let tableCount = Int(tableCountInt64)
 
             if tableCount < 3 {
-                return "⚠️ Missing required tables (found \(tableCount)/3)"
+                return "⚠️ Missing required tables (found \(tableCount)/3) at \(dbPath)"
             }
 
-            // Quick count check
+            // Quick count check with detailed breakdown
             let itemCountInt64 = try db.scalar(CatalogTableDefinitions.catalogItems.count)
             let itemCount = Int(itemCountInt64)
-            return "✅ Database connected - \(itemCount) items in catalog_items table"
+
+            // Also check total rows in catalog_items (including deleted)
+            let totalRowsInt64 = try db.scalar("SELECT COUNT(*) FROM catalog_items") as! Int64
+            let totalRows = Int(totalRowsInt64)
+
+            // Check if there are any non-deleted items
+            let nonDeletedInt64 = try db.scalar("SELECT COUNT(*) FROM catalog_items WHERE is_deleted = 0") as! Int64
+            let nonDeleted = Int(nonDeletedInt64)
+
+            return "✅ DB: \(itemCount) items, \(totalRows) total rows, \(nonDeleted) non-deleted at \(dbPath)"
 
         } catch {
             return "❌ Database error: \(error.localizedDescription)"

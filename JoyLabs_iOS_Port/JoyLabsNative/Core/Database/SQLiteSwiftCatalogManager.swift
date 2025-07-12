@@ -182,7 +182,11 @@ class SQLiteSwiftCatalogManager {
     func getConnection() -> Connection? {
         return db
     }
-    
+
+    func getDatabasePath() -> String {
+        return dbPath
+    }
+
     func disconnect() {
         db = nil
         logger.info("SQLiteSwift database disconnected")
