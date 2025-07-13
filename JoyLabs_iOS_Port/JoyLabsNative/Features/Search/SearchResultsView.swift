@@ -172,7 +172,7 @@ struct SearchResultRow: View {
                     
                     // Price and additional info
                     HStack {
-                        if let price = item.price {
+                        if let price = item.price, price.isFinite && !price.isNaN {
                             Text("$\(price, specifier: "%.2f")")
                                 .font(.subheadline)
                                 .fontWeight(.medium)

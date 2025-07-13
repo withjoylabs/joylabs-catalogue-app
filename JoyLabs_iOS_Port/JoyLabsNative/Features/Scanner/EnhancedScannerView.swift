@@ -104,12 +104,7 @@ struct EnhancedScannerView: View {
                 ItemDetailView(item: item)
             }
         }
-        // Add HID scanner overlay
-        .hidScanner(
-            enabled: controller.isHIDEnabled,
-            onScan: controller.handleHIDScanned,
-            onError: controller.handleHIDError
-        )
+        // HID scanner removed for simplicity
         .onAppear {
             controller.startScanning()
         }
@@ -180,17 +175,7 @@ class ScannerController: ObservableObject {
         Logger.info("Scanner", "Stopped scanning")
     }
     
-    func toggleHIDScanner() {
-        isHIDEnabled.toggle()
-        
-        if isHIDEnabled {
-            scanMode = scanMode == .camera ? .hybrid : .hid
-        } else {
-            scanMode = .camera
-        }
-        
-        Logger.info("Scanner", "HID scanner \(isHIDEnabled ? "enabled" : "disabled")")
-    }
+    // HID scanner toggle removed for simplicity
     
     func toggleCameraScanner() {
         switch scanMode {
@@ -208,9 +193,7 @@ class ScannerController: ObservableObject {
         Logger.info("Scanner", "Switched to \(scanMode.title) mode")
     }
     
-    func handleHIDScanned(_ barcode: String) {
-        processScan(barcode, source: .hid)
-    }
+    // HID scan handler removed for simplicity
     
     func handleCameraScanned(_ barcode: String) {
         processScan(barcode, source: .camera)

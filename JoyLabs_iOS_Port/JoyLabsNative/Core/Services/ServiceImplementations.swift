@@ -34,20 +34,22 @@ class DatabaseProductRepository: ProductRepository {
     }
 
     func searchProducts(_ query: String) async throws -> [SearchResultItem] {
-        logger.debug("Repository: Searching products '\(query)' using SQLite.swift")
+        logger.debug("Repository: Searching products '\(query)' using native SearchManager")
 
-        let db = await getSQLiteDB()
-        // TODO: Implement actual SQLite.swift search logic
-        logger.warning("Product search with SQLite.swift not yet implemented - returning empty results")
-        return []
+        let searchManager = SearchManager(databaseManager: await getSQLiteDB())
+        let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
+
+        return await searchManager.performSearch(searchTerm: query, filters: filters)
     }
     
     func getProductByBarcode(_ barcode: String) async throws -> SearchResultItem? {
         logger.debug("Repository: Getting product by barcode \(barcode)")
-        
-        // Implementation will search variations table for barcode in data_json
-        // For now, return nil (will be implemented when we connect to actual database)
-        return nil
+
+        let searchManager = SearchManager(databaseManager: await getSQLiteDB())
+        let filters = SearchFilters(name: false, sku: false, barcode: true, category: false)
+
+        let results = await searchManager.performSearch(searchTerm: barcode, filters: filters)
+        return results.first // Return the first (best) match
     }
     
     func getRecentProducts(limit: Int) async throws -> [SearchResultItem] {

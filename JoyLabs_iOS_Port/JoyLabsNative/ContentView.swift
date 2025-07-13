@@ -43,11 +43,9 @@ struct ContentView: View {
 
 struct ScanView: View {
     @State private var searchText = ""
-    @State private var isSearching = false
     @State private var scanHistoryCount = 0
     @State private var isConnected = true
-
-    // Mock search functionality for Phase 7 - will be implemented later
+    @StateObject private var searchManager = SearchManager()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -58,13 +56,94 @@ struct ScanView: View {
             ScanHistoryButton(count: scanHistoryCount)
 
             // Main content area
-            if searchText.isEmpty {
+            if !searchManager.isDatabaseReady {
+                DatabaseInitializingView()
+            } else if searchText.isEmpty {
                 EmptySearchState()
             } else {
-                SearchResultsView(
-                    searchText: searchText,
-                    isSearching: false
-                )
+                // Simple search results display
+                VStack(spacing: 0) {
+                    // Search header
+                    HStack {
+                        Text("Search Results")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+
+                        Spacer()
+
+                        if searchManager.isSearching {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                        } else if !searchManager.searchResults.isEmpty {
+                            Text("\(searchManager.searchResults.count) items")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+
+                    if searchManager.isSearching {
+                        VStack(spacing: 20) {
+                            Spacer()
+                            ProgressView("Searching...")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                            Spacer()
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else if let error = searchManager.searchError {
+                        VStack(spacing: 20) {
+                            Spacer()
+                            Image(systemName: "exclamationmark.triangle")
+                                .font(.system(size: 60))
+                                .foregroundColor(.orange)
+
+                            VStack(spacing: 8) {
+                                Text("Search Error")
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+
+                                Text(error)
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                    .multilineTextAlignment(.center)
+                            }
+                            Spacer()
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else if searchManager.searchResults.isEmpty {
+                        VStack(spacing: 20) {
+                            Spacer()
+
+                            Image(systemName: "exclamationmark.magnifyingglass")
+                                .font(.system(size: 60))
+                                .foregroundColor(.secondary)
+
+                            VStack(spacing: 8) {
+                                Text("No results found")
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+
+                                Text("Try a different search term")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                    .multilineTextAlignment(.center)
+                            }
+
+                            Spacer()
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        // Display search results - SIMPLE LIST
+                        List(searchManager.searchResults) { result in
+                            SearchResultCard(result: result)
+                                .listRowSeparator(.hidden)
+                                .listRowBackground(Color.clear)
+                        }
+                        .listStyle(PlainListStyle())
+                    }
+                }
             }
 
             Spacer()
@@ -73,23 +152,13 @@ struct ScanView: View {
             BottomSearchBar(searchText: $searchText)
         }
         .background(Color(.systemBackground))
-        .onAppear {
-            // No mock database initialization needed
-        }
         .onChange(of: searchText) {
-            // Trigger debounced search automatically when text changes (like React Native)
-            performDebouncedSearch(searchText)
+            if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
+                searchManager.performSearchWithDebounce(searchTerm: searchText, filters: filters)
+            }
         }
     }
-
-    private func performSearch() {
-        // Search functionality will be implemented later
-    }
-
-    private func performDebouncedSearch(_ searchTerm: String) {
-        // Search functionality will be implemented later
-    }
-
 }
 
 // MARK: - Supporting Views
@@ -138,7 +207,7 @@ struct ScanHistoryButton: View {
     var body: some View {
         Button(action: {}) {
             HStack {
-                Image(systemName: "archive")
+                Image(systemName: "archivebox")
                     .foregroundColor(.blue)
 
                 Text("View Scan History (\(count))")
@@ -188,66 +257,86 @@ struct EmptySearchState: View {
     }
 }
 
-struct SearchResultsView: View {
-    let searchText: String
-    // Search results will be implemented later
-    let isSearching: Bool
+
+
+// MARK: - Search Result Card
+
+struct SearchResultCard: View {
+    let result: SearchResultItem
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Search header
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Results for \"\(searchText)\"")
-                    .font(.headline)
-                    .foregroundColor(.primary)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(result.name ?? "Unknown Item")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                        .lineLimit(2)
+
+                    if let sku = result.sku {
+                        Text("SKU: \(sku)")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+
+                    if let barcode = result.barcode {
+                        Text("UPC: \(barcode)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
 
                 Spacer()
 
-                if isSearching {
-                    ProgressView()
-                        .scaleEffect(0.8)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-
-            if isSearching {
-                VStack(spacing: 20) {
-                    Spacer()
-                    ProgressView("Searching...")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                VStack(spacing: 20) {
-                    Spacer()
-
-                    Image(systemName: "exclamationmark.magnifyingglass")
-                        .font(.system(size: 60))
-                        .foregroundColor(.secondary)
-
-                    VStack(spacing: 8) {
-                        Text("No results found")
+                VStack(alignment: .trailing, spacing: 4) {
+                    if let price = result.price, price.isFinite && !price.isNaN {
+                        Text("$\(price, specifier: "%.2f")")
                             .font(.headline)
                             .foregroundColor(.primary)
-
-                        Text("Try a different search term or scan a barcode")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
                     }
 
-                    Spacer()
+                    Text(result.matchType.uppercased())
+                        .font(.caption2)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.blue.opacity(0.1))
+                        .foregroundColor(.blue)
+                        .cornerRadius(4)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+
+            if result.isFromCaseUpc, let caseData = result.caseUpcData {
+                HStack {
+                    Image(systemName: "cube.box")
+                        .foregroundColor(.orange)
+
+                    Text("Case: \(caseData.caseQuantity ?? 0) units")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+
+                    Spacer()
+
+                    if let caseCost = caseData.caseCost, caseCost.isFinite && !caseCost.isNaN {
+                        Text("$\(caseCost, specifier: "%.2f")")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(.systemGray4), lineWidth: 1)
+        )
+        .onTapGesture {
+            // Handle item selection
+            print("Selected item: \(result.name ?? result.id)")
         }
     }
 }
-
-// SearchResultCard removed - will be implemented when search functionality is added
 
 struct BottomSearchBar: View {
     @Binding var searchText: String
@@ -262,7 +351,9 @@ struct BottomSearchBar: View {
                         .foregroundColor(.secondary)
 
                     TextField("Search products, SKUs, barcodes...", text: $searchText)
-                        // Remove onSubmit - search now triggers automatically on text change
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.default)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
@@ -282,6 +373,7 @@ struct BottomSearchBar: View {
         }
     }
 }
+
 
 // MARK: - Reorders Supporting Views
 
@@ -1432,6 +1524,28 @@ struct SimpleSquareConnectionSheet: View {
             .foregroundColor(.secondary)
         }
         .padding()
+    }
+}
+
+struct DatabaseInitializingView: View {
+    var body: some View {
+        VStack(spacing: 20) {
+            Spacer()
+
+            ProgressView()
+                .scaleEffect(1.2)
+
+            Text("Initializing Database...")
+                .font(.headline)
+                .foregroundColor(.secondary)
+
+            Text("Setting up search functionality")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

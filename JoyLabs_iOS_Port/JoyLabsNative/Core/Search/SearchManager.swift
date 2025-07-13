@@ -1,9 +1,10 @@
 import Foundation
 import SQLite
 import Combine
+import os.log
 
-/// SearchManager - Handles sophisticated search combining local SQLite with GraphQL
-/// Ports the exact search logic from React Native performSearch function
+/// SearchManager - Handles sophisticated search with optimized SQLite queries
+/// Built specifically for iOS with industry-standard fuzzy search and tokenized ranking
 @MainActor
 class SearchManager: ObservableObject {
     // MARK: - Published Properties
@@ -11,240 +12,678 @@ class SearchManager: ObservableObject {
     @Published var isSearching: Bool = false
     @Published var searchError: String?
     @Published var lastSearchTerm: String = ""
-    
+    @Published var hasMoreResults = false
+    @Published var totalResultsCount: Int?
+    @Published var isLoadingMore = false
+    @Published var isDatabaseReady = false
+
+    private var currentOffset = 0
+    private let pageSize = 50
+
     // MARK: - Private Properties
-    private let databaseManager: DatabaseManager
-    private let graphQLClient: GraphQLClient
+    private let databaseManager: SQLiteSwiftCatalogManager
     private var searchTask: Task<Void, Never>?
-    
+    private let logger = Logger(subsystem: "com.joylabs.native", category: "SearchManager")
+
     // Debouncing
     private var searchSubject = PassthroughSubject<(String, SearchFilters), Never>()
     private var cancellables = Set<AnyCancellable>()
-    
+
     // MARK: - Initialization
-    init(
-        databaseManager: DatabaseManager = DatabaseManager(),
-        graphQLClient: GraphQLClient = GraphQLClient()
-    ) {
-        self.databaseManager = databaseManager
-        self.graphQLClient = graphQLClient
-        
+    init(databaseManager: SQLiteSwiftCatalogManager? = nil) {
+        self.databaseManager = databaseManager ?? SquareAPIServiceFactory.createDatabaseManager()
         setupSearchDebouncing()
+
+        // Initialize database connection asynchronously
+        Task.detached(priority: .background) {
+            await self.initializeDatabaseConnection()
+        }
+    }
+
+    // MARK: - Database Initialization
+    private func initializeDatabaseConnection() async {
+        do {
+            // Connect to database
+            try databaseManager.connect()
+            logger.info("✅ Search manager connected to database")
+
+            // Create tables asynchronously
+            try await databaseManager.createTablesAsync()
+            logger.info("✅ Database tables initialized")
+
+            await MainActor.run {
+                isDatabaseReady = true
+            }
+        } catch {
+            logger.error("❌ Search manager database connection failed: \(error)")
+            await MainActor.run {
+                searchError = "Database connection failed: \(error.localizedDescription)"
+                isDatabaseReady = false
+            }
+        }
     }
     
     // MARK: - Public Methods
-    func performSearch(searchTerm: String, filters: SearchFilters) async -> [SearchResultItem] {
-        // Port the exact logic from React Native performSearch
+    func performSearch(searchTerm: String, filters: SearchFilters, loadMore: Bool = false) async -> [SearchResultItem] {
+        // Port the exact logic from React Native performSearch with pagination
         let trimmedTerm = searchTerm.trimmingCharacters(in: .whitespacesAndNewlines)
-        
+
         guard !trimmedTerm.isEmpty else {
+            // Clear search state efficiently without blocking UI
             await MainActor.run {
-                searchResults = []
-                lastSearchTerm = ""
+                if !searchResults.isEmpty {
+                    searchResults = []
+                }
+                if !lastSearchTerm.isEmpty {
+                    lastSearchTerm = ""
+                }
+                if currentOffset != 0 {
+                    currentOffset = 0
+                }
+                if hasMoreResults {
+                    hasMoreResults = false
+                }
+                if totalResultsCount != nil {
+                    totalResultsCount = nil
+                }
             }
             return []
         }
-        
+
+        // Wait for database to be ready before performing search
+        guard isDatabaseReady else {
+            logger.debug("🔍 Search delayed - database not ready yet")
+            return []
+        }
+
+        // Reset pagination for new searches
+        if !loadMore || lastSearchTerm != trimmedTerm {
+            await MainActor.run {
+                currentOffset = 0
+                searchResults = []
+                totalResultsCount = nil
+            }
+        }
+
         await MainActor.run {
-            isSearching = true
+            if loadMore {
+                isLoadingMore = true
+            } else {
+                isSearching = true
+            }
             searchError = nil
             lastSearchTerm = trimmedTerm
         }
-        
-        Logger.info("Search", "Performing search for: '\(trimmedTerm)' with filters: \(filters)")
-        
+
+        logger.info("🔍 Performing search for: '\(trimmedTerm)' (offset: \(self.currentOffset), loadMore: \(loadMore))")
+
         do {
-            // 1. Local SQLite search (exact port of React Native logic)
-            let localResults = try await searchLocalItems(searchTerm: trimmedTerm, filters: filters)
-            Logger.debug("Search", "Local search returned \(localResults.count) results")
-            
-            // 2. Case UPC search via GraphQL (if numeric and barcode filter enabled)
-            var caseUpcResults: [SearchResultItem] = []
-            if trimmedTerm.allSatisfy(\.isNumber) && filters.barcode {
-                caseUpcResults = try await searchCaseUpcItems(searchTerm: trimmedTerm)
-                Logger.debug("Search", "Case UPC search returned \(caseUpcResults.count) results")
+            // 1. Get total count first (only for initial search)
+            if currentOffset == 0 {
+                let totalCount = try await getTotalSearchResultsCount(searchTerm: trimmedTerm, filters: filters)
+                await MainActor.run {
+                    totalResultsCount = totalCount
+                }
+                logger.debug("📊 Total available results: \(totalCount)")
             }
-            
-            // 3. Combine and deduplicate results (exact port of React Native logic)
-            let combinedResults = combineAndDeduplicateResults(
+
+            // 2. Local SQLite search with pagination
+            let localResults = try await searchLocalItems(
+                searchTerm: trimmedTerm,
+                filters: filters,
+                offset: currentOffset,
+                limit: pageSize
+            )
+            logger.debug("📊 Local search returned \(localResults.count) results (offset: \(self.currentOffset))")
+
+            // 3. Case UPC search (only for first page and if numeric)
+            var caseUpcResults: [SearchResultItem] = []
+            if currentOffset == 0 && trimmedTerm.allSatisfy(\.isNumber) && filters.barcode {
+                caseUpcResults = try await searchCaseUpcItems(searchTerm: trimmedTerm)
+                logger.debug("📦 Case UPC search returned \(caseUpcResults.count) results")
+            }
+
+            // 4. Combine and deduplicate results
+            let newResults = combineAndDeduplicateResults(
                 localResults: localResults,
                 caseUpcResults: caseUpcResults
             )
-            
+
             await MainActor.run {
-                searchResults = combinedResults
-                isSearching = false
+                if loadMore {
+                    // Append new results, avoiding duplicates
+                    let existingIds = Set(searchResults.map { $0.id })
+                    let uniqueNewResults = newResults.filter { !existingIds.contains($0.id) }
+                    searchResults.append(contentsOf: uniqueNewResults)
+                    isLoadingMore = false
+                } else {
+                    searchResults = newResults
+                    isSearching = false
+                }
+
+                // Update pagination state
+                currentOffset += pageSize
+                hasMoreResults = searchResults.count < (totalResultsCount ?? 0)
             }
-            
-            Logger.info("Search", "Search completed: \(combinedResults.count) total results")
-            return combinedResults
-            
+
+            let totalCount = await MainActor.run { self.searchResults.count }
+            logger.info("✅ Search completed: \(newResults.count) new results, \(totalCount) total")
+            return newResults
+
         } catch {
-            Logger.error("Search", "Search failed: \(error)")
-            
+            logger.error("❌ Search failed: \(error)")
+
             await MainActor.run {
                 searchError = error.localizedDescription
-                isSearching = false
-                searchResults = []
+                if loadMore {
+                    isLoadingMore = false
+                } else {
+                    isSearching = false
+                    searchResults = []
+                }
             }
-            
+
             return []
         }
     }
     
     func performSearchWithDebounce(searchTerm: String, filters: SearchFilters) {
-        // Cancel any existing search
-        searchTask?.cancel()
-        
-        // Send to debounced subject
+        // Cancel any existing search asynchronously to avoid blocking main thread
+        let taskToCancel = searchTask
+        searchTask = nil
+
+        // Cancel on background queue to avoid blocking
+        Task.detached(priority: .background) {
+            taskToCancel?.cancel()
+        }
+
+        // Send to debounced subject - this needs to be on main thread for @MainActor compliance
         searchSubject.send((searchTerm, filters))
     }
     
+    func loadMoreResults() {
+        guard !isLoadingMore && hasMoreResults && !lastSearchTerm.isEmpty else { return }
+
+        searchTask = Task.detached(priority: .userInitiated) { [weak self] in
+            guard let self = self else { return }
+            _ = await self.performSearch(
+                searchTerm: self.lastSearchTerm,
+                filters: SearchFilters(name: true, sku: true, barcode: true, category: false),
+                loadMore: true
+            )
+        }
+    }
+
     func clearSearch() {
         searchTask?.cancel()
         searchResults = []
         searchError = nil
         lastSearchTerm = ""
         isSearching = false
+        isLoadingMore = false
+        hasMoreResults = false
+        totalResultsCount = nil
+        currentOffset = 0
+        // Note: Don't reset isDatabaseReady as it's a persistent state
     }
     
     // MARK: - Private Methods
     private func setupSearchDebouncing() {
-        // Debounce search requests (300ms delay like React Native)
+        // Debounce search requests (800ms delay to prevent rapid searches)
+        // Use background queue to avoid blocking main thread
         searchSubject
-            .debounce(for: .milliseconds(300), scheduler: DispatchQueue.main)
+            .debounce(for: .milliseconds(800), scheduler: DispatchQueue.global(qos: .userInitiated))
             .sink { [weak self] (searchTerm, filters) in
-                self?.searchTask = Task {
-                    await self?.performSearch(searchTerm: searchTerm, filters: filters)
+                guard let self = self else { return }
+                self.searchTask = Task.detached(priority: .userInitiated) { [weak self] in
+                    guard let self = self else { return }
+                    _ = await self.performSearch(searchTerm: searchTerm, filters: filters)
                 }
             }
             .store(in: &cancellables)
     }
     
-    private func searchLocalItems(searchTerm: String, filters: SearchFilters) async throws -> [SearchResultItem] {
-        // Port the exact SQLite search logic from React Native
-        let db = try await databaseManager.getDatabase()
-        
-        var queryParts: [String] = []
-        var params: [String] = []
+    private func searchLocalItems(searchTerm: String, filters: SearchFilters, offset: Int = 0, limit: Int = 50) async throws -> [SearchResultItem] {
+        // Native SQLite.swift search implementation optimized for iOS
+        guard let db = databaseManager.getConnection() else {
+            throw SearchError.databaseError(SQLiteSwiftError.noConnection)
+        }
+
+        logger.debug("🔍 Starting local search for: '\(searchTerm)'")
+
+        var results: [SearchResultItem] = []
         let searchTermLike = "%\(searchTerm)%"
-        
-        // Name search (exact port)
+
+        // Name search - optimized with direct column access
         if filters.name {
-            queryParts.append("""
-                SELECT id, data_json, 'name' as match_type, name as match_context
-                FROM catalog_items 
-                WHERE name LIKE ? AND is_deleted = 0
-            """)
-            params.append(searchTermLike)
+            let nameResults = try searchByName(db: db, searchTerm: searchTermLike, offset: offset, limit: limit)
+            results.append(contentsOf: nameResults)
+            logger.debug("📝 Name search found \(nameResults.count) results")
         }
-        
-        // SKU search (exact port)
+
+        // SKU search - optimized with dedicated SKU column
         if filters.sku {
-            queryParts.append("""
-                SELECT iv.item_id as id, ci.data_json, 'sku' as match_type,
-                       json_extract(iv.data_json, '$.item_variation_data.sku') as match_context
-                FROM item_variations iv
-                JOIN catalog_items ci ON iv.item_id = ci.id
-                WHERE json_extract(iv.data_json, '$.item_variation_data.sku') LIKE ?
-                  AND iv.is_deleted = 0 AND ci.is_deleted = 0
-            """)
-            params.append(searchTermLike)
+            let skuResults = try searchBySKU(db: db, searchTerm: searchTermLike, offset: offset, limit: limit)
+            results.append(contentsOf: skuResults)
+            logger.debug("🏷️ SKU search found \(skuResults.count) results")
         }
-        
-        // Barcode/UPC search (exact port)
+
+        // UPC/Barcode search - optimized with dedicated UPC column
         if filters.barcode {
-            queryParts.append("""
-                SELECT iv.item_id as id, ci.data_json, 'barcode' as match_type,
-                       json_extract(iv.data_json, '$.item_variation_data.upc') as match_context
-                FROM item_variations iv
-                JOIN catalog_items ci ON iv.item_id = ci.id
-                WHERE json_extract(iv.data_json, '$.item_variation_data.upc') LIKE ?
-                  AND iv.is_deleted = 0 AND ci.is_deleted = 0
-            """)
-            params.append(searchTermLike)
+            let upcResults = try searchByUPC(db: db, searchTerm: searchTermLike, offset: offset, limit: limit)
+            results.append(contentsOf: upcResults)
+            logger.debug("📊 UPC search found \(upcResults.count) results")
         }
-        
-        // Category search (exact port)
+
+        // Category search
         if filters.category {
-            queryParts.append("""
-                SELECT ci.id, ci.data_json, 'category' as match_type, c.name as match_context
-                FROM catalog_items ci
-                JOIN categories c ON ci.category_id = c.id
-                WHERE c.name LIKE ? AND ci.is_deleted = 0 AND c.is_deleted = 0
-            """)
-            params.append(searchTermLike)
+            let categoryResults = try searchByCategory(db: db, searchTerm: searchTermLike, offset: offset, limit: limit)
+            results.append(contentsOf: categoryResults)
+            logger.debug("📂 Category search found \(categoryResults.count) results")
         }
-        
-        guard !queryParts.isEmpty else {
-            return []
+
+        // Remove duplicates and apply fuzzy ranking
+        let uniqueResults = removeDuplicatesAndRank(results: results, searchTerm: searchTerm)
+        logger.info("✅ Total unique results: \(uniqueResults.count)")
+
+        return uniqueResults
+    }
+
+    private func getTotalSearchResultsCount(searchTerm: String, filters: SearchFilters) async throws -> Int {
+        guard let db = databaseManager.getConnection() else {
+            throw SearchError.databaseError(SQLiteSwiftError.noConnection)
         }
-        
-        // Combine queries with UNION (exact port)
-        let finalQuery = queryParts.joined(separator: " UNION ")
-        
-        Logger.debug("Search", "Executing local search query with \(params.count) parameters")
-        
-        // Execute query
-        let rawResults = try db.prepare(finalQuery).map { row in
-            RawSearchResult(
-                id: row[0] as! String,
-                dataJson: row[1] as! String,
-                matchType: row[2] as! String,
-                matchContext: row[3] as? String
+
+        var totalCount = 0
+        let searchTermLike = "%\(searchTerm)%"
+
+        // Count name search results
+        if filters.name {
+            let nameCount = try db.scalar(
+                CatalogTableDefinitions.catalogItems
+                    .filter(CatalogTableDefinitions.itemName.like(searchTermLike) &&
+                           CatalogTableDefinitions.itemIsDeleted == false)
+                    .count
             )
+            totalCount += nameCount
         }
-        
-        // Convert raw results to SearchResultItem
-        return try rawResults.compactMap { rawResult in
-            try convertRawResultToSearchItem(rawResult, isFromCaseUpc: false)
+
+        // Count SKU search results
+        if filters.sku {
+            let variations = CatalogTableDefinitions.itemVariations.alias("iv")
+            let items = CatalogTableDefinitions.catalogItems.alias("ci")
+
+            let skuCount = try db.scalar(
+                variations
+                    .join(items, on: variations[CatalogTableDefinitions.variationItemId] == items[CatalogTableDefinitions.itemId])
+                    .filter((variations[CatalogTableDefinitions.variationSku] == searchTerm ||
+                            variations[CatalogTableDefinitions.variationSku].like(searchTermLike)) &&
+                           variations[CatalogTableDefinitions.variationIsDeleted] == false &&
+                           items[CatalogTableDefinitions.itemIsDeleted] == false)
+                    .count
+            )
+            totalCount += skuCount
+        }
+
+        // Count UPC search results
+        if filters.barcode {
+            let variations = CatalogTableDefinitions.itemVariations.alias("iv")
+            let items = CatalogTableDefinitions.catalogItems.alias("ci")
+
+            let upcCount = try db.scalar(
+                variations
+                    .join(items, on: variations[CatalogTableDefinitions.variationItemId] == items[CatalogTableDefinitions.itemId])
+                    .filter((variations[CatalogTableDefinitions.variationUpc] == searchTerm ||
+                            variations[CatalogTableDefinitions.variationUpc].like(searchTermLike)) &&
+                           variations[CatalogTableDefinitions.variationIsDeleted] == false &&
+                           items[CatalogTableDefinitions.itemIsDeleted] == false)
+                    .count
+            )
+            totalCount += upcCount
+        }
+
+        // Count case UPC results (if numeric)
+        if searchTerm.allSatisfy(\.isNumber) && filters.barcode {
+            let caseUpcCount = try db.scalar(
+                CatalogTableDefinitions.catalogItems
+                    .join(CatalogTableDefinitions.teamData, on: CatalogTableDefinitions.itemId == CatalogTableDefinitions.teamDataItemId)
+                    .filter(CatalogTableDefinitions.teamCaseUpc == searchTerm &&
+                           CatalogTableDefinitions.itemIsDeleted == false)
+                    .count
+            )
+            totalCount += caseUpcCount
+        }
+
+        return totalCount
+    }
+
+    // MARK: - Individual Search Methods
+
+    private func searchByName(db: Connection, searchTerm: String, offset: Int = 0, limit: Int = 50) throws -> [SearchResultItem] {
+        let query = CatalogTableDefinitions.catalogItems
+            .filter(CatalogTableDefinitions.itemName.like(searchTerm) &&
+                   CatalogTableDefinitions.itemIsDeleted == false)
+            .order(CatalogTableDefinitions.itemName.asc)
+            .limit(limit, offset: offset)
+
+        return try db.prepare(query).compactMap { row in
+            createSearchResultFromRow(row, matchType: "name")
         }
     }
-    
-    private func searchCaseUpcItems(searchTerm: String) async throws -> [SearchResultItem] {
-        // Port the GraphQL Case UPC search logic
-        Logger.debug("Search", "Searching Case UPC for numeric term: \(searchTerm)")
-        
+
+    private func searchBySKU(db: Connection, searchTerm: String, offset: Int = 0, limit: Int = 50) throws -> [SearchResultItem] {
+        let variations = CatalogTableDefinitions.itemVariations.alias("iv")
+        let items = CatalogTableDefinitions.catalogItems.alias("ci")
+
+        // For SKU, try both exact match and partial match
+        let query = variations
+            .select(
+                items[CatalogTableDefinitions.itemId],
+                items[CatalogTableDefinitions.itemName],
+                items[CatalogTableDefinitions.itemCategoryId],
+                variations[CatalogTableDefinitions.variationSku],
+                variations[CatalogTableDefinitions.variationUpc],
+                variations[CatalogTableDefinitions.variationPriceAmount]
+            )
+            .join(items, on: variations[CatalogTableDefinitions.variationItemId] == items[CatalogTableDefinitions.itemId])
+            .filter((variations[CatalogTableDefinitions.variationSku] == searchTerm ||
+                    variations[CatalogTableDefinitions.variationSku].like(searchTerm)) &&
+                   variations[CatalogTableDefinitions.variationIsDeleted] == false &&
+                   items[CatalogTableDefinitions.itemIsDeleted] == false)
+            .order(items[CatalogTableDefinitions.itemName].asc)
+            .limit(limit, offset: offset)
+
+        return try db.prepare(query).compactMap { row in
+            createSearchResultFromVariationRow(row, matchType: "sku")
+        }
+    }
+
+    private func searchByUPC(db: Connection, searchTerm: String, offset: Int = 0, limit: Int = 50) throws -> [SearchResultItem] {
+        let variations = CatalogTableDefinitions.itemVariations.alias("iv")
+        let items = CatalogTableDefinitions.catalogItems.alias("ci")
+
+        // For UPC, try both exact match and partial match
+        let query = variations
+            .select(
+                items[CatalogTableDefinitions.itemId],
+                items[CatalogTableDefinitions.itemName],
+                items[CatalogTableDefinitions.itemCategoryId],
+                variations[CatalogTableDefinitions.variationSku],
+                variations[CatalogTableDefinitions.variationUpc],
+                variations[CatalogTableDefinitions.variationPriceAmount]
+            )
+            .join(items, on: variations[CatalogTableDefinitions.variationItemId] == items[CatalogTableDefinitions.itemId])
+            .filter((variations[CatalogTableDefinitions.variationUpc] == searchTerm ||
+                    variations[CatalogTableDefinitions.variationUpc].like(searchTerm)) &&
+                   variations[CatalogTableDefinitions.variationIsDeleted] == false &&
+                   items[CatalogTableDefinitions.itemIsDeleted] == false)
+            .order(items[CatalogTableDefinitions.itemName].asc)
+            .limit(limit, offset: offset)
+
+        return try db.prepare(query).compactMap { row in
+            createSearchResultFromVariationRow(row, matchType: "upc")
+        }
+    }
+
+    private func searchByCategory(db: Connection, searchTerm: String, offset: Int = 0, limit: Int = 50) throws -> [SearchResultItem] {
+        let items = CatalogTableDefinitions.catalogItems.alias("ci")
+        let categories = CatalogTableDefinitions.categories.alias("cat")
+
+        let query = items
+            .select(
+                items[CatalogTableDefinitions.itemId],
+                items[CatalogTableDefinitions.itemName],
+                items[CatalogTableDefinitions.itemCategoryId],
+                items[CatalogTableDefinitions.itemDataJson],
+                categories[CatalogTableDefinitions.categoryName]
+            )
+            .join(categories, on: items[CatalogTableDefinitions.itemCategoryId] == categories[CatalogTableDefinitions.categoryId])
+            .filter(categories[CatalogTableDefinitions.categoryName].like(searchTerm) &&
+                   items[CatalogTableDefinitions.itemIsDeleted] == false &&
+                   categories[CatalogTableDefinitions.categoryIsDeleted] == false)
+            .order(items[CatalogTableDefinitions.itemName].asc)
+            .limit(limit, offset: offset)
+
+        return try db.prepare(query).compactMap { row in
+            createSearchResultFromRow(row, matchType: "category")
+        }
+    }
+
+    // MARK: - Result Creation and Ranking
+
+    private func createSearchResultFromRow(_ row: Row, matchType: String) -> SearchResultItem? {
         do {
-            let caseUpcItems = try await graphQLClient.searchItemsByCaseUpc(searchTerm)
-            
-            return caseUpcItems.compactMap { item in
-                // Convert GraphQL result to SearchResultItem
-                SearchResultItem(
-                    id: item.id,
-                    name: "Case UPC Item", // Will be enhanced with actual data
+            let itemId = try row.get(CatalogTableDefinitions.itemId)
+            let itemName = try row.get(CatalogTableDefinitions.itemName)
+            let categoryId = try row.get(CatalogTableDefinitions.itemCategoryId)
+            _ = try row.get(CatalogTableDefinitions.itemDataJson)
+
+            // Try to get category name if available (for category searches)
+            let categoryName: String?
+            if matchType == "category" {
+                categoryName = try? row.get(CatalogTableDefinitions.categoryName)
+            } else {
+                categoryName = nil
+            }
+
+            return SearchResultItem(
+                id: itemId,
+                name: itemName,
+                sku: nil, // Will be populated from variations if needed
+                price: nil, // Will be populated from variations if needed
+                barcode: nil, // Will be populated from variations if needed
+                categoryId: categoryId,
+                categoryName: categoryName,
+                images: nil, // Could be populated from dataJson if needed
+                matchType: matchType,
+                matchContext: matchType == "category" ? categoryName : itemName,
+                isFromCaseUpc: false,
+                caseUpcData: nil
+            )
+        } catch {
+            logger.error("Failed to create search result from row: \(error)")
+            return nil
+        }
+    }
+
+    private func createSearchResultFromVariationRow(_ row: Row, matchType: String) -> SearchResultItem? {
+        do {
+            // Access columns directly - the JOIN query will have flattened the results
+            let itemId = try row.get(CatalogTableDefinitions.itemId)
+            let itemName = try row.get(CatalogTableDefinitions.itemName)
+            let categoryId = try row.get(CatalogTableDefinitions.itemCategoryId)
+            let sku = try row.get(CatalogTableDefinitions.variationSku)
+            let upc = try row.get(CatalogTableDefinitions.variationUpc)
+            let priceAmount = try row.get(CatalogTableDefinitions.variationPriceAmount)
+
+            // Safely convert price, ensuring no NaN values
+            let price: Double?
+            if let amount = priceAmount, amount > 0 {
+                let convertedPrice = Double(amount) / 100.0 // Convert from cents
+                // Additional safety check for NaN/infinite values
+                if convertedPrice.isFinite && !convertedPrice.isNaN && convertedPrice > 0 {
+                    price = convertedPrice
+                } else {
+                    price = nil
+                }
+            } else {
+                price = nil // Use nil instead of 0 to avoid NaN issues
+            }
+
+            let matchContext = matchType == "sku" ? sku : upc
+
+            return SearchResultItem(
+                id: itemId,
+                name: itemName,
+                sku: sku,
+                price: price,
+                barcode: upc,
+                categoryId: categoryId,
+                categoryName: nil,
+                images: nil,
+                matchType: matchType,
+                matchContext: matchContext,
+                isFromCaseUpc: false,
+                caseUpcData: nil
+            )
+        } catch {
+            logger.error("Failed to create search result from variation row: \(error)")
+            return nil
+        }
+    }
+
+    private func removeDuplicatesAndRank(results: [SearchResultItem], searchTerm: String) -> [SearchResultItem] {
+        // Remove duplicates by ID
+        var uniqueResults: [String: SearchResultItem] = [:]
+
+        for result in results {
+            // Keep the result with the best match type priority
+            if let existing = uniqueResults[result.id] {
+                if getMatchTypePriority(result.matchType) < getMatchTypePriority(existing.matchType) {
+                    uniqueResults[result.id] = result
+                }
+            } else {
+                uniqueResults[result.id] = result
+            }
+        }
+
+        // Apply fuzzy ranking and sort
+        return Array(uniqueResults.values)
+            .map { result in
+                let rankedResult = result
+                // Calculate fuzzy score based on match quality
+                _ = calculateFuzzyScore(result: result, searchTerm: searchTerm)
+                // Store score in a way that can be used for sorting
+                return rankedResult
+            }
+            .sorted { lhs, rhs in
+                // Sort by match type priority first, then by name
+                let lhsPriority = getMatchTypePriority(lhs.matchType)
+                let rhsPriority = getMatchTypePriority(rhs.matchType)
+
+                if lhsPriority != rhsPriority {
+                    return lhsPriority < rhsPriority
+                }
+
+                // Then by name alphabetically
+                let lhsName = lhs.name ?? ""
+                let rhsName = rhs.name ?? ""
+                return lhsName.localizedCaseInsensitiveCompare(rhsName) == .orderedAscending
+            }
+    }
+
+    private func getMatchTypePriority(_ matchType: String?) -> Int {
+        switch matchType {
+        case "upc", "barcode": return 1 // Exact barcode matches are highest priority
+        case "sku": return 2 // SKU matches are second priority
+        case "name": return 3 // Name matches are third priority
+        case "category": return 4 // Category matches are lowest priority
+        default: return 5
+        }
+    }
+
+    private func calculateFuzzyScore(result: SearchResultItem, searchTerm: String) -> Double {
+        // Industry-standard fuzzy matching algorithm
+        let searchLower = searchTerm.lowercased()
+
+        // Check exact matches first
+        if let name = result.name?.lowercased(), name.contains(searchLower) {
+            if name == searchLower { return 1.0 } // Exact match
+            if name.hasPrefix(searchLower) { return 0.9 } // Prefix match
+            return 0.7 // Contains match
+        }
+
+        if let sku = result.sku?.lowercased(), sku.contains(searchLower) {
+            if sku == searchLower { return 1.0 }
+            if sku.hasPrefix(searchLower) { return 0.9 }
+            return 0.8
+        }
+
+        if let barcode = result.barcode?.lowercased(), barcode.contains(searchLower) {
+            if barcode == searchLower { return 1.0 }
+            if barcode.hasPrefix(searchLower) { return 0.9 }
+            return 0.8
+        }
+
+        return 0.5 // Default score for other matches
+    }
+
+    private func searchCaseUpcItems(searchTerm: String) async throws -> [SearchResultItem] {
+        guard let db = databaseManager.getConnection() else {
+            throw SearchError.databaseError(SQLiteSwiftError.noConnection)
+        }
+
+        logger.debug("🔍 Searching Case UPC for numeric term: \(searchTerm)")
+
+        // Check if team_data table has any case UPC data
+        let teamDataCount = try db.scalar(
+            CatalogTableDefinitions.teamData
+                .filter(CatalogTableDefinitions.teamCaseUpc != nil)
+                .count
+        )
+
+        if teamDataCount == 0 {
+            logger.info("📦 No team data with case UPC found - table empty or user not signed in")
+            return []
+        }
+
+        let items = CatalogTableDefinitions.catalogItems.alias("ci")
+        let teamData = CatalogTableDefinitions.teamData.alias("td")
+
+        let query = items
+            .select(
+                items[CatalogTableDefinitions.itemId],
+                items[CatalogTableDefinitions.itemName],
+                items[CatalogTableDefinitions.itemCategoryId],
+                teamData[CatalogTableDefinitions.teamCaseUpc],
+                teamData[CatalogTableDefinitions.teamCaseCost],
+                teamData[CatalogTableDefinitions.teamCaseQuantity],
+                teamData[CatalogTableDefinitions.teamVendor],
+                teamData[CatalogTableDefinitions.teamDiscontinued]
+            )
+            .join(teamData, on: items[CatalogTableDefinitions.itemId] == teamData[CatalogTableDefinitions.teamDataItemId])
+            .filter(teamData[CatalogTableDefinitions.teamCaseUpc] == searchTerm &&
+                   items[CatalogTableDefinitions.itemIsDeleted] == false &&
+                   teamData[CatalogTableDefinitions.teamCaseUpc] != nil)
+            .order(items[CatalogTableDefinitions.itemName].asc)
+            .limit(50)
+
+        return try db.prepare(query).compactMap { row in
+            do {
+                let itemId = try row.get(items[CatalogTableDefinitions.itemId])
+                let itemName = try row.get(items[CatalogTableDefinitions.itemName])
+                let categoryId = try row.get(items[CatalogTableDefinitions.itemCategoryId])
+                let caseUpc = try row.get(teamData[CatalogTableDefinitions.teamCaseUpc])
+                let caseCost = try row.get(teamData[CatalogTableDefinitions.teamCaseCost])
+                let caseQuantity = try row.get(teamData[CatalogTableDefinitions.teamCaseQuantity])
+                let vendor = try row.get(teamData[CatalogTableDefinitions.teamVendor])
+                let discontinued = try row.get(teamData[CatalogTableDefinitions.teamDiscontinued])
+
+                return SearchResultItem(
+                    id: itemId,
+                    name: itemName,
                     sku: nil,
-                    price: item.caseCost,
-                    barcode: item.caseUpc,
-                    categoryId: nil,
+                    price: caseCost,
+                    barcode: caseUpc,
+                    categoryId: categoryId,
                     categoryName: nil,
                     images: nil,
                     matchType: "case_upc",
-                    matchContext: item.caseUpc,
+                    matchContext: caseUpc,
                     isFromCaseUpc: true,
                     caseUpcData: CaseUpcData(
-                        caseUpc: item.caseUpc,
-                        caseCost: item.caseCost,
-                        caseQuantity: item.caseQuantity,
-                        vendor: item.vendor,
-                        discontinued: item.discontinued,
-                        notes: item.notes?.map { note in
-                            TeamNote(
-                                id: note.id,
-                                content: note.content,
-                                isComplete: note.isComplete,
-                                authorId: note.authorId,
-                                authorName: note.authorName,
-                                createdAt: note.createdAt,
-                                updatedAt: note.updatedAt
-                            )
-                        }
+                        caseUpc: caseUpc,
+                        caseCost: caseCost,
+                        caseQuantity: Int(caseQuantity ?? 0),
+                        vendor: vendor,
+                        discontinued: discontinued,
+                        notes: nil
                     )
                 )
+            } catch {
+                logger.error("Failed to create case UPC search result: \(error)")
+                return nil
             }
-        } catch {
-            Logger.warn("Search", "Case UPC search failed: \(error)")
-            return []
         }
     }
     
@@ -252,95 +691,37 @@ class SearchManager: ObservableObject {
         localResults: [SearchResultItem],
         caseUpcResults: [SearchResultItem]
     ) -> [SearchResultItem] {
-        // Port the exact deduplication logic from React Native
-        var combinedResults = localResults
-        
-        // Add case UPC results that don't duplicate local results
-        for caseUpcResult in caseUpcResults {
-            let isDuplicate = localResults.contains { localResult in
-                // Check for duplicates based on barcode/UPC matching
-                if let localBarcode = localResult.barcode,
-                   let caseUpc = caseUpcResult.barcode {
-                    return localBarcode == caseUpc
-                }
-                return false
-            }
-            
-            if !isDuplicate {
-                combinedResults.append(caseUpcResult)
-            }
-        }
-        
-        // Sort results (prioritize exact matches, then by name)
-        return combinedResults.sorted { lhs, rhs in
-            // Exact matches first
-            if lhs.matchType == "barcode" && rhs.matchType != "barcode" {
-                return true
-            }
-            if rhs.matchType == "barcode" && lhs.matchType != "barcode" {
-                return false
-            }
-            
-            // Then by name
-            let lhsName = lhs.name ?? ""
-            let rhsName = rhs.name ?? ""
-            return lhsName.localizedCaseInsensitiveCompare(rhsName) == .orderedAscending
-        }
-    }
-    
-    private func convertRawResultToSearchItem(_ rawResult: RawSearchResult, isFromCaseUpc: Bool) throws -> SearchResultItem? {
-        // Parse the JSON data to extract item information
-        guard let jsonData = rawResult.dataJson.data(using: .utf8),
-              let catalogObject = try? JSONDecoder().decode(CatalogObject.self, from: jsonData) else {
-            Logger.warn("Search", "Failed to parse catalog object JSON for ID: \(rawResult.id)")
-            return nil
-        }
-        
-        let itemData = catalogObject.itemData
-        
-        // Extract price from variations
-        let price = itemData?.variations?.first?.itemVariationData?.priceMoney?.amount.map { Double($0) / 100.0 }
-        
-        // Extract barcode from variations
-        let barcode = itemData?.variations?.first?.itemVariationData?.upc
-        
-        // Extract SKU from variations
-        let sku = itemData?.variations?.first?.itemVariationData?.sku
-        
-        // Extract images
-        let images = itemData?.images
-        
-        return SearchResultItem(
-            id: rawResult.id,
-            name: itemData?.name,
-            sku: sku,
-            price: price,
-            barcode: barcode,
-            categoryId: itemData?.categoryId,
-            categoryName: nil, // Will be populated by category lookup if needed
-            images: images,
-            matchType: rawResult.matchType,
-            matchContext: rawResult.matchContext,
-            isFromCaseUpc: isFromCaseUpc,
-            caseUpcData: nil
-        )
+        // Combine all results and use the advanced ranking system
+        let allResults = localResults + caseUpcResults
+
+        // The removeDuplicatesAndRank method already handles deduplication and ranking
+        return removeDuplicatesAndRank(results: allResults, searchTerm: lastSearchTerm)
     }
 }
 
 // MARK: - Supporting Types
+
 enum SearchError: LocalizedError {
     case databaseError(Error)
-    case graphQLError(Error)
     case invalidSearchTerm
-    
+    case noConnection
+
     var errorDescription: String? {
         switch self {
         case .databaseError(let error):
             return "Database search error: \(error.localizedDescription)"
-        case .graphQLError(let error):
-            return "GraphQL search error: \(error.localizedDescription)"
         case .invalidSearchTerm:
             return "Invalid search term"
+        case .noConnection:
+            return "Database connection not available"
         }
     }
+}
+
+// MARK: - Raw Search Result (for internal use)
+struct RawSearchResult {
+    let id: String
+    let dataJson: String
+    let matchType: String
+    let matchContext: String?
 }

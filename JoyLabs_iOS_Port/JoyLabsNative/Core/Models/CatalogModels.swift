@@ -16,13 +16,6 @@ struct SearchFilters {
     }
 }
 
-struct RawSearchResult {
-    let id: String
-    let dataJson: String
-    let matchType: String
-    let matchContext: String?
-}
-
 struct SearchResultItem: Identifiable, Hashable {
     let id: String
     let name: String?

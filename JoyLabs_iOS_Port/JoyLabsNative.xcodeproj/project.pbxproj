@@ -38,6 +38,7 @@
 		A1B2C3D4E5F6789012345845 /* ImageURLManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345846 /* ImageURLManager.swift */; };
 		A1B2C3D4E5F6789012345847 /* CachedImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345848 /* CachedImageView.swift */; };
 		A1B2C3D4E5F6789012345849 /* CatalogModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345849A /* CatalogModels.swift */; };
+		A1B2C3D4E5F6789012345851 /* SearchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345852 /* SearchManager.swift */; };
 																																								/* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -72,6 +73,7 @@
 		A1B2C3D4E5F6789012345846 /* ImageURLManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Images/ImageURLManager.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345848 /* CachedImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Views/Components/CachedImageView.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345849A /* CatalogModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Models/CatalogModels.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345852 /* SearchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Search/SearchManager.swift"; sourceTree = "<group>"; };
 																																								/* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -226,7 +228,8 @@
 				A1B2C3D4E5F6789012345843 /* ImageCacheService.swift in Sources */,
 				A1B2C3D4E5F6789012345845 /* ImageURLManager.swift in Sources */,
 				A1B2C3D4E5F6789012345847 /* CachedImageView.swift in Sources */,
-				A1B2C3D4E5F6789012345849 /* CatalogModels.swift in Sources */
+				A1B2C3D4E5F6789012345849 /* CatalogModels.swift in Sources */,
+				A1B2C3D4E5F6789012345851 /* SearchManager.swift in Sources */
 				);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -21,19 +21,16 @@ class SearchViewController: ObservableObject {
     
     // MARK: - Private Properties
     private let searchManager: SearchManager
-    private let hidScanner: HIDScannerManager
+    // HID scanner removed for simplicity
     private var cancellables = Set<AnyCancellable>()
     
     // MARK: - Initialization
     init(
-        searchManager: SearchManager = SearchManager(),
-        hidScanner: HIDScannerManager = HIDScannerManager()
+        searchManager: SearchManager = SearchManager()
     ) {
         self.searchManager = searchManager
-        self.hidScanner = hidScanner
-        
+
         setupBindings()
-        setupHIDScanner()
     }
     
     // MARK: - Public Methods
@@ -62,14 +59,12 @@ class SearchViewController: ObservableObject {
     
     func enableScanner() {
         scannerEnabled = true
-        hidScanner.enable()
-        Logger.info("Search", "HID scanner enabled")
+        Logger.info("Search", "Scanner enabled")
     }
-    
+
     func disableScanner() {
         scannerEnabled = false
-        hidScanner.disable()
-        Logger.info("Search", "HID scanner disabled")
+        Logger.info("Search", "Scanner disabled")
     }
     
     func updateSearchFilters(_ filters: SearchFilters) {
@@ -105,23 +100,7 @@ class SearchViewController: ObservableObject {
             .store(in: &cancellables)
     }
     
-    private func setupHIDScanner() {
-        // Configure HID scanner callbacks
-        hidScanner.onScan = { [weak self] barcode in
-            Task { @MainActor in
-                self?.handleBarcodeScanned(barcode)
-            }
-        }
-        
-        hidScanner.onError = { [weak self] error in
-            Task { @MainActor in
-                self?.handleScannerError(error)
-            }
-        }
-        
-        // Enable scanner by default
-        enableScanner()
-    }
+    // HID scanner setup removed for simplicity
     
     private func handleBarcodeScanned(_ barcode: String) {
         Logger.info("Search", "Barcode scanned: \(barcode)")
@@ -221,16 +200,7 @@ struct SearchView: View {
                 }
             }
         }
-        // Add HID scanner overlay
-        .hidScanner(
-            enabled: controller.scannerEnabled,
-            onScan: { barcode in
-                // This will be handled by the controller's HID scanner
-            },
-            onError: { error in
-                // This will be handled by the controller's HID scanner
-            }
-        )
+        // HID scanner overlay removed for simplicity
     }
 }
 

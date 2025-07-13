@@ -102,12 +102,19 @@ class CatalogTableDefinitions {
     static let imageVersion = Expression<String>("version")
     static let imageDataJson = Expression<String?>("data_json")
     
-    // MARK: - Team Data Table
+    // MARK: - Team Data Table (AppSync Integration)
     static let teamData = Table("team_data")
-    static let teamDataId = Expression<String>("id")
-    static let teamDataName = Expression<String?>("name")
-    static let teamDataValue = Expression<String?>("value")
-    static let teamDataUpdatedAt = Expression<String>("updated_at")
+    static let teamDataItemId = Expression<String>("item_id")
+    static let teamCaseUpc = Expression<String?>("case_upc")
+    static let teamCaseCost = Expression<Double?>("case_cost")
+    static let teamCaseQuantity = Expression<Int64?>("case_quantity")
+    static let teamVendor = Expression<String?>("vendor")
+    static let teamDiscontinued = Expression<Bool>("discontinued")
+    static let teamNotes = Expression<String?>("notes")
+    static let teamCreatedAt = Expression<String>("created_at")
+    static let teamUpdatedAt = Expression<String>("updated_at")
+    static let teamLastSyncAt = Expression<String?>("last_sync_at")
+    static let teamOwner = Expression<String?>("owner")
     
     // MARK: - Sync Status Table
     static let syncStatus = Table("sync_status")

@@ -148,7 +148,6 @@ class SQLiteSwiftCatalogManager {
     private let syncLastIncrementalSyncCursor = Expression<String?>("last_incremental_sync_cursor")
     
     // MARK: - Initialization
-    
     init() {
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
         self.dbPath = documentsPath.appendingPathComponent("catalog.sqlite").path
@@ -170,9 +169,6 @@ class SQLiteSwiftCatalogManager {
 
             logger.info("SQLiteSwift database connected successfully")
 
-            // Create tables if they don't exist
-            try createTables()
-
         } catch {
             logger.error("Failed to connect to SQLiteSwift database: \(error)")
             throw error
@@ -186,6 +182,8 @@ class SQLiteSwiftCatalogManager {
     func getDatabasePath() -> String {
         return dbPath
     }
+
+
 
     func getItemCount() async throws -> Int {
         guard let db = db else {
@@ -212,23 +210,24 @@ class SQLiteSwiftCatalogManager {
 
         // Use table creator component
         try tableCreator.createTables(in: db)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        logger.debug("SQLiteSwift tables verified (matching React Native schema)")
     }
+
+    func createTablesAsync() async throws {
+        guard let db = db else { throw SQLiteSwiftError.noConnection }
+
+        logger.info("Ensuring catalog database tables exist...")
+
+        // Create image URL mapping table first
+        let imageURLManager = ImageURLManager(databaseManager: self)
+        try imageURLManager.createImageMappingTable()
+
+        // Use table creator component
+        try tableCreator.createTables(in: db)
+
+        logger.info("Catalog database tables verified/created successfully")
+    }
+
+
     
     // MARK: - Data Operations
     
@@ -358,11 +357,6 @@ class SQLiteSwiftCatalogManager {
             return nil
         }
     }
-
-
-
-
-
 
 
 

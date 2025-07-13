@@ -9,8 +9,6 @@ class CatalogTableCreator {
     
     /// Creates all catalog tables in the database
     func createTables(in db: Connection) throws {
-        logger.debug("Ensuring catalog database tables exist...")
-
         // Create categories table
         try db.run(CatalogTableDefinitions.categories.create(ifNotExists: true) { t in
             t.column(CatalogTableDefinitions.categoryId, primaryKey: true)
@@ -121,12 +119,22 @@ class CatalogTableCreator {
             t.column(CatalogTableDefinitions.imageDataJson)
         })
         
-        // Create team_data table
+        // Create team_data table (AppSync Integration)
         try db.run(CatalogTableDefinitions.teamData.create(ifNotExists: true) { t in
-            t.column(CatalogTableDefinitions.teamDataId, primaryKey: true)
-            t.column(CatalogTableDefinitions.teamDataName)
-            t.column(CatalogTableDefinitions.teamDataValue)
-            t.column(CatalogTableDefinitions.teamDataUpdatedAt)
+            t.column(CatalogTableDefinitions.teamDataItemId, primaryKey: true)
+            t.column(CatalogTableDefinitions.teamCaseUpc)
+            t.column(CatalogTableDefinitions.teamCaseCost)
+            t.column(CatalogTableDefinitions.teamCaseQuantity)
+            t.column(CatalogTableDefinitions.teamVendor)
+            t.column(CatalogTableDefinitions.teamDiscontinued)
+            t.column(CatalogTableDefinitions.teamNotes)
+            t.column(CatalogTableDefinitions.teamCreatedAt)
+            t.column(CatalogTableDefinitions.teamUpdatedAt)
+            t.column(CatalogTableDefinitions.teamLastSyncAt)
+            t.column(CatalogTableDefinitions.teamOwner)
+
+            // Foreign key constraint to catalog_items
+            t.foreignKey(CatalogTableDefinitions.teamDataItemId, references: CatalogTableDefinitions.catalogItems, CatalogTableDefinitions.itemId, update: .cascade, delete: .cascade)
         })
         
         // Create sync_status table
@@ -135,7 +143,6 @@ class CatalogTableCreator {
             t.column(CatalogTableDefinitions.syncValue)
             t.column(CatalogTableDefinitions.syncUpdatedAt)
         })
-        
-        logger.debug("Catalog database tables verified/created successfully")
+
     }
 }
