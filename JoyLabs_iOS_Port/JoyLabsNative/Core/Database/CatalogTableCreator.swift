@@ -26,6 +26,7 @@ class CatalogTableCreator {
             t.column(CatalogTableDefinitions.itemName)
             t.column(CatalogTableDefinitions.itemDescription)
             t.column(CatalogTableDefinitions.itemCategoryId)
+            t.column(CatalogTableDefinitions.itemReportingCategoryName)
             t.column(CatalogTableDefinitions.itemIsDeleted, defaultValue: false)
             t.column(CatalogTableDefinitions.itemUpdatedAt)
             t.column(CatalogTableDefinitions.itemVersion)

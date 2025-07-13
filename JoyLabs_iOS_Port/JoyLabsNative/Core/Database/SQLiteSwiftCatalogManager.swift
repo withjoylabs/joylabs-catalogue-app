@@ -270,12 +270,16 @@ class SQLiteSwiftCatalogManager {
             
         case "ITEM":
             if let itemData = object.itemData {
+                // Extract reporting category name during sync for fast retrieval
+                let reportingCategoryName = extractReportingCategoryName(from: itemData, in: db)
+
                 let insert = CatalogTableDefinitions.catalogItems.insert(or: .replace,
                     CatalogTableDefinitions.itemId <- object.id,
                     CatalogTableDefinitions.itemUpdatedAt <- timestamp,
                     CatalogTableDefinitions.itemVersion <- String(object.version),
                     CatalogTableDefinitions.itemIsDeleted <- object.isDeleted,
                     CatalogTableDefinitions.itemCategoryId <- itemData.categoryId,
+                    CatalogTableDefinitions.itemReportingCategoryName <- reportingCategoryName,
                     CatalogTableDefinitions.itemName <- itemData.name,
                     CatalogTableDefinitions.itemDescription <- itemData.description,
                     CatalogTableDefinitions.itemDataJson <- encodeJSON(itemData)
@@ -356,6 +360,31 @@ class SQLiteSwiftCatalogManager {
             logger.error("Failed to encode JSON: \(error)")
             return nil
         }
+    }
+
+    // MARK: - Reporting Category Extraction (for fast search performance)
+
+    /// Extract reporting category name during sync for fast retrieval
+    private func extractReportingCategoryName(from itemData: ItemData, in db: Connection) -> String? {
+        // Check if item has a reporting category
+        guard let reportingCategory = itemData.reportingCategory else {
+            return nil
+        }
+
+        // Look up the reporting category name from the categories table
+        do {
+            let query = CatalogTableDefinitions.categories
+                .select(CatalogTableDefinitions.categoryName)
+                .filter(CatalogTableDefinitions.categoryId == reportingCategory.id)
+
+            if let row = try db.pluck(query) {
+                return try row.get(CatalogTableDefinitions.categoryName)
+            }
+        } catch {
+            logger.debug("Failed to get reporting category name for \(reportingCategory.id): \(error)")
+        }
+
+        return nil
     }
 
 

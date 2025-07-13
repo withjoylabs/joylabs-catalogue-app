@@ -465,8 +465,9 @@ class SearchManager: ObservableObject {
             let categoryId = try row.get(CatalogTableDefinitions.itemCategoryId)
             let dataJson = try row.get(CatalogTableDefinitions.itemDataJson)
 
-            // Get reporting category name for ALL searches (preferred over regular category)
-            let categoryName = getReportingCategoryForItem(dataJson: dataJson) ?? getCategoryNameForItem(categoryId: categoryId)
+            // Get pre-stored reporting category name (fast!) or fall back to regular category
+            let reportingCategoryName = try? row.get(CatalogTableDefinitions.itemReportingCategoryName)
+            let categoryName = reportingCategoryName ?? getCategoryNameForItem(categoryId: categoryId)
 
             // Get first variation data for SKU, price, and barcode
             let variationData = getFirstVariationForItem(itemId: itemId)
@@ -821,46 +822,6 @@ class SearchManager: ObservableObject {
         return (nil, nil, nil)
     }
 
-    private func getReportingCategoryForItem(dataJson: String?) -> String? {
-        guard let dataJson = dataJson,
-              let data = dataJson.data(using: .utf8) else {
-            return nil
-        }
-
-        do {
-            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let reportingCategory = json["reporting_category"] as? [String: Any],
-               let reportingCategoryId = reportingCategory["id"] as? String {
-
-                // Get the reporting category name from the categories table
-                return getReportingCategoryName(reportingCategoryId: reportingCategoryId)
-            }
-        } catch {
-            logger.debug("Failed to parse item dataJson for reporting category: \(error)")
-        }
-
-        return nil
-    }
-
-    private func getReportingCategoryName(reportingCategoryId: String) -> String? {
-        guard let db = databaseManager.getConnection() else {
-            return nil
-        }
-
-        do {
-            let query = CatalogTableDefinitions.categories
-                .select(CatalogTableDefinitions.categoryName)
-                .filter(CatalogTableDefinitions.categoryId == reportingCategoryId)
-
-            if let row = try db.pluck(query) {
-                return try row.get(CatalogTableDefinitions.categoryName)
-            }
-        } catch {
-            logger.debug("Failed to get reporting category name for \(reportingCategoryId): \(error)")
-        }
-
-        return nil
-    }
 }
 
 // MARK: - Supporting Types
