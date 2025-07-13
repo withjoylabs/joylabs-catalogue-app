@@ -465,9 +465,10 @@ class SearchManager: ObservableObject {
             let categoryId = try row.get(CatalogTableDefinitions.itemCategoryId)
             let dataJson = try row.get(CatalogTableDefinitions.itemDataJson)
 
-            // Get pre-stored reporting category name (fast!) or fall back to regular category
+            // Get pre-stored category names (fast!) - prioritize reporting category over regular category
             let reportingCategoryName = try? row.get(CatalogTableDefinitions.itemReportingCategoryName)
-            let categoryName = reportingCategoryName ?? getCategoryNameForItem(categoryId: categoryId)
+            let regularCategoryName = try? row.get(CatalogTableDefinitions.itemCategoryName)
+            let categoryName = reportingCategoryName ?? regularCategoryName
 
             // Get first variation data for SKU, price, and barcode
             let variationData = getFirstVariationForItem(itemId: itemId)
@@ -760,26 +761,7 @@ class SearchManager: ObservableObject {
 
     // MARK: - Data Population Helper Methods
 
-    private func getCategoryNameForItem(categoryId: String?) -> String? {
-        guard let categoryId = categoryId,
-              let db = databaseManager.getConnection() else {
-            return nil
-        }
 
-        do {
-            let query = CatalogTableDefinitions.categories
-                .select(CatalogTableDefinitions.categoryName)
-                .filter(CatalogTableDefinitions.categoryId == categoryId)
-
-            if let row = try db.pluck(query) {
-                return try row.get(CatalogTableDefinitions.categoryName)
-            }
-        } catch {
-            logger.debug("Failed to get category name for \(categoryId): \(error)")
-        }
-
-        return nil
-    }
 
     private func getFirstVariationForItem(itemId: String) -> (sku: String?, price: Double?, barcode: String?) {
         guard let db = databaseManager.getConnection() else {

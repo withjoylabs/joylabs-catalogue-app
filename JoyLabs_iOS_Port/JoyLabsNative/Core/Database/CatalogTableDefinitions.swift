@@ -22,6 +22,7 @@ class CatalogTableDefinitions {
     static let itemName = Expression<String?>("name")
     static let itemDescription = Expression<String?>("description")
     static let itemCategoryId = Expression<String?>("category_id")
+    static let itemCategoryName = Expression<String?>("category_name")
     static let itemReportingCategoryName = Expression<String?>("reporting_category_name")
     static let itemIsDeleted = Expression<Bool>("is_deleted")
     static let itemUpdatedAt = Expression<String>("updated_at")

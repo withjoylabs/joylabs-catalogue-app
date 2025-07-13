@@ -270,8 +270,9 @@ class SQLiteSwiftCatalogManager {
             
         case "ITEM":
             if let itemData = object.itemData {
-                // Extract reporting category name during sync for fast retrieval
+                // Extract both category types during sync for fast retrieval
                 let reportingCategoryName = extractReportingCategoryName(from: itemData, in: db)
+                let primaryCategoryName = extractPrimaryCategoryName(from: itemData, in: db)
 
                 let insert = CatalogTableDefinitions.catalogItems.insert(or: .replace,
                     CatalogTableDefinitions.itemId <- object.id,
@@ -279,6 +280,7 @@ class SQLiteSwiftCatalogManager {
                     CatalogTableDefinitions.itemVersion <- String(object.version),
                     CatalogTableDefinitions.itemIsDeleted <- object.isDeleted,
                     CatalogTableDefinitions.itemCategoryId <- itemData.categoryId,
+                    CatalogTableDefinitions.itemCategoryName <- primaryCategoryName,
                     CatalogTableDefinitions.itemReportingCategoryName <- reportingCategoryName,
                     CatalogTableDefinitions.itemName <- itemData.name,
                     CatalogTableDefinitions.itemDescription <- itemData.description,
@@ -382,6 +384,39 @@ class SQLiteSwiftCatalogManager {
             }
         } catch {
             logger.debug("Failed to get reporting category name for \(reportingCategory.id): \(error)")
+        }
+
+        return nil
+    }
+
+    /// Extract primary category name from categories array during sync for fast retrieval
+    private func extractPrimaryCategoryName(from itemData: ItemData, in db: Connection) -> String? {
+        // Check if item has categories array
+        guard let categories = itemData.categories, !categories.isEmpty else {
+            // Fall back to legacy categoryId if no categories array
+            if let categoryId = itemData.categoryId {
+                return getCategoryNameById(categoryId: categoryId, in: db)
+            }
+            return nil
+        }
+
+        // Get the first category from the categories array (primary category)
+        let primaryCategory = categories.first!
+        return getCategoryNameById(categoryId: primaryCategory.id, in: db)
+    }
+
+    /// Helper method to get category name by ID
+    private func getCategoryNameById(categoryId: String, in db: Connection) -> String? {
+        do {
+            let query = CatalogTableDefinitions.categories
+                .select(CatalogTableDefinitions.categoryName)
+                .filter(CatalogTableDefinitions.categoryId == categoryId)
+
+            if let row = try db.pluck(query) {
+                return try row.get(CatalogTableDefinitions.categoryName)
+            }
+        } catch {
+            logger.debug("Failed to get category name for \(categoryId): \(error)")
         }
 
         return nil
