@@ -1,3 +1,21 @@
+# JoyLabs Native iOS App - Codebase Structure & Analysis
+
+## 📁 Project Overview
+
+This is a native iOS SwiftUI application for JoyLabs catalog management with Square integration. The app provides barcode scanning, product search, catalog management, label printing, and reorder functionality.
+
+## 🏗️ Architecture
+
+The codebase follows a **modular architecture** with clear separation of concerns:
+
+- **Core**: Business logic, services, and data management
+- **Views**: SwiftUI user interface components
+- **Components**: Reusable UI components
+- **Features**: Feature-specific implementations
+- **Models**: Data models and structures
+
+---
+
 # 📱 JoyLabs Native iOS - Setup & Testing Guide
 
 ## 🚀 Quick Start (5 Minutes)
@@ -149,3 +167,222 @@ If you encounter any issues:
 ---
 
 **🎊 Congratulations!** You're now running native iOS code on your device. This is the foundation for the complete JoyLabs Native app!
+
+---
+
+# 📂 Detailed Directory Structure
+
+## Root Level
+```
+JoyLabsNative/
+├── JoyLabsNativeApp.swift          # App entry point
+├── ContentView.swift               # Main tab view controller
+├── SimpleContentView.swift         # 🚨 PLACEHOLDER - Simple test view
+├── Info.plist                      # App configuration
+└── Assets.xcassets/                # App icons and assets
+```
+
+## Core/ - Business Logic & Services
+```
+Core/
+├── AWS/                            # 🚨 DEPRECATED - AWS Amplify (not used)
+│   └── AmplifyConfiguration.swift
+├── Authentication/                 # 🚨 DEPRECATED - Auth (using Square OAuth)
+│   └── AuthenticationManager.swift
+├── Database/                       # ✅ ACTIVE - SQLite database management
+│   ├── SQLiteSwiftCatalogManager.swift
+│   ├── CatalogTableDefinitions.swift
+│   ├── CatalogTableCreator.swift
+│   ├── CatalogObjectInserters.swift
+│   ├── CatalogStatsService.swift
+│   ├── DataValidation.swift
+│   └── DatabaseModels.swift
+├── GraphQL/                        # 🚨 DEPRECATED - GraphQL (using Square API)
+│   └── GraphQLClient.swift
+├── Images/                         # ✅ ACTIVE - Image caching system
+│   ├── ImageCacheService.swift
+│   └── ImageURLManager.swift
+├── LabelEngine/                    # 🚨 PLACEHOLDER - Label printing
+│   ├── LabelDesignEngine.swift
+│   ├── LabelModels.swift
+│   ├── LabelRenderer.swift
+│   └── LabelTemplateManager.swift
+├── Models/                         # ✅ ACTIVE - Core data models
+│   └── CatalogModels.swift
+├── Navigation/                     # 🚨 PLACEHOLDER - Navigation
+│   └── NavigationManager.swift
+├── Printing/                       # 🚨 PLACEHOLDER - Printer management
+│   ├── PrinterManager.swift
+│   └── PrinterModels.swift
+├── Resilience/                     # 🚨 PLACEHOLDER - Error handling
+│   ├── CircuitBreaker.swift
+│   ├── ErrorRecoveryManager.swift
+│   └── ResilienceService.swift
+├── Scanner/                        # 🚨 EMPTY - Scanner logic
+├── Search/                         # ✅ ACTIVE - Search functionality
+│   ├── SearchManager.swift         # Main search service
+│   ├── EnhancedSearchService.swift # 🚨 PLACEHOLDER
+│   ├── MockSearchManager.swift    # 🚨 DEPRECATED
+│   ├── MultiLevelCacheManager.swift # 🚨 PLACEHOLDER
+│   └── SearchPerformanceMonitor.swift # 🚨 PLACEHOLDER
+├── Services/                       # 🚨 MIXED - Various services
+│   ├── ServiceImplementations.swift # ✅ ACTIVE
+│   ├── TokenService.swift          # ✅ ACTIVE
+│   ├── APIClient.swift             # 🚨 PLACEHOLDER
+│   ├── ConflictResolutionService.swift # 🚨 PLACEHOLDER
+│   ├── NotificationManager.swift   # 🚨 PLACEHOLDER
+│   ├── OfflineDataManager.swift    # 🚨 PLACEHOLDER
+│   ├── ProductService.swift        # 🚨 PLACEHOLDER
+│   ├── RealtimeCollaborationService.swift # 🚨 PLACEHOLDER
+│   └── TeamDataSyncService.swift   # 🚨 PLACEHOLDER
+├── Square/                         # ✅ ACTIVE - Square API integration
+│   ├── SquareAPIService.swift      # Main Square service
+│   ├── SquareAPIServiceFactory.swift
+│   ├── SquareOAuthService.swift
+│   ├── SquareOAuthCallbackHandler.swift
+│   ├── SquareHTTPClient.swift
+│   ├── SquareConfiguration.swift
+│   ├── SquareErrorRecoveryManager.swift
+│   ├── SquareLocationsService.swift
+│   ├── SQLiteSwiftSyncCoordinator.swift
+│   └── PKCEGenerator.swift
+├── Sync/                           # ✅ ACTIVE - Catalog synchronization
+│   └── SQLiteSwiftCatalogSyncService.swift
+└── Utilities/                      # 🚨 DEPRECATED - Utilities
+    └── PKCEHelper.swift            # (duplicate of PKCEGenerator)
+```
+
+## Views/ - User Interface
+```
+Views/
+├── ScanView.swift                  # ✅ ACTIVE - Main scan interface
+├── ReordersView.swift              # ✅ ACTIVE - Reorders management
+├── LabelsView.swift                # ✅ ACTIVE - Label management
+├── ProfileView.swift               # ✅ ACTIVE - Profile & Square integration
+├── Catalog/                        # ✅ ACTIVE - Catalog management
+│   ├── CatalogManagementView.swift
+│   ├── CatalogManagementView.swift.backup    # 🚨 BACKUP FILE
+│   ├── CatalogManagementView.swift.bak       # 🚨 BACKUP FILE
+│   └── CatalogManagementView_broken.swift    # 🚨 BACKUP FILE
+├── Components/                     # ✅ ACTIVE - Reusable components
+│   └── CachedImageView.swift
+├── Square/                         # 🚨 DEPRECATED - Square UI (moved to ProfileView)
+│   ├── SquareAuthenticationSheet.swift
+│   ├── SquareConnectionView.swift
+│   ├── SquareIntegrationView.swift
+│   └── SquareSyncDetailsView.swift
+└── Testing/                        # 🚨 TESTING - Test views
+    └── TestRunnerView.swift
+```
+
+## Components/ - Reusable UI Components
+```
+Components/
+├── HeaderComponents.swift          # ✅ ACTIVE - Header UI components
+├── LabelComponents.swift           # ✅ ACTIVE - Label UI components
+├── ReorderComponents.swift         # ✅ ACTIVE - Reorder UI components
+├── SearchComponents.swift          # ✅ ACTIVE - Search UI components
+└── StateViews.swift                # ✅ ACTIVE - Loading/error states
+```
+
+## Features/ - Feature Implementations
+```
+Features/
+├── Catalog/                        # 🚨 DEPRECATED - Moved to Views/
+│   └── CatalogViewController.swift
+├── Items/                          # 🚨 PLACEHOLDER - Item management
+│   ├── ItemDetailView.swift
+│   └── ItemViews.swift
+├── Labels/                         # 🚨 PLACEHOLDER - Label features
+│   ├── LabelDesignView.swift
+│   └── LabelPrintingViews.swift
+├── Scanner/                        # 🚨 PLACEHOLDER - Scanner features
+│   ├── CameraScannerView.swift
+│   ├── EnhancedScannerView.swift
+│   └── ScannerComponents.swift
+└── Search/                         # 🚨 DEPRECATED - Moved to Views/
+    ├── SearchResultsView.swift
+    └── SearchViewController.swift
+```
+
+## Models/ - Data Models
+```
+Models/
+└── LabelModels.swift               # ✅ ACTIVE - Label data models
+```
+
+## Empty Directories
+```
+Services/                           # 🚨 EMPTY
+Extensions/                         # 🚨 EMPTY
+```
+
+## Testing/
+```
+Testing/
+├── SquareIntegrationTests.swift    # 🚨 TESTING - Square API tests
+└── TestRunnerView.swift            # 🚨 TESTING - Test runner UI
+```
+
+---
+
+# 🚨 Issues Identified
+
+## 1. **Backup Files** (Should be removed)
+- `Views/Catalog/CatalogManagementView.swift.backup`
+- `Views/Catalog/CatalogManagementView.swift.bak`
+- `Views/Catalog/CatalogManagementView_broken.swift`
+
+## 2. **Deprecated/Unused Directories**
+- `Core/AWS/` - AWS Amplify not used (using Square API)
+- `Core/Authentication/` - Custom auth not used (using Square OAuth)
+- `Core/GraphQL/` - GraphQL not used (using Square REST API)
+- `Views/Square/` - Square UI moved to ProfileView
+- `Features/Catalog/` - Functionality moved to Views/
+- `Features/Search/` - Functionality moved to Views/
+
+## 3. **Placeholder Services** (Not implemented)
+- Most files in `Core/Services/` except ServiceImplementations.swift and TokenService.swift
+- `Core/LabelEngine/` - Label printing not implemented
+- `Core/Printing/` - Printer management not implemented
+- `Core/Resilience/` - Error handling placeholders
+- `Features/Items/` - Item management not implemented
+- `Features/Labels/` - Label features not implemented
+- `Features/Scanner/` - Scanner features not implemented
+
+## 4. **Empty Directories**
+- `Services/` - Empty directory
+- `Extensions/` - Empty directory
+- `Core/Scanner/` - Empty directory
+
+## 5. **Duplicate Files**
+- `Core/Utilities/PKCEHelper.swift` vs `Core/Square/PKCEGenerator.swift`
+- `SimpleContentView.swift` - Test placeholder
+
+---
+
+# ✅ Active Components
+
+## Core Functionality
+- **Database**: SQLite.swift implementation for catalog data
+- **Square Integration**: Complete OAuth and API integration
+- **Search**: Fuzzy search with tokenized ranking
+- **Image Caching**: AWS URL to local cache conversion
+- **Sync**: Square catalog synchronization
+
+## User Interface
+- **Main Views**: Scan, Reorders, Labels, Profile tabs
+- **Components**: Reusable UI components for each feature
+- **Catalog Management**: Full catalog sync and statistics
+
+---
+
+# 🎯 Recommendations
+
+1. **Remove backup files** in Views/Catalog/
+2. **Remove deprecated directories**: AWS, Authentication, GraphQL, Views/Square
+3. **Remove placeholder services** that aren't implemented
+4. **Consolidate duplicate utilities** (PKCEHelper vs PKCEGenerator)
+5. **Remove empty directories**: Services, Extensions, Core/Scanner
+6. **Move Features/ content** to appropriate Views/ locations or remove
+7. **Keep Testing/** for development but consider separate test target
