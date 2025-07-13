@@ -224,11 +224,53 @@ class SQLiteSwiftCatalogManager {
         // Use table creator component
         try tableCreator.createTables(in: db)
 
+        // Run database migrations for schema updates
+        try migrateDatabaseSchema()
+
         logger.info("Catalog database tables verified/created successfully")
     }
 
+    // MARK: - Database Migration
 
-    
+    func migrateDatabaseSchema() throws {
+        guard let db = db else { throw SQLiteSwiftError.noConnection }
+
+        logger.info("Checking for database schema migrations...")
+
+        // Check if new category columns exist
+        let tableInfo = try db.prepare("PRAGMA table_info(catalog_items)")
+        var hasCategoryName = false
+        var hasReportingCategoryName = false
+
+        for row in tableInfo {
+            let columnName = row[1] as! String
+            if columnName == "category_name" {
+                hasCategoryName = true
+            } else if columnName == "reporting_category_name" {
+                hasReportingCategoryName = true
+            }
+        }
+
+        // Add missing columns
+        if !hasCategoryName {
+            logger.info("Adding category_name column to catalog_items table...")
+            try db.run("ALTER TABLE catalog_items ADD COLUMN category_name TEXT")
+        }
+
+        if !hasReportingCategoryName {
+            logger.info("Adding reporting_category_name column to catalog_items table...")
+            try db.run("ALTER TABLE catalog_items ADD COLUMN reporting_category_name TEXT")
+        }
+
+        if !hasCategoryName || !hasReportingCategoryName {
+            logger.info("Database schema migration completed successfully")
+        } else {
+            logger.info("Database schema is up to date")
+        }
+    }
+
+
+
     // MARK: - Data Operations
     
     func clearAllData() throws {
