@@ -177,9 +177,10 @@ class ImageURLManager {
     /// Clear all image mappings (for full sync)
     func clearAllImageMappings() throws {
         guard let db = databaseManager.getConnection() else {
-            throw ImageURLError.databaseNotConnected
+            logger.warning("⚠️ Database connection not available for clearing image mappings - skipping")
+            return // Don't throw error, just skip the operation
         }
-        
+
         try db.run(imageUrlMappings.delete())
         logger.info("🧹 Cleared all image URL mappings")
     }

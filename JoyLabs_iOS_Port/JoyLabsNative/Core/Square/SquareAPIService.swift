@@ -251,7 +251,7 @@ class SquareAPIService: ObservableObject {
 
     /// Start Square OAuth authentication flow with resilience
     func authenticate() async throws {
-        logger.info("Starting Square authentication with resilience")
+        logger.info("Starting Square authentication")
 
         authenticationState = .authenticating
         error = nil

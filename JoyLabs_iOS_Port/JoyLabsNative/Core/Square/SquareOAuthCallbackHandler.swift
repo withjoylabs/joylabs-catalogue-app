@@ -14,18 +14,18 @@ class SquareOAuthCallbackHandler: ObservableObject {
     private weak var activeOAuthService: SquareOAuthService?
     
     private init() {
-        logger.info("SquareOAuthCallbackHandler initialized")
+        logger.debug("SquareOAuthCallbackHandler initialized")
     }
-    
+
     /// Register an OAuth service to receive callbacks
     func registerOAuthService(_ service: SquareOAuthService) {
-        logger.info("Registering OAuth service for callbacks")
+        logger.debug("Registering OAuth service for callbacks")
         activeOAuthService = service
     }
-    
+
     /// Unregister the OAuth service
     func unregisterOAuthService() {
-        logger.info("Unregistering OAuth service")
+        logger.debug("Unregistering OAuth service")
         activeOAuthService = nil
     }
     

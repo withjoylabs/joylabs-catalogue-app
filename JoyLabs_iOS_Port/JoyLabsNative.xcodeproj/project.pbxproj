@@ -39,6 +39,16 @@
 		A1B2C3D4E5F6789012345847 /* CachedImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345848 /* CachedImageView.swift */; };
 		A1B2C3D4E5F6789012345849 /* CatalogModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345849A /* CatalogModels.swift */; };
 		A1B2C3D4E5F6789012345851 /* SearchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345852 /* SearchManager.swift */; };
+		A1B2C3D4E5F6789012345853 /* ScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345854 /* ScanView.swift */; };
+		A1B2C3D4E5F6789012345855 /* ReordersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345856 /* ReordersView.swift */; };
+		A1B2C3D4E5F6789012345857 /* LabelsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345858 /* LabelsView.swift */; };
+		A1B2C3D4E5F6789012345859 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345860 /* ProfileView.swift */; };
+		A1B2C3D4E5F6789012345861 /* HeaderComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345862 /* HeaderComponents.swift */; };
+		A1B2C3D4E5F6789012345863 /* SearchComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345864 /* SearchComponents.swift */; };
+		A1B2C3D4E5F6789012345865 /* StateViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345866 /* StateViews.swift */; };
+		A1B2C3D4E5F6789012345867 /* LabelModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345868 /* LabelModels.swift */; };
+		A1B2C3D4E5F6789012345869 /* LabelComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345870 /* LabelComponents.swift */; };
+		A1B2C3D4E5F6789012345871 /* ReorderComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345872 /* ReorderComponents.swift */; };
 																																								/* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -74,6 +84,16 @@
 		A1B2C3D4E5F6789012345848 /* CachedImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Views/Components/CachedImageView.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345849A /* CatalogModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Models/CatalogModels.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345852 /* SearchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Search/SearchManager.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345854 /* ScanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Views/ScanView.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345856 /* ReordersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Views/ReordersView.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345858 /* LabelsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Views/LabelsView.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345860 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Views/ProfileView.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345862 /* HeaderComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Components/HeaderComponents.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345864 /* SearchComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Components/SearchComponents.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345866 /* StateViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Components/StateViews.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345868 /* LabelModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Models/LabelModels.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345870 /* LabelComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Components/LabelComponents.swift"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345872 /* ReorderComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Components/ReorderComponents.swift"; sourceTree = "<group>"; };
 																																								/* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -229,7 +249,17 @@
 				A1B2C3D4E5F6789012345845 /* ImageURLManager.swift in Sources */,
 				A1B2C3D4E5F6789012345847 /* CachedImageView.swift in Sources */,
 				A1B2C3D4E5F6789012345849 /* CatalogModels.swift in Sources */,
-				A1B2C3D4E5F6789012345851 /* SearchManager.swift in Sources */
+				A1B2C3D4E5F6789012345851 /* SearchManager.swift in Sources */,
+				A1B2C3D4E5F6789012345853 /* ScanView.swift in Sources */,
+				A1B2C3D4E5F6789012345855 /* ReordersView.swift in Sources */,
+				A1B2C3D4E5F6789012345857 /* LabelsView.swift in Sources */,
+				A1B2C3D4E5F6789012345859 /* ProfileView.swift in Sources */,
+				A1B2C3D4E5F6789012345861 /* HeaderComponents.swift in Sources */,
+				A1B2C3D4E5F6789012345863 /* SearchComponents.swift in Sources */,
+				A1B2C3D4E5F6789012345865 /* StateViews.swift in Sources */,
+				A1B2C3D4E5F6789012345867 /* LabelModels.swift in Sources */,
+				A1B2C3D4E5F6789012345869 /* LabelComponents.swift in Sources */,
+				A1B2C3D4E5F6789012345871 /* ReorderComponents.swift in Sources */
 				);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

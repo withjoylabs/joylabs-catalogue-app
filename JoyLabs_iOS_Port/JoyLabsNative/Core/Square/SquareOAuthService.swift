@@ -131,7 +131,10 @@ class SquareOAuthService: NSObject, ObservableObject {
     
     private func startWebAuthenticationSession(authURL: URL) async throws {
         logger.debug("Starting web authentication session")
-        
+
+        // Note: ASWebAuthenticationSession may trigger spurious keyboard notifications
+        // in the console. This is a known iOS issue and can be safely ignored.
+
         return try await withCheckedThrowingContinuation { continuation in
             authSession = ASWebAuthenticationSession(
                 url: authURL,

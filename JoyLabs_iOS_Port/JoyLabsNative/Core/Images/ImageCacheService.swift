@@ -172,11 +172,12 @@ class ImageCacheService: ObservableObject {
         }
         downloadTasks.removeAll()
         
-        // Clear URL mappings
+        // Clear URL mappings (gracefully handle database unavailability)
         do {
             try imageURLManager.clearAllImageMappings()
+            logger.debug("✅ Image URL mappings cleared")
         } catch {
-            logger.error("❌ Failed to clear image URL mappings: \(error.localizedDescription)")
+            logger.warning("⚠️ Could not clear image URL mappings (database may not be ready): \(error.localizedDescription)")
         }
 
         // Clear disk cache
