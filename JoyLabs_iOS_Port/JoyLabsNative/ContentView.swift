@@ -46,6 +46,7 @@ struct ScanView: View {
     @State private var scanHistoryCount = 0
     @State private var isConnected = true
     @StateObject private var searchManager = SearchManager()
+    @FocusState private var isSearchFieldFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -149,11 +150,13 @@ struct ScanView: View {
             Spacer()
 
             // Bottom search bar (matching React Native layout)
-            BottomSearchBar(searchText: $searchText)
+            BottomSearchBar(searchText: $searchText, isSearchFieldFocused: $isSearchFieldFocused)
         }
         .background(Color(.systemBackground))
         .onChange(of: searchText) {
-            if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            // Only trigger search if field is focused and has content
+            // This prevents onChange from firing during focus changes
+            if isSearchFieldFocused && !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
                 searchManager.performSearchWithDebounce(searchTerm: searchText, filters: filters)
             }
@@ -340,6 +343,7 @@ struct SearchResultCard: View {
 
 struct BottomSearchBar: View {
     @Binding var searchText: String
+    @FocusState.Binding var isSearchFieldFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -354,6 +358,7 @@ struct BottomSearchBar: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .keyboardType(.default)
+                        .focused($isSearchFieldFocused)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)

@@ -5,7 +5,6 @@ import os.log
 
 /// SearchManager - Handles sophisticated search with optimized SQLite queries
 /// Built specifically for iOS with industry-standard fuzzy search and tokenized ranking
-@MainActor
 class SearchManager: ObservableObject {
     // MARK: - Published Properties
     @Published var searchResults: [SearchResultItem] = []
@@ -31,7 +30,13 @@ class SearchManager: ObservableObject {
 
     // MARK: - Initialization
     init(databaseManager: SQLiteSwiftCatalogManager? = nil) {
-        self.databaseManager = databaseManager ?? SquareAPIServiceFactory.createDatabaseManager()
+        // Initialize database manager on main actor if needed
+        if let manager = databaseManager {
+            self.databaseManager = manager
+        } else {
+            // Create database manager asynchronously to avoid main actor issues
+            self.databaseManager = SQLiteSwiftCatalogManager()
+        }
         setupSearchDebouncing()
 
         // Initialize database connection asynchronously
@@ -51,12 +56,14 @@ class SearchManager: ObservableObject {
             try await databaseManager.createTablesAsync()
             logger.info("✅ Database tables initialized")
 
-            await MainActor.run {
+            // Update on main thread without blocking
+            Task { @MainActor in
                 isDatabaseReady = true
             }
         } catch {
             logger.error("❌ Search manager database connection failed: \(error)")
-            await MainActor.run {
+            // Update on main thread without blocking
+            Task { @MainActor in
                 searchError = "Database connection failed: \(error.localizedDescription)"
                 isDatabaseReady = false
             }
@@ -70,7 +77,7 @@ class SearchManager: ObservableObject {
 
         guard !trimmedTerm.isEmpty else {
             // Clear search state efficiently without blocking UI
-            await MainActor.run {
+            Task { @MainActor in
                 if !searchResults.isEmpty {
                     searchResults = []
                 }
@@ -98,14 +105,14 @@ class SearchManager: ObservableObject {
 
         // Reset pagination for new searches
         if !loadMore || lastSearchTerm != trimmedTerm {
-            await MainActor.run {
+            Task { @MainActor in
                 currentOffset = 0
                 searchResults = []
                 totalResultsCount = nil
             }
         }
 
-        await MainActor.run {
+        Task { @MainActor in
             if loadMore {
                 isLoadingMore = true
             } else {
@@ -121,7 +128,7 @@ class SearchManager: ObservableObject {
             // 1. Get total count first (only for initial search)
             if currentOffset == 0 {
                 let totalCount = try await getTotalSearchResultsCount(searchTerm: trimmedTerm, filters: filters)
-                await MainActor.run {
+                Task { @MainActor in
                     totalResultsCount = totalCount
                 }
                 logger.debug("📊 Total available results: \(totalCount)")
@@ -149,7 +156,7 @@ class SearchManager: ObservableObject {
                 caseUpcResults: caseUpcResults
             )
 
-            await MainActor.run {
+            Task { @MainActor in
                 if loadMore {
                     // Append new results, avoiding duplicates
                     let existingIds = Set(searchResults.map { $0.id })
@@ -166,14 +173,14 @@ class SearchManager: ObservableObject {
                 hasMoreResults = searchResults.count < (totalResultsCount ?? 0)
             }
 
-            let totalCount = await MainActor.run { self.searchResults.count }
+            let totalCount = newResults.count
             logger.info("✅ Search completed: \(newResults.count) new results, \(totalCount) total")
             return newResults
 
         } catch {
             logger.error("❌ Search failed: \(error)")
 
-            await MainActor.run {
+            Task { @MainActor in
                 searchError = error.localizedDescription
                 if loadMore {
                     isLoadingMore = false
@@ -197,7 +204,7 @@ class SearchManager: ObservableObject {
             taskToCancel?.cancel()
         }
 
-        // Send to debounced subject - this needs to be on main thread for @MainActor compliance
+        // Send to debounced subject
         searchSubject.send((searchTerm, filters))
     }
     
