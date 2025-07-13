@@ -59,7 +59,7 @@ struct ScanButton: View {
 }
 
 // MARK: - Search Result Card
-struct SearchResultCard: View {
+struct ScanResultCard: View {
     let result: SearchResultItem
 
     var body: some View {
@@ -281,7 +281,7 @@ struct SearchBarWithClear: View {
     BottomSearchBar(searchText: $searchText, isSearchFieldFocused: $isSearchFieldFocused)
 }
 
-#Preview("Search Result Card") {
+#Preview("Scan Result Card") {
     let sampleResult = SearchResultItem(
         id: "1",
         name: "Sample Product",
@@ -298,6 +298,6 @@ struct SearchBarWithClear: View {
         hasTax: true
     )
 
-    SearchResultCard(result: sampleResult)
+    ScanResultCard(result: sampleResult)
         .padding()
 }

@@ -152,7 +152,7 @@ struct SearchResultsList: View {
 
     var body: some View {
         List(results) { result in
-            SearchResultCard(result: result)
+            ScanResultCard(result: result)
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets())
