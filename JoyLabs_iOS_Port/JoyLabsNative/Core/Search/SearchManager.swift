@@ -465,13 +465,11 @@ class SearchManager: ObservableObject {
             let categoryId = try row.get(CatalogTableDefinitions.itemCategoryId)
             let dataJson = try row.get(CatalogTableDefinitions.itemDataJson)
 
-            // Try to get category name if available (for category searches)
-            let categoryName: String?
-            if matchType == "category" {
-                categoryName = try? row.get(CatalogTableDefinitions.categoryName)
-            } else {
-                categoryName = nil
-            }
+            // Get category name for ALL searches, not just category searches
+            let categoryName = getCategoryNameForItem(categoryId: categoryId)
+
+            // Get first variation data for SKU, price, and barcode
+            let variationData = getFirstVariationForItem(itemId: itemId)
 
             // Check if item has taxes by parsing the dataJson
             let hasTax = checkItemHasTax(dataJson: dataJson)
@@ -479,9 +477,9 @@ class SearchManager: ObservableObject {
             return SearchResultItem(
                 id: itemId,
                 name: itemName,
-                sku: nil, // Will be populated from variations if needed
-                price: nil, // Will be populated from variations if needed
-                barcode: nil, // Will be populated from variations if needed
+                sku: variationData.sku,
+                price: variationData.price,
+                barcode: variationData.barcode,
                 categoryId: categoryId,
                 categoryName: categoryName,
                 images: nil, // Could be populated from dataJson if needed
@@ -757,6 +755,70 @@ class SearchManager: ObservableObject {
         }
 
         return false
+    }
+
+    // MARK: - Data Population Helper Methods
+
+    private func getCategoryNameForItem(categoryId: String?) -> String? {
+        guard let categoryId = categoryId,
+              let db = databaseManager.getConnection() else {
+            return nil
+        }
+
+        do {
+            let query = CatalogTableDefinitions.categories
+                .select(CatalogTableDefinitions.categoryName)
+                .filter(CatalogTableDefinitions.categoryId == categoryId)
+
+            if let row = try db.pluck(query) {
+                return try row.get(CatalogTableDefinitions.categoryName)
+            }
+        } catch {
+            logger.debug("Failed to get category name for \(categoryId): \(error)")
+        }
+
+        return nil
+    }
+
+    private func getFirstVariationForItem(itemId: String) -> (sku: String?, price: Double?, barcode: String?) {
+        guard let db = databaseManager.getConnection() else {
+            return (nil, nil, nil)
+        }
+
+        do {
+            let query = CatalogTableDefinitions.itemVariations
+                .select(CatalogTableDefinitions.variationSku,
+                       CatalogTableDefinitions.variationPriceAmount,
+                       CatalogTableDefinitions.variationUpc)
+                .filter(CatalogTableDefinitions.variationItemId == itemId &&
+                       CatalogTableDefinitions.variationIsDeleted == false)
+                .limit(1)
+
+            if let row = try db.pluck(query) {
+                let sku = try row.get(CatalogTableDefinitions.variationSku)
+                let priceAmount = try row.get(CatalogTableDefinitions.variationPriceAmount)
+                let upc = try row.get(CatalogTableDefinitions.variationUpc)
+
+                // Convert price from cents to dollars
+                let price: Double?
+                if let amount = priceAmount, amount > 0 {
+                    let convertedPrice = Double(amount) / 100.0
+                    if convertedPrice.isFinite && !convertedPrice.isNaN && convertedPrice > 0 {
+                        price = convertedPrice
+                    } else {
+                        price = nil
+                    }
+                } else {
+                    price = nil
+                }
+
+                return (sku, price, upc)
+            }
+        } catch {
+            logger.debug("Failed to get variation data for item \(itemId): \(error)")
+        }
+
+        return (nil, nil, nil)
     }
 }
 
