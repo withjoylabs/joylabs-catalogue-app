@@ -149,14 +149,16 @@ struct NoResultsView: View {
 
 struct SearchResultsList: View {
     let results: [SearchResultItem]
-    
+
     var body: some View {
         List(results) { result in
             SearchResultCard(result: result)
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets())
         }
         .listStyle(PlainListStyle())
+        .scrollContentBackground(.hidden)
     }
 }
 

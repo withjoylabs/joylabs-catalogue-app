@@ -63,26 +63,86 @@ struct SearchResultCard: View {
     let result: SearchResultItem
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                ProductInfoView(result: result)
-                
-                Spacer()
-                
-                PriceInfoView(result: result)
+        HStack(spacing: 12) {
+            // Thumbnail image (left side)
+            AsyncImage(url: result.images?.first?.imageData?.url.flatMap(URL.init)) { image in
+                image
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } placeholder: {
+                Rectangle()
+                    .fill(Color(.systemGray5))
+                    .overlay(
+                        Image(systemName: "photo")
+                            .foregroundColor(.secondary)
+                            .font(.system(size: 16))
+                    )
+            }
+            .frame(width: 50, height: 50)
+            .cornerRadius(6)
+            .clipped()
+
+            // Main content section
+            VStack(alignment: .leading, spacing: 6) {
+                // Item name
+                Text(result.name ?? "Unknown Item")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.primary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+
+                // Category, UPC, SKU row
+                HStack(spacing: 8) {
+                    // Category with background
+                    if let categoryName = result.categoryName, !categoryName.isEmpty {
+                        Text(categoryName)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.primary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color(.systemGray4))
+                            .cornerRadius(4)
+                    }
+
+                    // UPC
+                    if let barcode = result.barcode, !barcode.isEmpty {
+                        Text(barcode)
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    }
+
+                    // SKU
+                    if let sku = result.sku, !sku.isEmpty {
+                        Text(sku)
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    }
+
+                    Spacer()
+                }
             }
 
-            if result.isFromCaseUpc, let caseData = result.caseUpcData {
-                CaseInfoView(caseData: caseData)
+            Spacer()
+
+            // Price section (right side)
+            VStack(alignment: .trailing, spacing: 2) {
+                if let price = result.price, price.isFinite && !price.isNaN {
+                    Text("$\(price, specifier: "%.2f")")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.primary)
+
+                    // Show "+tax" if item has taxes
+                    if result.hasTax {
+                        Text("+tax")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                    }
+                }
             }
         }
-        .padding(16)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
         .background(Color(.systemBackground))
-        .cornerRadius(12)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color(.systemGray4), lineWidth: 1)
-        )
         .onTapGesture {
             handleItemSelection()
         }
