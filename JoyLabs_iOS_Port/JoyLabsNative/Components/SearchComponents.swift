@@ -143,6 +143,20 @@ struct ScanResultCard: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
         .background(Color(.systemBackground))
+        .overlay(
+            // Subtle divider line like iOS Reminders
+            VStack {
+                Spacer()
+                HStack {
+                    // Start divider after thumbnail (60px + 12px spacing = 72px from left)
+                    Spacer()
+                        .frame(width: 62)
+                    Rectangle()
+                        .fill(Color(.separator))
+                        .frame(height: 0.5)
+                }
+            }
+        )
         .onTapGesture {
             handleItemSelection()
         }
