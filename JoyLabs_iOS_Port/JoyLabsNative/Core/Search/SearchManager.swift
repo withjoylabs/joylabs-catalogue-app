@@ -463,7 +463,7 @@ class SearchManager: ObservableObject {
             let itemId = try row.get(CatalogTableDefinitions.itemId)
             let itemName = try row.get(CatalogTableDefinitions.itemName)
             let categoryId = try row.get(CatalogTableDefinitions.itemCategoryId)
-            _ = try row.get(CatalogTableDefinitions.itemDataJson)
+            let dataJson = try row.get(CatalogTableDefinitions.itemDataJson)
 
             // Try to get category name if available (for category searches)
             let categoryName: String?
@@ -472,6 +472,9 @@ class SearchManager: ObservableObject {
             } else {
                 categoryName = nil
             }
+
+            // Check if item has taxes by parsing the dataJson
+            let hasTax = checkItemHasTax(dataJson: dataJson)
 
             return SearchResultItem(
                 id: itemId,
@@ -485,7 +488,8 @@ class SearchManager: ObservableObject {
                 matchType: matchType,
                 matchContext: matchType == "category" ? categoryName : itemName,
                 isFromCaseUpc: false,
-                caseUpcData: nil
+                caseUpcData: nil,
+                hasTax: hasTax
             )
         } catch {
             logger.error("Failed to create search result from row: \(error)")
@@ -519,6 +523,10 @@ class SearchManager: ObservableObject {
 
             let matchContext = matchType == "sku" ? sku : upc
 
+            // For variation rows, we need to get the item's dataJson to check for taxes
+            // This requires a separate query since the variation JOIN doesn't include dataJson
+            let hasTax = checkItemHasTaxById(itemId: itemId)
+
             return SearchResultItem(
                 id: itemId,
                 name: itemName,
@@ -531,7 +539,8 @@ class SearchManager: ObservableObject {
                 matchType: matchType,
                 matchContext: matchContext,
                 isFromCaseUpc: false,
-                caseUpcData: nil
+                caseUpcData: nil,
+                hasTax: hasTax
             )
         } catch {
             logger.error("Failed to create search result from variation row: \(error)")
@@ -666,6 +675,9 @@ class SearchManager: ObservableObject {
                 let vendor = try row.get(teamData[CatalogTableDefinitions.teamVendor])
                 let discontinued = try row.get(teamData[CatalogTableDefinitions.teamDiscontinued])
 
+                // Check if item has taxes
+                let hasTax = checkItemHasTaxById(itemId: itemId)
+
                 return SearchResultItem(
                     id: itemId,
                     name: itemName,
@@ -685,7 +697,8 @@ class SearchManager: ObservableObject {
                         vendor: vendor,
                         discontinued: discontinued,
                         notes: nil
-                    )
+                    ),
+                    hasTax: hasTax
                 )
             } catch {
                 logger.error("Failed to create case UPC search result: \(error)")
@@ -703,6 +716,47 @@ class SearchManager: ObservableObject {
 
         // The removeDuplicatesAndRank method already handles deduplication and ranking
         return removeDuplicatesAndRank(results: allResults, searchTerm: lastSearchTerm)
+    }
+
+    // MARK: - Tax Helper Methods
+
+    private func checkItemHasTax(dataJson: String?) -> Bool {
+        guard let dataJson = dataJson,
+              let data = dataJson.data(using: .utf8) else {
+            return false
+        }
+
+        do {
+            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let taxIds = json["tax_ids"] as? [String] {
+                return !taxIds.isEmpty
+            }
+        } catch {
+            logger.debug("Failed to parse dataJson for tax info: \(error)")
+        }
+
+        return false
+    }
+
+    private func checkItemHasTaxById(itemId: String) -> Bool {
+        guard let db = databaseManager.getConnection() else {
+            return false
+        }
+
+        do {
+            let query = CatalogTableDefinitions.catalogItems
+                .select(CatalogTableDefinitions.itemDataJson)
+                .filter(CatalogTableDefinitions.itemId == itemId)
+
+            if let row = try db.pluck(query) {
+                let dataJson = try row.get(CatalogTableDefinitions.itemDataJson)
+                return checkItemHasTax(dataJson: dataJson)
+            }
+        } catch {
+            logger.debug("Failed to check tax for item \(itemId): \(error)")
+        }
+
+        return false
     }
 }
 

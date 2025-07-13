@@ -116,9 +116,12 @@ struct SearchResultsList: View {
                 SearchResultRow(item: item) {
                     onSelectItem(item)
                 }
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets())
             }
         }
         .listStyle(PlainListStyle())
+        .scrollContentBackground(.hidden)
     }
 }
 
@@ -126,11 +129,11 @@ struct SearchResultsList: View {
 struct SearchResultRow: View {
     let item: SearchResultItem
     let onTap: () -> Void
-    
+
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 12) {
-                // Item image placeholder
+                // Thumbnail image (left side)
                 AsyncImage(url: item.images?.first?.imageData?.url.flatMap(URL.init)) { image in
                     image
                         .resizable()
@@ -141,68 +144,78 @@ struct SearchResultRow: View {
                         .overlay(
                             Image(systemName: "photo")
                                 .foregroundColor(.secondary)
+                                .font(.system(size: 16))
                         )
                 }
-                .frame(width: 60, height: 60)
-                .cornerRadius(8)
+                .frame(width: 50, height: 50)
+                .cornerRadius(6)
                 .clipped()
-                
-                // Item details
-                VStack(alignment: .leading, spacing: 4) {
+
+                // Main content section
+                VStack(alignment: .leading, spacing: 6) {
                     // Item name
                     Text(item.name ?? "Unnamed Item")
-                        .font(.headline)
+                        .font(.system(size: 16, weight: .medium))
                         .foregroundColor(.primary)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
-                    
-                    // Match context and type
-                    HStack {
-                        MatchTypeBadge(matchType: item.matchType)
-                        
-                        if let context = item.matchContext, !context.isEmpty {
-                            Text(context)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .lineLimit(1)
+
+                    // Category, UPC, SKU row
+                    HStack(spacing: 8) {
+                        // Category with background
+                        if let categoryName = item.categoryName, !categoryName.isEmpty {
+                            Text(categoryName)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.primary)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color(.systemGray4))
+                                .cornerRadius(4)
                         }
-                        
+
+                        // UPC
+                        if let barcode = item.barcode, !barcode.isEmpty {
+                            Text(barcode)
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                        }
+
+                        // SKU
+                        if let sku = item.sku, !sku.isEmpty {
+                            Text(sku)
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                        }
+
                         Spacer()
                     }
-                    
-                    // Price and additional info
-                    HStack {
-                        if let price = item.price, price.isFinite && !price.isNaN {
-                            Text("$\(price, specifier: "%.2f")")
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                                .foregroundColor(.primary)
-                        }
-                        
-                        if let sku = item.sku, !sku.isEmpty {
-                            Text("SKU: \(sku)")
-                                .font(.caption)
+                }
+
+                Spacer()
+
+                // Price section (right side)
+                VStack(alignment: .trailing, spacing: 2) {
+                    if let price = item.price, price.isFinite && !price.isNaN {
+                        Text("$\(price, specifier: "%.2f")")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.primary)
+
+                        // Show "+tax" if item has taxes
+                        if item.hasTax {
+                            Text("+tax")
+                                .font(.system(size: 10))
                                 .foregroundColor(.secondary)
-                        }
-                        
-                        Spacer()
-                        
-                        if item.isFromCaseUpc {
-                            CaseUpcBadge()
                         }
                     }
                 }
-                
-                // Chevron
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
             }
+            .padding(.horizontal, 16)
             .padding(.vertical, 8)
         }
         .buttonStyle(PlainButtonStyle())
         .listRowBackground(Color(.systemBackground))
     }
+
 }
 
 // MARK: - Match Type Badge

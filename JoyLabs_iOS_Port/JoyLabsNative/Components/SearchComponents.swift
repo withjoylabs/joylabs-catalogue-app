@@ -234,7 +234,8 @@ struct SearchBarWithClear: View {
         matchType: "name",
         matchContext: "",
         isFromCaseUpc: false,
-        caseUpcData: nil
+        caseUpcData: nil,
+        hasTax: true
     )
 
     SearchResultCard(result: sampleResult)

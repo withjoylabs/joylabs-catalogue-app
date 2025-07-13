@@ -29,14 +29,15 @@ struct SearchResultItem: Identifiable, Hashable {
     let matchContext: String?
     let isFromCaseUpc: Bool
     let caseUpcData: CaseUpcData?
-    
+    let hasTax: Bool
+
     // Hashable conformance
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
         hasher.combine(matchType)
         hasher.combine(isFromCaseUpc)
     }
-    
+
     static func == (lhs: SearchResultItem, rhs: SearchResultItem) -> Bool {
         return lhs.id == rhs.id && lhs.matchType == rhs.matchType && lhs.isFromCaseUpc == rhs.isFromCaseUpc
     }
