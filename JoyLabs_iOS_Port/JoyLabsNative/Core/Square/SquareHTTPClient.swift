@@ -385,6 +385,10 @@ actor SquareHTTPClient {
             throw SquareAPIError.rateLimitExceeded
             
         case 500...599:
+            logger.error("❌ Square API server error: \(httpResponse.statusCode)")
+            if let responseString = String(data: data, encoding: .utf8) {
+                logger.error("Server error response: \(responseString)")
+            }
             throw SquareAPIError.serverError(httpResponse.statusCode)
             
         default:

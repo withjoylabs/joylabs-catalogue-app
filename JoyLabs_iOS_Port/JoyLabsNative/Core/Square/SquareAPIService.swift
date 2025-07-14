@@ -365,14 +365,9 @@ class SquareAPIService: ObservableObject {
             throw SquareAPIError.authenticationFailed
         }
 
-        return try await resilienceService.executeResilient(
-            operationId: "square_catalog_fetch",
-            operation: {
-                return try await self.performCatalogFetch()
-            },
-            fallback: [], // Empty array as fallback
-            degradationStrategy: .returnCached
-        )
+        // For catalog sync, we don't want fallback behavior - we need to fail fast on errors
+        // so the sync can properly handle and report the failure
+        return try await performCatalogFetch()
     }
 
     /// Perform the actual catalog fetch operation
@@ -421,6 +416,14 @@ class SquareAPIService: ObservableObject {
         } while cursor != nil
 
         logger.debug("Fetched \(allObjects.count) catalog objects from Square API")
+
+        // Validate that we got a reasonable number of objects
+        // If we got 0 objects, this likely indicates an error condition
+        if allObjects.isEmpty {
+            logger.error("❌ Received 0 objects from Square API - this likely indicates an error")
+            throw SquareAPIError.invalidResponse
+        }
+
         lastSyncDate = Date()
 
         return allObjects
