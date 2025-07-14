@@ -255,12 +255,20 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
         syncProgress.currentObjectType = "PROCESSING"
         syncProgress.currentObjectName = "Starting to process objects..."
 
+        // CRITICAL FIX: Sort objects by type to ensure categories are processed before items
+        // This ensures category lookups work correctly during item insertion
+        let sortedObjects = objects.sorted { obj1, obj2 in
+            let priority1 = getObjectTypePriority(obj1.type)
+            let priority2 = getObjectTypePriority(obj2.type)
+            return priority1 < priority2
+        }
 
+        logger.info("📋 Sorted objects by type priority: Categories first, then Items")
 
         var processedItems = 0
-        let totalObjects = objects.count
+        let totalObjects = sortedObjects.count
 
-        for (index, object) in objects.enumerated() {
+        for (index, object) in sortedObjects.enumerated() {
             // Check for cancellation
             if isCancellationRequested {
                 logger.info("🛑 Sync cancelled during processing at object \(index + 1)/\(totalObjects)")
@@ -298,7 +306,32 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
 
         logger.info("✅ FINAL PROGRESS: \(processedItems) items, \(objects.count) objects processed")
 
-        logger.info("✅ Processed all \(objects.count) catalog objects")
+        logger.info("✅ Processed all \(sortedObjects.count) catalog objects")
+    }
+
+    /// Get processing priority for object types (lower number = higher priority)
+    /// Categories must be processed before items for category name lookups to work
+    private func getObjectTypePriority(_ objectType: String) -> Int {
+        switch objectType {
+        case "CATEGORY":
+            return 1  // Process categories first
+        case "TAX":
+            return 2  // Process taxes second
+        case "MODIFIER_LIST":
+            return 3  // Process modifier lists third
+        case "MODIFIER":
+            return 4  // Process modifiers fourth
+        case "ITEM":
+            return 5  // Process items after categories are available
+        case "ITEM_VARIATION":
+            return 6  // Process variations after items
+        case "IMAGE":
+            return 7  // Process images last
+        case "DISCOUNT":
+            return 8  // Process discounts last
+        default:
+            return 9  // Unknown types last
+        }
     }
 
     /// Update sync status with detailed information about what's being processed

@@ -5,16 +5,18 @@ struct ScanView: View {
     @State private var searchText = ""
     @State private var scanHistoryCount = 0
     @State private var isConnected = true
+    @State private var showingHistory = false
     @StateObject private var searchManager = SearchManager()
     @FocusState private var isSearchFieldFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
             // Header with JOYLABS logo and status
-            HeaderView(isConnected: isConnected)
-
-            // Scan History Button
-            ScanHistoryButton(count: scanHistoryCount)
+            HeaderView(
+                isConnected: isConnected,
+                scanHistoryCount: scanHistoryCount,
+                onHistoryTap: handleHistoryTap
+            )
 
             // Main content area
             if !searchManager.isDatabaseReady {
@@ -31,6 +33,28 @@ struct ScanView: View {
             BottomSearchBar(searchText: $searchText, isSearchFieldFocused: $isSearchFieldFocused)
         }
         .background(Color(.systemBackground))
+        .sheet(isPresented: $showingHistory) {
+            // TODO: Add HistoryView when it's properly added to Xcode project
+            Text("History View Coming Soon")
+                .navigationTitle("History")
+                .navigationBarTitleDisplayMode(.large)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("Done") {
+                            showingHistory = false
+                        }
+                    }
+                }
+        }
+        .onAppear {
+            // Auto-focus the search field with a small delay to prevent constraint conflicts
+            // Only focus if not already focused to prevent dictation conflicts
+            if !isSearchFieldFocused {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    isSearchFieldFocused = true
+                }
+            }
+        }
         .onChange(of: searchText) {
             // Only trigger search if field is focused and has content
             // This prevents onChange from firing during focus changes
@@ -39,6 +63,11 @@ struct ScanView: View {
                 searchManager.performSearchWithDebounce(searchTerm: searchText, filters: filters)
             }
         }
+    }
+
+    // MARK: - Actions
+    private func handleHistoryTap() {
+        showingHistory = true
     }
 }
 
@@ -60,9 +89,15 @@ struct SearchResultsView: View {
                     ProgressView()
                         .scaleEffect(0.8)
                 } else if !searchManager.searchResults.isEmpty {
-                    Text("\(searchManager.searchResults.count) items")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    if let totalCount = searchManager.totalResultsCount {
+                        Text("\(totalCount) items")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } else {
+                        Text("\(searchManager.searchResults.count) items")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
             }
             .padding(.horizontal, 16)
@@ -75,7 +110,7 @@ struct SearchResultsView: View {
             } else if searchManager.searchResults.isEmpty {
                 NoResultsView()
             } else {
-                SearchResultsList(results: searchManager.searchResults)
+                SearchResultsList(results: searchManager.searchResults, searchManager: searchManager)
             }
         }
     }
@@ -149,13 +184,36 @@ struct NoResultsView: View {
 
 struct SearchResultsList: View {
     let results: [SearchResultItem]
+    @ObservedObject var searchManager: SearchManager
 
     var body: some View {
-        List(results) { result in
-            ScanResultCard(result: result)
+        List {
+            ForEach(results) { result in
+                ScanResultCard(result: result)
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
+                    .onAppear {
+                        // Load more when approaching the end
+                        if result.id == results.last?.id && searchManager.hasMoreResults && !searchManager.isLoadingMore {
+                            searchManager.loadMoreResults()
+                        }
+                    }
+            }
+
+            // Loading indicator at the bottom
+            if searchManager.isLoadingMore {
+                HStack {
+                    Spacer()
+                    ProgressView("Loading more...")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets())
+            }
         }
         .listStyle(PlainListStyle())
         .scrollContentBackground(.hidden)

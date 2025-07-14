@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import SQLite
 import Combine
 import os.log
@@ -86,6 +87,24 @@ class SearchManager: ObservableObject {
                 }
                 if currentOffset != 0 {
                     currentOffset = 0
+                }
+                if hasMoreResults {
+                    hasMoreResults = false
+                }
+                if totalResultsCount != nil {
+                    totalResultsCount = nil
+                }
+            }
+            return []
+        }
+
+        // Skip search for single character queries to reduce excessive results
+        guard trimmedTerm.count >= 2 else {
+            logger.debug("🔍 Skipping search for single character: '\(trimmedTerm)'")
+            // Clear results for single character but don't show error
+            Task { @MainActor in
+                if !searchResults.isEmpty {
+                    searchResults = []
                 }
                 if hasMoreResults {
                     hasMoreResults = false

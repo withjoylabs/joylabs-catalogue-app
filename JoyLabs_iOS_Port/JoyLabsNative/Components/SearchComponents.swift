@@ -36,6 +36,11 @@ struct SearchTextField: View {
                 .autocorrectionDisabled()
                 .keyboardType(.default)
                 .focused($isSearchFieldFocused)
+                .submitLabel(.done)
+                .onSubmit {
+                    // Dismiss keyboard when Done is pressed
+                    isSearchFieldFocused = false
+                }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -107,6 +112,14 @@ struct ScanResultCard: View {
                     // UPC
                     if let barcode = result.barcode, !barcode.isEmpty {
                         Text(barcode)
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    }
+
+                    // Bullet point separator (only if both UPC and SKU are present)
+                    if let barcode = result.barcode, !barcode.isEmpty,
+                       let sku = result.sku, !sku.isEmpty {
+                        Text("•")
                             .font(.system(size: 11))
                             .foregroundColor(.secondary)
                     }
@@ -271,6 +284,11 @@ struct SearchBarWithClear: View {
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .focused($isSearchFieldFocused)
+                .submitLabel(.done)
+                .onSubmit {
+                    // Dismiss keyboard when Done is pressed
+                    isSearchFieldFocused = false
+                }
             
             if !searchText.isEmpty {
                 Button(action: {

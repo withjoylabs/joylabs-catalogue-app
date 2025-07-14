@@ -7,12 +7,37 @@ struct SearchFilters {
     var sku: Bool = true
     var barcode: Bool = true
     var category: Bool = false
-    
+
     init(name: Bool = true, sku: Bool = true, barcode: Bool = true, category: Bool = false) {
         self.name = name
         self.sku = sku
         self.barcode = barcode
         self.category = category
+    }
+}
+
+// MARK: - Scan History Models
+struct ScanHistoryItem: Identifiable, Codable {
+    let id: String
+    let scanId: String
+    let scanTime: String
+    let name: String?
+    let sku: String?
+    let price: Double?
+    let barcode: String?
+    let categoryId: String?
+    let categoryName: String?
+
+    init(id: String, scanId: String, scanTime: String, name: String?, sku: String?, price: Double?, barcode: String?, categoryId: String?, categoryName: String?) {
+        self.id = id
+        self.scanId = scanId
+        self.scanTime = scanTime
+        self.name = name
+        self.sku = sku
+        self.price = price
+        self.barcode = barcode
+        self.categoryId = categoryId
+        self.categoryName = categoryName
     }
 }
 

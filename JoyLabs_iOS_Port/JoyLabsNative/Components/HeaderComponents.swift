@@ -3,6 +3,8 @@ import SwiftUI
 // MARK: - Header View
 struct HeaderView: View {
     let isConnected: Bool
+    let scanHistoryCount: Int
+    let onHistoryTap: () -> Void
 
     var body: some View {
         HStack {
@@ -17,7 +19,10 @@ struct HeaderView: View {
                 // Connection status
                 ConnectionStatusView(isConnected: isConnected)
 
-                // Notification bell placeholder
+                // Scan history icon with badge
+                ScanHistoryIconButton(count: scanHistoryCount, onTap: onHistoryTap)
+
+                // Notification bell
                 NotificationButton()
             }
         }
@@ -40,6 +45,34 @@ struct ConnectionStatusView: View {
             Text(isConnected ? "Connected" : "Offline")
                 .font(.caption)
                 .foregroundColor(.secondary)
+        }
+    }
+}
+
+// MARK: - Scan History Icon Button
+struct ScanHistoryIconButton: View {
+    let count: Int
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            ZStack {
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.title3)
+                    .foregroundColor(.secondary)
+
+                // Badge for count
+                if count > 0 {
+                    Text("\(count > 99 ? "99+" : "\(count)")")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, count > 9 ? 4 : 6)
+                        .padding(.vertical, 2)
+                        .background(Color.red)
+                        .clipShape(Capsule())
+                        .offset(x: 8, y: -8)
+                }
+            }
         }
     }
 }
@@ -86,11 +119,11 @@ struct ScanHistoryButton: View {
 }
 
 #Preview("Header View - Connected") {
-    HeaderView(isConnected: true)
+    HeaderView(isConnected: true, scanHistoryCount: 5, onHistoryTap: {})
 }
 
 #Preview("Header View - Disconnected") {
-    HeaderView(isConnected: false)
+    HeaderView(isConnected: false, scanHistoryCount: 0, onHistoryTap: {})
 }
 
 #Preview("Scan History Button") {
