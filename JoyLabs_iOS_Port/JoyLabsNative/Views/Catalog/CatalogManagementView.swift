@@ -4,6 +4,7 @@ import os.log
 // Notification for refreshing catalog data after sync
 extension Notification.Name {
     static let catalogDataDidUpdate = Notification.Name("catalogDataDidUpdate")
+    static let catalogSyncCompleted = Notification.Name("catalogSyncCompleted")
 }
 
 // MARK: - Modal Components
@@ -181,6 +182,11 @@ struct CatalogManagementView: View {
                 loadInitialData()
                 hasInitialized = true
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .catalogSyncCompleted)) { _ in
+            // Refresh statistics when sync is truly completed
+            catalogStatsService.refreshStats()
+            logger.debug("📊 Statistics refreshed after sync completion")
         }
         // Modal presentations
         .sheet(isPresented: $showingSyncConfirmation) {
@@ -541,11 +547,6 @@ struct CatalogManagementView: View {
     private func performFullSync() {
         Task {
             await syncCoordinator.performManualSync()
-            catalogStatsService.refreshStats()
-
-            // Notify all catalog views to refresh their data
-            NotificationCenter.default.post(name: .catalogDataDidUpdate, object: nil)
-            logger.debug("📡 Posted catalog data update notification")
 
             // Show success modal if sync completed successfully
             if syncCoordinator.syncState == .completed {

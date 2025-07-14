@@ -420,7 +420,7 @@ class SquareAPIService: ObservableObject {
 
         } while cursor != nil
 
-        logger.info("Fetched \(allObjects.count) catalog objects")
+        logger.debug("Fetched \(allObjects.count) catalog objects from Square API")
         lastSyncDate = Date()
 
         return allObjects

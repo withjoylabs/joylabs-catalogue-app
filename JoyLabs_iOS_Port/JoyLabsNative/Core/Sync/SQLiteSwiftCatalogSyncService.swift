@@ -118,7 +118,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
                     syncProgress.currentObjectName = "Starting sync..."
                 }
 
-                logger.info("🔄 Progress initialized: \(self.syncProgress.syncedItems) items, \(self.syncProgress.syncedObjects) objects")
+
 
                 // Start UI update timer (every 1 second)
                 await MainActor.run { startProgressUpdateTimer() }
@@ -141,7 +141,6 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
 
                 // Fetch catalog data from Square API with progress tracking
                 let catalogData = try await fetchCatalogFromSquareWithProgress()
-                logger.info("✅ Fetched \(catalogData.count) objects from Square API")
 
                 // Process and insert data with progress tracking
                 try await processCatalogDataWithProgress(catalogData)
@@ -166,6 +165,11 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
                 let objectTypeCounts = Dictionary(grouping: catalogData) { $0.type }
                     .mapValues { $0.count }
                 logger.info("📋 Object types processed: \(objectTypeCounts)")
+
+                // Notify completion for statistics refresh
+                await MainActor.run {
+                    NotificationCenter.default.post(name: .catalogSyncCompleted, object: nil)
+                }
 
             } catch {
                 logger.error("❌ Catalog sync failed: \(error)")
@@ -207,8 +211,10 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
     // MARK: - Private Methods
     
     private func fetchCatalogFromSquareWithProgress() async throws -> [CatalogObject] {
-        syncProgress.currentObjectType = "DOWNLOADING"
-        syncProgress.currentObjectName = "Fetching catalog from Square API..."
+        await MainActor.run {
+            syncProgress.currentObjectType = "DOWNLOADING"
+            syncProgress.currentObjectName = "Fetching catalog from Square API..."
+        }
 
         logger.info("🌐 Fetching catalog data from Square API...")
 
@@ -219,8 +225,10 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
 
         // Don't set the final counts here - let processing update them incrementally
         let itemCount = catalogObjects.filter { $0.type == "ITEM" }.count
-        syncProgress.currentObjectType = "READY"
-        syncProgress.currentObjectName = "Ready to process \(catalogObjects.count) objects (\(itemCount) items)"
+        await MainActor.run {
+            syncProgress.currentObjectType = "READY"
+            syncProgress.currentObjectName = "Ready to process \(catalogObjects.count) objects (\(itemCount) items)"
+        }
 
         return catalogObjects
     }
@@ -234,7 +242,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
         syncProgress.currentObjectType = "PROCESSING"
         syncProgress.currentObjectName = "Starting to process objects..."
 
-        logger.info("📊 PROGRESS RESET: \(self.syncProgress.syncedItems) items, \(self.syncProgress.syncedObjects) objects")
+
 
         var processedItems = 0
         let totalObjects = objects.count
@@ -277,32 +285,33 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
 
     /// Update sync status with detailed information about what's being processed
     private func updateSyncStatusForObjectType(_ objectType: String, index: Int, total: Int) {
-
-        switch objectType {
-        case "ITEM":
-            syncProgress.currentObjectType = "ITEMS"
-            syncProgress.currentObjectName = "Processing items..."
-        case "CATEGORY":
-            syncProgress.currentObjectType = "CATEGORIES"
-            syncProgress.currentObjectName = "Processing categories..."
-        case "IMAGE":
-            syncProgress.currentObjectType = "IMAGES"
-            syncProgress.currentObjectName = "Processing images..."
-        case "TAX":
-            syncProgress.currentObjectType = "TAXES"
-            syncProgress.currentObjectName = "Processing taxes..."
-        case "MODIFIER", "MODIFIER_LIST":
-            syncProgress.currentObjectType = "MODIFIERS"
-            syncProgress.currentObjectName = "Processing modifiers..."
-        case "DISCOUNT":
-            syncProgress.currentObjectType = "DISCOUNTS"
-            syncProgress.currentObjectName = "Processing discounts..."
-        case "ITEM_VARIATION":
-            syncProgress.currentObjectType = "VARIATIONS"
-            syncProgress.currentObjectName = "Processing variations..."
-        default:
-            syncProgress.currentObjectType = "PROCESSING"
-            syncProgress.currentObjectName = "Processing \(objectType.lowercased())..."
+        Task { @MainActor in
+            switch objectType {
+            case "ITEM":
+                syncProgress.currentObjectType = "ITEMS"
+                syncProgress.currentObjectName = "Processing items..."
+            case "CATEGORY":
+                syncProgress.currentObjectType = "CATEGORIES"
+                syncProgress.currentObjectName = "Processing categories..."
+            case "IMAGE":
+                syncProgress.currentObjectType = "IMAGES"
+                syncProgress.currentObjectName = "Processing images..."
+            case "TAX":
+                syncProgress.currentObjectType = "TAXES"
+                syncProgress.currentObjectName = "Processing taxes..."
+            case "MODIFIER", "MODIFIER_LIST":
+                syncProgress.currentObjectType = "MODIFIERS"
+                syncProgress.currentObjectName = "Processing modifiers..."
+            case "DISCOUNT":
+                syncProgress.currentObjectType = "DISCOUNTS"
+                syncProgress.currentObjectName = "Processing discounts..."
+            case "ITEM_VARIATION":
+                syncProgress.currentObjectType = "VARIATIONS"
+                syncProgress.currentObjectName = "Processing variations..."
+            default:
+                syncProgress.currentObjectType = "PROCESSING"
+                syncProgress.currentObjectName = "Processing \(objectType.lowercased())..."
+            }
         }
     }
 
