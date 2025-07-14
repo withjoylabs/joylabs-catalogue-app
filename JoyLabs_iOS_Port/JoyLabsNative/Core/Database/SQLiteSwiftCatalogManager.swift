@@ -231,29 +231,31 @@ class SQLiteSwiftCatalogManager {
     
     func clearAllData() throws {
         guard let db = db else { throw SQLiteSwiftError.noConnection }
-        
-        logger.info("Clearing all catalog data using SQLiteSwift...")
-        
+
+        logger.info("Clearing all catalog data and recreating tables with current schema...")
+
         try db.transaction {
-            // Clear in reverse dependency order
-            try db.run(CatalogTableDefinitions.itemVariations.delete())
-            try db.run(CatalogTableDefinitions.catalogItems.delete())
-            try db.run(CatalogTableDefinitions.categories.delete())
-            try db.run(CatalogTableDefinitions.taxes.delete())
-            try db.run(CatalogTableDefinitions.discounts.delete())
-            try db.run(CatalogTableDefinitions.images.delete())
+            // Drop tables in reverse dependency order to avoid foreign key constraints
+            try db.run("DROP TABLE IF EXISTS item_variations")
+            try db.run("DROP TABLE IF EXISTS catalog_items")
+            try db.run("DROP TABLE IF EXISTS categories")
+            try db.run("DROP TABLE IF EXISTS taxes")
+            try db.run("DROP TABLE IF EXISTS discounts")
+            try db.run("DROP TABLE IF EXISTS images")
+            try db.run("DROP TABLE IF EXISTS sync_status")
+            try db.run("DROP TABLE IF EXISTS image_url_mappings")
 
-            // Reset sync status
-            try db.run(CatalogTableDefinitions.syncStatus.delete())
+            logger.info("All tables dropped successfully")
         }
 
-        // Verify clear operation
-        let itemCount = try db.scalar(CatalogTableDefinitions.catalogItems.count)
-        logger.info("Data cleared successfully. Remaining items: \(itemCount)")
-        
-        if itemCount > 0 {
-            throw SQLiteSwiftError.clearFailed("Items still remain after clear operation")
-        }
+        // Recreate tables with current schema
+        try tableCreator.createTables(in: db)
+        logger.info("Tables recreated with current schema")
+
+        // Create image URL mapping table
+        let imageURLManager = ImageURLManager(databaseManager: self)
+        try imageURLManager.createImageMappingTable()
+        logger.info("Image mapping table recreated")
     }
     
     func insertCatalogObject(_ object: CatalogObject) throws {
