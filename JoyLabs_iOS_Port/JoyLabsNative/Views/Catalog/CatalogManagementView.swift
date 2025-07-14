@@ -312,14 +312,23 @@ struct CatalogManagementView: View {
     }
 
     private var syncStatusBadge: some View {
-        Text(syncStatusText)
-            .font(.caption)
-            .fontWeight(.medium)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(syncStatusColor.opacity(0.2))
-            .foregroundColor(syncStatusColor)
-            .cornerRadius(8)
+        VStack(alignment: .trailing, spacing: 2) {
+            Text(syncStatusText)
+                .font(.caption)
+                .fontWeight(.medium)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(syncStatusColor.opacity(0.2))
+                .foregroundColor(syncStatusColor)
+                .cornerRadius(8)
+
+            // Show detailed status during sync
+            if syncCoordinator.syncState == .syncing {
+                Text(syncCoordinator.catalogSyncService.syncProgress.currentObjectType)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
     }
 
 

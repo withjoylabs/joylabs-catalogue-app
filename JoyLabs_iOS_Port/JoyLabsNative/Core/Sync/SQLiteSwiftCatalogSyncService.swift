@@ -68,12 +68,19 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
     func cancelSync() {
         logger.info("🛑 Sync cancellation requested")
         isCancellationRequested = true
+
+        // Cancel the background task
         syncTask?.cancel()
 
-        // Clean up state
-        isSyncInProgress = false
-        syncState = .idle
-        stopProgressUpdateTimer()
+        // Force cleanup state immediately
+        Task { @MainActor in
+            self.isSyncInProgress = false
+            self.syncState = .idle
+            self.syncProgress.currentObjectType = "CANCELLED"
+            self.syncProgress.currentObjectName = "Sync cancelled by user"
+            self.stopProgressUpdateTimer()
+            self.logger.info("✅ Sync cancellation completed")
+        }
     }
 
     func performSync(isManual: Bool = false) async throws {
@@ -89,68 +96,90 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
         syncState = .syncing
         errorMessage = nil
 
-        defer {
-            isSyncInProgress = false
-            syncTask = nil
+        // Store the sync task for cancellation
+        syncTask = Task {
+            defer {
+                Task { @MainActor in
+                    self.isSyncInProgress = false
+                    self.syncTask = nil
+                }
+            }
+
+            do {
+                logger.info("Starting catalog sync with SQLite.swift - manual: \(isManual)")
+
+                // Initialize progress tracking - RESET TO ZERO
+                await MainActor.run {
+                    syncProgress = SyncProgress()
+                    syncProgress.startTime = Date()
+                    syncProgress.syncedObjects = 0
+                    syncProgress.syncedItems = 0
+                    syncProgress.currentObjectType = "INITIALIZING"
+                    syncProgress.currentObjectName = "Starting sync..."
+                }
+
+                logger.info("🔄 Progress initialized: \(self.syncProgress.syncedItems) items, \(self.syncProgress.syncedObjects) objects")
+
+                // Start UI update timer (every 1 second)
+                await MainActor.run { startProgressUpdateTimer() }
+
+                // Clear existing data
+                await MainActor.run {
+                    syncProgress.currentObjectType = "CLEARING"
+                    syncProgress.currentObjectName = "Clearing existing data..."
+                }
+                try databaseManager.clearAllData()
+                logger.info("✅ Existing data cleared")
+
+                // Clear image cache for clean slate
+                await MainActor.run {
+                    syncProgress.currentObjectType = "CLEARING"
+                    syncProgress.currentObjectName = "Clearing cached images..."
+                }
+                await imageCacheService.clearAllImages()
+                logger.info("🖼️ Cleared image cache for fresh start")
+
+                // Fetch catalog data from Square API with progress tracking
+                let catalogData = try await fetchCatalogFromSquareWithProgress()
+                logger.info("✅ Fetched \(catalogData.count) objects from Square API")
+
+                // Process and insert data with progress tracking
+                try await processCatalogDataWithProgress(catalogData)
+                logger.info("✅ Catalog data processed successfully")
+
+                // Stop progress timer
+                await MainActor.run { stopProgressUpdateTimer() }
+
+                // Update sync completion
+                await MainActor.run {
+                    syncState = .completed
+                    lastSyncTime = Date()
+                    syncProgress.syncedObjects = catalogData.count
+                    syncProgress.currentObjectType = "COMPLETED"
+                    syncProgress.currentObjectName = "Sync completed successfully!"
+                }
+
+                logger.info("🎉 Catalog sync completed successfully!")
+                logger.info("📊 Final sync stats: \(catalogData.count) total objects processed")
+
+                // Log summary of object types processed
+                let objectTypeCounts = Dictionary(grouping: catalogData) { $0.type }
+                    .mapValues { $0.count }
+                logger.info("📋 Object types processed: \(objectTypeCounts)")
+
+            } catch {
+                logger.error("❌ Catalog sync failed: \(error)")
+                await MainActor.run {
+                    syncState = .failed
+                    errorMessage = error.localizedDescription
+                    stopProgressUpdateTimer()
+                }
+                throw error
+            }
         }
-        
-        do {
-            logger.info("Starting catalog sync with SQLite.swift - manual: \(isManual)")
 
-            // Initialize progress tracking - RESET TO ZERO
-            syncProgress = SyncProgress()
-            syncProgress.startTime = Date()
-            syncProgress.syncedObjects = 0
-            syncProgress.syncedItems = 0
-            syncProgress.currentObjectType = "INITIALIZING"
-            syncProgress.currentObjectName = "Starting sync..."
-
-            logger.info("🔄 Progress initialized: \(self.syncProgress.syncedItems) items, \(self.syncProgress.syncedObjects) objects")
-
-            // Start UI update timer (every 1 second)
-            startProgressUpdateTimer()
-
-            // Clear existing data
-            try databaseManager.clearAllData()
-            logger.info("✅ Existing data cleared")
-
-            // Clear image cache for clean slate
-            await imageCacheService.clearAllImages()
-            logger.info("🖼️ Cleared image cache for fresh start")
-
-            // Fetch catalog data from Square API with progress tracking
-            let catalogData = try await fetchCatalogFromSquareWithProgress()
-            logger.info("✅ Fetched \(catalogData.count) objects from Square API")
-
-            // Process and insert data with progress tracking
-            try await processCatalogDataWithProgress(catalogData)
-            logger.info("✅ Catalog data processed successfully")
-
-            // Stop progress timer
-            stopProgressUpdateTimer()
-
-            // Update sync completion
-            syncState = .completed
-            lastSyncTime = Date()
-
-            // Final progress update
-            syncProgress.syncedObjects = catalogData.count
-
-            logger.info("🎉 Catalog sync completed successfully!")
-            logger.info("📊 Final sync stats: \(catalogData.count) total objects processed")
-
-            // Log summary of object types processed
-            let objectTypeCounts = Dictionary(grouping: catalogData) { $0.type }
-                .mapValues { $0.count }
-            logger.info("📋 Object types processed: \(objectTypeCounts)")
-            
-        } catch {
-            logger.error("❌ Catalog sync failed: \(error)")
-            syncState = .failed
-            errorMessage = error.localizedDescription
-            stopProgressUpdateTimer()
-            throw error
-        }
+        // Wait for the task to complete
+        try await syncTask!.value
     }
 
     // MARK: - Progress Tracking
@@ -178,7 +207,8 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
     // MARK: - Private Methods
     
     private func fetchCatalogFromSquareWithProgress() async throws -> [CatalogObject] {
-        logger.info("Fetching catalog data from Square API...")
+        syncProgress.currentObjectType = "DOWNLOADING"
+        syncProgress.currentObjectName = "Fetching catalog from Square API..."
 
         logger.info("🌐 Fetching catalog data from Square API...")
 
@@ -189,7 +219,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
 
         // Don't set the final counts here - let processing update them incrementally
         let itemCount = catalogObjects.filter { $0.type == "ITEM" }.count
-        syncProgress.currentObjectType = "PROCESSING"
+        syncProgress.currentObjectType = "READY"
         syncProgress.currentObjectName = "Ready to process \(catalogObjects.count) objects (\(itemCount) items)"
 
         return catalogObjects
@@ -216,6 +246,9 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
                 throw SyncError.cancelled
             }
 
+            // Update sync status based on object type being processed
+            updateSyncStatusForObjectType(object.type, index: index, total: totalObjects)
+
             // Process images for this object before inserting
             await processCatalogObjectImages(object)
 
@@ -231,11 +264,6 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
             syncProgress.syncedObjects = currentObjectCount
             syncProgress.syncedItems = processedItems
 
-            // Log progress every 500 objects to see what's happening
-            if index % 500 == 0 {
-                logger.info("📊 PROGRESS UPDATE: \(processedItems) items, \(currentObjectCount)/\(totalObjects) objects")
-            }
-
             // Small delay every 50 objects to allow UI updates and check for cancellation
             if index % 50 == 0 {
                 try await Task.sleep(nanoseconds: 5_000_000) // 5ms to allow UI updates
@@ -245,6 +273,37 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
         logger.info("✅ FINAL PROGRESS: \(processedItems) items, \(objects.count) objects processed")
 
         logger.info("✅ Processed all \(objects.count) catalog objects")
+    }
+
+    /// Update sync status with detailed information about what's being processed
+    private func updateSyncStatusForObjectType(_ objectType: String, index: Int, total: Int) {
+
+        switch objectType {
+        case "ITEM":
+            syncProgress.currentObjectType = "ITEMS"
+            syncProgress.currentObjectName = "Processing items..."
+        case "CATEGORY":
+            syncProgress.currentObjectType = "CATEGORIES"
+            syncProgress.currentObjectName = "Processing categories..."
+        case "IMAGE":
+            syncProgress.currentObjectType = "IMAGES"
+            syncProgress.currentObjectName = "Processing images..."
+        case "TAX":
+            syncProgress.currentObjectType = "TAXES"
+            syncProgress.currentObjectName = "Processing taxes..."
+        case "MODIFIER", "MODIFIER_LIST":
+            syncProgress.currentObjectType = "MODIFIERS"
+            syncProgress.currentObjectName = "Processing modifiers..."
+        case "DISCOUNT":
+            syncProgress.currentObjectType = "DISCOUNTS"
+            syncProgress.currentObjectName = "Processing discounts..."
+        case "ITEM_VARIATION":
+            syncProgress.currentObjectType = "VARIATIONS"
+            syncProgress.currentObjectName = "Processing variations..."
+        default:
+            syncProgress.currentObjectType = "PROCESSING"
+            syncProgress.currentObjectName = "Processing \(objectType.lowercased())..."
+        }
     }
 
     /// Process and cache images for a catalog object
