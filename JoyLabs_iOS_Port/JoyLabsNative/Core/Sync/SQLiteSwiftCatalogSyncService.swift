@@ -282,10 +282,11 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
 
             // Update progress with processed counts
             let currentObjectCount = index + 1
+            let currentItemCount = processedItems  // Capture the current value
             Task { @MainActor in
                 var progress = syncProgress
                 progress.syncedObjects = currentObjectCount
-                progress.syncedItems = processedItems
+                progress.syncedItems = currentItemCount
                 syncProgress = progress
             }
 
