@@ -76,8 +76,10 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
         Task { @MainActor in
             self.isSyncInProgress = false
             self.syncState = .idle
-            self.syncProgress.currentObjectType = "CANCELLED"
-            self.syncProgress.currentObjectName = "Sync cancelled by user"
+            var progress = self.syncProgress
+            progress.currentObjectType = "CANCELLED"
+            progress.currentObjectName = "Sync cancelled by user"
+            self.syncProgress = progress
             self.stopProgressUpdateTimer()
             self.logger.info("✅ Sync cancellation completed")
         }
@@ -110,12 +112,13 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
 
                 // Initialize progress tracking - RESET TO ZERO
                 await MainActor.run {
-                    syncProgress = SyncProgress()
-                    syncProgress.startTime = Date()
-                    syncProgress.syncedObjects = 0
-                    syncProgress.syncedItems = 0
-                    syncProgress.currentObjectType = "INITIALIZING"
-                    syncProgress.currentObjectName = "Starting sync..."
+                    var progress = SyncProgress()
+                    progress.startTime = Date()
+                    progress.syncedObjects = 0
+                    progress.syncedItems = 0
+                    progress.currentObjectType = "INITIALIZING"
+                    progress.currentObjectName = "Starting sync..."
+                    syncProgress = progress
                 }
 
 
@@ -125,16 +128,20 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
 
                 // Clear existing data
                 await MainActor.run {
-                    syncProgress.currentObjectType = "CLEARING"
-                    syncProgress.currentObjectName = "Clearing existing data..."
+                    var progress = syncProgress
+                    progress.currentObjectType = "CLEARING"
+                    progress.currentObjectName = "Clearing existing data..."
+                    syncProgress = progress
                 }
                 try databaseManager.clearAllData()
                 logger.info("✅ Existing data cleared")
 
                 // Clear image cache for clean slate
                 await MainActor.run {
-                    syncProgress.currentObjectType = "CLEARING"
-                    syncProgress.currentObjectName = "Clearing cached images..."
+                    var progress = syncProgress
+                    progress.currentObjectType = "CLEARING"
+                    progress.currentObjectName = "Clearing cached images..."
+                    syncProgress = progress
                 }
                 await imageCacheService.clearAllImages()
                 logger.info("🖼️ Cleared image cache for fresh start")
@@ -153,9 +160,11 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
                 await MainActor.run {
                     syncState = .completed
                     lastSyncTime = Date()
-                    syncProgress.syncedObjects = catalogData.count
-                    syncProgress.currentObjectType = "COMPLETED"
-                    syncProgress.currentObjectName = "Sync completed successfully!"
+                    var progress = syncProgress
+                    progress.syncedObjects = catalogData.count
+                    progress.currentObjectType = "COMPLETED"
+                    progress.currentObjectName = "Sync completed successfully!"
+                    syncProgress = progress
                 }
 
                 logger.info("🎉 Catalog sync completed successfully!")
@@ -212,8 +221,10 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
     
     private func fetchCatalogFromSquareWithProgress() async throws -> [CatalogObject] {
         await MainActor.run {
-            syncProgress.currentObjectType = "DOWNLOADING"
-            syncProgress.currentObjectName = "Fetching catalog from Square API..."
+            var progress = syncProgress
+            progress.currentObjectType = "DOWNLOADING"
+            progress.currentObjectName = "Fetching catalog from Square API..."
+            syncProgress = progress
         }
 
         logger.info("🌐 Fetching catalog data from Square API...")
@@ -226,8 +237,10 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
         // Don't set the final counts here - let processing update them incrementally
         let itemCount = catalogObjects.filter { $0.type == "ITEM" }.count
         await MainActor.run {
-            syncProgress.currentObjectType = "READY"
-            syncProgress.currentObjectName = "Ready to process \(catalogObjects.count) objects (\(itemCount) items)"
+            var progress = syncProgress
+            progress.currentObjectType = "READY"
+            progress.currentObjectName = "Ready to process \(catalogObjects.count) objects (\(itemCount) items)"
+            syncProgress = progress
         }
 
         return catalogObjects
@@ -269,8 +282,12 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
 
             // Update progress with processed counts
             let currentObjectCount = index + 1
-            syncProgress.syncedObjects = currentObjectCount
-            syncProgress.syncedItems = processedItems
+            Task { @MainActor in
+                var progress = syncProgress
+                progress.syncedObjects = currentObjectCount
+                progress.syncedItems = processedItems
+                syncProgress = progress
+            }
 
             // Small delay every 50 objects to allow UI updates and check for cancellation
             if index % 50 == 0 {
@@ -286,32 +303,34 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
     /// Update sync status with detailed information about what's being processed
     private func updateSyncStatusForObjectType(_ objectType: String, index: Int, total: Int) {
         Task { @MainActor in
+            var progress = syncProgress
             switch objectType {
             case "ITEM":
-                syncProgress.currentObjectType = "ITEMS"
-                syncProgress.currentObjectName = "Processing items..."
+                progress.currentObjectType = "ITEMS"
+                progress.currentObjectName = "Processing items..."
             case "CATEGORY":
-                syncProgress.currentObjectType = "CATEGORIES"
-                syncProgress.currentObjectName = "Processing categories..."
+                progress.currentObjectType = "CATEGORIES"
+                progress.currentObjectName = "Processing categories..."
             case "IMAGE":
-                syncProgress.currentObjectType = "IMAGES"
-                syncProgress.currentObjectName = "Processing images..."
+                progress.currentObjectType = "IMAGES"
+                progress.currentObjectName = "Processing images..."
             case "TAX":
-                syncProgress.currentObjectType = "TAXES"
-                syncProgress.currentObjectName = "Processing taxes..."
+                progress.currentObjectType = "TAXES"
+                progress.currentObjectName = "Processing taxes..."
             case "MODIFIER", "MODIFIER_LIST":
-                syncProgress.currentObjectType = "MODIFIERS"
-                syncProgress.currentObjectName = "Processing modifiers..."
+                progress.currentObjectType = "MODIFIERS"
+                progress.currentObjectName = "Processing modifiers..."
             case "DISCOUNT":
-                syncProgress.currentObjectType = "DISCOUNTS"
-                syncProgress.currentObjectName = "Processing discounts..."
+                progress.currentObjectType = "DISCOUNTS"
+                progress.currentObjectName = "Processing discounts..."
             case "ITEM_VARIATION":
-                syncProgress.currentObjectType = "VARIATIONS"
-                syncProgress.currentObjectName = "Processing variations..."
+                progress.currentObjectType = "VARIATIONS"
+                progress.currentObjectName = "Processing variations..."
             default:
-                syncProgress.currentObjectType = "PROCESSING"
-                syncProgress.currentObjectName = "Processing \(objectType.lowercased())..."
+                progress.currentObjectType = "PROCESSING"
+                progress.currentObjectName = "Processing \(objectType.lowercased())..."
             }
+            syncProgress = progress
         }
     }
 
