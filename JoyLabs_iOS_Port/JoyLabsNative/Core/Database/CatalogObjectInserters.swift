@@ -32,7 +32,7 @@ class CatalogObjectInserters {
         )
 
         try db.run(insert)
-        logger.debug("Inserted category: \(categoryName) (ID: \(object.id))")
+        logger.debug("🔍 Inserted category: '\(categoryName)' (ID: \(object.id))")
     }
 
     /// Comprehensive tax insertion with full Square API data extraction

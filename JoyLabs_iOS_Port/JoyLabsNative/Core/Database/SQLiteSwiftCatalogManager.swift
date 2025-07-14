@@ -270,9 +270,15 @@ class SQLiteSwiftCatalogManager {
             
         case "ITEM":
             if let itemData = object.itemData {
+                // Debug: Log what category data we have for this item
+                logger.debug("🔍 Processing item \(object.id): reportingCategory=\(itemData.reportingCategory?.id ?? "nil"), categoryId=\(itemData.categoryId ?? "nil"), categories=\(itemData.categories?.map { $0.id } ?? [])")
+
                 // Extract both category types during sync for fast retrieval
                 let reportingCategoryName = extractReportingCategoryName(from: itemData, in: db)
                 let primaryCategoryName = extractPrimaryCategoryName(from: itemData, in: db)
+
+                // Debug: Log what category names we resolved
+                logger.debug("🔍 Item \(object.id) resolved names: reporting='\(reportingCategoryName ?? "nil")', primary='\(primaryCategoryName ?? "nil")'")
 
                 let insert = CatalogTableDefinitions.catalogItems.insert(or: .replace,
                     CatalogTableDefinitions.itemId <- object.id,
@@ -373,6 +379,8 @@ class SQLiteSwiftCatalogManager {
             return nil
         }
 
+        logger.debug("🔍 Looking up reporting category ID: \(reportingCategory.id)")
+
         // Look up the reporting category name from the categories table
         do {
             let query = CatalogTableDefinitions.categories
@@ -380,10 +388,14 @@ class SQLiteSwiftCatalogManager {
                 .filter(CatalogTableDefinitions.categoryId == reportingCategory.id)
 
             if let row = try db.pluck(query) {
-                return try row.get(CatalogTableDefinitions.categoryName)
+                let categoryName = try row.get(CatalogTableDefinitions.categoryName)
+                logger.debug("🔍 Found reporting category name: '\(categoryName ?? "nil")' for ID: \(reportingCategory.id)")
+                return categoryName
+            } else {
+                logger.warning("🔍 No category found in database for reporting category ID: \(reportingCategory.id)")
             }
         } catch {
-            logger.debug("Failed to get reporting category name for \(reportingCategory.id): \(error)")
+            logger.error("🔍 Failed to get reporting category name for \(reportingCategory.id): \(error)")
         }
 
         return nil
@@ -395,13 +407,16 @@ class SQLiteSwiftCatalogManager {
         guard let categories = itemData.categories, !categories.isEmpty else {
             // Fall back to legacy categoryId if no categories array
             if let categoryId = itemData.categoryId {
+                logger.debug("🔍 Using legacy categoryId: \(categoryId)")
                 return getCategoryNameById(categoryId: categoryId, in: db)
             }
+            logger.debug("🔍 No categories array or legacy categoryId found")
             return nil
         }
 
         // Get the first category from the categories array (primary category)
         let primaryCategory = categories.first!
+        logger.debug("🔍 Looking up primary category ID: \(primaryCategory.id) from categories array")
         return getCategoryNameById(categoryId: primaryCategory.id, in: db)
     }
 
@@ -413,10 +428,14 @@ class SQLiteSwiftCatalogManager {
                 .filter(CatalogTableDefinitions.categoryId == categoryId)
 
             if let row = try db.pluck(query) {
-                return try row.get(CatalogTableDefinitions.categoryName)
+                let categoryName = try row.get(CatalogTableDefinitions.categoryName)
+                logger.debug("🔍 Found category name: '\(categoryName ?? "nil")' for ID: \(categoryId)")
+                return categoryName
+            } else {
+                logger.warning("🔍 No category found in database for ID: \(categoryId)")
             }
         } catch {
-            logger.debug("Failed to get category name for \(categoryId): \(error)")
+            logger.error("🔍 Failed to get category name for \(categoryId): \(error)")
         }
 
         return nil

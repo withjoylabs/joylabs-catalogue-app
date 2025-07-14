@@ -151,6 +151,11 @@ class SearchManager: ObservableObject {
                     totalResultsCount = totalCount
                 }
                 logger.debug("📊 Total available results: \(totalCount)")
+
+                // Debug: If total count > 0 but we're about to get 0 results, investigate
+                if totalCount > 0 {
+                    logger.debug("🔍 TOTAL COUNT DEBUG: Found \(totalCount) total results for '\(trimmedTerm)'")
+                }
             }
 
             // 2. Local SQLite search with pagination
@@ -175,6 +180,12 @@ class SearchManager: ObservableObject {
                 caseUpcResults: caseUpcResults
             )
 
+            // Debug: Check for mismatch between total count and actual results
+            if currentOffset == 0 && self.totalResultsCount != nil && self.totalResultsCount! > 0 && newResults.isEmpty {
+                logger.error("🚨 SEARCH MISMATCH: Total count shows \(self.totalResultsCount!) but combined results are empty for '\(trimmedTerm)'")
+                logger.debug("🔍 MISMATCH DEBUG: localResults=\(localResults.count), caseUpcResults=\(caseUpcResults.count)")
+            }
+
             Task { @MainActor in
                 if loadMore {
                     // Append new results, avoiding duplicates
@@ -190,6 +201,9 @@ class SearchManager: ObservableObject {
                 // Update pagination state
                 currentOffset += pageSize
                 hasMoreResults = searchResults.count < (totalResultsCount ?? 0)
+
+                // Debug: Log final UI state
+                logger.debug("🔍 UI STATE: searchResults.count=\(self.searchResults.count), hasMoreResults=\(self.hasMoreResults), totalResultsCount=\(self.totalResultsCount ?? -1)")
             }
 
             let totalCount = newResults.count
@@ -276,9 +290,11 @@ class SearchManager: ObservableObject {
         }
 
         logger.debug("🔍 Starting local search for: '\(searchTerm)'")
+        logger.debug("🔍 SEARCH TERM DEBUG: Original='\(searchTerm)', Like pattern='\(searchTerm)'")
 
         var results: [SearchResultItem] = []
         let searchTermLike = "%\(searchTerm)%"
+        logger.debug("🔍 LIKE PATTERN: '\(searchTermLike)'")
 
         // Name search - optimized with direct column access
         if filters.name {
@@ -321,50 +337,65 @@ class SearchManager: ObservableObject {
         }
 
         var totalCount = 0
-        let searchTermLike = "%\(searchTerm)%"
+        // Removed unused searchTermLike variable
 
-        // Count name search results
+        // Tokenize search term for consistent counting
+        let tokens = searchTerm.components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .map { $0.lowercased() }
+
+        // Count name search results with tokenized search
         if filters.name {
-            let nameCount = try db.scalar(
-                CatalogTableDefinitions.catalogItems
-                    .filter(CatalogTableDefinitions.itemName.like(searchTermLike) &&
-                           CatalogTableDefinitions.itemIsDeleted == false)
-                    .count
-            )
+            var nameQuery = CatalogTableDefinitions.catalogItems
+                .filter(CatalogTableDefinitions.itemIsDeleted == false)
+
+            // Build AND conditions for each token (all tokens must match)
+            for token in tokens {
+                let tokenPattern = "%\(token)%"
+                nameQuery = nameQuery.filter(CatalogTableDefinitions.itemName.like(tokenPattern))
+            }
+
+            let nameCount = try db.scalar(nameQuery.count)
             totalCount += nameCount
         }
 
-        // Count SKU search results
+        // Count SKU search results with tokenized search
         if filters.sku {
             let variations = CatalogTableDefinitions.itemVariations.alias("iv")
             let items = CatalogTableDefinitions.catalogItems.alias("ci")
 
-            let skuCount = try db.scalar(
-                variations
-                    .join(items, on: variations[CatalogTableDefinitions.variationItemId] == items[CatalogTableDefinitions.itemId])
-                    .filter((variations[CatalogTableDefinitions.variationSku] == searchTerm ||
-                            variations[CatalogTableDefinitions.variationSku].like(searchTermLike)) &&
-                           variations[CatalogTableDefinitions.variationIsDeleted] == false &&
-                           items[CatalogTableDefinitions.itemIsDeleted] == false)
-                    .count
-            )
+            var skuQuery = variations
+                .join(items, on: variations[CatalogTableDefinitions.variationItemId] == items[CatalogTableDefinitions.itemId])
+                .filter(variations[CatalogTableDefinitions.variationIsDeleted] == false &&
+                       items[CatalogTableDefinitions.itemIsDeleted] == false)
+
+            // Build AND conditions for each token (all tokens must match)
+            for token in tokens {
+                let tokenPattern = "%\(token)%"
+                skuQuery = skuQuery.filter(variations[CatalogTableDefinitions.variationSku].like(tokenPattern))
+            }
+
+            let skuCount = try db.scalar(skuQuery.count)
             totalCount += skuCount
         }
 
-        // Count UPC search results
+        // Count UPC search results with tokenized search
         if filters.barcode {
             let variations = CatalogTableDefinitions.itemVariations.alias("iv")
             let items = CatalogTableDefinitions.catalogItems.alias("ci")
 
-            let upcCount = try db.scalar(
-                variations
-                    .join(items, on: variations[CatalogTableDefinitions.variationItemId] == items[CatalogTableDefinitions.itemId])
-                    .filter((variations[CatalogTableDefinitions.variationUpc] == searchTerm ||
-                            variations[CatalogTableDefinitions.variationUpc].like(searchTermLike)) &&
-                           variations[CatalogTableDefinitions.variationIsDeleted] == false &&
-                           items[CatalogTableDefinitions.itemIsDeleted] == false)
-                    .count
-            )
+            var upcQuery = variations
+                .join(items, on: variations[CatalogTableDefinitions.variationItemId] == items[CatalogTableDefinitions.itemId])
+                .filter(variations[CatalogTableDefinitions.variationIsDeleted] == false &&
+                       items[CatalogTableDefinitions.itemIsDeleted] == false)
+
+            // Build AND conditions for each token (all tokens must match)
+            for token in tokens {
+                let tokenPattern = "%\(token)%"
+                upcQuery = upcQuery.filter(variations[CatalogTableDefinitions.variationUpc].like(tokenPattern))
+            }
+
+            let upcCount = try db.scalar(upcQuery.count)
             totalCount += upcCount
         }
 
@@ -386,41 +417,74 @@ class SearchManager: ObservableObject {
     // MARK: - Individual Search Methods
 
     private func searchByName(db: Connection, searchTerm: String, offset: Int = 0, limit: Int = 50) throws -> [SearchResultItem] {
-        let query = CatalogTableDefinitions.catalogItems
-            .filter(CatalogTableDefinitions.itemName.like(searchTerm) &&
-                   CatalogTableDefinitions.itemIsDeleted == false)
-            .order(CatalogTableDefinitions.itemName.asc)
-            .limit(limit, offset: offset)
+        // Extract the actual search term from the LIKE pattern (remove % characters)
+        let cleanSearchTerm = searchTerm.replacingOccurrences(of: "%", with: "")
 
-        return try db.prepare(query).compactMap { row in
-            createSearchResultFromRow(row, matchType: "name")
+        // Tokenize search term for multi-word fuzzy search
+        let tokens = cleanSearchTerm.components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .map { $0.lowercased() }
+
+        var query = CatalogTableDefinitions.catalogItems
+            .select(CatalogTableDefinitions.itemId, CatalogTableDefinitions.itemName)
+            .filter(CatalogTableDefinitions.itemIsDeleted == false)
+
+        // Build AND conditions for each token (all tokens must match)
+        for token in tokens {
+            let tokenPattern = "%\(token)%"
+            query = query.filter(CatalogTableDefinitions.itemName.like(tokenPattern))
         }
+
+        query = query.order(CatalogTableDefinitions.itemName.asc).limit(limit, offset: offset)
+
+        var results: [SearchResultItem] = []
+        for row in try db.prepare(query) {
+            let itemId = try row.get(CatalogTableDefinitions.itemId)
+            let itemName = try row.get(CatalogTableDefinitions.itemName)
+
+            // Use unified retrieval for complete item data
+            if let result = getCompleteItemData(itemId: itemId, db: db, matchType: "name", matchContext: itemName) {
+                results.append(result)
+            }
+        }
+        return results
     }
 
     private func searchBySKU(db: Connection, searchTerm: String, offset: Int = 0, limit: Int = 50) throws -> [SearchResultItem] {
         let variations = CatalogTableDefinitions.itemVariations.alias("iv")
         let items = CatalogTableDefinitions.catalogItems.alias("ci")
 
-        // For SKU, try both exact match and partial match
-        let query = variations
+        // Extract the actual search term from the LIKE pattern (remove % characters)
+        let cleanSearchTerm = searchTerm.replacingOccurrences(of: "%", with: "")
+
+        // Tokenize search term for multi-word fuzzy search
+        let tokens = cleanSearchTerm.components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .map { $0.lowercased() }
+
+        var query = variations
             .select(
                 items[CatalogTableDefinitions.itemId],
-                items[CatalogTableDefinitions.itemName],
-                items[CatalogTableDefinitions.itemCategoryId],
-                variations[CatalogTableDefinitions.variationSku],
-                variations[CatalogTableDefinitions.variationUpc],
-                variations[CatalogTableDefinitions.variationPriceAmount]
+                variations[CatalogTableDefinitions.variationSku]
             )
             .join(items, on: variations[CatalogTableDefinitions.variationItemId] == items[CatalogTableDefinitions.itemId])
-            .filter((variations[CatalogTableDefinitions.variationSku] == searchTerm ||
-                    variations[CatalogTableDefinitions.variationSku].like(searchTerm)) &&
-                   variations[CatalogTableDefinitions.variationIsDeleted] == false &&
+            .filter(variations[CatalogTableDefinitions.variationIsDeleted] == false &&
                    items[CatalogTableDefinitions.itemIsDeleted] == false)
-            .order(items[CatalogTableDefinitions.itemName].asc)
-            .limit(limit, offset: offset)
+
+        // Build AND conditions for each token (all tokens must match)
+        for token in tokens {
+            let tokenPattern = "%\(token)%"
+            query = query.filter(variations[CatalogTableDefinitions.variationSku].like(tokenPattern))
+        }
+
+        query = query.order(items[CatalogTableDefinitions.itemName].asc).limit(limit, offset: offset)
 
         return try db.prepare(query).compactMap { row in
-            createSearchResultFromVariationRow(row, matchType: "sku")
+            let itemId = try row.get(items[CatalogTableDefinitions.itemId])
+            let sku = try row.get(variations[CatalogTableDefinitions.variationSku])
+
+            // Use unified retrieval for complete item data
+            return getCompleteItemData(itemId: itemId, db: db, matchType: "sku", matchContext: sku)
         }
     }
 
@@ -428,26 +492,37 @@ class SearchManager: ObservableObject {
         let variations = CatalogTableDefinitions.itemVariations.alias("iv")
         let items = CatalogTableDefinitions.catalogItems.alias("ci")
 
-        // For UPC, try both exact match and partial match
-        let query = variations
+        // Extract the actual search term from the LIKE pattern (remove % characters)
+        let cleanSearchTerm = searchTerm.replacingOccurrences(of: "%", with: "")
+
+        // For UPC, usually we want exact matches, but allow tokenized search for partial UPCs
+        let tokens = cleanSearchTerm.components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .map { $0.lowercased() }
+
+        var query = variations
             .select(
                 items[CatalogTableDefinitions.itemId],
-                items[CatalogTableDefinitions.itemName],
-                items[CatalogTableDefinitions.itemCategoryId],
-                variations[CatalogTableDefinitions.variationSku],
-                variations[CatalogTableDefinitions.variationUpc],
-                variations[CatalogTableDefinitions.variationPriceAmount]
+                variations[CatalogTableDefinitions.variationUpc]
             )
             .join(items, on: variations[CatalogTableDefinitions.variationItemId] == items[CatalogTableDefinitions.itemId])
-            .filter((variations[CatalogTableDefinitions.variationUpc] == searchTerm ||
-                    variations[CatalogTableDefinitions.variationUpc].like(searchTerm)) &&
-                   variations[CatalogTableDefinitions.variationIsDeleted] == false &&
+            .filter(variations[CatalogTableDefinitions.variationIsDeleted] == false &&
                    items[CatalogTableDefinitions.itemIsDeleted] == false)
-            .order(items[CatalogTableDefinitions.itemName].asc)
-            .limit(limit, offset: offset)
+
+        // Build AND conditions for each token (all tokens must match)
+        for token in tokens {
+            let tokenPattern = "%\(token)%"
+            query = query.filter(variations[CatalogTableDefinitions.variationUpc].like(tokenPattern))
+        }
+
+        query = query.order(items[CatalogTableDefinitions.itemName].asc).limit(limit, offset: offset)
 
         return try db.prepare(query).compactMap { row in
-            createSearchResultFromVariationRow(row, matchType: "upc")
+            let itemId = try row.get(items[CatalogTableDefinitions.itemId])
+            let upc = try row.get(variations[CatalogTableDefinitions.variationUpc])
+
+            // Use unified retrieval for complete item data
+            return getCompleteItemData(itemId: itemId, db: db, matchType: "upc", matchContext: upc)
         }
     }
 
@@ -458,9 +533,6 @@ class SearchManager: ObservableObject {
         let query = items
             .select(
                 items[CatalogTableDefinitions.itemId],
-                items[CatalogTableDefinitions.itemName],
-                items[CatalogTableDefinitions.itemCategoryId],
-                items[CatalogTableDefinitions.itemDataJson],
                 categories[CatalogTableDefinitions.categoryName]
             )
             .join(categories, on: items[CatalogTableDefinitions.itemCategoryId] == categories[CatalogTableDefinitions.categoryId])
@@ -471,7 +543,128 @@ class SearchManager: ObservableObject {
             .limit(limit, offset: offset)
 
         return try db.prepare(query).compactMap { row in
-            createSearchResultFromRow(row, matchType: "category")
+            let itemId = try row.get(items[CatalogTableDefinitions.itemId])
+            let categoryName = try row.get(categories[CatalogTableDefinitions.categoryName])
+
+            // Use unified retrieval for complete item data
+            return getCompleteItemData(itemId: itemId, db: db, matchType: "category", matchContext: categoryName)
+        }
+    }
+
+    // MARK: - Unified Item Retrieval
+
+    /// Single source of truth for retrieving complete item data by item ID
+    /// This function is used by ALL search types to ensure consistency
+    private func getCompleteItemData(itemId: String, db: Connection, matchType: String, matchContext: String? = nil) -> SearchResultItem? {
+        do {
+            // Simple query to get basic item data and first variation
+            let items = CatalogTableDefinitions.catalogItems.alias("ci")
+            let variations = CatalogTableDefinitions.itemVariations.alias("iv")
+
+            let query = items
+                .select(
+                    // Item data
+                    items[CatalogTableDefinitions.itemId],
+                    items[CatalogTableDefinitions.itemName],
+                    items[CatalogTableDefinitions.itemCategoryId],
+                    items[CatalogTableDefinitions.itemReportingCategoryName],
+                    items[CatalogTableDefinitions.itemCategoryName],
+                    // First variation data (for SKU, price, UPC)
+                    variations[CatalogTableDefinitions.variationSku],
+                    variations[CatalogTableDefinitions.variationUpc],
+                    variations[CatalogTableDefinitions.variationPriceAmount]
+                )
+                .join(.leftOuter, variations, on: items[CatalogTableDefinitions.itemId] == variations[CatalogTableDefinitions.variationItemId] && variations[CatalogTableDefinitions.variationIsDeleted] == false)
+                .filter(items[CatalogTableDefinitions.itemId] == itemId && items[CatalogTableDefinitions.itemIsDeleted] == false)
+                .limit(1) // We only need one result per item
+
+            guard let row = try db.pluck(query) else {
+                return nil
+            }
+
+            // Extract all data from the unified query
+            let itemName = try row.get(items[CatalogTableDefinitions.itemName])
+            let categoryId = try? row.get(items[CatalogTableDefinitions.itemCategoryId])
+            let reportingCategoryName = try? row.get(items[CatalogTableDefinitions.itemReportingCategoryName])
+            let regularCategoryName = try? row.get(items[CatalogTableDefinitions.itemCategoryName])
+            let categoryName = reportingCategoryName ?? regularCategoryName
+
+            let sku = try? row.get(variations[CatalogTableDefinitions.variationSku])
+            let upc = try? row.get(variations[CatalogTableDefinitions.variationUpc])
+            let priceAmount = try? row.get(variations[CatalogTableDefinitions.variationPriceAmount])
+
+            // Get case UPC data separately if needed (for case UPC match type)
+            var caseUpc: String? = nil
+            var caseCost: Double? = nil
+
+            if matchType == "case_upc" {
+                // Only query team data when we actually need it
+                let teamData = CatalogTableDefinitions.teamData.alias("td")
+                let teamQuery = teamData
+                    .select(
+                        teamData[CatalogTableDefinitions.teamCaseUpc],
+                        teamData[CatalogTableDefinitions.teamCaseCost]
+                    )
+                    .filter(teamData[CatalogTableDefinitions.teamDataItemId] == itemId)
+                    .limit(1)
+
+                if let teamRow = try db.pluck(teamQuery) {
+                    caseUpc = try? teamRow.get(teamData[CatalogTableDefinitions.teamCaseUpc])
+                    caseCost = try? teamRow.get(teamData[CatalogTableDefinitions.teamCaseCost])
+                }
+            }
+
+            // Determine price and barcode based on match type
+            let price: Double?
+            let barcode: String?
+            let isFromCaseUpc: Bool
+
+            switch matchType {
+            case "case_upc":
+                price = caseCost // Case cost is already in dollars
+                barcode = caseUpc
+                isFromCaseUpc = true
+            default:
+                // Convert price from cents to dollars for regular items
+                if let amount = priceAmount, amount > 0 {
+                    let convertedPrice = Double(amount) / 100.0
+                    price = convertedPrice.isFinite && !convertedPrice.isNaN && convertedPrice > 0 ? convertedPrice : nil
+                } else {
+                    price = nil
+                }
+                barcode = upc
+                isFromCaseUpc = false
+            }
+
+            // Check if item has taxes
+            let hasTax = checkItemHasTaxById(itemId: itemId)
+
+            return SearchResultItem(
+                id: itemId,
+                name: itemName,
+                sku: sku,
+                price: price,
+                barcode: barcode,
+                categoryId: categoryId,
+                categoryName: categoryName,
+                images: nil,
+                matchType: matchType,
+                matchContext: matchContext,
+                isFromCaseUpc: isFromCaseUpc,
+                caseUpcData: isFromCaseUpc ? CaseUpcData(
+                    caseUpc: caseUpc ?? "",
+                    caseCost: caseCost ?? 0.0,
+                    caseQuantity: 1, // Default, could be enhanced
+                    vendor: nil,
+                    discontinued: false,
+                    notes: nil
+                ) : nil,
+                hasTax: hasTax
+            )
+
+        } catch {
+            logger.error("Failed to retrieve item data for \(itemId): \(error)")
+            return nil
         }
     }
 
@@ -488,6 +681,13 @@ class SearchManager: ObservableObject {
             let reportingCategoryName = try? row.get(CatalogTableDefinitions.itemReportingCategoryName)
             let regularCategoryName = try? row.get(CatalogTableDefinitions.itemCategoryName)
             let categoryName = reportingCategoryName ?? regularCategoryName
+
+            // Debug: Check what we're getting from database
+            logger.debug("🔍 SEARCH: Item \(itemId) DB retrieval: reporting='\(reportingCategoryName ?? "nil")', regular='\(regularCategoryName ?? "nil")', final='\(categoryName ?? "nil")'")
+
+            if categoryName == nil {
+                logger.warning("🔍 SEARCH: No category found in DB for item \(itemId) that should have category")
+            }
 
             // Get first variation data for SKU, price, and barcode
             let variationData = getFirstVariationForItem(itemId: itemId)
@@ -526,6 +726,18 @@ class SearchManager: ObservableObject {
             let upc = try row.get(CatalogTableDefinitions.variationUpc)
             let priceAmount = try row.get(CatalogTableDefinitions.variationPriceAmount)
 
+            // Get pre-stored category names (fast!) - prioritize reporting category over regular category
+            let reportingCategoryName = try? row.get(CatalogTableDefinitions.itemReportingCategoryName)
+            let regularCategoryName = try? row.get(CatalogTableDefinitions.itemCategoryName)
+            let categoryName = reportingCategoryName ?? regularCategoryName
+
+            // Debug: Check what we're getting from database for variation results
+            logger.debug("🔍 VARIATION SEARCH: Item \(itemId) DB retrieval: reporting='\(reportingCategoryName ?? "nil")', regular='\(regularCategoryName ?? "nil")', final='\(categoryName ?? "nil")'")
+
+            if categoryName == nil {
+                logger.warning("🔍 VARIATION SEARCH: No category found in DB for item \(itemId) that should have category")
+            }
+
             // Safely convert price, ensuring no NaN values
             let price: Double?
             if let amount = priceAmount, amount > 0 {
@@ -553,7 +765,7 @@ class SearchManager: ObservableObject {
                 price: price,
                 barcode: upc,
                 categoryId: categoryId,
-                categoryName: nil,
+                categoryName: categoryName,
                 images: nil,
                 matchType: matchType,
                 matchContext: matchContext,
@@ -668,13 +880,7 @@ class SearchManager: ObservableObject {
         let query = items
             .select(
                 items[CatalogTableDefinitions.itemId],
-                items[CatalogTableDefinitions.itemName],
-                items[CatalogTableDefinitions.itemCategoryId],
-                teamData[CatalogTableDefinitions.teamCaseUpc],
-                teamData[CatalogTableDefinitions.teamCaseCost],
-                teamData[CatalogTableDefinitions.teamCaseQuantity],
-                teamData[CatalogTableDefinitions.teamVendor],
-                teamData[CatalogTableDefinitions.teamDiscontinued]
+                teamData[CatalogTableDefinitions.teamCaseUpc]
             )
             .join(teamData, on: items[CatalogTableDefinitions.itemId] == teamData[CatalogTableDefinitions.teamDataItemId])
             .filter(teamData[CatalogTableDefinitions.teamCaseUpc] == searchTerm &&
@@ -686,39 +892,10 @@ class SearchManager: ObservableObject {
         return try db.prepare(query).compactMap { row in
             do {
                 let itemId = try row.get(items[CatalogTableDefinitions.itemId])
-                let itemName = try row.get(items[CatalogTableDefinitions.itemName])
-                let categoryId = try row.get(items[CatalogTableDefinitions.itemCategoryId])
                 let caseUpc = try row.get(teamData[CatalogTableDefinitions.teamCaseUpc])
-                let caseCost = try row.get(teamData[CatalogTableDefinitions.teamCaseCost])
-                let caseQuantity = try row.get(teamData[CatalogTableDefinitions.teamCaseQuantity])
-                let vendor = try row.get(teamData[CatalogTableDefinitions.teamVendor])
-                let discontinued = try row.get(teamData[CatalogTableDefinitions.teamDiscontinued])
 
-                // Check if item has taxes
-                let hasTax = checkItemHasTaxById(itemId: itemId)
-
-                return SearchResultItem(
-                    id: itemId,
-                    name: itemName,
-                    sku: nil,
-                    price: caseCost,
-                    barcode: caseUpc,
-                    categoryId: categoryId,
-                    categoryName: nil,
-                    images: nil,
-                    matchType: "case_upc",
-                    matchContext: caseUpc,
-                    isFromCaseUpc: true,
-                    caseUpcData: CaseUpcData(
-                        caseUpc: caseUpc,
-                        caseCost: caseCost,
-                        caseQuantity: Int(caseQuantity ?? 0),
-                        vendor: vendor,
-                        discontinued: discontinued,
-                        notes: nil
-                    ),
-                    hasTax: hasTax
-                )
+                // Use unified retrieval for complete item data
+                return getCompleteItemData(itemId: itemId, db: db, matchType: "case_upc", matchContext: caseUpc)
             } catch {
                 logger.error("Failed to create case UPC search result: \(error)")
                 return nil

@@ -41,6 +41,19 @@ struct SearchTextField: View {
                     // Dismiss keyboard when Done is pressed
                     isSearchFieldFocused = false
                 }
+
+            // Clear button - only show when there's text
+            if !searchText.isEmpty {
+                Button(action: {
+                    searchText = ""
+                    isSearchFieldFocused = true
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary)
+                        .font(.system(size: 16))
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -98,15 +111,24 @@ struct ScanResultCard: View {
 
                 // Category, UPC, SKU row
                 HStack(spacing: 8) {
-                    // Category with background
+                    // Category with background - reduced visual intensity
                     if let categoryName = result.categoryName, !categoryName.isEmpty {
                         Text(categoryName)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.primary)
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundColor(.secondary)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(Color(.systemGray4))
+                            .background(Color(.systemGray5))
                             .cornerRadius(4)
+                    } else {
+                        // Debug: Show when category is missing - essential for debugging
+                        Text("NO CAT")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundColor(.red)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(Color.red.opacity(0.1))
+                            .cornerRadius(2)
                     }
 
                     // UPC
