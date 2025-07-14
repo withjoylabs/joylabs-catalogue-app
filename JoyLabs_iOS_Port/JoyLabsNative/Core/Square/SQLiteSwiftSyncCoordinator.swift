@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import OSLog
+import Combine
 
 /// Modern sync coordinator using SQLite.swift
 /// Replaces the broken raw SQLite3 implementation
@@ -18,6 +19,7 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
     let catalogSyncService: SQLiteSwiftCatalogSyncService  // Made public for UI access
     private let squareAPIService: SquareAPIService
     private let logger = Logger(subsystem: "com.joylabs.native", category: "SQLiteSwiftSyncCoordinator")
+    private var cancellables = Set<AnyCancellable>()
     
     // MARK: - Initialization
     
@@ -101,7 +103,14 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
             .map { $0.map { SyncCoordinatorError.syncFailed($0) } }
             .assign(to: &$error)
 
-        // No need to observe progress percentage since we removed it
+        // Forward sync progress changes to trigger UI updates
+        catalogSyncService.$syncProgress
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                // Force UI update by triggering objectWillChange
+                self?.objectWillChange.send()
+            }
+            .store(in: &cancellables)
     }
     
     // MARK: - Public Methods
