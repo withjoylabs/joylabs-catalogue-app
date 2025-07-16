@@ -320,8 +320,7 @@ class ImageCacheService: ObservableObject {
             }
         }
 
-        logger.debug("💾 Cache miss for image: \(imageId) - downloading from AWS")
-
+        // Cache miss - download from AWS (specific reason already logged by loadImageFromDisk)
         // Simple download without complex rate limiting for now
         return await simpleDownloadAndCache(imageId: imageId, awsUrl: awsUrl)
     }
@@ -560,7 +559,7 @@ class ImageCacheService: ObservableObject {
         let fileURL = cacheDirectory.appendingPathComponent(cacheKey)
 
         guard fileManager.fileExists(atPath: fileURL.path) else {
-            logger.debug("💾 Cache file not found: \(cacheKey)")
+            logger.debug("💾 Cache miss - file not found: \(cacheKey)")
             return nil
         }
 
