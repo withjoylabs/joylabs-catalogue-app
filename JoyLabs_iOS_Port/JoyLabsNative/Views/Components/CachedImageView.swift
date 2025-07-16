@@ -12,6 +12,17 @@ struct CachedImageView: View {
     @StateObject private var imageCache = ImageCacheService.shared
     @State private var loadedImage: UIImage?
     @State private var isLoading = false
+
+    // Safe dimensions to prevent NaN values in CoreGraphics
+    private var safeWidth: CGFloat? {
+        guard let width = width, width > 0, width.isFinite else { return nil }
+        return width
+    }
+
+    private var safeHeight: CGFloat? {
+        guard let height = height, height > 0, height.isFinite else { return nil }
+        return height
+    }
     
     init(
         imageURL: String?,
@@ -35,14 +46,14 @@ struct CachedImageView: View {
                     .aspectRatio(contentMode: contentMode)
             } else if isLoading {
                 ProgressView()
-                    .frame(width: width, height: height)
+                    .frame(width: safeWidth, height: safeHeight)
             } else {
                 Image(systemName: placeholder)
                     .foregroundColor(.gray)
-                    .frame(width: width, height: height)
+                    .frame(width: safeWidth, height: safeHeight)
             }
         }
-        .frame(width: width, height: height)
+        .frame(width: safeWidth, height: safeHeight)
         .onAppear {
             loadImageIfNeeded()
         }

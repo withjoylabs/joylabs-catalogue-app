@@ -279,20 +279,9 @@ class ImageCacheService: ObservableObject {
                 cacheKey = existingMapping
                 logger.debug("📋 Using existing image mapping: \(imageId) -> \(cacheKey)")
             } else {
-                // No existing mapping - create new one (for on-demand downloads)
-                do {
-                    cacheKey = try imageURLManager.storeImageMapping(
-                        squareImageId: imageId,
-                        awsUrl: awsUrl,
-                        objectType: "ITEM",
-                        objectId: imageId,
-                        imageType: "PRIMARY"
-                    )
-                    logger.debug("📝 Created new image mapping: \(imageId) -> \(cacheKey)")
-                } catch {
-                    logger.error("❌ Failed to store image mapping: \(error)")
-                    cacheKey = fileName // Fallback to filename
-                }
+                // No existing mapping - this shouldn't happen after sync, but handle gracefully
+                cacheKey = fileName // Use filename as fallback
+                logger.warning("⚠️ No existing mapping found for \(imageId) - using filename as cache key")
             }
 
             await updateCacheStats()
@@ -428,12 +417,25 @@ class ImageCacheService: ObservableObject {
                 return nil
             }
 
-            // Cache the image with mapping
-            let _ = await cacheImageWithMapping(
-                imageData: data,
-                imageId: imageId,
-                awsUrl: awsUrl
-            )
+            // Get existing cache key from mapping (created during sync)
+            let cacheKey: String
+            if let existingKey = try? imageURLManager.getLocalCacheKey(for: imageId) {
+                cacheKey = existingKey
+                logger.debug("📋 Using existing image mapping: \(imageId) -> \(cacheKey)")
+            } else {
+                // Fallback if no mapping exists
+                cacheKey = createImageIdFromUrl(awsUrl) + ".jpg"
+                logger.warning("⚠️ No existing mapping for \(imageId) - using fallback cache key")
+            }
+
+            // Save image to disk using existing cache key
+            let fileURL = cacheDirectory.appendingPathComponent(cacheKey)
+            try data.write(to: fileURL)
+
+            // Store in memory cache
+            memoryCache.setObject(image, forKey: cacheKey as NSString)
+
+            logger.debug("✅ Cached image with mapping: \(imageId) -> cache://\(cacheKey)")
 
             logger.debug("✅ Downloaded and cached image: \(imageId)")
             return image
@@ -556,16 +558,22 @@ class ImageCacheService: ObservableObject {
     
     private func loadImageFromDisk(cacheKey: String) -> UIImage? {
         let fileURL = cacheDirectory.appendingPathComponent(cacheKey)
-        
-        guard fileManager.fileExists(atPath: fileURL.path),
-              let imageData = try? Data(contentsOf: fileURL),
-              let image = UIImage(data: imageData) else {
+
+        guard fileManager.fileExists(atPath: fileURL.path) else {
+            logger.debug("💾 Cache file not found: \(cacheKey)")
             return nil
         }
-        
+
+        guard let imageData = try? Data(contentsOf: fileURL),
+              let image = UIImage(data: imageData) else {
+            logger.debug("💾 Failed to load image data from: \(cacheKey)")
+            return nil
+        }
+
         // Update file modification date for LRU cleanup
         try? fileManager.setAttributes([.modificationDate: Date()], ofItemAtPath: fileURL.path)
-        
+
+        logger.debug("💾 Cache hit - loaded from disk: \(cacheKey)")
         return image
     }
     
