@@ -270,22 +270,29 @@ class ImageCacheService: ObservableObject {
             }
 
             // Create internal cache URL
-            let cacheUrl = "cache://\(fileName)"
+            // Removed unused cacheUrl variable - using finalCacheUrl instead
 
-            // Store database mapping with proper image ID - DON'T DUPLICATE STORAGE
+            // Check if mapping already exists to avoid duplicate storage
             let cacheKey: String
-            do {
-                cacheKey = try imageURLManager.storeImageMapping(
-                    squareImageId: imageId,
-                    awsUrl: awsUrl,
-                    objectType: "ITEM", // Default to ITEM for on-demand loading
-                    objectId: imageId,
-                    imageType: "PRIMARY"
-                )
-                // ImageURLManager already logs the mapping, no need to duplicate
-            } catch {
-                logger.error("❌ Failed to store image mapping: \(error)")
-                cacheKey = fileName // Fallback to filename
+            if let existingMapping = try? imageURLManager.getLocalCacheKey(for: imageId) {
+                // Mapping already exists from sync - use existing cache key
+                cacheKey = existingMapping
+                logger.debug("📋 Using existing image mapping: \(imageId) -> \(cacheKey)")
+            } else {
+                // No existing mapping - create new one (for on-demand downloads)
+                do {
+                    cacheKey = try imageURLManager.storeImageMapping(
+                        squareImageId: imageId,
+                        awsUrl: awsUrl,
+                        objectType: "ITEM",
+                        objectId: imageId,
+                        imageType: "PRIMARY"
+                    )
+                    logger.debug("📝 Created new image mapping: \(imageId) -> \(cacheKey)")
+                } catch {
+                    logger.error("❌ Failed to store image mapping: \(error)")
+                    cacheKey = fileName // Fallback to filename
+                }
             }
 
             await updateCacheStats()

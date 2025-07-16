@@ -285,26 +285,6 @@ struct CatalogManagementView: View {
                 .foregroundColor(.white)
                 .cornerRadius(12)
             }
-
-            // Clear Image Cache Button
-            Button(action: {
-                Task {
-                    await clearImageCache()
-                }
-            }) {
-                HStack(spacing: 8) {
-                    Image(systemName: "trash.circle.fill")
-                        .font(.title3)
-                    Text("Clear Image Cache")
-                        .fontWeight(.semibold)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(Color.orange)
-                .foregroundColor(.white)
-                .cornerRadius(12)
-            }
-            .disabled(syncCoordinator.syncState == .syncing)
         }
         .padding()
         .background(Color(.systemGray6))
@@ -512,6 +492,34 @@ struct CatalogManagementView: View {
                 Spacer()
             }
 
+            // Clear Image Cache Button
+            Button(action: {
+                Task {
+                    await clearImageCache()
+                }
+            }) {
+                HStack {
+                    Image(systemName: "photo.circle.fill")
+                        .foregroundColor(.orange)
+                    Text("Clear Image Cache")
+                        .fontWeight(.medium)
+                        .foregroundColor(.orange)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(16)
+                .background(Color(.systemGray6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color(.systemGray5), lineWidth: 1)
+                )
+                .cornerRadius(12)
+            }
+            .disabled(syncCoordinator.syncState == .syncing)
+
+            // Clear Database Button
             Button(action: {
                 showingClearDatabaseConfirmation = true
             }) {
