@@ -206,18 +206,35 @@ class ImageURLManager {
     // MARK: - Private Methods
     
     private func generateCacheKey(from awsUrl: String, squareImageId: String) -> String {
-        // Use Square image ID as primary key, fallback to URL hash
-        let baseKey = squareImageId.isEmpty ? awsUrl.sha256 : squareImageId
-        
+        // Always use Square image ID as primary key for consistency
+        let baseKey: String
+        if !squareImageId.isEmpty {
+            baseKey = squareImageId
+        } else {
+            // Fallback: create meaningful key from URL
+            let urlHash = awsUrl.sha256.prefix(12)
+            if let url = URL(string: awsUrl) {
+                let pathComponents = url.pathComponents.filter { $0 != "/" }
+                if pathComponents.count >= 2 {
+                    let meaningfulPart = pathComponents.suffix(2).joined(separator: "_")
+                    baseKey = "\(meaningfulPart)_\(urlHash)"
+                } else {
+                    baseKey = "img_\(urlHash)"
+                }
+            } else {
+                baseKey = "img_\(urlHash)"
+            }
+        }
+
         // Ensure safe filename
         let safeKey = baseKey.replacingOccurrences(of: "[^a-zA-Z0-9_-]", with: "_", options: .regularExpression)
-        
+
         // Add file extension if we can detect it from URL
         if let url = URL(string: awsUrl), !url.pathExtension.isEmpty {
             return "\(safeKey).\(url.pathExtension)"
         }
-        
-        return safeKey
+
+        return "\(safeKey).jpg" // Default extension
     }
     
     private func updateLastAccessedTime(squareImageId: String) throws {

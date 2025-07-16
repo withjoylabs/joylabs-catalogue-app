@@ -12,7 +12,12 @@ import os.log
 class ImageCacheService: ObservableObject {
 
     // MARK: - Shared Instance
-    static let shared = ImageCacheService()
+    static let shared: ImageCacheService = {
+        // Initialize with shared database manager
+        let sharedDbManager = SquareAPIServiceFactory.createDatabaseManager()
+        let imageURLManager = ImageURLManager(databaseManager: sharedDbManager)
+        return ImageCacheService(imageURLManager: imageURLManager)
+    }()
     
     // MARK: - Published Properties
     
@@ -55,12 +60,13 @@ class ImageCacheService: ObservableObject {
         let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
         self.cacheDirectory = documentsPath.appendingPathComponent("ImageCache")
 
-        // Initialize URL manager (create default if not provided)
+        // Initialize URL manager (use shared database manager)
         if let urlManager = imageURLManager {
             self.imageURLManager = urlManager
         } else {
-            let dbManager = SQLiteSwiftCatalogManager()
-            self.imageURLManager = ImageURLManager(databaseManager: dbManager)
+            // Use shared database manager instead of creating new one
+            let sharedDbManager = SquareAPIServiceFactory.createDatabaseManager()
+            self.imageURLManager = ImageURLManager(databaseManager: sharedDbManager)
         }
         
         // Configure URLSession for on-demand loading
@@ -112,9 +118,12 @@ class ImageCacheService: ObservableObject {
             return nil
         }
 
+        // Create meaningful image ID from URL for cache lookup
+        let imageId = createImageIdFromUrl(urlString)
+
         // Try to get existing cache key from URL manager first
         let cacheKey: String
-        if let existingKey = try? imageURLManager.getLocalCacheKey(for: urlString) {
+        if let existingKey = try? imageURLManager.getLocalCacheKey(for: imageId) {
             cacheKey = existingKey
         } else {
             cacheKey = cacheKeyForURL(urlString)
@@ -248,7 +257,7 @@ class ImageCacheService: ObservableObject {
             // Create internal cache URL
             let cacheUrl = "cache://\(fileName)"
 
-            // Store database mapping
+            // Store database mapping with proper image ID
             do {
                 _ = try imageURLManager.storeImageMapping(
                     squareImageId: imageId,
@@ -257,6 +266,7 @@ class ImageCacheService: ObservableObject {
                     objectId: imageId,
                     imageType: "PRIMARY"
                 )
+                logger.debug("📝 Stored image mapping: \(imageId) -> \(fileName)")
             } catch {
                 logger.error("❌ Failed to store image mapping: \(error)")
             }
@@ -450,6 +460,24 @@ class ImageCacheService: ObservableObject {
     private func cacheKeyForURL(_ urlString: String) -> String {
         // Create a safe filename from URL
         return urlString.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? UUID().uuidString
+    }
+
+    private func createImageIdFromUrl(_ urlString: String) -> String {
+        // Create a unique, meaningful image ID from AWS URL
+        let urlHash = urlString.sha256
+
+        // Try to extract meaningful parts from URL path
+        if let urlObj = URL(string: urlString) {
+            let pathComponents = urlObj.pathComponents.filter { $0 != "/" }
+            if pathComponents.count >= 2 {
+                // Use last two path components for more meaningful ID
+                let meaningfulPart = pathComponents.suffix(2).joined(separator: "_")
+                return "\(meaningfulPart)_\(urlHash.prefix(8))"
+            }
+        }
+
+        // Fallback to hash-based ID
+        return "img_\(urlHash.prefix(12))"
     }
     
     private func loadImageFromDisk(cacheKey: String) -> UIImage? {

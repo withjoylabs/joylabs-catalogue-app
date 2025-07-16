@@ -82,12 +82,22 @@ struct CachedImageView: View {
     }
 
     private func extractImageId(from url: String) -> String {
-        // Extract image ID from AWS URL for caching
-        // Example: https://s3.amazonaws.com/bucket/path/imageId.jpg -> imageId
-        if let lastComponent = URL(string: url)?.lastPathComponent {
-            return String(lastComponent.prefix(while: { $0 != "." }))
+        // Create a unique, meaningful image ID from AWS URL
+        // Use URL hash to ensure uniqueness while being deterministic
+        let urlHash = url.sha256
+
+        // Try to extract meaningful parts from URL path
+        if let urlObj = URL(string: url) {
+            let pathComponents = urlObj.pathComponents.filter { $0 != "/" }
+            if pathComponents.count >= 2 {
+                // Use last two path components for more meaningful ID
+                let meaningfulPart = pathComponents.suffix(2).joined(separator: "_")
+                return "\(meaningfulPart)_\(urlHash.prefix(8))"
+            }
         }
-        return url.replacingOccurrences(of: "/", with: "_")
+
+        // Fallback to hash-based ID
+        return "img_\(urlHash.prefix(12))"
     }
 
 }
