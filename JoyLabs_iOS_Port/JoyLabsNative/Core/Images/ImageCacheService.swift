@@ -315,7 +315,7 @@ class ImageCacheService: ObservableObject {
                 if let diskImage = loadImageFromDisk(cacheKey: cacheKey) {
                     // Store in memory cache for faster access
                     memoryCache.setObject(diskImage, forKey: cacheKey as NSString)
-                    logger.debug("💾 Cache hit for image: \(imageId)")
+                    // Note: Cache hit already logged by loadImageFromDisk
                     return diskImage
                 }
             }

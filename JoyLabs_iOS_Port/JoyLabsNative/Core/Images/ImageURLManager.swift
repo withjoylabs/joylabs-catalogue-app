@@ -349,13 +349,13 @@ enum ImageURLError: Error, LocalizedError {
 
 // MARK: - String Extension for SHA256
 
+import CryptoKit
+
 extension String {
     var sha256: String {
         let data = Data(self.utf8)
-        let hash = data.withUnsafeBytes { bytes in
-            return bytes.bindMemory(to: UInt8.self)
-        }
-        return hash.map { String(format: "%02x", $0) }.joined()
+        let hash = SHA256.hash(data: data)
+        return hash.compactMap { String(format: "%02x", $0) }.joined()
     }
 
     /// Clear cache references but preserve URL mappings (for cache refresh)
