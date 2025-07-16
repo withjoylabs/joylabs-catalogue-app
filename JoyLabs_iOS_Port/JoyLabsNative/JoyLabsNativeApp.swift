@@ -29,16 +29,21 @@ struct JoyLabsNativeApp: App {
         Task.detached(priority: .high) {
             await MainActor.run {
                 let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
+
+                // Initialize ImageCacheService.shared with the shared database manager
+                let imageURLManager = ImageURLManager(databaseManager: databaseManager)
+                ImageCacheService.initializeShared(with: imageURLManager)
+
                 Task {
                     do {
                         try databaseManager.connect()
                         try await databaseManager.createTablesAsync()
                         await MainActor.run {
-                            self.logger.info("✅ Shared database initialized successfully on app startup")
+                            self.logger.info("✅ Shared database and image cache initialized successfully on app startup")
                         }
                     } catch {
                         await MainActor.run {
-                            self.logger.error("❌ Failed to initialize shared database on app startup: \(error)")
+                            self.logger.error("❌ Failed to initialize shared services on app startup: \(error)")
                         }
                     }
                 }

@@ -12,12 +12,28 @@ import os.log
 class ImageCacheService: ObservableObject {
 
     // MARK: - Shared Instance
-    static let shared: ImageCacheService = {
-        // Initialize with shared database manager
+    private static var _shared: ImageCacheService?
+    private static let staticLogger = Logger(subsystem: "com.joylabs.native", category: "ImageCacheService")
+
+    static var shared: ImageCacheService {
+        if let instance = _shared {
+            return instance
+        }
+
+        // Fallback initialization if not properly initialized
+        staticLogger.warning("⚠️ ImageCacheService.shared accessed before proper initialization - creating fallback instance")
         let sharedDbManager = SquareAPIServiceFactory.createDatabaseManager()
         let imageURLManager = ImageURLManager(databaseManager: sharedDbManager)
-        return ImageCacheService(imageURLManager: imageURLManager)
-    }()
+        let instance = ImageCacheService(imageURLManager: imageURLManager)
+        _shared = instance
+        return instance
+    }
+
+    static func initializeShared(with imageURLManager: ImageURLManager) {
+        staticLogger.info("🖼️ Initializing shared ImageCacheService with provided ImageURLManager")
+        _shared = ImageCacheService(imageURLManager: imageURLManager)
+        staticLogger.info("✅ Shared ImageCacheService initialized successfully")
+    }
     
     // MARK: - Published Properties
     
@@ -186,8 +202,8 @@ class ImageCacheService: ObservableObject {
                 imageType: imageType
             )
 
-            // Download and cache the image
-            if let _ = await loadImageFromAWSUrl(awsUrl) {
+            // Download and cache the image WITHOUT storing mapping again
+            if let _ = await downloadAndCacheImageOnly(awsUrl: awsUrl, imageId: squareImageId) {
                 logger.info("✅ Cached image with mapping: \(squareImageId) -> \(cacheKey)")
                 return "cache://\(cacheKey)"
             }
@@ -257,16 +273,16 @@ class ImageCacheService: ObservableObject {
             // Create internal cache URL
             let cacheUrl = "cache://\(fileName)"
 
-            // Store database mapping with proper image ID
+            // Store database mapping with proper image ID - DON'T DUPLICATE STORAGE
             do {
-                _ = try imageURLManager.storeImageMapping(
+                let cacheKey = try imageURLManager.storeImageMapping(
                     squareImageId: imageId,
                     awsUrl: awsUrl,
                     objectType: "ITEM", // Default to ITEM for on-demand loading
                     objectId: imageId,
                     imageType: "PRIMARY"
                 )
-                logger.debug("📝 Stored image mapping: \(imageId) -> \(fileName)")
+                logger.debug("📝 Stored image mapping: \(imageId) -> \(cacheKey)")
             } catch {
                 logger.error("❌ Failed to store image mapping: \(error)")
             }
@@ -308,6 +324,40 @@ class ImageCacheService: ObservableObject {
 
         // Simple download without complex rate limiting for now
         return await simpleDownloadAndCache(imageId: imageId, awsUrl: awsUrl)
+    }
+
+    /// Download and cache image without storing database mapping (used when mapping already exists)
+    private func downloadAndCacheImageOnly(awsUrl: String, imageId: String) async -> UIImage? {
+        guard let url = URL(string: awsUrl) else {
+            logger.error("Invalid AWS URL: \(awsUrl)")
+            return nil
+        }
+
+        do {
+            // Rate limiting
+            await self.enforceRateLimit()
+
+            logger.debug("📥 Downloading image: \(imageId) from AWS")
+            let (data, _) = try await URLSession.shared.data(from: url)
+
+            // Save to disk
+            let fileName = createImageIdFromUrl(awsUrl) + ".jpg"
+            let fileURL = cacheDirectory.appendingPathComponent(fileName)
+            try data.write(to: fileURL)
+
+            // Cache in memory
+            if let image = UIImage(data: data) {
+                memoryCache.setObject(image, forKey: fileName as NSString)
+                await updateCacheStats()
+                logger.debug("✅ Downloaded and cached image (no mapping): \(imageId)")
+                return image
+            }
+
+        } catch {
+            logger.error("❌ Download failed for image \(imageId): \(error)")
+        }
+
+        return nil
     }
 
     /// Load multiple images concurrently for search results (maintains performance)
@@ -456,7 +506,20 @@ class ImageCacheService: ObservableObject {
             }
         }
     }
-    
+
+    /// Enforce rate limiting for AWS requests
+    private func enforceRateLimit() async {
+        let now = Date()
+        let timeSinceLastRequest = now.timeIntervalSince(lastRequestTime)
+
+        if timeSinceLastRequest < requestSpacing {
+            let delay = requestSpacing - timeSinceLastRequest
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+        }
+
+        lastRequestTime = Date()
+    }
+
     private func cacheKeyForURL(_ urlString: String) -> String {
         // Create a safe filename from URL
         return urlString.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? UUID().uuidString
