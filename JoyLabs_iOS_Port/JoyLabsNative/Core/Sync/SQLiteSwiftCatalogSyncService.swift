@@ -22,6 +22,10 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
     private var imageCacheService: ImageCacheService!
     private let logger = Logger(subsystem: "com.joylabs.native", category: "SQLiteSwiftCatalogSync")
 
+    // Configuration: Skip orphaned images to reduce overhead
+    // Based on Square API behavior: ListCatalog excludes deleted items but includes their orphaned images
+    private let skipOrphanedImages = true
+
     // MARK: - Public Access
 
     var sharedDatabaseManager: SQLiteSwiftCatalogManager {
@@ -501,6 +505,13 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
         }
 
         logger.debug("📷 Processing IMAGE URL mapping: \(object.id) -> \(awsUrl)")
+        logger.debug("📷 IMAGE OBJECT DEBUG: id=\(object.id), type=\(object.type), isDeleted=\(object.isDeleted), updatedAt=\(object.updatedAt)")
+
+        // Skip processing deleted images to avoid wasting overhead
+        if object.isDeleted {
+            logger.debug("⚠️ SKIPPING DELETED IMAGE: \(object.id) - not processing URL mapping")
+            return
+        }
 
         // Store the URL mapping for on-demand loading (don't download yet)
         do {
@@ -619,6 +630,22 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
                     }
                 }
                 logger.debug("🔍 DEBUG: Broader search found \(debugCount) total items (\(deletedCount) deleted) containing \(imageId)")
+
+                // If no items found, this is an orphaned image from Square's deleted items
+                if debugCount == 0 {
+                    logger.warning("🚨 ORPHANED IMAGE DETECTED: \(imageId) has no associated items in database")
+                    logger.warning("🚨 EXPLANATION: Square's ListCatalog excludes deleted items but includes their orphaned images")
+                    logger.warning("🚨 This image was processed but wastes storage/bandwidth - removing mapping")
+
+                    // Mark the orphaned image mapping as deleted to free up space
+                    do {
+                        let imageURLManager = ImageURLManager(databaseManager: databaseManager)
+                        try imageURLManager.markImageAsDeleted(squareImageId: imageId)
+                        logger.debug("✅ Marked orphaned image mapping as deleted: \(imageId)")
+                    } catch {
+                        logger.error("❌ Failed to mark orphaned image mapping as deleted: \(error)")
+                    }
+                }
             }
 
         } catch {
