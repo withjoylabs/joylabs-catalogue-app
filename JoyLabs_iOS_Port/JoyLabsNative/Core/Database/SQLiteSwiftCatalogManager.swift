@@ -290,7 +290,7 @@ class SQLiteSwiftCatalogManager {
                     CatalogTableDefinitions.itemReportingCategoryName <- reportingCategoryName,
                     CatalogTableDefinitions.itemName <- itemData.name,
                     CatalogTableDefinitions.itemDescription <- itemData.description,
-                    CatalogTableDefinitions.itemDataJson <- encodeJSON(itemData)
+                    CatalogTableDefinitions.itemDataJson <- encodeJSON(object)  // Store FULL CatalogObject, not just itemData
                 )
                 try db.run(insert)
             }
@@ -316,17 +316,29 @@ class SQLiteSwiftCatalogManager {
             }
 
         case "IMAGE":
-            // Store Square catalog images - simplified approach
-            let insert = CatalogTableDefinitions.images.insert(or: .replace,
-                CatalogTableDefinitions.imageId <- object.id,
-                CatalogTableDefinitions.imageName <- "Image \(object.id)",
-                CatalogTableDefinitions.imageUrl <- nil,
-                CatalogTableDefinitions.imageIsDeleted <- object.isDeleted,
-                CatalogTableDefinitions.imageUpdatedAt <- timestamp,
-                CatalogTableDefinitions.imageVersion <- String(object.version),
-                CatalogTableDefinitions.imageDataJson <- nil
-            )
-            try db.run(insert)
+            // Store Square catalog images with proper AWS URL and data
+            if let imageData = object.imageData {
+                let imageName = imageData.name ?? "Image \(object.id)"
+                let imageUrl = imageData.url // Store the actual AWS URL
+                let imageCaption = imageData.caption
+                let imageDataJson = encodeJSON(imageData) // Store full image data
+
+                let insert = CatalogTableDefinitions.images.insert(or: .replace,
+                    CatalogTableDefinitions.imageId <- object.id,
+                    CatalogTableDefinitions.imageName <- imageName,
+                    CatalogTableDefinitions.imageUrl <- imageUrl,
+                    CatalogTableDefinitions.imageCaption <- imageCaption,
+                    CatalogTableDefinitions.imageIsDeleted <- object.isDeleted,
+                    CatalogTableDefinitions.imageUpdatedAt <- timestamp,
+                    CatalogTableDefinitions.imageVersion <- String(object.version),
+                    CatalogTableDefinitions.imageDataJson <- imageDataJson
+                )
+                try db.run(insert)
+
+                logger.debug("✅ Stored IMAGE object: \(object.id) with URL: \(imageUrl ?? "nil")")
+            } else {
+                logger.warning("⚠️ IMAGE object \(object.id) missing imageData - skipping")
+            }
 
         case "TAX":
             // Use object inserters component

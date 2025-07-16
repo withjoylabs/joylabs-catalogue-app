@@ -83,7 +83,8 @@ struct CatalogObject: Codable {
     let modifierListData: ModifierListData?
     let taxData: TaxData?
     let discountData: DiscountData?
-    
+    let imageData: ImageData?
+
     enum CodingKeys: String, CodingKey {
         case id, type, version
         case updatedAt = "updated_at"
@@ -96,6 +97,7 @@ struct CatalogObject: Codable {
         case modifierListData = "modifier_list_data"
         case taxData = "tax_data"
         case discountData = "discount_data"
+        case imageData = "image_data"
     }
     
     func toDictionary() -> [String: Any] {

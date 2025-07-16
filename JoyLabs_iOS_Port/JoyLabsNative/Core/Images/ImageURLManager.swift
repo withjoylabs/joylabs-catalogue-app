@@ -222,9 +222,64 @@ class ImageURLManager {
     
     private func updateLastAccessedTime(squareImageId: String) throws {
         guard let db = databaseManager.getConnection() else { return }
-        
+
         let query = imageUrlMappings.where(self.squareImageId == squareImageId)
         try db.run(query.update(lastAccessedAt <- Date()))
+    }
+
+    // MARK: - Webhook Support Methods
+
+    /// Invalidate image mappings for a specific object (for webhook processing)
+    func invalidateImagesForObject(objectId: String, objectType: String) throws {
+        guard let db = databaseManager.getConnection() else {
+            throw ImageURLError.databaseNotConnected
+        }
+
+        let query = imageUrlMappings.where(self.objectId == objectId && self.objectType == objectType)
+        try db.run(query.update(isDeleted <- true))
+
+        logger.info("🔄 Invalidated images for \(objectType) object: \(objectId)")
+    }
+
+    /// Invalidate a specific image by Square image ID (for webhook processing)
+    func invalidateImageById(squareImageId: String) throws {
+        guard let db = databaseManager.getConnection() else {
+            throw ImageURLError.databaseNotConnected
+        }
+
+        let query = imageUrlMappings.where(self.squareImageId == squareImageId)
+        try db.run(query.update(isDeleted <- true))
+
+        logger.info("🔄 Invalidated image: \(squareImageId)")
+    }
+
+    /// Get all cache keys that need cleanup (marked as deleted)
+    func getStaleImageCacheKeys() throws -> [String] {
+        guard let db = databaseManager.getConnection() else {
+            throw ImageURLError.databaseNotConnected
+        }
+
+        let query = imageUrlMappings
+            .select(localCacheKey)
+            .where(isDeleted == true)
+
+        var cacheKeys: [String] = []
+        for row in try db.prepare(query) {
+            let cacheKey = try row.get(localCacheKey)
+            cacheKeys.append(cacheKey)
+        }
+
+        return cacheKeys
+    }
+
+    /// Remove stale image mappings from database (cleanup after cache files are deleted)
+    func cleanupStaleImageMappings() throws {
+        guard let db = databaseManager.getConnection() else {
+            throw ImageURLError.databaseNotConnected
+        }
+
+        let deletedCount = try db.run(imageUrlMappings.filter(isDeleted == true).delete())
+        logger.info("🧹 Cleaned up \(deletedCount) stale image mappings")
     }
 }
 

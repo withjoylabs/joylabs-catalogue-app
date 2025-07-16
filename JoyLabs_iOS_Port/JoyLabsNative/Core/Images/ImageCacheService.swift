@@ -3,8 +3,16 @@ import UIKit
 import os.log
 
 /// Service for caching Square catalog images locally with persistence and cleanup
+///
+/// IMPORTANT: Images are stored at FULL RESOLUTION without compression
+/// - Original image data is preserved for high-quality display
+/// - Thumbnails use the same full-resolution data, scaled in UI
+/// - Perfect for enlarging thumbnails to full-size views
 @MainActor
 class ImageCacheService: ObservableObject {
+
+    // MARK: - Shared Instance
+    static let shared = ImageCacheService()
     
     // MARK: - Published Properties
     
@@ -15,7 +23,7 @@ class ImageCacheService: ObservableObject {
     // MARK: - Dependencies
 
     private let fileManager = FileManager.default
-    private let imageURLManager: ImageURLManager
+    private var imageURLManager: ImageURLManager
     private let logger = Logger(subsystem: "com.joylabs.native", category: "ImageCache")
     
     // MARK: - Cache Configuration
@@ -25,9 +33,20 @@ class ImageCacheService: ObservableObject {
     private let maxCacheAge: TimeInterval = 30 * 24 * 60 * 60 // 30 days
     
     // MARK: - In-Memory Cache
-    
+
     private var memoryCache = NSCache<NSString, UIImage>()
     private var downloadTasks: [String: Task<UIImage?, Error>] = [:]
+
+    // MARK: - On-Demand Loading with Rate Limiting
+
+    private let urlSession: URLSession
+    private let maxConcurrentDownloads = 6 // Conservative limit for AWS
+    private let requestSpacing: TimeInterval = 0.1 // 100ms between requests
+    private let maxRequestsPerSecond = 10 // AWS CloudFront typical limit
+    private var activeDownloads: Set<String> = []
+    private var lastRequestTime: Date = Date.distantPast
+    private var requestCount = 0
+    private var requestWindowStart = Date()
     
     // MARK: - Initialization
 
@@ -44,10 +63,18 @@ class ImageCacheService: ObservableObject {
             self.imageURLManager = ImageURLManager(databaseManager: dbManager)
         }
         
+        // Configure URLSession for on-demand loading
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 30
+        config.timeoutIntervalForResource = 60
+        config.httpMaximumConnectionsPerHost = maxConcurrentDownloads
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        self.urlSession = URLSession(configuration: config)
+
         // Configure memory cache
         memoryCache.countLimit = 100 // Max 100 images in memory
         memoryCache.totalCostLimit = 50 * 1024 * 1024 // 50MB memory limit
-        
+
         // Create cache directory if needed
         createCacheDirectoryIfNeeded()
         
@@ -58,7 +85,13 @@ class ImageCacheService: ObservableObject {
         
         logger.info("🖼️ ImageCacheService initialized with cache directory: \(self.cacheDirectory.path)")
     }
-    
+
+    /// Update the image URL manager (for shared instance initialization)
+    func updateImageURLManager(_ manager: ImageURLManager) {
+        self.imageURLManager = manager
+        logger.info("🖼️ ImageCacheService updated with new ImageURLManager")
+    }
+
     // MARK: - Public Methods
 
     /// Load image from URL with caching (handles both AWS URLs and internal cache URLs)
@@ -196,7 +229,150 @@ class ImageCacheService: ObservableObject {
         
         isClearing = false
     }
-    
+
+    /// Cache image data with database mapping for on-demand loading
+    func cacheImageWithMapping(imageData: Data, imageId: String, awsUrl: String) async -> String {
+        // Generate cache filename
+        let fileName = "\(imageId).jpg"
+        let fileURL = cacheDirectory.appendingPathComponent(fileName)
+
+        do {
+            // Save to disk
+            try imageData.write(to: fileURL)
+
+            // Create UIImage and cache in memory
+            if let image = UIImage(data: imageData) {
+                memoryCache.setObject(image, forKey: fileName as NSString)
+            }
+
+            // Create internal cache URL
+            let cacheUrl = "cache://\(fileName)"
+
+            // Store database mapping
+            do {
+                _ = try imageURLManager.storeImageMapping(
+                    squareImageId: imageId,
+                    awsUrl: awsUrl,
+                    objectType: "ITEM", // Default to ITEM for on-demand loading
+                    objectId: imageId,
+                    imageType: "PRIMARY"
+                )
+            } catch {
+                logger.error("❌ Failed to store image mapping: \(error)")
+            }
+
+            await updateCacheStats()
+            logger.debug("✅ Cached image with mapping: \(imageId) -> \(cacheUrl)")
+
+            return cacheUrl
+
+        } catch {
+            logger.error("❌ Failed to cache image with mapping \(imageId): \(error)")
+            return awsUrl // Return original URL as fallback
+        }
+    }
+
+    /// Get cached image URL for an image ID
+    func getCachedImageURL(for imageId: String) async -> String? {
+        do {
+            if let cacheKey = try imageURLManager.getLocalCacheKey(for: imageId) {
+                return "cache://\(cacheKey)"
+            }
+        } catch {
+            logger.error("❌ Failed to get cached image URL: \(error)")
+        }
+        return nil
+    }
+
+    /// Load image on-demand with rate limiting and caching
+    func loadImageOnDemand(imageId: String, awsUrl: String, priority: TaskPriority = .medium) async -> UIImage? {
+        // Check cache first (fastest path)
+        if let cacheUrl = await getCachedImageURL(for: imageId) {
+            if let cachedImage = await loadImage(from: cacheUrl) {
+                logger.debug("💾 Cache hit for image: \(imageId)")
+                return cachedImage
+            }
+        }
+
+        logger.debug("💾 Cache miss for image: \(imageId) - downloading from AWS")
+
+        // Simple download without complex rate limiting for now
+        return await simpleDownloadAndCache(imageId: imageId, awsUrl: awsUrl)
+    }
+
+    /// Load multiple images concurrently for search results (maintains performance)
+    func loadImagesForSearchResults(_ imageRequests: [(imageId: String, awsUrl: String)]) async -> [String: UIImage] {
+        logger.info("📱 Loading \(imageRequests.count) images for search results")
+
+        var results: [String: UIImage] = [:]
+
+        // Use TaskGroup for concurrent loading while respecting rate limits
+        await withTaskGroup(of: (String, UIImage?).self) { group in
+            for (imageId, awsUrl) in imageRequests {
+                group.addTask(priority: .high) {
+                    let image = await self.loadImageOnDemand(imageId: imageId, awsUrl: awsUrl, priority: .high)
+                    return (imageId, image)
+                }
+            }
+
+            for await (imageId, image) in group {
+                if let image = image {
+                    results[imageId] = image
+                }
+            }
+        }
+
+        logger.info("✅ Loaded \(results.count)/\(imageRequests.count) images for search results")
+        return results
+    }
+
+    /// Simple download and cache method
+    private func simpleDownloadAndCache(imageId: String, awsUrl: String) async -> UIImage? {
+        // Basic rate limiting - wait a bit between requests
+        let now = Date()
+        if now.timeIntervalSince(lastRequestTime) < requestSpacing {
+            let waitTime = requestSpacing - now.timeIntervalSince(lastRequestTime)
+            try? await Task.sleep(nanoseconds: UInt64(waitTime * 1_000_000_000))
+        }
+        lastRequestTime = Date()
+
+        do {
+            logger.debug("📥 Downloading image: \(imageId) from AWS")
+
+            guard let url = URL(string: awsUrl) else {
+                logger.error("❌ Invalid AWS URL: \(awsUrl)")
+                return nil
+            }
+
+            let (data, response) = try await urlSession.data(from: url)
+
+            guard let httpResponse = response as? HTTPURLResponse,
+                  httpResponse.statusCode == 200 else {
+                logger.error("❌ HTTP error for image: \(imageId)")
+                return nil
+            }
+
+            guard let image = UIImage(data: data) else {
+                logger.error("❌ Failed to create image from data: \(imageId)")
+                return nil
+            }
+
+            // Cache the image with mapping
+            let _ = await cacheImageWithMapping(
+                imageData: data,
+                imageId: imageId,
+                awsUrl: awsUrl
+            )
+
+            logger.debug("✅ Downloaded and cached image: \(imageId)")
+            return image
+
+        } catch {
+            logger.error("❌ Download failed for image \(imageId): \(error)")
+            return nil
+        }
+    }
+
     /// Clean up old cached images
     func cleanupOldImages() async {
         logger.info("🧹 Cleaning up old cached images...")
@@ -315,6 +491,80 @@ class ImageCacheService: ObservableObject {
         logger.info("✅ Image downloaded and cached: \(url.absoluteString)")
         return image
     }
+
+    // MARK: - Webhook Support Methods
+
+    /// Invalidate cached images for webhook processing
+    func invalidateImagesForObject(objectId: String, objectType: String) async {
+        do {
+            // Get affected image mappings
+            let mappings = try imageURLManager.getImageMappings(for: objectId, objectType: objectType)
+
+            // Remove from memory cache
+            for mapping in mappings {
+                memoryCache.removeObject(forKey: mapping.localCacheKey as NSString)
+            }
+
+            // Mark mappings as deleted in database
+            try imageURLManager.invalidateImagesForObject(objectId: objectId, objectType: objectType)
+
+            logger.info("🔄 Invalidated \(mappings.count) images for \(objectType): \(objectId)")
+
+        } catch {
+            logger.error("❌ Failed to invalidate images for \(objectType) \(objectId): \(error)")
+        }
+    }
+
+    /// Invalidate a specific image by Square image ID
+    func invalidateImageById(squareImageId: String) async {
+        do {
+            // Get cache key for this image
+            if let cacheKey = try imageURLManager.getLocalCacheKey(for: squareImageId) {
+                // Remove from memory cache
+                memoryCache.removeObject(forKey: cacheKey as NSString)
+            }
+
+            // Mark mapping as deleted in database
+            try imageURLManager.invalidateImageById(squareImageId: squareImageId)
+
+            logger.info("🔄 Invalidated image: \(squareImageId)")
+
+        } catch {
+            logger.error("❌ Failed to invalidate image \(squareImageId): \(error)")
+        }
+    }
+
+    /// Clean up stale cache files (for webhook processing)
+    func cleanupStaleCache() async {
+        do {
+            // Get stale cache keys from database
+            let staleCacheKeys = try imageURLManager.getStaleImageCacheKeys()
+
+            var deletedCount = 0
+            for cacheKey in staleCacheKeys {
+                let fileURL = cacheDirectory.appendingPathComponent(cacheKey)
+
+                if fileManager.fileExists(atPath: fileURL.path) {
+                    try fileManager.removeItem(at: fileURL)
+                    deletedCount += 1
+                }
+
+                // Also remove from memory cache if present
+                memoryCache.removeObject(forKey: cacheKey as NSString)
+            }
+
+            // Clean up database mappings
+            try imageURLManager.cleanupStaleImageMappings()
+
+            // Update cache stats
+            await updateCacheStats()
+
+            logger.info("🧹 Cleaned up \(deletedCount) stale cache files")
+
+        } catch {
+            logger.error("❌ Failed to cleanup stale cache: \(error)")
+        }
+    }
 }
 
 // MARK: - Supporting Types
@@ -334,6 +584,7 @@ enum ImageCacheError: Error, LocalizedError {
             return "Failed to write image to cache"
         }
     }
+
 }
 
 // MARK: - Cache Statistics

@@ -82,23 +82,11 @@ struct ScanResultCard: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // Thumbnail image (left side)
-            AsyncImage(url: result.images?.first?.imageData?.url.flatMap(URL.init)) { image in
-                image
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            } placeholder: {
-                Rectangle()
-                    .fill(Color(.systemGray5))
-                    .overlay(
-                        Image(systemName: "photo")
-                            .foregroundColor(.secondary)
-                            .font(.system(size: 16))
-                    )
-            }
-            .frame(width: 50, height: 50)
-            .cornerRadius(6)
-            .clipped()
+            // Thumbnail image (left side) - using cached image system
+            CachedImageView.catalogItem(
+                imageURL: result.images?.first?.imageData?.url,
+                size: 50
+            )
 
             // Main content section
             VStack(alignment: .leading, spacing: 6) {

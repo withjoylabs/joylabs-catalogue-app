@@ -1,4 +1,5 @@
 import SwiftUI
+import Foundation
 
 /// A SwiftUI view that displays images with automatic caching
 struct CachedImageView: View {
@@ -8,7 +9,7 @@ struct CachedImageView: View {
     let height: CGFloat?
     let contentMode: ContentMode
     
-    @StateObject private var imageCache = ImageCacheService()
+    @StateObject private var imageCache = ImageCacheService.shared
     @State private var loadedImage: UIImage?
     @State private var isLoading = false
     
@@ -53,20 +54,52 @@ struct CachedImageView: View {
     
     private func loadImageIfNeeded() {
         guard let imageURL = imageURL, !imageURL.isEmpty else {
+            print("📷 CachedImageView: No URL provided")
             return
         }
-        
+
+        print("📷 CachedImageView: Loading image from URL: \(imageURL)")
         isLoading = true
-        
+
         Task {
-            let image = await imageCache.loadImage(from: imageURL)
-            
+            var image: UIImage?
+
+            if imageURL.hasPrefix("cache://") {
+                // Already cached, load directly
+                print("📷 CachedImageView: Loading cached image: \(imageURL)")
+                image = await imageCache.loadImage(from: imageURL)
+            } else if imageURL.hasPrefix("https://") {
+                // AWS URL - use on-demand loader with rate limiting
+                let imageId = extractImageId(from: imageURL)
+                print("📷 CachedImageView: Loading AWS image on-demand: \(imageId) from \(imageURL)")
+                image = await imageCache.loadImageOnDemand(imageId: imageId, awsUrl: imageURL)
+            } else {
+                // Fallback to cache service
+                print("📷 CachedImageView: Using fallback cache service for: \(imageURL)")
+                image = await imageCache.loadImage(from: imageURL)
+            }
+
             await MainActor.run {
+                if image != nil {
+                    print("📷 CachedImageView: Successfully loaded image from: \(imageURL)")
+                } else {
+                    print("📷 CachedImageView: Failed to load image from: \(imageURL)")
+                }
                 self.loadedImage = image
                 self.isLoading = false
             }
         }
     }
+
+    private func extractImageId(from url: String) -> String {
+        // Extract image ID from AWS URL for caching
+        // Example: https://s3.amazonaws.com/bucket/path/imageId.jpg -> imageId
+        if let lastComponent = URL(string: url)?.lastPathComponent {
+            return String(lastComponent.prefix(while: { $0 != "." }))
+        }
+        return url.replacingOccurrences(of: "/", with: "_")
+    }
+
 }
 
 // MARK: - Convenience Initializers

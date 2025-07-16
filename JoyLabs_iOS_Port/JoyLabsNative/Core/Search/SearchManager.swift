@@ -22,6 +22,7 @@ class SearchManager: ObservableObject {
 
     // MARK: - Private Properties
     private let databaseManager: SQLiteSwiftCatalogManager
+    private let imageURLManager: ImageURLManager
     private var searchTask: Task<Void, Never>?
     private let logger = Logger(subsystem: "com.joylabs.native", category: "SearchManager")
 
@@ -38,6 +39,10 @@ class SearchManager: ObservableObject {
             // Create database manager asynchronously to avoid main actor issues
             self.databaseManager = SQLiteSwiftCatalogManager()
         }
+
+        // Initialize image URL manager
+        self.imageURLManager = ImageURLManager(databaseManager: self.databaseManager)
+
         setupSearchDebouncing()
 
         // Initialize database connection asynchronously
@@ -204,6 +209,8 @@ class SearchManager: ObservableObject {
 
                 // Debug: Log final UI state
                 logger.debug("🔍 UI STATE: searchResults.count=\(self.searchResults.count), hasMoreResults=\(self.hasMoreResults), totalResultsCount=\(self.totalResultsCount ?? -1)")
+
+                // Images will be loaded on-demand when displayed in UI
             }
 
             let totalCount = newResults.count
@@ -639,6 +646,9 @@ class SearchManager: ObservableObject {
             // Check if item has taxes
             let hasTax = checkItemHasTaxById(itemId: itemId)
 
+            // Populate image data
+            let images = populateImageData(for: itemId)
+
             return SearchResultItem(
                 id: itemId,
                 name: itemName,
@@ -647,7 +657,7 @@ class SearchManager: ObservableObject {
                 barcode: barcode,
                 categoryId: categoryId,
                 categoryName: categoryName,
-                images: nil,
+                images: images,
                 matchType: matchType,
                 matchContext: matchContext,
                 isFromCaseUpc: isFromCaseUpc,
@@ -664,6 +674,54 @@ class SearchManager: ObservableObject {
 
         } catch {
             logger.error("Failed to retrieve item data for \(itemId): \(error)")
+            return nil
+        }
+    }
+
+    // MARK: - Image Data Population
+
+    /// Populate image data for a search result item
+    private func populateImageData(for itemId: String) -> [CatalogImage]? {
+        do {
+            // Get image mappings for this item
+            logger.debug("🔍 Looking for image mappings for item: \(itemId) with objectType: 'ITEM'")
+            let imageMappings = try imageURLManager.getImageMappings(for: itemId, objectType: "ITEM")
+            logger.debug("📊 Found \(imageMappings.count) image mappings for item: \(itemId)")
+
+            guard !imageMappings.isEmpty else {
+                logger.debug("📷 No images found for item: \(itemId)")
+                return nil
+            }
+
+            // Log the found mappings
+            for (index, mapping) in imageMappings.enumerated() {
+                logger.debug("📷 Image mapping \(index + 1): squareImageId=\(mapping.squareImageId), localCacheKey=\(mapping.localCacheKey), imageType=\(mapping.imageType)")
+            }
+
+            // Convert image mappings to CatalogImage objects
+            let catalogImages = imageMappings.map { mapping in
+                logger.debug("📷 Creating CatalogImage with AWS URL: \(mapping.originalAwsUrl)")
+                return CatalogImage(
+                    id: mapping.squareImageId,
+                    type: "IMAGE",
+                    updatedAt: ISO8601DateFormatter().string(from: mapping.lastAccessedAt),
+                    version: nil,
+                    isDeleted: false,
+                    presentAtAllLocations: true,
+                    imageData: ImageData(
+                        name: nil,
+                        url: mapping.originalAwsUrl, // Use original AWS URL for Swift to download
+                        caption: nil,
+                        photoStudioOrderId: nil
+                    )
+                )
+            }
+
+            logger.debug("📷 Found \(catalogImages.count) images for item: \(itemId)")
+            return catalogImages
+
+        } catch {
+            logger.error("📷 Failed to get images for item \(itemId): \(error)")
             return nil
         }
     }
@@ -695,6 +753,9 @@ class SearchManager: ObservableObject {
             // Check if item has taxes by parsing the dataJson
             let hasTax = checkItemHasTax(dataJson: dataJson)
 
+            // Populate image data
+            let images = populateImageData(for: itemId)
+
             return SearchResultItem(
                 id: itemId,
                 name: itemName,
@@ -703,7 +764,7 @@ class SearchManager: ObservableObject {
                 barcode: variationData.barcode,
                 categoryId: categoryId,
                 categoryName: categoryName,
-                images: nil, // Could be populated from dataJson if needed
+                images: images,
                 matchType: matchType,
                 matchContext: matchType == "category" ? categoryName : itemName,
                 isFromCaseUpc: false,
@@ -758,6 +819,9 @@ class SearchManager: ObservableObject {
             // This requires a separate query since the variation JOIN doesn't include dataJson
             let hasTax = checkItemHasTaxById(itemId: itemId)
 
+            // Populate image data
+            let images = populateImageData(for: itemId)
+
             return SearchResultItem(
                 id: itemId,
                 name: itemName,
@@ -766,7 +830,7 @@ class SearchManager: ObservableObject {
                 barcode: upc,
                 categoryId: categoryId,
                 categoryName: categoryName,
-                images: nil,
+                images: images,
                 matchType: matchType,
                 matchContext: matchContext,
                 isFromCaseUpc: false,
@@ -1019,6 +1083,8 @@ enum SearchError: LocalizedError {
             return "Database connection not available"
         }
     }
+
+
 }
 
 // MARK: - Raw Search Result (for internal use)

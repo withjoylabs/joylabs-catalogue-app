@@ -19,7 +19,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
 
     private let squareAPIService: SquareAPIService
     private var databaseManager: SQLiteSwiftCatalogManager
-    private let imageCacheService = ImageCacheService()
+    private var imageCacheService: ImageCacheService!
     private let logger = Logger(subsystem: "com.joylabs.native", category: "SQLiteSwiftCatalogSync")
 
     // MARK: - Public Access
@@ -41,7 +41,12 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
         self.squareAPIService = squareAPIService
         self.databaseManager = SquareAPIServiceFactory.createDatabaseManager()
 
+        // Initialize ImageCacheService with the connected database manager
+        let imageURLManager = ImageURLManager(databaseManager: self.databaseManager)
+        self.imageCacheService = ImageCacheService(imageURLManager: imageURLManager)
 
+        // Also initialize the shared instance with the same connected database
+        ImageCacheService.shared.updateImageURLManager(imageURLManager)
 
         // Initialize database connection
         Task {
@@ -98,7 +103,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
         syncState = .syncing
         errorMessage = nil
 
-        // Store the sync task for cancellation
+        // Store the sync task for cancellation with background task management
         syncTask = Task {
             defer {
                 Task { @MainActor in
@@ -265,8 +270,16 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
 
         logger.info("📋 Sorted objects by type priority: Categories first, then Items")
 
+        // First, insert all catalog objects to database (fast operation)
         var processedItems = 0
         let totalObjects = sortedObjects.count
+
+        await MainActor.run {
+            var progress = syncProgress
+            progress.currentObjectType = "INSERTING"
+            progress.currentObjectName = "Inserting catalog objects to database..."
+            syncProgress = progress
+        }
 
         for (index, object) in sortedObjects.enumerated() {
             // Check for cancellation
@@ -278,10 +291,12 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
             // Update sync status based on object type being processed
             updateSyncStatusForObjectType(object.type, index: index, total: totalObjects)
 
-            // Process images for this object before inserting
-            await processCatalogObjectImages(object)
-
             try databaseManager.insertCatalogObject(object)
+
+            // Process image URL mappings for on-demand loading
+            if object.type == "IMAGE" {
+                await processImageURLMapping(object)
+            }
 
             // Count items specifically as we process them
             if object.type == "ITEM" {
@@ -307,6 +322,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
         logger.info("✅ FINAL PROGRESS: \(processedItems) items, \(objects.count) objects processed")
 
         logger.info("✅ Processed all \(sortedObjects.count) catalog objects")
+        logger.info("📷 Image URL mappings and item-to-image mappings created during processing for on-demand downloading")
     }
 
     /// Get processing priority for object types (lower number = higher priority)
@@ -372,31 +388,301 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
     private func processCatalogObjectImages(_ object: CatalogObject) async {
         let objectId = object.id // id is not optional
 
-        // Handle IMAGE objects directly - check if this object has image data
+        // Handle IMAGE objects directly - these contain the actual image data and URLs
         if object.type == "IMAGE" {
-            // For IMAGE type objects, we'd need to extract the image URL from the object
-            // This would typically be in a nested structure - for now we'll log it
-            logger.debug("📷 Processing IMAGE object: \(objectId)")
+            await processImageObject(object)
             return
         }
 
-        // Process item images - check if itemData has images property
+        // Process item images - check if itemData has imageIds array
         if let itemData = object.itemData {
-            // For now, just log that we found item data
-            // The actual image processing will be implemented when we have the correct model structure
-            logger.debug("📷 Found item data for \(objectId), name: \(itemData.name ?? "unknown")")
-
-            // TODO: Process item images when model structure is confirmed
-            // This would involve checking for images array or imageIds array depending on the actual model
+            await processItemImages(itemData: itemData, itemId: objectId)
         }
 
         // Process category image references
         if let categoryData = object.categoryData {
-            // For now, just log that we found category data
-            logger.debug("📷 Found category data for \(objectId), name: \(categoryData.name ?? "unknown")")
+            await processCategoryImages(categoryData: categoryData, categoryId: objectId)
+        }
+    }
 
-            // TODO: Process category images when model structure is confirmed
-            // This would involve checking for imageIds array depending on the actual model
+    /// Process IMAGE type catalog objects to extract and cache image URLs
+    private func processImageObject(_ object: CatalogObject) async {
+        guard let imageData = object.imageData else {
+            logger.warning("📷 IMAGE object \(object.id) missing imageData")
+            return
+        }
+
+        guard let awsUrl = imageData.url, !awsUrl.isEmpty else {
+            logger.warning("📷 IMAGE object \(object.id) missing URL")
+            return
+        }
+
+        logger.debug("📷 Processing IMAGE object: \(object.id) with URL: \(awsUrl)")
+
+        // Cache the image with mapping
+        let cacheUrl = await imageCacheService.cacheImageWithMapping(
+            awsUrl: awsUrl,
+            squareImageId: object.id,
+            objectType: "IMAGE",
+            objectId: object.id,
+            imageType: "PRIMARY"
+        )
+
+        if let cacheUrl = cacheUrl {
+            logger.info("✅ Cached IMAGE object: \(object.id) -> \(cacheUrl)")
+        } else {
+            logger.error("❌ Failed to cache IMAGE object: \(object.id)")
+        }
+    }
+
+    /// Process images referenced by item data (via imageIds array)
+    private func processItemImages(itemData: ItemData, itemId: String) async {
+        // Check for imageIds array in item data
+        guard let imageIds = itemData.imageIds, !imageIds.isEmpty else {
+            logger.debug("📷 Item \(itemId) has no imageIds")
+            return
+        }
+
+        logger.debug("📷 Item \(itemId) has \(imageIds.count) image references: \(imageIds)")
+
+        // Note: The actual IMAGE objects will be processed separately when we encounter them
+        // This just logs that we found image references - the caching happens when we process the IMAGE objects
+        for imageId in imageIds {
+            logger.debug("📷 Item \(itemId) references image: \(imageId)")
+        }
+    }
+
+    /// Process images referenced by category data
+    private func processCategoryImages(categoryData: CategoryData, categoryId: String) async {
+        // Categories might have imageIds array or direct imageUrl
+        if let imageIds = categoryData.imageIds, !imageIds.isEmpty {
+            logger.debug("📷 Category \(categoryId) has \(imageIds.count) image references: \(imageIds)")
+
+            for imageId in imageIds {
+                logger.debug("📷 Category \(categoryId) references image: \(imageId)")
+            }
+        }
+
+        // Some categories might have direct imageUrl field
+        if let imageUrl = categoryData.imageUrl, !imageUrl.isEmpty {
+            logger.debug("📷 Category \(categoryId) has direct image URL: \(imageUrl)")
+
+            // Cache the category image
+            let cacheUrl = await imageCacheService.cacheImageWithMapping(
+                awsUrl: imageUrl,
+                squareImageId: "category_\(categoryId)",
+                objectType: "CATEGORY",
+                objectId: categoryId,
+                imageType: "PRIMARY"
+            )
+
+            if let cacheUrl = cacheUrl {
+                logger.info("✅ Cached category image: \(categoryId) -> \(cacheUrl)")
+            } else {
+                logger.error("❌ Failed to cache category image: \(categoryId)")
+            }
+        }
+    }
+
+
+
+
+
+    /// Process image URL mapping for on-demand loading
+    private func processImageURLMapping(_ object: CatalogObject) async {
+        guard let imageData = object.imageData else {
+            logger.warning("📷 IMAGE object \(object.id) missing imageData")
+            return
+        }
+
+        guard let awsUrl = imageData.url, !awsUrl.isEmpty else {
+            logger.warning("📷 IMAGE object \(object.id) missing URL")
+            return
+        }
+
+        logger.debug("📷 Processing IMAGE URL mapping: \(object.id) -> \(awsUrl)")
+
+        // Store the URL mapping for on-demand loading (don't download yet)
+        do {
+            let imageURLManager = ImageURLManager(databaseManager: databaseManager)
+            let cacheKey = try imageURLManager.storeImageMapping(
+                squareImageId: object.id,
+                awsUrl: awsUrl,
+                objectType: "IMAGE",
+                objectId: object.id,
+                imageType: "PRIMARY"
+            )
+
+            logger.debug("✅ Stored image URL mapping: \(object.id) -> \(cacheKey)")
+
+            // NOW create item-to-image mappings for any items that reference this image
+            await createItemToImageMappingsForImage(imageId: object.id, awsUrl: awsUrl, imageURLManager: imageURLManager)
+
+        } catch {
+            logger.error("❌ Failed to store image URL mapping: \(error)")
+        }
+
+    }
+
+    /// Create item-to-image mappings when processing an IMAGE object (CORRECT APPROACH)
+    private func createItemToImageMappingsForImage(imageId: String, awsUrl: String, imageURLManager: ImageURLManager) async {
+        guard let db = databaseManager.getConnection() else {
+            logger.error("❌ No database connection for item-to-image mappings")
+            return
+        }
+
+        do {
+            // Find all ITEM objects that reference this image ID in their imageIds array
+            let sql = "SELECT id, data_json FROM catalog_items WHERE data_json LIKE ? AND is_deleted = 0"
+            let statement = try db.prepare(sql)
+            let searchPattern = "%\"\(imageId)\"%"
+
+            logger.debug("🔍 SEARCHING FOR ITEMS that reference image: \(imageId)")
+            logger.debug("🔍 SQL: \(sql)")
+            logger.debug("🔍 SEARCH PATTERN: \(searchPattern)")
+
+            var mappingsCreated = 0
+            var itemsFound = 0
+            for row in try statement.run(searchPattern) {
+                itemsFound += 1
+                guard let itemId = row[0] as? String,
+                      let dataJsonString = row[1] as? String,
+                      let dataJsonData = dataJsonString.data(using: .utf8) else {
+                    logger.debug("⚠️ FAILED to parse row data for potential item")
+                    continue
+                }
+
+                logger.debug("🔍 FOUND POTENTIAL ITEM: \(itemId)")
+                logger.debug("🔍 ITEM JSON: \(dataJsonString.prefix(200))...")
+
+                // Parse the JSON to verify this image ID is actually in the imageIds array
+                // Note: We now store the full CatalogObject, so imageIds is in item_data.image_ids (UNDERSCORE!)
+                if let catalogObject = try? JSONSerialization.jsonObject(with: dataJsonData) as? [String: Any],
+                   let itemData = catalogObject["item_data"] as? [String: Any] {
+                    if let imageIds = itemData["image_ids"] as? [String] {
+                        logger.debug("🔍 ITEM \(itemId) HAS image_ids: \(imageIds)")
+
+                        if imageIds.contains(imageId) {
+                            logger.debug("✅ CONFIRMED: Item \(itemId) contains image \(imageId)")
+
+                            // Determine if this is the primary image (first in array)
+                            let imageType = imageIds.first == imageId ? "PRIMARY" : "SECONDARY"
+
+                            // Create the item-to-image mapping
+                            let cacheKey = try imageURLManager.storeImageMapping(
+                                squareImageId: imageId,
+                                awsUrl: awsUrl,
+                                objectType: "ITEM",
+                                objectId: itemId,
+                                imageType: imageType
+                            )
+
+                            mappingsCreated += 1
+                            logger.debug("✅ MAPPED IMAGE \(imageId) TO ITEM \(itemId) -> \(cacheKey)")
+                        } else {
+                            logger.debug("❌ ITEM \(itemId) does NOT contain image \(imageId)")
+                        }
+                    } else {
+                        logger.debug("⚠️ ITEM \(itemId) has NO image_ids field in item_data")
+                    }
+                } else {
+                    logger.debug("❌ FAILED to parse CatalogObject JSON or missing item_data for item \(itemId)")
+                }
+            }
+
+            logger.debug("📊 MAPPING SUMMARY for image \(imageId): Found \(itemsFound) potential items, created \(mappingsCreated) mappings")
+
+            if mappingsCreated > 0 {
+                logger.debug("📷 ✅ SUCCESSFULLY CREATED \(mappingsCreated) item-to-image mappings for image \(imageId)")
+            } else {
+                logger.warning("⚠️ NO MAPPINGS CREATED for image \(imageId) - found \(itemsFound) potential items but none matched")
+
+                // INVESTIGATE: Check if any items reference this image, including deleted ones
+                let debugSql = "SELECT id, name, is_deleted FROM catalog_items WHERE data_json LIKE ?"
+                let debugStatement = try db.prepare(debugSql)
+                let debugPattern = "%\(imageId)%"
+                logger.debug("🔍 DEBUG: Broader search for image \(imageId) with pattern: \(debugPattern)")
+
+                var debugCount = 0
+                var deletedCount = 0
+                for row in try debugStatement.run(debugPattern) {
+                    debugCount += 1
+                    let itemId = row[0] as? String ?? "unknown"
+                    let itemName = row[1] as? String ?? "unknown"
+                    let isDeleted = (row[2] as? Int64 ?? 0) != 0
+
+                    if isDeleted {
+                        deletedCount += 1
+                        logger.debug("🔍 DEBUG: Found DELETED item \(itemId) (\(itemName)) that contains \(imageId)")
+                    } else {
+                        logger.debug("🔍 DEBUG: Found active item \(itemId) (\(itemName)) that contains \(imageId)")
+                    }
+                }
+                logger.debug("🔍 DEBUG: Broader search found \(debugCount) total items (\(deletedCount) deleted) containing \(imageId)")
+            }
+
+        } catch {
+            logger.error("❌ Failed to create item-to-image mappings: \(error)")
+        }
+    }
+
+    /// DEPRECATED: Create item-to-image mappings when processing an ITEM object (WRONG APPROACH - IMAGES NOT PROCESSED YET)
+    private func processItemToImageMappings(_ object: CatalogObject) async {
+        guard let itemData = object.itemData,
+              let imageIds = itemData.imageIds,
+              !imageIds.isEmpty else {
+            logger.debug("📷 Item \(object.id) has no imageIds")
+            return
+        }
+
+        logger.debug("📷 Processing item \(object.id) with \(imageIds.count) image references: \(imageIds)")
+
+        guard let db = databaseManager.getConnection() else {
+            logger.error("❌ No database connection for item-to-image mappings")
+            return
+        }
+
+        let imageURLManager = ImageURLManager(databaseManager: databaseManager)
+        var mappingsCreated = 0
+
+        for (index, imageId) in imageIds.enumerated() {
+            do {
+                // Look up the IMAGE object to get its AWS URL
+                let sql = "SELECT url FROM images WHERE id = ? AND is_deleted = 0"
+                let statement = try db.prepare(sql)
+
+                var awsUrl: String?
+                for row in try statement.run(imageId) {
+                    awsUrl = row[0] as? String
+                    break
+                }
+
+                if let awsUrl = awsUrl, !awsUrl.isEmpty {
+                    // Determine if this is the primary image (first in array)
+                    let imageType = index == 0 ? "PRIMARY" : "SECONDARY"
+
+                    // Create the item-to-image mapping
+                    let cacheKey = try imageURLManager.storeImageMapping(
+                        squareImageId: imageId,
+                        awsUrl: awsUrl,
+                        objectType: "ITEM",
+                        objectId: object.id,
+                        imageType: imageType
+                    )
+
+                    mappingsCreated += 1
+                    logger.debug("✅ Created item-to-image mapping: Item \(object.id) -> Image \(imageId) -> \(cacheKey)")
+                } else {
+                    logger.debug("⚠️ Image \(imageId) not found for item \(object.id) - will be processed when IMAGE object is encountered")
+                }
+
+            } catch {
+                logger.error("❌ Failed to create item-to-image mapping: \(error)")
+            }
+        }
+
+        if mappingsCreated > 0 {
+            logger.debug("📷 Created \(mappingsCreated) item-to-image mappings for item \(object.id)")
         }
     }
 
