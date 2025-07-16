@@ -298,30 +298,32 @@ class ImageCacheService: ObservableObject {
         }
     }
 
-    /// Get cached image URL for an image ID
-    func getCachedImageURL(for imageId: String) async -> String? {
-        do {
-            if let cacheKey = try imageURLManager.getLocalCacheKey(for: imageId) {
-                return "cache://\(cacheKey)"
-            }
-        } catch {
-            logger.error("❌ Failed to get cached image URL: \(error)")
-        }
-        return nil
-    }
+    // REMOVED: getCachedImageURL method - redundant with direct cache key lookup
 
     /// Load image on-demand with rate limiting and caching
     func loadImageOnDemand(imageId: String, awsUrl: String, priority: TaskPriority = .medium) async -> UIImage? {
-        // Check cache first (fastest path)
-        if let cacheUrl = await getCachedImageURL(for: imageId) {
-            if let cachedImage = await loadImage(from: cacheUrl) {
-                logger.debug("💾 Cache hit for image: \(imageId)")
-                return cachedImage
+        // Try to get existing cache key and load directly (single operation)
+        do {
+            if let cacheKey = try imageURLManager.getLocalCacheKey(for: imageId) {
+                // Check memory cache first
+                if let cachedImage = memoryCache.object(forKey: cacheKey as NSString) {
+                    logger.debug("� Memory cache hit for image: \(imageId)")
+                    return cachedImage
+                }
+
+                // Check disk cache
+                if let diskImage = loadImageFromDisk(cacheKey: cacheKey) {
+                    // Store in memory cache for faster access
+                    memoryCache.setObject(diskImage, forKey: cacheKey as NSString)
+                    logger.debug("💾 Cache hit for image: \(imageId)")
+                    return diskImage
+                }
             }
+        } catch {
+            logger.error("❌ Failed to get cache key for \(imageId): \(error)")
         }
 
-        // Cache miss - download from AWS (specific reason already logged by loadImageFromDisk)
-        // Simple download without complex rate limiting for now
+        // Cache miss - download from AWS
         return await simpleDownloadAndCache(imageId: imageId, awsUrl: awsUrl)
     }
 
