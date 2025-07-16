@@ -4,6 +4,7 @@ import Foundation
 /// A SwiftUI view that displays images with automatic caching
 struct CachedImageView: View {
     let imageURL: String?
+    let imageId: String? // Real Square image ID for proper cache lookup
     let placeholder: String
     let width: CGFloat?
     let height: CGFloat?
@@ -26,12 +27,14 @@ struct CachedImageView: View {
     
     init(
         imageURL: String?,
+        imageId: String? = nil,
         placeholder: String = "photo",
         width: CGFloat? = nil,
         height: CGFloat? = nil,
         contentMode: ContentMode = .fit
     ) {
         self.imageURL = imageURL
+        self.imageId = imageId
         self.placeholder = placeholder
         self.width = width
         self.height = height
@@ -78,8 +81,9 @@ struct CachedImageView: View {
                 image = await imageCache.loadImage(from: imageURL)
             } else if imageURL.hasPrefix("https://") {
                 // AWS URL - use on-demand loader with rate limiting
-                let imageId = extractImageId(from: imageURL)
-                image = await imageCache.loadImageOnDemand(imageId: imageId, awsUrl: imageURL)
+                // Use real Square image ID if available, otherwise extract from URL
+                let resolvedImageId = imageId ?? extractImageId(from: imageURL)
+                image = await imageCache.loadImageOnDemand(imageId: resolvedImageId, awsUrl: imageURL)
             } else {
                 // Fallback to cache service
                 image = await imageCache.loadImage(from: imageURL)
@@ -117,9 +121,10 @@ struct CachedImageView: View {
 
 extension CachedImageView {
     /// Create a cached image view for Square catalog items
-    static func catalogItem(imageURL: String?, size: CGFloat = 60) -> CachedImageView {
+    static func catalogItem(imageURL: String?, imageId: String? = nil, size: CGFloat = 60) -> CachedImageView {
         CachedImageView(
             imageURL: imageURL,
+            imageId: imageId,
             placeholder: "cube.box",
             width: size,
             height: size,

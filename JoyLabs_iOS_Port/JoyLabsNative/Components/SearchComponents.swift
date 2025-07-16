@@ -82,9 +82,10 @@ struct ScanResultCard: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // Thumbnail image (left side) - using cached image system
+            // Thumbnail image (left side) - using cached image system with real Square image ID
             CachedImageView.catalogItem(
                 imageURL: result.images?.first?.imageData?.url,
+                imageId: result.images?.first?.id,
                 size: 50
             )
 
