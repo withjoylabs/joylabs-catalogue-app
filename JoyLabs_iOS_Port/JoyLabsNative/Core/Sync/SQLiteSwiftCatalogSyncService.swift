@@ -45,12 +45,8 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
         self.squareAPIService = squareAPIService
         self.databaseManager = SquareAPIServiceFactory.createDatabaseManager()
 
-        // Initialize ImageCacheService with the connected database manager
-        let imageURLManager = ImageURLManager(databaseManager: self.databaseManager)
-        self.imageCacheService = ImageCacheService(imageURLManager: imageURLManager)
-
-        // Also initialize the shared instance with the same connected database
-        ImageCacheService.shared.updateImageURLManager(imageURLManager)
+        // Use the shared ImageCacheService instance instead of creating a new one
+        self.imageCacheService = ImageCacheService.shared
 
         // Initialize database connection
         Task {

@@ -285,6 +285,26 @@ struct CatalogManagementView: View {
                 .foregroundColor(.white)
                 .cornerRadius(12)
             }
+
+            // Clear Image Cache Button
+            Button(action: {
+                Task {
+                    await clearImageCache()
+                }
+            }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "trash.circle.fill")
+                        .font(.title3)
+                    Text("Clear Image Cache")
+                        .fontWeight(.semibold)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(Color.orange)
+                .foregroundColor(.white)
+                .cornerRadius(12)
+            }
+            .disabled(syncCoordinator.syncState == .syncing)
         }
         .padding()
         .background(Color(.systemGray6))
@@ -553,6 +573,12 @@ struct CatalogManagementView: View {
                 showingSyncSuccessModal = true
             }
         }
+    }
+
+    private func clearImageCache() async {
+        logger.info("🗑️ Clearing image cache...")
+        await ImageCacheService.shared.clearAllCachedImages()
+        logger.info("✅ Image cache cleared successfully")
     }
 
     private func clearDatabase() {

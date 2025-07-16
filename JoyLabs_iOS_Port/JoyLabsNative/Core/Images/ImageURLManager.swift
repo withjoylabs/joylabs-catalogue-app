@@ -351,4 +351,14 @@ extension String {
         }
         return hash.map { String(format: "%02x", $0) }.joined()
     }
+
+    /// Clear all image URL mappings from database (for fresh start)
+    func clearAllImageMappings() throws {
+        guard let db = databaseManager.getConnection() else {
+            throw ImageURLError.databaseNotConnected
+        }
+
+        try db.run(imageUrlMappings.delete())
+        logger.info("🗑️ Cleared all image URL mappings from database")
+    }
 }

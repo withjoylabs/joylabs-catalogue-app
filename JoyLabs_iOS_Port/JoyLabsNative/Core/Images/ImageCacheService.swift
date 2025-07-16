@@ -104,15 +104,14 @@ class ImageCacheService: ObservableObject {
         Task {
             await updateCacheStats()
         }
-        
-        logger.info("🖼️ ImageCacheService initialized with cache directory: \(self.cacheDirectory.path)")
+
+        // Only log initialization for non-shared instances (debugging purposes)
+        if imageURLManager == nil {
+            logger.debug("🖼️ ImageCacheService instance created with cache directory: \(self.cacheDirectory.path)")
+        }
     }
 
-    /// Update the image URL manager (for shared instance initialization)
-    func updateImageURLManager(_ manager: ImageURLManager) {
-        self.imageURLManager = manager
-        logger.info("🖼️ ImageCacheService updated with new ImageURLManager")
-    }
+    // REMOVED: updateImageURLManager method - this was causing redundant initialization
 
     // MARK: - Public Methods
 
@@ -274,23 +273,28 @@ class ImageCacheService: ObservableObject {
             let cacheUrl = "cache://\(fileName)"
 
             // Store database mapping with proper image ID - DON'T DUPLICATE STORAGE
+            let cacheKey: String
             do {
-                let cacheKey = try imageURLManager.storeImageMapping(
+                cacheKey = try imageURLManager.storeImageMapping(
                     squareImageId: imageId,
                     awsUrl: awsUrl,
                     objectType: "ITEM", // Default to ITEM for on-demand loading
                     objectId: imageId,
                     imageType: "PRIMARY"
                 )
-                logger.debug("📝 Stored image mapping: \(imageId) -> \(cacheKey)")
+                // ImageURLManager already logs the mapping, no need to duplicate
             } catch {
                 logger.error("❌ Failed to store image mapping: \(error)")
+                cacheKey = fileName // Fallback to filename
             }
 
             await updateCacheStats()
-            logger.debug("✅ Cached image with mapping: \(imageId) -> \(cacheUrl)")
 
-            return cacheUrl
+            // Create cache URL using the returned cache key for consistency
+            let finalCacheUrl = "cache://\(cacheKey)"
+            logger.info("✅ Cached image with mapping: \(imageId) -> \(finalCacheUrl)")
+
+            return finalCacheUrl
 
         } catch {
             logger.error("❌ Failed to cache image with mapping \(imageId): \(error)")
@@ -655,6 +659,36 @@ class ImageCacheService: ObservableObject {
         } catch {
             logger.error("❌ Failed to cleanup stale cache: \(error)")
         }
+    }
+
+    /// Clear all cached images and database mappings (for fresh start)
+    func clearAllCachedImages() async {
+        logger.info("🗑️ Clearing all cached images and database mappings...")
+
+        // Clear memory cache
+        memoryCache.removeAllObjects()
+
+        // Clear disk cache
+        do {
+            let files = try fileManager.contentsOfDirectory(at: cacheDirectory, includingPropertiesForKeys: nil)
+            for file in files {
+                try fileManager.removeItem(at: file)
+            }
+            logger.info("🗑️ Cleared \(files.count) cached image files from disk")
+        } catch {
+            logger.error("❌ Failed to clear disk cache: \(error)")
+        }
+
+        // Clear database image mappings
+        do {
+            try imageURLManager.clearAllImageMappings()
+            logger.info("🗑️ Cleared all image URL mappings from database")
+        } catch {
+            logger.error("❌ Failed to clear image mappings: \(error)")
+        }
+
+        await updateCacheStats()
+        logger.info("✅ Image cache completely cleared - ready for fresh images")
     }
 }
 
