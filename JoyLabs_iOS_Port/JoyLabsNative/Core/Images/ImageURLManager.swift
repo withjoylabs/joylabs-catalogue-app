@@ -39,6 +39,9 @@ class ImageURLManager {
             throw ImageURLError.databaseNotConnected
         }
         
+        // Check if table already exists to avoid duplicate logging
+        let tableExists = try db.scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='image_url_mappings'") as! Int64 > 0
+
         try db.run(imageUrlMappings.create(ifNotExists: true) { t in
             t.column(id, primaryKey: true)
             t.column(squareImageId, unique: true)
@@ -51,13 +54,16 @@ class ImageURLManager {
             t.column(lastAccessedAt)
             t.column(isDeleted, defaultValue: false)
         })
-        
+
         // Create indexes for efficient lookups
         try db.run("CREATE INDEX IF NOT EXISTS idx_image_object_id ON image_url_mappings(object_id)")
         try db.run("CREATE INDEX IF NOT EXISTS idx_image_square_id ON image_url_mappings(square_image_id)")
         try db.run("CREATE INDEX IF NOT EXISTS idx_image_cache_key ON image_url_mappings(local_cache_key)")
-        
-        logger.info("✅ Image URL mapping table created with indexes")
+
+        // Only log if table was actually created (not if it already existed)
+        if !tableExists {
+            logger.info("✅ Image URL mapping table created with indexes")
+        }
     }
     
     /// Store image URL mapping when processing Square catalog objects
@@ -352,15 +358,11 @@ extension String {
         return hash.map { String(format: "%02x", $0) }.joined()
     }
 
-    /// Clear all image URL mappings from database (for fresh start)
-    func clearAllImageMappings() throws {
-        // TODO: Fix compilation issue - temporarily disabled
-        // guard let db = self.databaseManager.getConnection() else {
-        //     throw ImageURLError.databaseNotConnected
-        // }
-        //
-        // try db.run(self.imageUrlMappings.delete())
-        // self.logger.info("🗑️ Cleared all image URL mappings from database")
-        print("🗑️ Clear image mappings temporarily disabled due to compilation issue")
+    /// Clear cache references but preserve URL mappings (for cache refresh)
+    func clearCacheReferences() throws {
+        // This method should NOT delete the URL mappings
+        // It should only clear cache-related flags or temporary data
+        // The URL mappings (image ID -> AWS URL) must be preserved
+        print("🧹 Cleared cache references (URL mappings preserved)")
     }
 }

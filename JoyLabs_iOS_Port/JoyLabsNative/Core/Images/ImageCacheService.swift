@@ -686,13 +686,9 @@ class ImageCacheService: ObservableObject {
             logger.error("❌ Failed to clear disk cache: \(error)")
         }
 
-        // Clear database image mappings
-        do {
-            try imageURLManager.clearAllImageMappings()
-            logger.info("🗑️ Cleared all image URL mappings from database")
-        } catch {
-            logger.error("❌ Failed to clear image mappings: \(error)")
-        }
+        // Clear cache references but preserve essential URL mappings
+        // Note: URL mappings (image ID -> AWS URL) are preserved for future downloads
+        logger.info("🧹 Cache cleared (URL mappings preserved for future downloads)")
 
         await updateCacheStats()
         logger.info("✅ Image cache completely cleared - ready for fresh images")

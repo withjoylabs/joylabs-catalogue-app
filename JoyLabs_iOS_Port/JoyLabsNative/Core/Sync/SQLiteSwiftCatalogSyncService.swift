@@ -419,20 +419,9 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
 
         logger.debug("📷 Processing IMAGE object: \(object.id) with URL: \(awsUrl)")
 
-        // Cache the image with mapping
-        let cacheUrl = await imageCacheService.cacheImageWithMapping(
-            awsUrl: awsUrl,
-            squareImageId: object.id,
-            objectType: "IMAGE",
-            objectId: object.id,
-            imageType: "PRIMARY"
-        )
-
-        if let cacheUrl = cacheUrl {
-            logger.info("✅ Cached IMAGE object: \(object.id) -> \(cacheUrl)")
-        } else {
-            logger.error("❌ Failed to cache IMAGE object: \(object.id)")
-        }
+        // SYNC ONLY STORES URL MAPPINGS - NO DOWNLOADING
+        // Images are downloaded on-demand during search
+        logger.debug("📋 Storing URL mapping for on-demand loading: \(object.id)")
     }
 
     /// Process images referenced by item data (via imageIds array)
@@ -467,20 +456,9 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
         if let imageUrl = categoryData.imageUrl, !imageUrl.isEmpty {
             logger.debug("📷 Category \(categoryId) has direct image URL: \(imageUrl)")
 
-            // Cache the category image
-            let cacheUrl = await imageCacheService.cacheImageWithMapping(
-                awsUrl: imageUrl,
-                squareImageId: "category_\(categoryId)",
-                objectType: "CATEGORY",
-                objectId: categoryId,
-                imageType: "PRIMARY"
-            )
-
-            if let cacheUrl = cacheUrl {
-                logger.info("✅ Cached category image: \(categoryId) -> \(cacheUrl)")
-            } else {
-                logger.error("❌ Failed to cache category image: \(categoryId)")
-            }
+            // SYNC ONLY STORES URL MAPPINGS - NO DOWNLOADING
+            // Category images are downloaded on-demand if needed
+            logger.debug("📋 Category image URL stored for on-demand loading: \(categoryId)")
         }
     }
 

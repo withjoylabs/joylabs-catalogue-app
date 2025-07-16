@@ -204,7 +204,7 @@ class SQLiteSwiftCatalogManager {
     func createTables() throws {
         guard let db = db else { throw SQLiteSwiftError.noConnection }
 
-        // Create image URL mapping table first
+        // Create image URL mapping table first (only if not already created)
         let imageURLManager = ImageURLManager(databaseManager: self)
         try imageURLManager.createImageMappingTable()
 
@@ -217,7 +217,7 @@ class SQLiteSwiftCatalogManager {
 
         logger.info("Ensuring catalog database tables exist...")
 
-        // Create image URL mapping table first
+        // Create image URL mapping table first (only if not already created)
         let imageURLManager = ImageURLManager(databaseManager: self)
         try imageURLManager.createImageMappingTable()
 
