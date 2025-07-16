@@ -105,7 +105,6 @@ class SearchManager: ObservableObject {
 
         // Skip search for single character queries to reduce excessive results
         guard trimmedTerm.count >= 2 else {
-            logger.debug("🔍 Skipping search for single character: '\(trimmedTerm)'")
             // Clear results for single character but don't show error
             Task { @MainActor in
                 if !searchResults.isEmpty {
@@ -123,7 +122,6 @@ class SearchManager: ObservableObject {
 
         // Wait for database to be ready before performing search
         guard isDatabaseReady else {
-            logger.debug("🔍 Search delayed - database not ready yet")
             return []
         }
 
@@ -155,12 +153,9 @@ class SearchManager: ObservableObject {
                 Task { @MainActor in
                     totalResultsCount = totalCount
                 }
-                logger.debug("📊 Total available results: \(totalCount)")
 
-                // Debug: If total count > 0 but we're about to get 0 results, investigate
-                if totalCount > 0 {
-                    logger.debug("🔍 TOTAL COUNT DEBUG: Found \(totalCount) total results for '\(trimmedTerm)'")
-                }
+
+
             }
 
             // 2. Local SQLite search with pagination
@@ -170,7 +165,7 @@ class SearchManager: ObservableObject {
                 offset: currentOffset,
                 limit: pageSize
             )
-            logger.debug("📊 Local search returned \(localResults.count) results (offset: \(self.currentOffset))")
+
 
             // 3. Case UPC search (only for first page and if numeric)
             var caseUpcResults: [SearchResultItem] = []
@@ -185,10 +180,9 @@ class SearchManager: ObservableObject {
                 caseUpcResults: caseUpcResults
             )
 
-            // Debug: Check for mismatch between total count and actual results
+            // Check for mismatch between total count and actual results
             if currentOffset == 0 && self.totalResultsCount != nil && self.totalResultsCount! > 0 && newResults.isEmpty {
                 logger.error("🚨 SEARCH MISMATCH: Total count shows \(self.totalResultsCount!) but combined results are empty for '\(trimmedTerm)'")
-                logger.debug("🔍 MISMATCH DEBUG: localResults=\(localResults.count), caseUpcResults=\(caseUpcResults.count)")
             }
 
             Task { @MainActor in
@@ -207,8 +201,7 @@ class SearchManager: ObservableObject {
                 currentOffset += pageSize
                 hasMoreResults = searchResults.count < (totalResultsCount ?? 0)
 
-                // Debug: Log final UI state
-                logger.debug("🔍 UI STATE: searchResults.count=\(self.searchResults.count), hasMoreResults=\(self.hasMoreResults), totalResultsCount=\(self.totalResultsCount ?? -1)")
+
 
                 // Images will be loaded on-demand when displayed in UI
             }
@@ -296,32 +289,28 @@ class SearchManager: ObservableObject {
             throw SearchError.databaseError(SQLiteSwiftError.noConnection)
         }
 
-        logger.debug("🔍 Starting local search for: '\(searchTerm)'")
-        logger.debug("🔍 SEARCH TERM DEBUG: Original='\(searchTerm)', Like pattern='\(searchTerm)'")
-
         var results: [SearchResultItem] = []
         let searchTermLike = "%\(searchTerm)%"
-        logger.debug("🔍 LIKE PATTERN: '\(searchTermLike)'")
 
         // Name search - optimized with direct column access
         if filters.name {
             let nameResults = try searchByName(db: db, searchTerm: searchTermLike, offset: offset, limit: limit)
             results.append(contentsOf: nameResults)
-            logger.debug("📝 Name search found \(nameResults.count) results")
+
         }
 
         // SKU search - optimized with dedicated SKU column
         if filters.sku {
             let skuResults = try searchBySKU(db: db, searchTerm: searchTermLike, offset: offset, limit: limit)
             results.append(contentsOf: skuResults)
-            logger.debug("🏷️ SKU search found \(skuResults.count) results")
+
         }
 
         // UPC/Barcode search - optimized with dedicated UPC column
         if filters.barcode {
             let upcResults = try searchByUPC(db: db, searchTerm: searchTermLike, offset: offset, limit: limit)
             results.append(contentsOf: upcResults)
-            logger.debug("📊 UPC search found \(upcResults.count) results")
+
         }
 
         // Category search
@@ -684,23 +673,16 @@ class SearchManager: ObservableObject {
     private func populateImageData(for itemId: String) -> [CatalogImage]? {
         do {
             // Get image mappings for this item
-            logger.debug("🔍 Looking for image mappings for item: \(itemId) with objectType: 'ITEM'")
             let imageMappings = try imageURLManager.getImageMappings(for: itemId, objectType: "ITEM")
-            logger.debug("📊 Found \(imageMappings.count) image mappings for item: \(itemId)")
 
             guard !imageMappings.isEmpty else {
-                logger.debug("📷 No images found for item: \(itemId)")
                 return nil
             }
 
-            // Log the found mappings
-            for (index, mapping) in imageMappings.enumerated() {
-                logger.debug("📷 Image mapping \(index + 1): squareImageId=\(mapping.squareImageId), localCacheKey=\(mapping.localCacheKey), imageType=\(mapping.imageType)")
-            }
+
 
             // Convert image mappings to CatalogImage objects
             let catalogImages = imageMappings.map { mapping in
-                logger.debug("📷 Creating CatalogImage with AWS URL: \(mapping.originalAwsUrl)")
                 return CatalogImage(
                     id: mapping.squareImageId,
                     type: "IMAGE",
@@ -717,7 +699,6 @@ class SearchManager: ObservableObject {
                 )
             }
 
-            logger.debug("📷 Found \(catalogImages.count) images for item: \(itemId)")
             return catalogImages
 
         } catch {

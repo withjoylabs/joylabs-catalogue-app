@@ -504,19 +504,17 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
             return
         }
 
-        logger.debug("📷 Processing IMAGE URL mapping: \(object.id) -> \(awsUrl)")
-        logger.debug("📷 IMAGE OBJECT DEBUG: id=\(object.id), type=\(object.type), isDeleted=\(object.isDeleted), updatedAt=\(object.updatedAt)")
+
 
         // Skip processing deleted images to avoid wasting overhead
         if object.isDeleted {
-            logger.debug("⚠️ SKIPPING DELETED IMAGE: \(object.id) - not processing URL mapping")
             return
         }
 
         // Store the URL mapping for on-demand loading (don't download yet)
         do {
             let imageURLManager = ImageURLManager(databaseManager: databaseManager)
-            let cacheKey = try imageURLManager.storeImageMapping(
+            let _ = try imageURLManager.storeImageMapping(
                 squareImageId: object.id,
                 awsUrl: awsUrl,
                 objectType: "IMAGE",
@@ -524,7 +522,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
                 imageType: "PRIMARY"
             )
 
-            logger.debug("✅ Stored image URL mapping: \(object.id) -> \(cacheKey)")
+
 
             // NOW create item-to-image mappings for any items that reference this image
             await createItemToImageMappingsForImage(imageId: object.id, awsUrl: awsUrl, imageURLManager: imageURLManager)
@@ -548,9 +546,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
             let statement = try db.prepare(sql)
             let searchPattern = "%\"\(imageId)\"%"
 
-            logger.debug("🔍 SEARCHING FOR ITEMS that reference image: \(imageId)")
-            logger.debug("🔍 SQL: \(sql)")
-            logger.debug("🔍 SEARCH PATTERN: \(searchPattern)")
+
 
             var mappingsCreated = 0
             var itemsFound = 0
@@ -559,7 +555,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
                 guard let itemId = row[0] as? String,
                       let dataJsonString = row[1] as? String,
                       let dataJsonData = dataJsonString.data(using: .utf8) else {
-                    logger.debug("⚠️ FAILED to parse row data for potential item")
+
                     continue
                 }
 
@@ -571,16 +567,12 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
                 if let catalogObject = try? JSONSerialization.jsonObject(with: dataJsonData) as? [String: Any],
                    let itemData = catalogObject["item_data"] as? [String: Any] {
                     if let imageIds = itemData["image_ids"] as? [String] {
-                        logger.debug("🔍 ITEM \(itemId) HAS image_ids: \(imageIds)")
-
                         if imageIds.contains(imageId) {
-                            logger.debug("✅ CONFIRMED: Item \(itemId) contains image \(imageId)")
-
                             // Determine if this is the primary image (first in array)
                             let imageType = imageIds.first == imageId ? "PRIMARY" : "SECONDARY"
 
                             // Create the item-to-image mapping
-                            let cacheKey = try imageURLManager.storeImageMapping(
+                            let _ = try imageURLManager.storeImageMapping(
                                 squareImageId: imageId,
                                 awsUrl: awsUrl,
                                 objectType: "ITEM",
@@ -589,47 +581,22 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
                             )
 
                             mappingsCreated += 1
-                            logger.debug("✅ MAPPED IMAGE \(imageId) TO ITEM \(itemId) -> \(cacheKey)")
-                        } else {
-                            logger.debug("❌ ITEM \(itemId) does NOT contain image \(imageId)")
                         }
-                    } else {
-                        logger.debug("⚠️ ITEM \(itemId) has NO image_ids field in item_data")
                     }
-                } else {
-                    logger.debug("❌ FAILED to parse CatalogObject JSON or missing item_data for item \(itemId)")
                 }
             }
 
-            logger.debug("📊 MAPPING SUMMARY for image \(imageId): Found \(itemsFound) potential items, created \(mappingsCreated) mappings")
+            if mappingsCreated == 0 {
 
-            if mappingsCreated > 0 {
-                logger.debug("📷 ✅ SUCCESSFULLY CREATED \(mappingsCreated) item-to-image mappings for image \(imageId)")
-            } else {
-                logger.warning("⚠️ NO MAPPINGS CREATED for image \(imageId) - found \(itemsFound) potential items but none matched")
-
-                // INVESTIGATE: Check if any items reference this image, including deleted ones
+                // Check if any items reference this image, including deleted ones
                 let debugSql = "SELECT id, name, is_deleted FROM catalog_items WHERE data_json LIKE ?"
                 let debugStatement = try db.prepare(debugSql)
                 let debugPattern = "%\(imageId)%"
-                logger.debug("🔍 DEBUG: Broader search for image \(imageId) with pattern: \(debugPattern)")
 
                 var debugCount = 0
-                var deletedCount = 0
-                for row in try debugStatement.run(debugPattern) {
+                for _ in try debugStatement.run(debugPattern) {
                     debugCount += 1
-                    let itemId = row[0] as? String ?? "unknown"
-                    let itemName = row[1] as? String ?? "unknown"
-                    let isDeleted = (row[2] as? Int64 ?? 0) != 0
-
-                    if isDeleted {
-                        deletedCount += 1
-                        logger.debug("🔍 DEBUG: Found DELETED item \(itemId) (\(itemName)) that contains \(imageId)")
-                    } else {
-                        logger.debug("🔍 DEBUG: Found active item \(itemId) (\(itemName)) that contains \(imageId)")
-                    }
                 }
-                logger.debug("🔍 DEBUG: Broader search found \(debugCount) total items (\(deletedCount) deleted) containing \(imageId)")
 
                 // If no items found, this is an orphaned image from Square's deleted items
                 if debugCount == 0 {
@@ -641,7 +608,6 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
                     do {
                         let imageURLManager = ImageURLManager(databaseManager: databaseManager)
                         try imageURLManager.markImageAsDeleted(squareImageId: imageId)
-                        logger.debug("✅ Marked orphaned image mapping as deleted: \(imageId)")
                     } catch {
                         logger.error("❌ Failed to mark orphaned image mapping as deleted: \(error)")
                     }
