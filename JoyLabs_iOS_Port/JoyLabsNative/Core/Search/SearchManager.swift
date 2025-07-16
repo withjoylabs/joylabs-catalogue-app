@@ -277,10 +277,10 @@ class SearchManager: ObservableObject {
     
     // MARK: - Private Methods
     private func setupSearchDebouncing() {
-        // Debounce search requests (800ms delay to prevent rapid searches)
+        // Debounce search requests (500ms delay to prevent rapid searches)
         // Use background queue to avoid blocking main thread
         searchSubject
-            .debounce(for: .milliseconds(800), scheduler: DispatchQueue.global(qos: .userInitiated))
+            .debounce(for: .milliseconds(500), scheduler: DispatchQueue.global(qos: .userInitiated))
             .sink { [weak self] (searchTerm, filters) in
                 guard let self = self else { return }
                 self.searchTask = Task.detached(priority: .userInitiated) { [weak self] in

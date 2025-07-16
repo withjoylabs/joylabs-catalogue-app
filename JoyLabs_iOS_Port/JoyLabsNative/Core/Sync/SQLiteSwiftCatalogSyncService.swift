@@ -139,7 +139,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
                     syncProgress = progress
                 }
                 try databaseManager.clearAllData()
-                logger.info("✅ Existing data cleared")
+                logger.info("✅ Existing catalog data cleared (preserving image cache)")
 
                 // Clear image cache for clean slate
                 await MainActor.run {
