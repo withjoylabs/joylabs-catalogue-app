@@ -6,7 +6,10 @@ struct ScanView: View {
     @State private var scanHistoryCount = 0
     @State private var isConnected = true
     @State private var showingHistory = false
-    @StateObject private var searchManager = SearchManager()
+    @StateObject private var searchManager: SearchManager = {
+        let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
+        return SearchManager(databaseManager: databaseManager)
+    }()
     @FocusState private var isSearchFieldFocused: Bool
 
     var body: some View {

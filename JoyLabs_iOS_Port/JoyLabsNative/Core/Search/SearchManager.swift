@@ -35,6 +35,12 @@ class SearchManager: ObservableObject {
         // Initialize database manager on main actor if needed
         if let manager = databaseManager {
             self.databaseManager = manager
+            // Check if database is already connected
+            if manager.getConnection() != nil {
+                // Database already connected, mark as ready
+                self.isDatabaseReady = true
+                logger.info("✅ SearchManager using pre-connected shared database")
+            }
         } else {
             // Create database manager asynchronously to avoid main actor issues
             self.databaseManager = SQLiteSwiftCatalogManager()
@@ -45,9 +51,11 @@ class SearchManager: ObservableObject {
 
         setupSearchDebouncing()
 
-        // Initialize database connection asynchronously
-        Task.detached(priority: .background) {
-            await self.initializeDatabaseConnection()
+        // Initialize database connection asynchronously only if not already connected
+        if !isDatabaseReady {
+            Task.detached(priority: .background) {
+                await self.initializeDatabaseConnection()
+            }
         }
     }
 

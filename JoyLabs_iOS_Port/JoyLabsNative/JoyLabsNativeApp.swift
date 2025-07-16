@@ -6,6 +6,11 @@ import OSLog
 struct JoyLabsNativeApp: App {
     private let logger = Logger(subsystem: "com.joylabs.native", category: "App")
 
+    init() {
+        // Initialize shared database manager on app startup
+        initializeSharedServices()
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()
@@ -13,6 +18,31 @@ struct JoyLabsNativeApp: App {
                     logger.info("App received URL: \(url.absoluteString)")
                     handleIncomingURL(url)
                 }
+        }
+    }
+
+    private func initializeSharedServices() {
+        logger.info("🚀 Initializing shared services on app startup...")
+
+        // Initialize the shared database manager early
+        // This ensures database is ready before any views try to use it
+        Task.detached(priority: .high) {
+            await MainActor.run {
+                let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
+                Task {
+                    do {
+                        try databaseManager.connect()
+                        try await databaseManager.createTablesAsync()
+                        await MainActor.run {
+                            self.logger.info("✅ Shared database initialized successfully on app startup")
+                        }
+                    } catch {
+                        await MainActor.run {
+                            self.logger.error("❌ Failed to initialize shared database on app startup: \(error)")
+                        }
+                    }
+                }
+            }
         }
     }
 
