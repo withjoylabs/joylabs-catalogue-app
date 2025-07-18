@@ -694,62 +694,7 @@ struct ReorderContentView: View {
                 .coordinateSpace(name: "scroll")
             }
         }
-        .overlay(alignment: .bottom) {
-            // HID Scanner optimized barcode field
-            VStack(spacing: 0) {
-                HStack(spacing: 12) {
-                    // Barcode icon
-                    Image(systemName: "barcode.viewfinder")
-                        .font(.system(size: 20))
-                        .foregroundColor(.blue)
-
-                    // HID Scanner optimized text field
-                    TextField("Scan to add items...", text: $scannerSearchText)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled(true)
-                        .keyboardType(.numbersAndPunctuation)
-                        .focused($isScannerFieldFocused)
-                        .submitLabel(.done)
-                        .textContentType(.none)
-                        .onSubmit {
-                            if !scannerSearchText.isEmpty {
-                                onBarcodeScanned(scannerSearchText)
-                            }
-                        }
-                        // CRITICAL: Handle fast HID scanner input with throttling
-                        .onChange(of: scannerSearchText) { oldValue, newValue in
-                            // Use DispatchQueue to prevent multiple updates per frame
-                            DispatchQueue.main.async {
-                                // Only process if value is still current
-                                guard scannerSearchText == newValue else { return }
-                                // Additional processing can be added here if needed
-                            }
-                        }
-
-                    // Clear button
-                    if !scannerSearchText.isEmpty {
-                        Button(action: {
-                            scannerSearchText = ""
-                            isScannerFieldFocused = true
-                        }) {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 16))
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(Color(.systemGray6))
-                .cornerRadius(10)
-
-                // Thin bottom border
-                Rectangle()
-                    .fill(Color(.separator))
-                    .frame(height: 0.5)
-            }
-            .background(Color(.systemBackground))
-        }
+        // TEXT FIELD REMOVED: Global HID scanner handles all barcode input without focus requirement
     }
 }
 
