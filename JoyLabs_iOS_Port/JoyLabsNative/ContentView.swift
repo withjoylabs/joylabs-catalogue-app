@@ -1,6 +1,39 @@
 import SwiftUI
 
+// MARK: - Reorder Badge Manager
+class ReorderBadgeManager: ObservableObject {
+    @Published var unpurchasedCount: Int = 0
+
+    init() {
+        updateBadgeCount()
+
+        // Listen for changes to UserDefaults
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(updateBadgeCount),
+            name: UserDefaults.didChangeNotification,
+            object: nil
+        )
+    }
+
+    @objc private func updateBadgeCount() {
+        // Load reorder items from UserDefaults and count unpurchased
+        if let data = UserDefaults.standard.data(forKey: "reorderItems"),
+           let items = try? JSONDecoder().decode([ReorderItem].self, from: data) {
+            unpurchasedCount = items.filter { $0.status == .added }.count
+        } else {
+            unpurchasedCount = 0
+        }
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+}
+
 struct ContentView: View {
+    @StateObject private var reorderBadgeManager = ReorderBadgeManager()
+
     var body: some View {
         TabView {
             ScanView()
@@ -14,6 +47,7 @@ struct ContentView: View {
                     Image(systemName: "receipt")
                     Text("Reorders")
                 }
+                .badge(reorderBadgeManager.unpurchasedCount > 0 ? "\(reorderBadgeManager.unpurchasedCount)" : nil)
 
             // FAB placeholder - will be replaced with custom implementation
             FABPlaceholderView()

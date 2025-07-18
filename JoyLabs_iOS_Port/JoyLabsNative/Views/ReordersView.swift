@@ -1,91 +1,900 @@
 import SwiftUI
+import UIKit
+
+// MARK: - Global Barcode Receiving UIViewController
+class GlobalBarcodeReceivingViewController: UIViewController {
+    var onBarcodeScanned: ((String) -> Void)?
+
+    // Barcode accumulation
+    private var barcodeBuffer = ""
+    private var barcodeTimer: Timer?
+    private let barcodeTimeout: TimeInterval = 0.1 // 100ms timeout for barcode completion
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        // CRITICAL: Become first responder to receive global keyboard input
+        becomeFirstResponder()
+        print("🎯 Global barcode receiver became first responder")
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        resignFirstResponder()
+        print("🎯 Global barcode receiver resigned first responder")
+    }
+
+    override var canBecomeFirstResponder: Bool {
+        return true
+    }
+
+    override var keyCommands: [UIKeyCommand]? {
+        var commands: [UIKeyCommand] = []
+
+        // Numbers 0-9 (most common in barcodes)
+        for i in 0...9 {
+            commands.append(UIKeyCommand(
+                input: "\(i)",
+                modifierFlags: [],
+                action: #selector(handleBarcodeCharacter(_:))
+            ))
+        }
+
+        // Letters A-Z (some barcodes include letters)
+        for char in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" {
+            commands.append(UIKeyCommand(
+                input: String(char),
+                modifierFlags: [],
+                action: #selector(handleBarcodeCharacter(_:))
+            ))
+        }
+
+        // Lowercase letters a-z
+        for char in "abcdefghijklmnopqrstuvwxyz" {
+            commands.append(UIKeyCommand(
+                input: String(char),
+                modifierFlags: [],
+                action: #selector(handleBarcodeCharacter(_:))
+            ))
+        }
+
+        // Special characters common in barcodes
+        let specialChars = ["-", "_", ".", " ", "/", "\\", "+", "=", "*", "%", "$", "#", "@", "!", "?"]
+        for char in specialChars {
+            commands.append(UIKeyCommand(
+                input: char,
+                modifierFlags: [],
+                action: #selector(handleBarcodeCharacter(_:))
+            ))
+        }
+
+        // Return key (end of barcode scan)
+        commands.append(UIKeyCommand(
+            input: "\r",
+            modifierFlags: [],
+            action: #selector(handleBarcodeComplete)
+        ))
+
+        // Enter key (alternative end of barcode)
+        commands.append(UIKeyCommand(
+            input: "\n",
+            modifierFlags: [],
+            action: #selector(handleBarcodeComplete)
+        ))
+
+        return commands
+    }
+
+    @objc private func handleBarcodeCharacter(_ command: UIKeyCommand) {
+        guard let input = command.input else { return }
+
+        // Add character to buffer
+        barcodeBuffer += input
+        // Reduced logging: only log first character to indicate scan started
+        if barcodeBuffer.count == 1 {
+            print("🔤 Global barcode scan started...")
+        }
+
+        // Reset completion timer
+        barcodeTimer?.invalidate()
+        barcodeTimer = Timer.scheduledTimer(withTimeInterval: barcodeTimeout, repeats: false) { [weak self] _ in
+            self?.completeBarcodeInput()
+        }
+    }
+
+    @objc private func handleBarcodeComplete() {
+        print("🔚 Global barcode complete signal received")
+        completeBarcodeInput()
+    }
+
+    private func completeBarcodeInput() {
+        guard !barcodeBuffer.isEmpty else { return }
+
+        let finalBarcode = barcodeBuffer.trimmingCharacters(in: .whitespacesAndNewlines)
+        print("✅ Global barcode completed: '\(finalBarcode)'")
+
+        // Clear buffer
+        barcodeBuffer = ""
+        barcodeTimer?.invalidate()
+
+        // Send to callback
+        DispatchQueue.main.async {
+            self.onBarcodeScanned?(finalBarcode)
+        }
+    }
+
+    // Enhanced key handling for better HID device support
+    override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        for press in presses {
+            if let key = press.key {
+                let characters = key.characters
+                // Reduced logging: only log if this is fallback handling
+
+                // Handle any characters not caught by keyCommands
+                if !characters.isEmpty {
+                    // Check if this is likely from an external device
+                    if event?.allPresses.first?.gestureRecognizers?.isEmpty == true {
+                        // Add to buffer if not already handled by keyCommands
+                        if !barcodeBuffer.hasSuffix(characters) {
+                            if barcodeBuffer.isEmpty {
+                                print("🔌 External device fallback handling started...")
+                            }
+                            barcodeBuffer += characters
+
+                            // Reset completion timer
+                            barcodeTimer?.invalidate()
+                            barcodeTimer = Timer.scheduledTimer(withTimeInterval: barcodeTimeout, repeats: false) { [weak self] _ in
+                                self?.completeBarcodeInput()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        super.pressesBegan(presses, with: event)
+    }
+}
+
+// MARK: - SwiftUI Wrapper for Global Barcode Receiver
+struct GlobalBarcodeReceiver: UIViewControllerRepresentable {
+    let onBarcodeScanned: (String) -> Void
+
+    func makeUIViewController(context: Context) -> GlobalBarcodeReceivingViewController {
+        let controller = GlobalBarcodeReceivingViewController()
+        controller.onBarcodeScanned = onBarcodeScanned
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: GlobalBarcodeReceivingViewController, context: Context) {
+        uiViewController.onBarcodeScanned = onBarcodeScanned
+    }
+}
 
 struct ReordersView: View {
     @State private var reorderItems: [ReorderItem] = []
     @State private var showingExportOptions = false
     @State private var showingClearAlert = false
+    @State private var showingMarkAllReceivedAlert = false
+
+    // Filter and sort state
+    @State private var sortOption: ReorderSortOption = .timeNewest
+    @State private var filterOption: ReorderFilterOption = .all
+    @State private var showCategoryFilter = false
+    @State private var showVendorFilter = false
+
+    // View organization and display options
+    @State private var organizationOption: ReorderOrganizationOption = .none
+    @State private var displayMode: ReorderDisplayMode = .list
+
+    // Image enlargement
+    @State private var selectedItemForEnlargement: ReorderItem?
+    @State private var showingImageEnlargement = false
+
+    // Barcode scanner state
+    @State private var scannerSearchText = ""
+    @FocusState private var isScannerFieldFocused: Bool
+    @State private var searchDebounceTimer: Timer?
+
+    // Barcode processing queue
+    @State private var barcodeQueue: [String] = []
+    @State private var isProcessingBarcode = false
+
+    // Search manager (same as scan page)
+    @StateObject private var searchManager: SearchManager = {
+        let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
+        return SearchManager(databaseManager: databaseManager)
+    }()
+
+    // Database service for reorder items (TODO: Implement database integration)
+    // @StateObject private var reorderDatabase: ReorderDatabaseService = {
+    //     let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
+    //     return ReorderDatabaseService(database: databaseManager.database)
+    // }()
+
+    // Computed properties for stats
+    private var totalItems: Int { reorderItems.count }
+    private var unpurchasedItems: Int { reorderItems.filter { $0.status == .added }.count }
+    private var purchasedItems: Int { reorderItems.filter { $0.status == .purchased || $0.status == .received }.count }
+    private var totalQuantity: Int { reorderItems.reduce(0) { $0 + $1.quantity } }
+
+    // Filtered and sorted items
+    private var filteredItems: [ReorderItem] {
+        let filtered = reorderItems.filter { item in
+            switch filterOption {
+            case .all:
+                return true
+            case .unpurchased:
+                return item.status == .added
+            case .purchased:
+                return item.status == .purchased
+            case .received:
+                return item.status == .received
+            }
+        }
+
+        return filtered.sorted { item1, item2 in
+            switch sortOption {
+            case .timeNewest:
+                return item1.addedDate > item2.addedDate
+            case .timeOldest:
+                return item1.addedDate < item2.addedDate
+            case .alphabeticalAZ:
+                return item1.name < item2.name
+            case .alphabeticalZA:
+                return item1.name > item2.name
+            }
+        }
+    }
+
+    // Organized items for sectioned display
+    private var organizedItems: [(String, [ReorderItem])] {
+        switch organizationOption {
+        case .none:
+            return [("", filteredItems)]
+        case .category:
+            return Dictionary(grouping: filteredItems) { item in
+                item.categoryName ?? "Uncategorized"
+            }.sorted { $0.key < $1.key }
+        case .vendor:
+            return Dictionary(grouping: filteredItems) { item in
+                item.vendor ?? "Unknown Vendor"
+            }.sorted { $0.key < $1.key }
+        case .vendorThenCategory:
+            // Group by vendor first, then by category within each vendor
+            let vendorGroups = Dictionary(grouping: filteredItems) { item in
+                item.vendor ?? "Unknown Vendor"
+            }
+
+            var result: [(String, [ReorderItem])] = []
+            for (vendor, items) in vendorGroups.sorted(by: { $0.key < $1.key }) {
+                let categoryGroups = Dictionary(grouping: items) { item in
+                    item.categoryName ?? "Uncategorized"
+                }
+
+                for (category, categoryItems) in categoryGroups.sorted(by: { $0.key < $1.key }) {
+                    let sectionTitle = "\(vendor) - \(category)"
+                    result.append((sectionTitle, categoryItems))
+                }
+            }
+            return result
+        }
+    }
 
     var body: some View {
         NavigationView {
-            VStack(spacing: 0) {
-                // Header
-                ReordersHeader(
-                    itemCount: reorderItems.count,
-                    totalQuantity: reorderItems.reduce(0) { $0 + $1.quantity },
-                    onExport: { showingExportOptions = true },
-                    onClear: { showingClearAlert = true }
+            ZStack {
+                // Main reorder content
+                ReorderContentView(
+                    reorderItems: reorderItems,
+                    filteredItems: filteredItems,
+                    organizedItems: organizedItems,
+                    totalItems: totalItems,
+                    unpurchasedItems: unpurchasedItems,
+                    purchasedItems: purchasedItems,
+                    totalQuantity: totalQuantity,
+                    sortOption: $sortOption,
+                    filterOption: $filterOption,
+                    showCategoryFilter: $showCategoryFilter,
+                    showVendorFilter: $showVendorFilter,
+                    organizationOption: $organizationOption,
+                    displayMode: $displayMode,
+                    scannerSearchText: $scannerSearchText,
+                    isScannerFieldFocused: $isScannerFieldFocused,
+                    onManagementAction: handleManagementAction,
+                    onStatusChange: updateItemStatus,
+                    onQuantityChange: updateItemQuantity,
+                    onRemoveItem: removeItem,
+                    onBarcodeScanned: handleBarcodeScanned,
+                    onImageTap: { item in
+                        // TODO: Implement image enlargement when ImageEnlargementView is added to project
+                        print("🖼️ Image tapped for item: \(item.name)")
+                    }
                 )
 
-                if reorderItems.isEmpty {
-                    ReordersEmptyState()
-                } else {
-                    ReordersListView(
-                        items: $reorderItems,
-                        onRemoveItem: removeItem,
-                        onUpdateQuantity: updateQuantity
-                    )
+                // CRITICAL: Global barcode receiver (invisible, handles external keyboard input)
+                GlobalBarcodeReceiver { barcode in
+                    print("🌍 Global barcode received: '\(barcode)'")
+                    handleGlobalBarcodeScanned(barcode)
                 }
-
-                Spacer()
+                .frame(width: 0, height: 0)
+                .opacity(0)
+                .allowsHitTesting(false)
             }
             .navigationBarHidden(true)
             .onAppear {
-                loadMockData()
+                loadReorderData()
+                // Auto-focus removed - user can manually tap to focus
             }
+            // TODO: Add ImageEnlargementView when file is properly included in Xcode project
+            // .sheet(isPresented: $showingImageEnlargement) {
+            //     if let item = selectedItemForEnlargement {
+            //         ImageEnlargementView(item: item, isPresented: $showingImageEnlargement)
+            //     }
+            // }
             .actionSheet(isPresented: $showingExportOptions) {
                 ActionSheet(
                     title: Text("Export Reorders"),
                     buttons: [
-                        .default(Text("Export as CSV")) { exportAsCSV() },
-                        .default(Text("Export as PDF")) { exportAsPDF() },
                         .default(Text("Share List")) { shareList() },
+                        .default(Text("Print")) { printList() },
+                        .default(Text("Save as PDF")) { saveAsPDF() },
                         .cancel()
                     ]
                 )
             }
-            .alert("Clear All Reorders", isPresented: $showingClearAlert) {
+            .alert("Clear All Items", isPresented: $showingClearAlert) {
                 Button("Cancel", role: .cancel) { }
                 Button("Clear All", role: .destructive) {
-                    reorderItems.removeAll()
+                    clearAllItems()
                 }
             } message: {
                 Text("Are you sure you want to clear all reorder items? This action cannot be undone.")
             }
+            .alert("Mark All as Received", isPresented: $showingMarkAllReceivedAlert) {
+                Button("Cancel", role: .cancel) { }
+                Button("Mark All") {
+                    markAllAsReceived()
+                }
+            } message: {
+                Text("Mark all items as received? This will move them to the received state.")
+            }
+            .sheet(isPresented: $showCategoryFilter) {
+                Text("Category Filter Coming Soon")
+                    .navigationTitle("Filter by Category")
+                    .navigationBarTitleDisplayMode(.large)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button("Done") {
+                                showCategoryFilter = false
+                            }
+                        }
+                    }
+            }
+            .sheet(isPresented: $showVendorFilter) {
+                Text("Vendor Filter Coming Soon")
+                    .navigationTitle("Filter by Vendor")
+                    .navigationBarTitleDisplayMode(.large)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button("Done") {
+                                showVendorFilter = false
+                            }
+                        }
+                    }
+            }
         }
     }
 
-    private func loadMockData() {
-        // Load some mock reorder items for demonstration
-        reorderItems = [
-            ReorderItem(id: "1", name: "Premium Coffee Beans", sku: "COF001", quantity: 5, lastOrderDate: Date().addingTimeInterval(-86400 * 7)),
-            ReorderItem(id: "2", name: "Organic Tea Bags", sku: "TEA002", quantity: 3, lastOrderDate: Date().addingTimeInterval(-86400 * 14)),
-            ReorderItem(id: "3", name: "Ceramic Mugs Set", sku: "MUG003", quantity: 2, lastOrderDate: Date().addingTimeInterval(-86400 * 21))
-        ]
+    // MARK: - Data Management
+
+    private func loadReorderData() {
+        // Load reorder items from UserDefaults for persistence
+        if let data = UserDefaults.standard.data(forKey: "reorderItems"),
+           let items = try? JSONDecoder().decode([ReorderItem].self, from: data) {
+            reorderItems = items
+            print("📦 Loaded \(items.count) reorder items from storage")
+        } else {
+            reorderItems = []
+            print("📦 No saved reorder items found")
+        }
     }
 
-    private func removeItem(at index: Int) {
-        reorderItems.remove(at: index)
+    private func saveReorderData() {
+        // Save reorder items to UserDefaults for persistence
+        if let data = try? JSONEncoder().encode(reorderItems) {
+            UserDefaults.standard.set(data, forKey: "reorderItems")
+            print("💾 Saved \(reorderItems.count) reorder items to storage")
+        }
     }
 
-    private func updateQuantity(for itemId: String, newQuantity: Int) {
+    // MARK: - Management Actions
+
+    private func handleManagementAction(_ action: ManagementAction) {
+        switch action {
+        case .markAllReceived:
+            showingMarkAllReceivedAlert = true
+        case .clearAll:
+            showingClearAlert = true
+        case .export:
+            showingExportOptions = true
+        }
+    }
+
+    private func markAllAsReceived() {
+        // Mark all items as received (which removes them from the list)
+        for item in reorderItems {
+            updateItemStatus(itemId: item.id, newStatus: .received)
+        }
+    }
+
+    private func clearAllItems() {
+        reorderItems.removeAll()
+        saveReorderData()
+    }
+
+    // MARK: - Item Actions
+
+    private func removeItem(itemId: String) {
+        if let item = reorderItems.first(where: { $0.id == itemId }) {
+            reorderItems.removeAll { $0.id == itemId }
+            saveReorderData()
+            print("🗑️ Removed item from reorder list: \(item.name)")
+        }
+    }
+
+    private func updateItemStatus(itemId: String, newStatus: ReorderStatus) {
+        if let index = reorderItems.firstIndex(where: { $0.id == itemId }) {
+            if newStatus == .received {
+                // When item is marked as received, remove it from the list
+                reorderItems[index].receivedDate = Date()
+                reorderItems.remove(at: index)
+                print("✅ Item marked as received and removed from list")
+            } else {
+                // Update status for added/purchased
+                reorderItems[index].status = newStatus
+
+                switch newStatus {
+                case .purchased:
+                    reorderItems[index].purchasedDate = Date()
+                case .added:
+                    reorderItems[index].purchasedDate = nil
+                    reorderItems[index].receivedDate = nil
+                case .received:
+                    // This case is handled above
+                    break
+                }
+            }
+
+            saveReorderData()
+        }
+    }
+
+    private func updateItemQuantity(itemId: String, newQuantity: Int) {
         if let index = reorderItems.firstIndex(where: { $0.id == itemId }) {
             reorderItems[index].quantity = max(1, newQuantity)
+            saveReorderData()
         }
     }
 
-    private func exportAsCSV() {
-        // CSV export functionality
-        print("Exporting as CSV...")
-    }
-
-    private func exportAsPDF() {
-        // PDF export functionality
-        print("Exporting as PDF...")
-    }
+    // MARK: - Export Functions
 
     private func shareList() {
-        // Share functionality
+        // Share functionality using iOS share sheet
         print("Sharing list...")
+    }
+
+    private func printList() {
+        // Print functionality
+        print("Printing list...")
+    }
+
+    private func saveAsPDF() {
+        // PDF export functionality
+        print("Saving as PDF...")
+    }
+
+    // MARK: - Search Functions (using same path as scan page)
+
+    // Removed debounced search - only barcode scanning on return key press
+
+    private func handleBarcodeScanned(_ barcode: String) {
+        print("🔍 Barcode input received from text field: \(barcode)")
+
+        // Add barcode to processing queue
+        barcodeQueue.append(barcode)
+        print("📥 Added barcode to queue: \(barcode) (Queue size: \(barcodeQueue.count))")
+
+        // Clear the search field immediately for next scan
+        scannerSearchText = ""
+
+        // Process queue if not already processing
+        if !isProcessingBarcode {
+            processNextBarcodeInQueue()
+        }
+    }
+
+    private func handleGlobalBarcodeScanned(_ barcode: String) {
+        print("🌍 Global barcode input received (NO FOCUS REQUIRED): \(barcode)")
+
+        // Add barcode to processing queue (same as text field input)
+        barcodeQueue.append(barcode)
+        print("📥 Added global barcode to queue: \(barcode) (Queue size: \(barcodeQueue.count))")
+
+        // Process queue if not already processing
+        if !isProcessingBarcode {
+            processNextBarcodeInQueue()
+        }
+    }
+
+    private func processNextBarcodeInQueue() {
+        guard !barcodeQueue.isEmpty && !isProcessingBarcode else { return }
+
+        isProcessingBarcode = true
+        let barcodeToProcess = barcodeQueue.removeFirst()
+
+        print("🔄 Processing barcode from queue: \(barcodeToProcess) (Remaining in queue: \(barcodeQueue.count))")
+
+        // CRITICAL FIX: Clear search manager state to ensure fresh search with offset 0
+        searchManager.clearSearch()
+
+        // Use EXACT same pattern as scan page - immediate search without debounce for barcode scans
+        Task {
+            let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
+            let results = await searchManager.performSearch(searchTerm: barcodeToProcess, filters: filters)
+
+            // Process results immediately (same performance as scan page)
+            await MainActor.run {
+                if let foundItem = results.first {
+                    addItemToReorderList(foundItem)
+                } else {
+                    print("❌ No item found for barcode: \(barcodeToProcess)")
+                }
+
+                // Mark processing complete
+                isProcessingBarcode = false
+
+                // DISABLED: Auto-refocus removed for global scanner testing
+                // DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                //     isScannerFieldFocused = true
+                // }
+
+                // Process next barcode in queue if any
+                if !barcodeQueue.isEmpty {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                        processNextBarcodeInQueue()
+                    }
+                }
+            }
+        }
+    }
+
+    private func addItemToReorderList(_ foundItem: SearchResultItem) {
+        print("🔍 Attempting to add item to reorder list: \(foundItem.name ?? "Unknown Item") (ID: \(foundItem.id))")
+
+        // CRITICAL FIX: Implement proper reorder logic as specified by user
+
+        // 1. Check if item already exists in reorder list (any status)
+        if let existingIndex = reorderItems.firstIndex(where: { $0.itemId == foundItem.id }) {
+            let existingItem = reorderItems[existingIndex]
+
+            // 2. If item is at the top (index 0), increment quantity
+            if existingIndex == 0 {
+                reorderItems[0].quantity += 1
+                reorderItems[0].addedDate = Date() // Update timestamp
+                saveReorderData()
+                print("🔄 Item at top - incremented quantity to \(reorderItems[0].quantity): \(foundItem.name ?? "Unknown Item")")
+                return
+            }
+
+            // 3. If item exists but not at top, move to top and update timestamp
+            reorderItems.remove(at: existingIndex)
+            var movedItem = existingItem
+            movedItem.addedDate = Date() // Update timestamp
+            reorderItems.insert(movedItem, at: 0)
+            saveReorderData()
+            print("🔄 Moved existing item to top: \(foundItem.name ?? "Unknown Item")")
+            return
+        }
+
+        // 4. Item doesn't exist - create new item and add to top
+        let newItem = ReorderItem(
+            id: UUID().uuidString,
+            itemId: foundItem.id,
+            name: foundItem.name ?? "Unknown Item",
+            sku: foundItem.sku,
+            barcode: foundItem.barcode,
+            quantity: 1,
+            status: .added
+        )
+
+        // Copy additional data from search result
+        var updatedItem = newItem
+        updatedItem.categoryName = foundItem.categoryName
+        updatedItem.price = foundItem.price
+        updatedItem.hasTax = foundItem.hasTax
+
+        // Extract image data from SearchResultItem.images array
+        if let images = foundItem.images, let firstImage = images.first {
+            updatedItem.imageId = firstImage.id
+            updatedItem.imageUrl = firstImage.imageData?.url
+        }
+
+        // Add to reorder list at top for visibility
+        reorderItems.insert(updatedItem, at: 0)
+
+        // Save to persistence immediately
+        saveReorderData()
+
+        print("✅ Added new item to reorder list: \(foundItem.name ?? "Unknown Item")")
+    }
+}
+
+// MARK: - Reorder Content View (Separated to fix compiler type-checking)
+struct ReorderContentView: View {
+    let reorderItems: [ReorderItem]
+    let filteredItems: [ReorderItem]
+    let organizedItems: [(String, [ReorderItem])]
+    let totalItems: Int
+    let unpurchasedItems: Int
+    let purchasedItems: Int
+    let totalQuantity: Int
+
+    @Binding var sortOption: ReorderSortOption
+    @Binding var filterOption: ReorderFilterOption
+    @Binding var showCategoryFilter: Bool
+    @Binding var showVendorFilter: Bool
+    @Binding var organizationOption: ReorderOrganizationOption
+    @Binding var displayMode: ReorderDisplayMode
+    @Binding var scannerSearchText: String
+    @FocusState.Binding var isScannerFieldFocused: Bool
+
+    let onManagementAction: (ManagementAction) -> Void
+    let onStatusChange: (String, ReorderStatus) -> Void
+    let onQuantityChange: (String, Int) -> Void
+    let onRemoveItem: (String) -> Void
+    let onBarcodeScanned: (String) -> Void
+    let onImageTap: (ReorderItem) -> Void
+
+    var body: some View {
+        GeometryReader { geometry in
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                        Section {
+                            // Content area
+                            if reorderItems.isEmpty {
+                                ReordersEmptyState()
+                                    .frame(height: geometry.size.height - 200)
+                            } else {
+                                ReorderItemsContent(
+                                    organizedItems: organizedItems,
+                                    displayMode: displayMode,
+                                    onStatusChange: onStatusChange,
+                                    onQuantityChange: onQuantityChange,
+                                    onRemoveItem: onRemoveItem,
+                                    onImageTap: onImageTap
+                                )
+                            }
+                        } header: {
+                            ReorderHeaderSection(
+                                totalItems: totalItems,
+                                unpurchasedItems: unpurchasedItems,
+                                purchasedItems: purchasedItems,
+                                totalQuantity: totalQuantity,
+                                sortOption: $sortOption,
+                                filterOption: $filterOption,
+                                showCategoryFilter: $showCategoryFilter,
+                                showVendorFilter: $showVendorFilter,
+                                organizationOption: $organizationOption,
+                                displayMode: $displayMode,
+                                onManagementAction: onManagementAction
+                            )
+                        }
+                    }
+                }
+                .coordinateSpace(name: "scroll")
+            }
+        }
+        .overlay(alignment: .bottom) {
+            // HID Scanner optimized barcode field
+            VStack(spacing: 0) {
+                HStack(spacing: 12) {
+                    // Barcode icon
+                    Image(systemName: "barcode.viewfinder")
+                        .font(.system(size: 20))
+                        .foregroundColor(.blue)
+
+                    // HID Scanner optimized text field
+                    TextField("Scan to add items...", text: $scannerSearchText)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled(true)
+                        .keyboardType(.numbersAndPunctuation)
+                        .focused($isScannerFieldFocused)
+                        .submitLabel(.done)
+                        .textContentType(.none)
+                        .onSubmit {
+                            if !scannerSearchText.isEmpty {
+                                onBarcodeScanned(scannerSearchText)
+                            }
+                        }
+                        // CRITICAL: Handle fast HID scanner input with throttling
+                        .onChange(of: scannerSearchText) { oldValue, newValue in
+                            // Use DispatchQueue to prevent multiple updates per frame
+                            DispatchQueue.main.async {
+                                // Only process if value is still current
+                                guard scannerSearchText == newValue else { return }
+                                // Additional processing can be added here if needed
+                            }
+                        }
+
+                    // Clear button
+                    if !scannerSearchText.isEmpty {
+                        Button(action: {
+                            scannerSearchText = ""
+                            isScannerFieldFocused = true
+                        }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 16))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(Color(.systemGray6))
+                .cornerRadius(10)
+
+                // Thin bottom border
+                Rectangle()
+                    .fill(Color(.separator))
+                    .frame(height: 0.5)
+            }
+            .background(Color(.systemBackground))
+        }
+    }
+}
+
+// MARK: - Reorder Header Section
+struct ReorderHeaderSection: View {
+    let totalItems: Int
+    let unpurchasedItems: Int
+    let purchasedItems: Int
+    let totalQuantity: Int
+
+    @Binding var sortOption: ReorderSortOption
+    @Binding var filterOption: ReorderFilterOption
+    @Binding var showCategoryFilter: Bool
+    @Binding var showVendorFilter: Bool
+    @Binding var organizationOption: ReorderOrganizationOption
+    @Binding var displayMode: ReorderDisplayMode
+
+    let onManagementAction: (ManagementAction) -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header with stats (will collapse on scroll)
+            ReordersScrollableHeader(
+                totalItems: totalItems,
+                unpurchasedItems: unpurchasedItems,
+                purchasedItems: purchasedItems,
+                totalQuantity: totalQuantity,
+                onManagementAction: onManagementAction
+            )
+
+            // Filter Row (stays pinned)
+            ReorderFilterRow(
+                sortOption: $sortOption,
+                filterOption: $filterOption,
+                showCategoryFilter: $showCategoryFilter,
+                showVendorFilter: $showVendorFilter,
+                organizationOption: $organizationOption,
+                displayMode: $displayMode
+            )
+        }
+        .background(Color(.systemBackground))
+    }
+}
+
+// MARK: - Old ReorderBottomSearchField removed - replaced with custom BarcodeScannerField
+
+// MARK: - Reorder Items Content (Handles Organization and Display Modes)
+struct ReorderItemsContent: View {
+    let organizedItems: [(String, [ReorderItem])]
+    let displayMode: ReorderDisplayMode
+    let onStatusChange: (String, ReorderStatus) -> Void
+    let onQuantityChange: (String, Int) -> Void
+    let onRemoveItem: (String) -> Void
+    let onImageTap: (ReorderItem) -> Void
+
+    var body: some View {
+        LazyVStack(spacing: 0) {
+            ForEach(Array(organizedItems.enumerated()), id: \.offset) { index, section in
+                let (sectionTitle, items) = section
+
+                // Section header (only show if there's a title and multiple sections)
+                if !sectionTitle.isEmpty && organizedItems.count > 1 {
+                    HStack {
+                        Text(sectionTitle)
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.primary)
+                        Spacer()
+                        Text("\(items.count) items")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(Color(.systemGray6))
+                }
+
+                // Items in this section
+                switch displayMode {
+                case .list:
+                    ForEach(items) { item in
+                        ReorderItemCard(
+                            item: item,
+                            displayMode: displayMode,
+                            onStatusChange: { newStatus in
+                                onStatusChange(item.id, newStatus)
+                            },
+                            onQuantityChange: { newQuantity in
+                                onQuantityChange(item.id, newQuantity)
+                            },
+                            onRemove: {
+                                onRemoveItem(item.id)
+                            },
+                            onImageTap: {
+                                onImageTap(item)
+                            }
+                        )
+                    }
+
+                case .photosLarge:
+                    ForEach(items) { item in
+                        ReorderPhotoCard(
+                            item: item,
+                            displayMode: displayMode,
+                            onStatusChange: { newStatus in
+                                onStatusChange(item.id, newStatus)
+                            },
+                            onQuantityChange: { newQuantity in
+                                onQuantityChange(item.id, newQuantity)
+                            },
+                            onRemove: {
+                                onRemoveItem(item.id)
+                            },
+                            onImageTap: {
+                                onImageTap(item)
+                            }
+                        )
+                    }
+
+                case .photosMedium, .photosSmall:
+                    let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: displayMode.columnsPerRow)
+                    LazyVGrid(columns: columns, spacing: 8) {
+                        ForEach(items) { item in
+                            ReorderPhotoCard(
+                                item: item,
+                                displayMode: displayMode,
+                                onStatusChange: { newStatus in
+                                    onStatusChange(item.id, newStatus)
+                                },
+                                onQuantityChange: { newQuantity in
+                                    onQuantityChange(item.id, newQuantity)
+                                },
+                                onRemove: {
+                                    onRemoveItem(item.id)
+                                },
+                                onImageTap: {
+                                    onImageTap(item)
+                                }
+                            )
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                }
+            }
+        }
     }
 }
 

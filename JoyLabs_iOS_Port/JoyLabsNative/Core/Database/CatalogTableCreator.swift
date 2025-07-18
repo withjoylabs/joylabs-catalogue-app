@@ -128,7 +128,7 @@ class CatalogTableCreator {
             t.column(CatalogTableDefinitions.teamCaseCost)
             t.column(CatalogTableDefinitions.teamCaseQuantity)
             t.column(CatalogTableDefinitions.teamVendor)
-            t.column(CatalogTableDefinitions.teamDiscontinued)
+            t.column(CatalogTableDefinitions.teamDiscontinued, defaultValue: false)
             t.column(CatalogTableDefinitions.teamNotes)
             t.column(CatalogTableDefinitions.teamCreatedAt)
             t.column(CatalogTableDefinitions.teamUpdatedAt)

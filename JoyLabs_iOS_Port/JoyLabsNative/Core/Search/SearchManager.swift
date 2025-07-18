@@ -405,11 +405,14 @@ class SearchManager: ObservableObject {
 
         // Count case UPC results (if numeric)
         if searchTerm.allSatisfy(\.isNumber) && filters.barcode {
+            let items = CatalogTableDefinitions.catalogItems.alias("ci")
+            let teamData = CatalogTableDefinitions.teamData.alias("td")
+
             let caseUpcCount = try db.scalar(
-                CatalogTableDefinitions.catalogItems
-                    .join(CatalogTableDefinitions.teamData, on: CatalogTableDefinitions.itemId == CatalogTableDefinitions.teamDataItemId)
-                    .filter(CatalogTableDefinitions.teamCaseUpc == searchTerm &&
-                           CatalogTableDefinitions.itemIsDeleted == false)
+                items
+                    .join(teamData, on: items[CatalogTableDefinitions.itemId] == teamData[CatalogTableDefinitions.teamDataItemId])
+                    .filter(teamData[CatalogTableDefinitions.teamCaseUpc] == searchTerm &&
+                           items[CatalogTableDefinitions.itemIsDeleted] == false)
                     .count
             )
             totalCount += caseUpcCount

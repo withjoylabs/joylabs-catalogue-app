@@ -11,6 +11,7 @@ struct ScanView: View {
         return SearchManager(databaseManager: databaseManager)
     }()
     @FocusState private var isSearchFieldFocused: Bool
+    @State private var searchDebounceTimer: Timer?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -58,12 +59,32 @@ struct ScanView: View {
                 }
             }
         }
-        .onChange(of: searchText) {
+        .onChange(of: searchText) { oldValue, newValue in
+            // CRITICAL FIX: Handle extremely fast HID scanner input
+            // Cancel previous timer
+            searchDebounceTimer?.invalidate()
+
             // Only trigger search if field is focused and has content
-            // This prevents onChange from firing during focus changes
-            if isSearchFieldFocused && !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
-                searchManager.performSearchWithDebounce(searchTerm: searchText, filters: filters)
+            guard isSearchFieldFocused && !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                return
+            }
+
+            // Prevent multiple rapid onChange calls by checking if value actually changed
+            guard oldValue != newValue else { return }
+
+            // CRITICAL: Use DispatchQueue to prevent multiple updates per frame from HID scanners
+            DispatchQueue.main.async {
+                // Double-check the value hasn't changed again during the async dispatch
+                guard searchText == newValue else { return }
+
+                // Debounce with timer to prevent multiple rapid calls
+                searchDebounceTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: false) { _ in
+                    // Triple-check the value is still current when timer fires
+                    guard searchText == newValue else { return }
+
+                    let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
+                    searchManager.performSearchWithDebounce(searchTerm: newValue, filters: filters)
+                }
             }
         }
     }

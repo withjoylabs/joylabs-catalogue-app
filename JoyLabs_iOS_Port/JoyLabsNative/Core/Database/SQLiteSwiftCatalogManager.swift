@@ -242,6 +242,7 @@ class SQLiteSwiftCatalogManager {
             try db.run("DROP TABLE IF EXISTS taxes")
             try db.run("DROP TABLE IF EXISTS discounts")
             try db.run("DROP TABLE IF EXISTS images")
+            try db.run("DROP TABLE IF EXISTS team_data")
             try db.run("DROP TABLE IF EXISTS sync_status")
             try db.run("DROP TABLE IF EXISTS image_url_mappings")
 
