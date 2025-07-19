@@ -30,40 +30,40 @@ struct EmbeddedQuantitySelectionModal: View {
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 24) {
+            VStack(spacing: 20) {
                 // Item Information
                 VStack(spacing: 16) {
-                    // Item image placeholder
+                    // Item image placeholder - BIGGER THUMBNAIL
                     RoundedRectangle(cornerRadius: 12)
                         .fill(Color(.systemGray5))
-                        .frame(width: 80, height: 80)
+                        .frame(width: 120, height: 120)
                         .overlay(
                             Text(String(item.name?.prefix(2) ?? "??").uppercased())
-                                .font(.title2)
+                                .font(.title)
                                 .fontWeight(.semibold)
                                 .foregroundColor(.secondary)
                         )
-                    
+
                     // Item details
-                    VStack(spacing: 8) {
+                    VStack(spacing: 6) {
                         Text(item.name ?? "Unknown Item")
                             .font(.headline)
                             .fontWeight(.semibold)
                             .multilineTextAlignment(.center)
                             .lineLimit(2)
-                        
+
                         if let category = item.categoryName {
                             Text(category)
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }
-                        
+
                         if let sku = item.sku, !sku.isEmpty {
                             Text("SKU: \(sku)")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
-                        
+
                         if let price = item.price {
                             Text("$\(price, specifier: "%.2f")")
                                 .font(.subheadline)
@@ -72,8 +72,8 @@ struct EmbeddedQuantitySelectionModal: View {
                         }
                     }
                 }
-                .padding(.top, 20)
-                
+                .padding(.top, 16)
+
                 // Existing item notification
                 if isExistingItem {
                     HStack {
@@ -88,38 +88,27 @@ struct EmbeddedQuantitySelectionModal: View {
                     .background(Color.blue.opacity(0.1))
                     .cornerRadius(8)
                 }
-                
-                // Quantity Section
+
+                // Quantity Section with NUMPAD
                 VStack(spacing: 16) {
                     Text("Select Quantity")
                         .font(.title3)
                         .fontWeight(.semibold)
-                    
+
                     // Quantity display
                     Text("\(currentQuantity)")
-                        .font(.system(size: 48, weight: .bold, design: .rounded))
+                        .font(.system(size: 36, weight: .bold, design: .rounded))
                         .foregroundColor(.primary)
-                        .frame(minWidth: 100)
-                    
-                    // Quantity controls
-                    HStack(spacing: 20) {
-                        Button(action: { 
-                            if currentQuantity > 1 { currentQuantity -= 1 }
-                        }) {
-                            Image(systemName: "minus.circle.fill")
-                                .font(.title2)
-                                .foregroundColor(currentQuantity > 1 ? .blue : .gray)
-                        }
-                        .disabled(currentQuantity <= 1)
-                        
-                        Button(action: { currentQuantity += 1 }) {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.title2)
-                                .foregroundColor(.blue)
-                        }
-                    }
+                        .frame(minWidth: 80)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(8)
+
+                    // NUMPAD - AS REQUESTED
+                    QuantityNumpad(currentQuantity: $currentQuantity)
                 }
-                
+
                 Spacer()
             }
             .padding(.horizontal, 20)
@@ -131,7 +120,7 @@ struct EmbeddedQuantitySelectionModal: View {
                         onCancel()
                     }
                 }
-                
+
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Add") {
                         onSubmit(currentQuantity)
@@ -140,7 +129,7 @@ struct EmbeddedQuantitySelectionModal: View {
                 }
             }
         }
-        .presentationDetents([.large])
+        .presentationDetents([.fraction(0.6)]) // 60% OF SCREEN HEIGHT
         .presentationDragIndicator(.visible)
     }
 }
