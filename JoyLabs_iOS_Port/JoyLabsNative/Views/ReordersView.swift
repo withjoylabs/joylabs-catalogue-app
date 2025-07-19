@@ -198,6 +198,12 @@ struct ReordersView: View {
     @State private var barcodeQueue: [String] = []
     @State private var isProcessingBarcode = false
 
+    // Quantity selection modal state
+    @State private var showingQuantityModal = false
+    @State private var selectedItemForQuantity: SearchResultItem?
+    @State private var modalQuantity: Int = 1
+    @State private var isExistingItem = false
+
     // Search manager (same as scan page)
     @StateObject private var searchManager: SearchManager = {
         let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
@@ -324,7 +330,6 @@ struct ReordersView: View {
                 loadReorderData()
                 // Auto-focus removed - user can manually tap to focus
             }
-
             // TODO: Add ImageEnlargementView when file is properly included in Xcode project
             // .sheet(isPresented: $showingImageEnlargement) {
             //     if let item = selectedItemForEnlargement {
@@ -381,6 +386,19 @@ struct ReordersView: View {
                             }
                         }
                     }
+            }
+        }
+        // Quantity Selection Modal (EMBEDDED VERSION)
+        .sheet(isPresented: $showingQuantityModal) {
+            if let item = selectedItemForQuantity {
+                EmbeddedQuantitySelectionModal(
+                    item: item,
+                    currentQuantity: modalQuantity,
+                    isExistingItem: isExistingItem,
+                    isPresented: $showingQuantityModal,
+                    onSubmit: handleQuantityModalSubmit,
+                    onCancel: handleQuantityModalCancel
+                )
             }
         }
     }
@@ -545,21 +563,93 @@ struct ReordersView: View {
             // Process results immediately (same performance as scan page)
             await MainActor.run {
                 if let foundItem = results.first {
-                    // For now, just add with quantity 1 - we'll implement modal later
-                    addItemToReorderList(foundItem)
+                    // NEW LOGIC: Show quantity modal instead of directly adding
+                    showQuantityModalForItem(foundItem)
                 } else {
                     print("❌ No item found for barcode: \(barcodeToProcess)")
-                }
+                    // Mark processing complete for failed searches
+                    isProcessingBarcode = false
 
-                // Mark processing complete
-                isProcessingBarcode = false
-
-                // Process next barcode in queue if any
-                if !barcodeQueue.isEmpty {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                        processNextBarcodeInQueue()
+                    // Process next barcode in queue if any
+                    if !barcodeQueue.isEmpty {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                            processNextBarcodeInQueue()
+                        }
                     }
                 }
+            }
+        }
+    }
+
+    // MARK: - Quantity Modal Logic
+
+    private func showQuantityModalForItem(_ foundItem: SearchResultItem) {
+        print("📱 Showing quantity modal for item: \(foundItem.name ?? "Unknown Item")")
+
+        // Check if item already exists in reorder list
+        if let existingItem = reorderItems.first(where: { $0.itemId == foundItem.id }) {
+            // Item exists - show current quantity and mark as existing
+            modalQuantity = existingItem.quantity
+            isExistingItem = true
+            print("📱 Item already in list with quantity: \(existingItem.quantity)")
+        } else {
+            // New item - default quantity 1
+            modalQuantity = 1
+            isExistingItem = false
+            print("📱 New item - default quantity: 1")
+        }
+
+        selectedItemForQuantity = foundItem
+        showingQuantityModal = true
+
+        // Note: isProcessingBarcode remains true until modal is dismissed
+        // This prevents new barcodes from being processed while modal is open
+    }
+
+    private func handleQuantityModalSubmit(_ quantity: Int) {
+        guard let item = selectedItemForQuantity else { return }
+
+        print("📱 Modal submitted with quantity: \(quantity)")
+
+        if quantity == 0 {
+            // Zero quantity = delete item from list
+            removeItemFromReorderList(item.id)
+        } else {
+            // Add or update item with specified quantity
+            addOrUpdateItemInReorderList(item, quantity: quantity)
+        }
+
+        // Clear modal state
+        selectedItemForQuantity = nil
+        showingQuantityModal = false
+        isExistingItem = false
+
+        // Mark processing complete
+        isProcessingBarcode = false
+
+        // Process next barcode in queue if any
+        if !barcodeQueue.isEmpty {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                processNextBarcodeInQueue()
+            }
+        }
+    }
+
+    private func handleQuantityModalCancel() {
+        print("📱 Modal cancelled")
+
+        // Clear modal state
+        selectedItemForQuantity = nil
+        showingQuantityModal = false
+        isExistingItem = false
+
+        // Mark processing complete
+        isProcessingBarcode = false
+
+        // Process next barcode in queue if any
+        if !barcodeQueue.isEmpty {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                processNextBarcodeInQueue()
             }
         }
     }
@@ -567,7 +657,32 @@ struct ReordersView: View {
     private func addItemToReorderList(_ foundItem: SearchResultItem) {
         print("🔍 Attempting to add item to reorder list: \(foundItem.name ?? "Unknown Item") (ID: \(foundItem.id))")
 
-        // Simple implementation: just add item with quantity 1
+        // CRITICAL FIX: Implement proper reorder logic as specified by user
+
+        // 1. Check if item already exists in reorder list (any status)
+        if let existingIndex = reorderItems.firstIndex(where: { $0.itemId == foundItem.id }) {
+            let existingItem = reorderItems[existingIndex]
+
+            // 2. If item is at the top (index 0), increment quantity
+            if existingIndex == 0 {
+                reorderItems[0].quantity += 1
+                reorderItems[0].addedDate = Date() // Update timestamp
+                saveReorderData()
+                print("🔄 Item at top - incremented quantity to \(reorderItems[0].quantity): \(foundItem.name ?? "Unknown Item")")
+                return
+            }
+
+            // 3. If item exists but not at top, move to top and update timestamp
+            reorderItems.remove(at: existingIndex)
+            var movedItem = existingItem
+            movedItem.addedDate = Date() // Update timestamp
+            reorderItems.insert(movedItem, at: 0)
+            saveReorderData()
+            print("🔄 Moved existing item to top: \(foundItem.name ?? "Unknown Item")")
+            return
+        }
+
+        // 4. Item doesn't exist - create new item and add to top
         let newItem = ReorderItem(
             id: UUID().uuidString,
             itemId: foundItem.id,
@@ -590,13 +705,67 @@ struct ReordersView: View {
             updatedItem.imageUrl = firstImage.imageData?.url
         }
 
-        // Add to reorder list
-        reorderItems.append(updatedItem)
+        // Add to reorder list at top for visibility
+        reorderItems.insert(updatedItem, at: 0)
 
         // Save to persistence immediately
         saveReorderData()
 
         print("✅ Added new item to reorder list: \(foundItem.name ?? "Unknown Item")")
+    }
+
+    // MARK: - Simplified Item Management (No Complex Reorder Logic)
+
+    private func addOrUpdateItemInReorderList(_ foundItem: SearchResultItem, quantity: Int) {
+        print("🔍 Adding/updating item in reorder list: \(foundItem.name ?? "Unknown Item") with quantity: \(quantity)")
+
+        // Check if item already exists
+        if let existingIndex = reorderItems.firstIndex(where: { $0.itemId == foundItem.id }) {
+            // Update existing item with new quantity (replace, don't increment)
+            reorderItems[existingIndex].quantity = quantity
+            reorderItems[existingIndex].addedDate = Date() // Update timestamp
+            saveReorderData()
+            print("✅ Updated existing item quantity to \(quantity): \(foundItem.name ?? "Unknown Item")")
+        } else {
+            // Create new item
+            let newItem = ReorderItem(
+                id: UUID().uuidString,
+                itemId: foundItem.id,
+                name: foundItem.name ?? "Unknown Item",
+                sku: foundItem.sku,
+                barcode: foundItem.barcode,
+                quantity: quantity,
+                status: .added
+            )
+
+            // Copy additional data from search result
+            var updatedItem = newItem
+            updatedItem.categoryName = foundItem.categoryName
+            updatedItem.price = foundItem.price
+            updatedItem.hasTax = foundItem.hasTax
+
+            // Extract image data from SearchResultItem.images array
+            if let images = foundItem.images, let firstImage = images.first {
+                updatedItem.imageId = firstImage.id
+                updatedItem.imageUrl = firstImage.imageData?.url
+            }
+
+            reorderItems.append(updatedItem)
+            saveReorderData()
+            print("✅ Added new item to reorder list: \(foundItem.name ?? "Unknown Item") with quantity: \(quantity)")
+        }
+    }
+
+    private func removeItemFromReorderList(_ itemId: String) {
+        print("🗑️ Removing item from reorder list: \(itemId)")
+
+        if let index = reorderItems.firstIndex(where: { $0.itemId == itemId }) {
+            let removedItem = reorderItems.remove(at: index)
+            saveReorderData()
+            print("✅ Removed item: \(removedItem.name)")
+        } else {
+            print("❌ Item not found in reorder list: \(itemId)")
+        }
     }
 }
 
@@ -609,6 +778,7 @@ struct ReorderContentView: View {
     let unpurchasedItems: Int
     let purchasedItems: Int
     let totalQuantity: Int
+
     @Binding var sortOption: ReorderSortOption
     @Binding var filterOption: ReorderFilterOption
     @Binding var showCategoryFilter: Bool
@@ -617,6 +787,7 @@ struct ReorderContentView: View {
     @Binding var displayMode: ReorderDisplayMode
     @Binding var scannerSearchText: String
     @FocusState.Binding var isScannerFieldFocused: Bool
+
     let onManagementAction: (ManagementAction) -> Void
     let onStatusChange: (String, ReorderStatus) -> Void
     let onQuantityChange: (String, Int) -> Void
@@ -630,13 +801,7 @@ struct ReorderContentView: View {
                 ScrollView {
                     LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
                         Section {
-                            // Scanner field
-                            ReorderScannerField(
-                                scannerSearchText: $scannerSearchText,
-                                isScannerFieldFocused: $isScannerFieldFocused,
-                                onBarcodeScanned: onBarcodeScanned
-                            )
-
+                            // Content area
                             if reorderItems.isEmpty {
                                 ReordersEmptyState()
                                     .frame(height: geometry.size.height - 200)
@@ -670,6 +835,7 @@ struct ReorderContentView: View {
                 .coordinateSpace(name: "scroll")
             }
         }
+        // TEXT FIELD REMOVED: Global HID scanner handles all barcode input without focus requirement
     }
 }
 
@@ -679,16 +845,19 @@ struct ReorderHeaderSection: View {
     let unpurchasedItems: Int
     let purchasedItems: Int
     let totalQuantity: Int
+
     @Binding var sortOption: ReorderSortOption
     @Binding var filterOption: ReorderFilterOption
     @Binding var showCategoryFilter: Bool
     @Binding var showVendorFilter: Bool
     @Binding var organizationOption: ReorderOrganizationOption
     @Binding var displayMode: ReorderDisplayMode
+
     let onManagementAction: (ManagementAction) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
+            // Header with stats (will collapse on scroll)
             ReordersScrollableHeader(
                 totalItems: totalItems,
                 unpurchasedItems: unpurchasedItems,
@@ -697,6 +866,7 @@ struct ReorderHeaderSection: View {
                 onManagementAction: onManagementAction
             )
 
+            // Filter Row (stays pinned)
             ReorderFilterRow(
                 sortOption: $sortOption,
                 filterOption: $filterOption,
@@ -710,7 +880,9 @@ struct ReorderHeaderSection: View {
     }
 }
 
-// MARK: - Reorder Items Content
+// MARK: - Old ReorderBottomSearchField removed - replaced with custom BarcodeScannerField
+
+// MARK: - Reorder Items Content (Handles Organization and Display Modes)
 struct ReorderItemsContent: View {
     let organizedItems: [(String, [ReorderItem])]
     let displayMode: ReorderDisplayMode
@@ -731,9 +903,7 @@ struct ReorderItemsContent: View {
                             .font(.headline)
                             .fontWeight(.semibold)
                             .foregroundColor(.primary)
-
                         Spacer()
-
                         Text("\(items.count) items")
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -743,7 +913,7 @@ struct ReorderItemsContent: View {
                     .background(Color(.systemGray6))
                 }
 
-                // Items for this section
+                // Items in this section
                 switch displayMode {
                 case .list:
                     ForEach(items) { item in
@@ -787,7 +957,6 @@ struct ReorderItemsContent: View {
 
                 case .photosMedium, .photosSmall:
                     let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: displayMode.columnsPerRow)
-
                     LazyVGrid(columns: columns, spacing: 8) {
                         ForEach(items) { item in
                             ReorderPhotoCard(

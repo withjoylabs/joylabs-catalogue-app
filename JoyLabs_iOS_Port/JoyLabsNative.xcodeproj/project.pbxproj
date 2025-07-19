@@ -7,28 +7,23 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		64A3A0682949120BF09BEB9B /* QuantityNumpad.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFCBD974A6C8507B4480E678 /* QuantityNumpad.swift */; };
 		A1B2C3D4E5F6789012345678 /* JoyLabsNativeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345679 /* JoyLabsNativeApp.swift */; };
 		A1B2C3D4E5F6789012345680 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345681 /* ContentView.swift */; };
 		A1B2C3D4E5F6789012345682 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345683 /* Assets.xcassets */; };
 		A1B2C3D4E5F6789012345684 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345685 /* Preview Assets.xcassets */; };
-								A1B2C3D4E5F6789012345716 /* SQLite in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4E5F6789012345717 /* SQLite */; };
-								A1B2C3D4E5F6789012345801 /* SQLiteSwiftCatalogManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345802 /* SQLiteSwiftCatalogManager.swift */; };
-		A1B2C3D4E5F6789012345901 /* CatalogTableDefinitions.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345902 /* CatalogTableDefinitions.swift */; };
-		A1B2C3D4E5F6789012345903 /* CatalogTableCreator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345904 /* CatalogTableCreator.swift */; };
-		A1B2C3D4E5F6789012345905 /* CatalogObjectInserters.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345906 /* CatalogObjectInserters.swift */; };
-
+		A1B2C3D4E5F6789012345716 /* SQLite in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4E5F6789012345717 /* SQLite */; };
+		A1B2C3D4E5F6789012345801 /* SQLiteSwiftCatalogManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345802 /* SQLiteSwiftCatalogManager.swift */; };
 		A1B2C3D4E5F6789012345807 /* SQLiteSwiftSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345808 /* SQLiteSwiftSyncCoordinator.swift */; };
 		A1B2C3D4E5F6789012345809 /* SQLiteSwiftCatalogSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345810 /* SQLiteSwiftCatalogSyncService.swift */; };
 		A1B2C3D4E5F6789012345811 /* SquareAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345812 /* SquareAPIService.swift */; };
 		A1B2C3D4E5F6789012345813 /* SquareOAuthCallbackHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345814 /* SquareOAuthCallbackHandler.swift */; };
 		A1B2C3D4E5F6789012345815 /* SquareOAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345816 /* SquareOAuthService.swift */; };
 		A1B2C3D4E5F6789012345817 /* SquareAPIServiceFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345818 /* SquareAPIServiceFactory.swift */; };
-
 		A1B2C3D4E5F6789012345821 /* SquareConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345822 /* SquareConfiguration.swift */; };
 		A1B2C3D4E5F6789012345823 /* SquareErrorRecoveryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345824 /* SquareErrorRecoveryManager.swift */; };
 		A1B2C3D4E5F6789012345825 /* SquareHTTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345826 /* SquareHTTPClient.swift */; };
 		A1B2C3D4E5F6789012345827 /* PKCEGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345828 /* PKCEGenerator.swift */; };
-
 		A1B2C3D4E5F6789012345833 /* DatabaseModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345834 /* DatabaseModels.swift */; };
 		A1B2C3D4E5F6789012345835 /* DataValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345836 /* DataValidation.swift */; };
 		A1B2C3D4E5F6789012345837 /* CatalogManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345838 /* CatalogManagementView.swift */; };
@@ -49,59 +44,62 @@
 		A1B2C3D4E5F6789012345867 /* LabelModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345868 /* LabelModels.swift */; };
 		A1B2C3D4E5F6789012345869 /* LabelComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345870 /* LabelComponents.swift */; };
 		A1B2C3D4E5F6789012345871 /* ReorderComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345872 /* ReorderComponents.swift */; };
-																																								/* End PBXBuildFile section */
+		A1B2C3D4E5F6789012345901 /* CatalogTableDefinitions.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345902 /* CatalogTableDefinitions.swift */; };
+		A1B2C3D4E5F6789012345903 /* CatalogTableCreator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345904 /* CatalogTableCreator.swift */; };
+		A1B2C3D4E5F6789012345905 /* CatalogObjectInserters.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345906 /* CatalogObjectInserters.swift */; };
+		E3640B5A352238E3BBCBA54C /* QuantitySelectionModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49F205ABCD2886EE193196AE /* QuantitySelectionModal.swift */; };
+/* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		49F205ABCD2886EE193196AE /* QuantitySelectionModal.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QuantitySelectionModal.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345679 /* JoyLabsNativeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNativeApp.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345681 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345683 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345685 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345686 /* JoyLabsNative.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = JoyLabsNative.app; sourceTree = BUILT_PRODUCTS_DIR; };
-														A1B2C3D4E5F6789012345802 /* SQLiteSwiftCatalogManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Database/SQLiteSwiftCatalogManager.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345902 /* CatalogTableDefinitions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Database/CatalogTableDefinitions.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345904 /* CatalogTableCreator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Database/CatalogTableCreator.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345906 /* CatalogObjectInserters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Database/CatalogObjectInserters.swift"; sourceTree = "<group>"; };
-
-		A1B2C3D4E5F6789012345808 /* SQLiteSwiftSyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Square/SQLiteSwiftSyncCoordinator.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345810 /* SQLiteSwiftCatalogSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Sync/SQLiteSwiftCatalogSyncService.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345812 /* SquareAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Square/SquareAPIService.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345814 /* SquareOAuthCallbackHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Square/SquareOAuthCallbackHandler.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345816 /* SquareOAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Square/SquareOAuthService.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345818 /* SquareAPIServiceFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Square/SquareAPIServiceFactory.swift"; sourceTree = "<group>"; };
-
-		A1B2C3D4E5F6789012345822 /* SquareConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Square/SquareConfiguration.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345824 /* SquareErrorRecoveryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Square/SquareErrorRecoveryManager.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345826 /* SquareHTTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Square/SquareHTTPClient.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345828 /* PKCEGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Square/PKCEGenerator.swift"; sourceTree = "<group>"; };
-
-		A1B2C3D4E5F6789012345834 /* DatabaseModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Database/DatabaseModels.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345836 /* DataValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Database/DataValidation.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345838 /* CatalogManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/Catalog/CatalogManagementView.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345840 /* SquareLocationsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Square/SquareLocationsService.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345842 /* CatalogStatsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Database/CatalogStatsService.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345844 /* ImageCacheService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Images/ImageCacheService.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345846 /* ImageURLManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Images/ImageURLManager.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345848 /* CachedImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Views/Components/CachedImageView.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345849A /* CatalogModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Models/CatalogModels.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345852 /* SearchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Core/Search/SearchManager.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345854 /* ScanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Views/ScanView.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345856 /* ReordersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Views/ReordersView.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345858 /* LabelsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Views/LabelsView.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345860 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Views/ProfileView.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345862 /* HeaderComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Components/HeaderComponents.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345864 /* SearchComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Components/SearchComponents.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345866 /* StateViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Components/StateViews.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345868 /* LabelModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Models/LabelModels.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345870 /* LabelComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Components/LabelComponents.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345872 /* ReorderComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JoyLabsNative/Components/ReorderComponents.swift"; sourceTree = "<group>"; };
-																																								/* End PBXFileReference section */
+		A1B2C3D4E5F6789012345802 /* SQLiteSwiftCatalogManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Database/SQLiteSwiftCatalogManager.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345808 /* SQLiteSwiftSyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Square/SQLiteSwiftSyncCoordinator.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345810 /* SQLiteSwiftCatalogSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Sync/SQLiteSwiftCatalogSyncService.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345812 /* SquareAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Square/SquareAPIService.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345814 /* SquareOAuthCallbackHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Square/SquareOAuthCallbackHandler.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345816 /* SquareOAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Square/SquareOAuthService.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345818 /* SquareAPIServiceFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Square/SquareAPIServiceFactory.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345822 /* SquareConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Square/SquareConfiguration.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345824 /* SquareErrorRecoveryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Square/SquareErrorRecoveryManager.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345826 /* SquareHTTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Square/SquareHTTPClient.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345828 /* PKCEGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Square/PKCEGenerator.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345834 /* DatabaseModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Database/DatabaseModels.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345836 /* DataValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Database/DataValidation.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345838 /* CatalogManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/Catalog/CatalogManagementView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345840 /* SquareLocationsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Square/SquareLocationsService.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345842 /* CatalogStatsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Database/CatalogStatsService.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345844 /* ImageCacheService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Images/ImageCacheService.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345846 /* ImageURLManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Images/ImageURLManager.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345848 /* CachedImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Views/Components/CachedImageView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345849A /* CatalogModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Models/CatalogModels.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345852 /* SearchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Search/SearchManager.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345854 /* ScanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Views/ScanView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345856 /* ReordersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Views/ReordersView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345858 /* LabelsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Views/LabelsView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345860 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Views/ProfileView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345862 /* HeaderComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Components/HeaderComponents.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345864 /* SearchComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Components/SearchComponents.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345866 /* StateViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Components/StateViews.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345868 /* LabelModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Models/LabelModels.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345870 /* LabelComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Components/LabelComponents.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345872 /* ReorderComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Components/ReorderComponents.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345902 /* CatalogTableDefinitions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Database/CatalogTableDefinitions.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345904 /* CatalogTableCreator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Database/CatalogTableCreator.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345906 /* CatalogObjectInserters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Database/CatalogObjectInserters.swift; sourceTree = "<group>"; };
+		DFCBD974A6C8507B4480E678 /* QuantityNumpad.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QuantityNumpad.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		A1B2C3D4E5F6789012345687 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A1B2C3D4E5F6789012345716 /* SQLite in Frameworks */
+				A1B2C3D4E5F6789012345716 /* SQLite in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,7 +110,7 @@
 			isa = PBXGroup;
 			children = (
 				A1B2C3D4E5F6789012345689 /* JoyLabsNative */,
-				A1B2C3D4E5F6789012345690 /* Products */
+				A1B2C3D4E5F6789012345690 /* Products */,
 			);
 			sourceTree = "<group>";
 		};
@@ -124,7 +122,9 @@
 				A1B2C3D4E5F6789012345838 /* CatalogManagementView.swift */,
 				A1B2C3D4E5F6789012345849A /* CatalogModels.swift */,
 				A1B2C3D4E5F6789012345683 /* Assets.xcassets */,
-				A1B2C3D4E5F6789012345691 /* Preview Content */
+				A1B2C3D4E5F6789012345691 /* Preview Content */,
+				49F205ABCD2886EE193196AE /* QuantitySelectionModal.swift */,
+				DFCBD974A6C8507B4480E678 /* QuantityNumpad.swift */,
 			);
 			path = JoyLabsNative;
 			sourceTree = "<group>";
@@ -132,7 +132,7 @@
 		A1B2C3D4E5F6789012345690 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				A1B2C3D4E5F6789012345686 /* JoyLabsNative.app */
+				A1B2C3D4E5F6789012345686 /* JoyLabsNative.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -140,7 +140,7 @@
 		A1B2C3D4E5F6789012345691 /* Preview Content */ = {
 			isa = PBXGroup;
 			children = (
-				A1B2C3D4E5F6789012345685 /* Preview Assets.xcassets */
+				A1B2C3D4E5F6789012345685 /* Preview Assets.xcassets */,
 			);
 			path = "Preview Content";
 			sourceTree = "<group>";
@@ -154,7 +154,7 @@
 			buildPhases = (
 				A1B2C3D4E5F6789012345694 /* Sources */,
 				A1B2C3D4E5F6789012345687 /* Frameworks */,
-				A1B2C3D4E5F6789012345695 /* Resources */
+				A1B2C3D4E5F6789012345695 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -162,7 +162,7 @@
 			);
 			name = JoyLabsNative;
 			packageProductDependencies = (
-				A1B2C3D4E5F6789012345717 /* SQLite */
+				A1B2C3D4E5F6789012345717 /* SQLite */,
 			);
 			productName = JoyLabsNative;
 			productReference = A1B2C3D4E5F6789012345686 /* JoyLabsNative.app */;
@@ -189,17 +189,17 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
-				Base
+				Base,
 			);
 			mainGroup = A1B2C3D4E5F6789012345688;
 			packageReferences = (
-				A1B2C3D4E5F6789012345718 /* XCRemoteSwiftPackageReference "SQLite.swift" */
+				A1B2C3D4E5F6789012345718 /* XCRemoteSwiftPackageReference "SQLite.swift" */,
 			);
 			productRefGroup = A1B2C3D4E5F6789012345690 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				A1B2C3D4E5F6789012345692 /* JoyLabsNative */
+				A1B2C3D4E5F6789012345692 /* JoyLabsNative */,
 			);
 		};
 /* End PBXProject section */
@@ -210,7 +210,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A1B2C3D4E5F6789012345684 /* Preview Assets.xcassets in Resources */,
-				A1B2C3D4E5F6789012345682 /* Assets.xcassets in Resources */
+				A1B2C3D4E5F6789012345682 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -227,19 +227,16 @@
 				A1B2C3D4E5F6789012345901 /* CatalogTableDefinitions.swift in Sources */,
 				A1B2C3D4E5F6789012345903 /* CatalogTableCreator.swift in Sources */,
 				A1B2C3D4E5F6789012345905 /* CatalogObjectInserters.swift in Sources */,
-
 				A1B2C3D4E5F6789012345807 /* SQLiteSwiftSyncCoordinator.swift in Sources */,
 				A1B2C3D4E5F6789012345809 /* SQLiteSwiftCatalogSyncService.swift in Sources */,
 				A1B2C3D4E5F6789012345811 /* SquareAPIService.swift in Sources */,
 				A1B2C3D4E5F6789012345813 /* SquareOAuthCallbackHandler.swift in Sources */,
 				A1B2C3D4E5F6789012345815 /* SquareOAuthService.swift in Sources */,
 				A1B2C3D4E5F6789012345817 /* SquareAPIServiceFactory.swift in Sources */,
-
 				A1B2C3D4E5F6789012345821 /* SquareConfiguration.swift in Sources */,
 				A1B2C3D4E5F6789012345823 /* SquareErrorRecoveryManager.swift in Sources */,
 				A1B2C3D4E5F6789012345825 /* SquareHTTPClient.swift in Sources */,
 				A1B2C3D4E5F6789012345827 /* PKCEGenerator.swift in Sources */,
-
 				A1B2C3D4E5F6789012345833 /* DatabaseModels.swift in Sources */,
 				A1B2C3D4E5F6789012345835 /* DataValidation.swift in Sources */,
 				A1B2C3D4E5F6789012345837 /* CatalogManagementView.swift in Sources */,
@@ -259,8 +256,10 @@
 				A1B2C3D4E5F6789012345865 /* StateViews.swift in Sources */,
 				A1B2C3D4E5F6789012345867 /* LabelModels.swift in Sources */,
 				A1B2C3D4E5F6789012345869 /* LabelComponents.swift in Sources */,
-				A1B2C3D4E5F6789012345871 /* ReorderComponents.swift in Sources */
-				);
+				A1B2C3D4E5F6789012345871 /* ReorderComponents.swift in Sources */,
+				E3640B5A352238E3BBCBA54C /* QuantitySelectionModal.swift in Sources */,
+				64A3A0682949120BF09BEB9B /* QuantityNumpad.swift in Sources */,
+			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
@@ -310,7 +309,7 @@
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"DEBUG=1",
-					"$(inherited)"
+					"$(inherited)",
 				);
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
@@ -406,7 +405,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
-					"@executable_path/Frameworks"
+					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.joylabs.native;
@@ -441,7 +440,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
-					"@executable_path/Frameworks"
+					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.joylabs.native;
@@ -462,7 +461,7 @@
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A1B2C3D4E5F6789012345700 /* Debug */,
-				A1B2C3D4E5F6789012345701 /* Release */
+				A1B2C3D4E5F6789012345701 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -471,7 +470,7 @@
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A1B2C3D4E5F6789012345698 /* Debug */,
-				A1B2C3D4E5F6789012345699 /* Release */
+				A1B2C3D4E5F6789012345699 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
