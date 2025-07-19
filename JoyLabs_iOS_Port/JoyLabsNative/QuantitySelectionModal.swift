@@ -31,58 +31,56 @@ struct EmbeddedQuantitySelectionModal: View {
     }
     
     var body: some View {
-        ZStack {
-            // Background overlay
-            Color.black.opacity(0.4)
-                .ignoresSafeArea()
-                .onTapGesture {
-                    dismissModal()
+        VStack(spacing: 20) {
+            // Drag indicator
+            RoundedRectangle(cornerRadius: 2.5)
+                .fill(Color(.systemGray3))
+                .frame(width: 40, height: 5)
+                .padding(.top, 12)
+
+            // Simple test content
+            VStack(spacing: 16) {
+                Text("Quantity Selection")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+
+                Text(item.name ?? "Unknown Item")
+                    .font(.headline)
+
+                if let category = item.categoryName {
+                    Text(category)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
                 }
-            
-            // Modal content
-            VStack(spacing: 0) {
-                Spacer()
-                
-                // Main modal container
-                VStack(spacing: 20) {
-                    // Drag indicator
-                    RoundedRectangle(cornerRadius: 2.5)
-                        .fill(Color(.systemGray3))
-                        .frame(width: 40, height: 5)
-                        .padding(.top, 12)
-                    
-                    // Item image and details
-                    itemDetailsSection
-                    
-                    // Existing item notification
-                    if isExistingItem {
-                        existingItemNotification
+
+                // Simple quantity display
+                HStack {
+                    Text("Quantity:")
+                    Text("\(currentQuantity)")
+                        .font(.title)
+                        .fontWeight(.bold)
+                }
+
+                // Simple buttons
+                HStack(spacing: 20) {
+                    Button("Cancel") {
+                        onCancel()
                     }
-                    
-                    // Quantity input section
-                    quantityInputSection
-                    
-                    // Action buttons
-                    actionButtonsSection
-                    
-                    // Bottom safe area padding
-                    Rectangle()
-                        .fill(Color.clear)
-                        .frame(height: 20)
+                    .buttonStyle(.bordered)
+
+                    Button("Add") {
+                        onSubmit(currentQuantity)
+                    }
+                    .buttonStyle(.borderedProminent)
                 }
-                .background(Color(.systemBackground))
-                .cornerRadius(16, corners: [.topLeft, .topRight])
-                .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: -5)
             }
+            .padding()
+
+            Spacer()
         }
-        .gesture(
-            DragGesture()
-                .onEnded { value in
-                    if value.translation.height > 100 {
-                        dismissModal()
-                    }
-                }
-        )
+        .background(Color(.systemBackground))
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
     }
     
     // MARK: - Item Details Section

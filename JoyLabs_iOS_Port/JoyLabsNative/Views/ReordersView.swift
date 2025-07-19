@@ -389,7 +389,7 @@ struct ReordersView: View {
             }
         }
         // Quantity Selection Modal (EMBEDDED VERSION)
-        .sheet(isPresented: $showingQuantityModal) {
+        .sheet(isPresented: $showingQuantityModal, onDismiss: handleQuantityModalDismiss) {
             if let item = selectedItemForQuantity {
                 EmbeddedQuantitySelectionModal(
                     item: item,
@@ -639,6 +639,25 @@ struct ReordersView: View {
         print("📱 Modal cancelled")
 
         // Clear modal state
+        selectedItemForQuantity = nil
+        showingQuantityModal = false
+        isExistingItem = false
+
+        // Mark processing complete
+        isProcessingBarcode = false
+
+        // Process next barcode in queue if any
+        if !barcodeQueue.isEmpty {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                processNextBarcodeInQueue()
+            }
+        }
+    }
+
+    private func handleQuantityModalDismiss() {
+        print("📱 Modal dismissed (swiped away)")
+
+        // Clear modal state - same as cancel
         selectedItemForQuantity = nil
         showingQuantityModal = false
         isExistingItem = false
