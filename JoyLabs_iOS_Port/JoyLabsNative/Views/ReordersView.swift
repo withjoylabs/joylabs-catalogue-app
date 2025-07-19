@@ -178,8 +178,7 @@ struct ReordersView: View {
     // Filter and sort state
     @State private var sortOption: ReorderSortOption = .timeNewest
     @State private var filterOption: ReorderFilterOption = .all
-    @State private var showCategoryFilter = false
-    @State private var showVendorFilter = false
+
 
     // View organization and display options
     @State private var organizationOption: ReorderOrganizationOption = .none
@@ -299,8 +298,7 @@ struct ReordersView: View {
                     totalQuantity: totalQuantity,
                     sortOption: $sortOption,
                     filterOption: $filterOption,
-                    showCategoryFilter: $showCategoryFilter,
-                    showVendorFilter: $showVendorFilter,
+
                     organizationOption: $organizationOption,
                     displayMode: $displayMode,
                     scannerSearchText: $scannerSearchText,
@@ -363,30 +361,7 @@ struct ReordersView: View {
             } message: {
                 Text("Mark all items as received? This will move them to the received state.")
             }
-            .sheet(isPresented: $showCategoryFilter) {
-                Text("Category Filter Coming Soon")
-                    .navigationTitle("Filter by Category")
-                    .navigationBarTitleDisplayMode(.large)
-                    .toolbar {
-                        ToolbarItem(placement: .navigationBarTrailing) {
-                            Button("Done") {
-                                showCategoryFilter = false
-                            }
-                        }
-                    }
-            }
-            .sheet(isPresented: $showVendorFilter) {
-                Text("Vendor Filter Coming Soon")
-                    .navigationTitle("Filter by Vendor")
-                    .navigationBarTitleDisplayMode(.large)
-                    .toolbar {
-                        ToolbarItem(placement: .navigationBarTrailing) {
-                            Button("Done") {
-                                showVendorFilter = false
-                            }
-                        }
-                    }
-            }
+
         }
         // Quantity Selection Modal (EMBEDDED VERSION)
         .sheet(isPresented: $showingQuantityModal, onDismiss: handleQuantityModalDismiss) {
@@ -800,8 +775,7 @@ struct ReorderContentView: View {
 
     @Binding var sortOption: ReorderSortOption
     @Binding var filterOption: ReorderFilterOption
-    @Binding var showCategoryFilter: Bool
-    @Binding var showVendorFilter: Bool
+
     @Binding var organizationOption: ReorderOrganizationOption
     @Binding var displayMode: ReorderDisplayMode
     @Binding var scannerSearchText: String
@@ -842,8 +816,7 @@ struct ReorderContentView: View {
                                 totalQuantity: totalQuantity,
                                 sortOption: $sortOption,
                                 filterOption: $filterOption,
-                                showCategoryFilter: $showCategoryFilter,
-                                showVendorFilter: $showVendorFilter,
+
                                 organizationOption: $organizationOption,
                                 displayMode: $displayMode,
                                 onManagementAction: onManagementAction
@@ -867,8 +840,7 @@ struct ReorderHeaderSection: View {
 
     @Binding var sortOption: ReorderSortOption
     @Binding var filterOption: ReorderFilterOption
-    @Binding var showCategoryFilter: Bool
-    @Binding var showVendorFilter: Bool
+
     @Binding var organizationOption: ReorderOrganizationOption
     @Binding var displayMode: ReorderDisplayMode
 
@@ -889,8 +861,7 @@ struct ReorderHeaderSection: View {
             ReorderFilterRow(
                 sortOption: $sortOption,
                 filterOption: $filterOption,
-                showCategoryFilter: $showCategoryFilter,
-                showVendorFilter: $showVendorFilter,
+
                 organizationOption: $organizationOption,
                 displayMode: $displayMode
             )

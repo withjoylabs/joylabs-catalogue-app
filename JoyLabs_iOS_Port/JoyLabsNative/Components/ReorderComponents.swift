@@ -88,8 +88,6 @@ struct StatItem: View {
 struct ReorderFilterRow: View {
     @Binding var sortOption: ReorderSortOption
     @Binding var filterOption: ReorderFilterOption
-    @Binding var showCategoryFilter: Bool
-    @Binding var showVendorFilter: Bool
     @Binding var organizationOption: ReorderOrganizationOption
     @Binding var displayMode: ReorderDisplayMode
 
@@ -203,43 +201,7 @@ struct ReorderFilterRow: View {
                     .cornerRadius(16)
                 }
 
-                // Category filter placeholder
-                Button(action: {
-                    showCategoryFilter = true
-                }) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "tag")
-                            .font(.caption)
-                        Text("Category")
-                            .font(.caption)
-                        Image(systemName: "chevron.down")
-                            .font(.caption2)
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Color(.systemGray5))
-                    .foregroundColor(.primary)
-                    .cornerRadius(16)
-                }
 
-                // Vendor filter placeholder
-                Button(action: {
-                    showVendorFilter = true
-                }) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "building.2")
-                            .font(.caption)
-                        Text("Vendor")
-                            .font(.caption)
-                        Image(systemName: "chevron.down")
-                            .font(.caption2)
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Color(.systemGray5))
-                    .foregroundColor(.primary)
-                    .cornerRadius(16)
-                }
             }
             .padding(.horizontal, 20)
         }
