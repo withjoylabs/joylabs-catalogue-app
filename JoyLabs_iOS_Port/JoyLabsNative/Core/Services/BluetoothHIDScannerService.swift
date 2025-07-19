@@ -242,10 +242,8 @@ struct HIDScannerIntegratedSearchField: View {
                     }
                     isSearchFieldFocused = false
                 }
-                .onChange(of: searchText) { oldValue, newValue in
-                    // Detect rapid input patterns that might indicate HID scanner
-                    detectHIDInput(oldValue: oldValue, newValue: newValue)
-                }
+                // REMOVED: .onChange detectHIDInput to prevent recursive barcode processing
+                // The HID scanner service already handles barcode detection through onBarcodeScanned callback
 
             // Clear button
             if !searchText.isEmpty {
@@ -293,12 +291,6 @@ struct HIDScannerIntegratedSearchField: View {
         }
     }
     
-    private func detectHIDInput(oldValue: String, newValue: String) {
-        // Detect if input is coming rapidly (potential HID scanner)
-        // This is a simplified detection - real implementation would be more sophisticated
-        if newValue.count > oldValue.count + 5 {
-            // Rapid input detected - might be from HID scanner
-            scannerService.processCharacterInput(String(newValue.suffix(newValue.count - oldValue.count)))
-        }
-    }
+    // REMOVED: detectHIDInput function - was causing recursive barcode processing
+    // HID scanner detection is now handled entirely by the BluetoothHIDScannerService
 }

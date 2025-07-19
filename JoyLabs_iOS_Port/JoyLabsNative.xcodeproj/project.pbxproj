@@ -7,8 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		0F4C1DEFFFC8082902CE742B /* QuantitySelectionModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0271921180B6BA839A8E3667 /* QuantitySelectionModal.swift */; };
-		141A20C401F1C58E0628DEB5 /* QuantitySelectionModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A71C236B54058E6FCDED82 /* QuantitySelectionModal.swift */; };
 		1BB8215A1AE0C24A8659DCB1 /* CachedImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EDE99120BC4616B6E3A9926 /* CachedImageView.swift */; };
 		33ACA92EB8376CDDB719088F /* QuantityNumpad.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B4067D357704001C7A0D307 /* QuantityNumpad.swift */; };
 		A1B2C3D4E5F6789012345678 /* JoyLabsNativeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345679 /* JoyLabsNativeApp.swift */; };
@@ -49,10 +47,10 @@
 		A1B2C3D4E5F6789012345901 /* CatalogTableDefinitions.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345902 /* CatalogTableDefinitions.swift */; };
 		A1B2C3D4E5F6789012345903 /* CatalogTableCreator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345904 /* CatalogTableCreator.swift */; };
 		A1B2C3D4E5F6789012345905 /* CatalogObjectInserters.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345906 /* CatalogObjectInserters.swift */; };
+		F734B51CB83D78322A781674 /* QuantitySelectionModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB32D29A7FF02592B9894919 /* QuantitySelectionModal.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		0271921180B6BA839A8E3667 /* QuantitySelectionModal.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = QuantitySelectionModal.swift; path = Components/QuantitySelectionModal.swift; sourceTree = "<group>"; };
 		0B4067D357704001C7A0D307 /* QuantityNumpad.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QuantityNumpad.swift; sourceTree = "<group>"; };
 		1EDE99120BC4616B6E3A9926 /* CachedImageView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CachedImageView.swift; path = Components/CachedImageView.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345679 /* JoyLabsNativeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNativeApp.swift; sourceTree = "<group>"; };
@@ -93,7 +91,7 @@
 		A1B2C3D4E5F6789012345902 /* CatalogTableDefinitions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Database/CatalogTableDefinitions.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345904 /* CatalogTableCreator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Database/CatalogTableCreator.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345906 /* CatalogObjectInserters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Database/CatalogObjectInserters.swift; sourceTree = "<group>"; };
-		B5A71C236B54058E6FCDED82 /* QuantitySelectionModal.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = QuantitySelectionModal.swift; path = Components/QuantitySelectionModal.swift; sourceTree = "<group>"; };
+		EB32D29A7FF02592B9894919 /* QuantitySelectionModal.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = QuantitySelectionModal.swift; path = Components/QuantitySelectionModal.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -119,9 +117,8 @@
 		4D8B30827E46D710BD0E75EE /* Components */ = {
 			isa = PBXGroup;
 			children = (
-				B5A71C236B54058E6FCDED82 /* QuantitySelectionModal.swift */,
 				1EDE99120BC4616B6E3A9926 /* CachedImageView.swift */,
-				0271921180B6BA839A8E3667 /* QuantitySelectionModal.swift */,
+				EB32D29A7FF02592B9894919 /* QuantitySelectionModal.swift */,
 			);
 			name = Components;
 			sourceTree = "<group>";
@@ -285,9 +282,8 @@
 				A1B2C3D4E5F6789012345869 /* LabelComponents.swift in Sources */,
 				A1B2C3D4E5F6789012345871 /* ReorderComponents.swift in Sources */,
 				33ACA92EB8376CDDB719088F /* QuantityNumpad.swift in Sources */,
-				141A20C401F1C58E0628DEB5 /* QuantitySelectionModal.swift in Sources */,
 				1BB8215A1AE0C24A8659DCB1 /* CachedImageView.swift in Sources */,
-				0F4C1DEFFFC8082902CE742B /* QuantitySelectionModal.swift in Sources */,
+				F734B51CB83D78322A781674 /* QuantitySelectionModal.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
