@@ -29,10 +29,15 @@ struct EmbeddedQuantitySelectionModal: View {
     }
     
     var body: some View {
-        GeometryReader { geometry in
+        print("🚨 DEBUG: EmbeddedQuantitySelectionModal body rendering for: \(item.name ?? "Unknown")")
+        print("🚨 DEBUG: Modal isPresented: \(isPresented)")
+        print("🚨 DEBUG: Modal currentQuantity: \(currentQuantity)")
+        print("🚨 DEBUG: Modal isExistingItem: \(isExistingItem)")
+
+        return GeometryReader { geometry in
             NavigationView {
                 ScrollView {
-                    VStack(spacing: 12) {
+                    VStack(spacing: 6) { // REDUCED from 12 to 6 - half the margin
                         // COMPACT Item Information Section
                         VStack(spacing: 12) {
                             // RESPONSIVE THUMBNAIL - 70% SCREEN WIDTH
@@ -97,8 +102,9 @@ struct EmbeddedQuantitySelectionModal: View {
 
                         // ULTRA COMPACT Quantity Section - ONE LINE CENTERED
                         VStack(spacing: 8) {
-                            // SINGLE LINE: "Select Quantity" + Number + Warning - CENTERED
+                            // SINGLE LINE: "Qty:" + Number + Warning - PERFECTLY CENTERED
                             HStack(spacing: 12) {
+                                // Left spacer
                                 Spacer()
 
                                 Text("Qty:")
@@ -106,13 +112,11 @@ struct EmbeddedQuantitySelectionModal: View {
                                     .fontWeight(.bold)
                                     .foregroundColor(.primary)
 
-                                // Quantity display
+                                // FIXED WIDTH Quantity display - 4 characters wide
                                 Text("\(currentQuantity)")
                                     .font(.system(size: 24, weight: .bold, design: .rounded))
                                     .foregroundColor(.primary)
-                                    .frame(minWidth: 50)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 4)
+                                    .frame(width: 60, height: 32) // Fixed width for 4 characters
                                     .background(
                                         RoundedRectangle(cornerRadius: 8)
                                             .fill(Color(.systemBackground))
@@ -134,8 +138,20 @@ struct EmbeddedQuantitySelectionModal: View {
                                     .padding(.vertical, 2)
                                     .background(Color.blue.opacity(0.1))
                                     .cornerRadius(4)
+                                } else {
+                                    // Invisible spacer to balance the layout when no warning
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "info.circle.fill")
+                                            .font(.caption)
+                                        Text("In list: 999")
+                                            .font(.caption2)
+                                    }
+                                    .opacity(0)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
                                 }
 
+                                // Right spacer
                                 Spacer()
                             }
                             .padding(.horizontal, 16)

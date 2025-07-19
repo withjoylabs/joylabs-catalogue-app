@@ -376,6 +376,15 @@ struct ReordersView: View {
                 )
                 .presentationDetents([.fraction(0.75)])
                 .presentationDragIndicator(.visible)
+                .onAppear {
+                    print("🚨 DEBUG: Sheet presentation triggered! showingQuantityModal = \(showingQuantityModal)")
+                    print("🚨 DEBUG: Creating EmbeddedQuantitySelectionModal for: \(item.name ?? "Unknown")")
+                }
+            } else {
+                Text("Error: No item selected")
+                    .onAppear {
+                        print("🚨 DEBUG: ERROR - selectedItemForQuantity is nil in sheet!")
+                    }
             }
         }
     }
@@ -576,29 +585,34 @@ struct ReordersView: View {
     // MARK: - Quantity Modal Logic
 
     private func showQuantityModalForItem(_ foundItem: SearchResultItem) {
-        print("📱 Showing quantity modal for item: \(foundItem.name ?? "Unknown Item")")
+        print("� DEBUG: showQuantityModalForItem() called for: \(foundItem.name ?? "Unknown Item")")
+        print("🚨 DEBUG: Current showingQuantityModal state: \(showingQuantityModal)")
+        print("🚨 DEBUG: Current selectedItemForQuantity: \(selectedItemForQuantity?.name ?? "nil")")
 
         // CRITICAL FIX: Set item data FIRST, then show modal
         // This prevents blank modal from appearing when selectedItemForQuantity is nil
 
         // Set the selected item FIRST
         selectedItemForQuantity = foundItem
+        print("🚨 DEBUG: Set selectedItemForQuantity to: \(foundItem.name ?? "Unknown Item")")
 
         // Check if item already exists in reorder list
         if let existingItem = reorderItems.first(where: { $0.itemId == foundItem.id }) {
             // Item exists - show current quantity and mark as existing
             modalQuantity = existingItem.quantity
             isExistingItem = true
-            print("📱 Item already in list with quantity: \(existingItem.quantity)")
+            print("� DEBUG: Item already in list with quantity: \(existingItem.quantity)")
         } else {
             // New item - default quantity 1
             modalQuantity = 1
             isExistingItem = false
-            print("📱 New item - default quantity: 1")
+            print("� DEBUG: New item - default quantity: 1")
         }
 
+        print("🚨 DEBUG: About to set showingQuantityModal = true")
         // Show modal AFTER all data is set
         showingQuantityModal = true
+        print("🚨 DEBUG: Set showingQuantityModal = true")
 
         // Note: isProcessingBarcode remains true until modal is dismissed
         // This prevents new barcodes from being processed while modal is open
