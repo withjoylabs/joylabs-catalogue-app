@@ -1,6 +1,11 @@
 import SwiftUI
 import UIKit
 
+// CRITICAL FIX: Global storage to prevent SwiftUI state reset
+private var globalSelectedItem: SearchResultItem?
+private var globalModalQuantity: Int = 1
+private var globalIsExistingItem: Bool = false
+
 // MARK: - Global Barcode Receiving UIViewController
 class GlobalBarcodeReceivingViewController: UIViewController {
     var onBarcodeScanned: ((String) -> Void)?
@@ -199,10 +204,16 @@ struct ReordersView: View {
 
     // Quantity selection modal state
     @State private var showingQuantityModal = false
-    @State private var selectedItemForQuantity: SearchResultItem?
+    @State private var selectedItemForQuantity: SearchResultItem? {
+        didSet {
+            print("🚨 DEBUG: selectedItemForQuantity changed from \(oldValue?.name ?? "nil") to \(selectedItemForQuantity?.name ?? "nil")")
+            // CRITICAL FIX: Store in global variable to prevent SwiftUI reset
+            globalSelectedItem = selectedItemForQuantity
+        }
+    }
     @State private var modalQuantity: Int = 1
     @State private var isExistingItem = false
-    @State private var modalJustPresented = false // Prevent premature dismiss
+    @State private var modalJustPresented = false
 
     // Search manager (same as scan page)
     @StateObject private var searchManager: SearchManager = {
@@ -366,7 +377,8 @@ struct ReordersView: View {
         }
         // Quantity Selection Modal (EMBEDDED VERSION)
         .sheet(isPresented: $showingQuantityModal, onDismiss: handleQuantityModalDismiss) {
-            if let item = selectedItemForQuantity {
+            // CRITICAL FIX: Use global fallback if selectedItemForQuantity is nil
+            if let item = selectedItemForQuantity ?? globalSelectedItem {
                 EmbeddedQuantitySelectionModal(
                     item: item,
                     currentQuantity: modalQuantity,
@@ -379,12 +391,14 @@ struct ReordersView: View {
                 .presentationDragIndicator(.visible)
                 .onAppear {
                     print("🚨 DEBUG: Sheet presentation triggered! showingQuantityModal = \(showingQuantityModal)")
-                    print("🚨 DEBUG: Creating EmbeddedQuantitySelectionModal for: \(item.name ?? "Unknown")")
+                    print("🚨 DEBUG: Using item: \(item.name ?? "Unknown") (from selectedItemForQuantity: \(selectedItemForQuantity != nil), from global: \(globalSelectedItem != nil))")
                 }
             } else {
                 Text("Error: No item selected")
                     .onAppear {
-                        print("🚨 DEBUG: ERROR - selectedItemForQuantity is nil in sheet!")
+                        print("🚨 DEBUG: ERROR - Both selectedItemForQuantity and globalSelectedItem are nil!")
+                        print("🚨 DEBUG: selectedItemForQuantity: \(selectedItemForQuantity?.name ?? "nil")")
+                        print("🚨 DEBUG: globalSelectedItem: \(globalSelectedItem?.name ?? "nil")")
                     }
             }
         }
@@ -641,6 +655,7 @@ struct ReordersView: View {
 
         // Clear modal state
         selectedItemForQuantity = nil
+        globalSelectedItem = nil // CRITICAL FIX: Clear global storage
         showingQuantityModal = false
         isExistingItem = false
 
@@ -661,6 +676,7 @@ struct ReordersView: View {
 
         // Clear modal state
         selectedItemForQuantity = nil
+        globalSelectedItem = nil // CRITICAL FIX: Clear global storage
         showingQuantityModal = false
         isExistingItem = false
 
@@ -690,6 +706,7 @@ struct ReordersView: View {
 
         // Clear modal state - same as cancel
         selectedItemForQuantity = nil
+        globalSelectedItem = nil // CRITICAL FIX: Clear global storage
         showingQuantityModal = false
         isExistingItem = false
 
