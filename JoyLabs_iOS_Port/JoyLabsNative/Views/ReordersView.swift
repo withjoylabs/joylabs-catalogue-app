@@ -561,6 +561,12 @@ struct ReordersView: View {
     private func showQuantityModalForItem(_ foundItem: SearchResultItem) {
         print("📱 Showing quantity modal for item: \(foundItem.name ?? "Unknown Item")")
 
+        // CRITICAL FIX: Set item data FIRST, then show modal
+        // This prevents blank modal from appearing when selectedItemForQuantity is nil
+
+        // Set the selected item FIRST
+        selectedItemForQuantity = foundItem
+
         // Check if item already exists in reorder list
         if let existingItem = reorderItems.first(where: { $0.itemId == foundItem.id }) {
             // Item exists - show current quantity and mark as existing
@@ -574,7 +580,7 @@ struct ReordersView: View {
             print("📱 New item - default quantity: 1")
         }
 
-        selectedItemForQuantity = foundItem
+        // Show modal AFTER all data is set
         showingQuantityModal = true
 
         // Note: isProcessingBarcode remains true until modal is dismissed
