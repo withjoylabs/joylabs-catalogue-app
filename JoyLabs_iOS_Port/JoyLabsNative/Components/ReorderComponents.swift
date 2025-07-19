@@ -247,6 +247,7 @@ struct ReorderItemCard: View {
     let displayMode: ReorderDisplayMode
     let onStatusChange: (ReorderStatus) -> Void
     let onQuantityChange: (Int) -> Void
+    let onQuantityTap: (() -> Void)? // NEW: Callback for tapping quantity to edit
     let onRemove: () -> Void
     let onImageTap: () -> Void
 
@@ -399,15 +400,31 @@ struct ReorderItemCard: View {
 
                 Spacer()
 
-                // Quantity section (right side) - same style as scan page price section
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text("\(item.quantity)")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.primary)
+                // Quantity section (right side) - TAPPABLE for editing
+                if let onQuantityTap = onQuantityTap {
+                    Button(action: onQuantityTap) {
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text("\(item.quantity)")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.primary)
 
-                    Text("qty")
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
+                            Text("qty")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                } else {
+                    // Fallback to non-tappable display
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("\(item.quantity)")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.primary)
+
+                        Text("qty")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                    }
                 }
             }
             .padding(.horizontal, 16)
@@ -526,6 +543,7 @@ struct CategoryBadge: View {
         displayMode: .list,
         onStatusChange: { _ in },
         onQuantityChange: { _ in },
+        onQuantityTap: nil, // No tap action in preview
         onRemove: {},
         onImageTap: {}
     )

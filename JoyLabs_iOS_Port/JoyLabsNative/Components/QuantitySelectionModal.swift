@@ -112,11 +112,11 @@ struct EmbeddedQuantitySelectionModal: View {
                                     .fontWeight(.bold)
                                     .foregroundColor(.primary)
 
-                                // FIXED WIDTH Quantity display - 4 characters wide
+                                // FIXED WIDTH Quantity display - EXACTLY 4 characters wide
                                 Text("\(currentQuantity)")
                                     .font(.system(size: 24, weight: .bold, design: .rounded))
                                     .foregroundColor(.primary)
-                                    .frame(width: 60, height: 32) // Fixed width for 4 characters
+                                    .frame(width: 80, height: 36) // Wider for 4 digits (9999)
                                     .background(
                                         RoundedRectangle(cornerRadius: 8)
                                             .fill(Color(.systemBackground))
@@ -178,12 +178,12 @@ struct EmbeddedQuantitySelectionModal: View {
                     }
 
                     ToolbarItem(placement: .navigationBarTrailing) {
-                        Button("Add") {
+                        Button(currentQuantity == 0 ? "Delete" : "Add") {
                             onSubmit(currentQuantity)
                         }
                         .font(.headline)
                         .fontWeight(.bold)
-                        .foregroundColor(.blue)
+                        .foregroundColor(currentQuantity == 0 ? .red : .blue)
                     }
                 }
             }

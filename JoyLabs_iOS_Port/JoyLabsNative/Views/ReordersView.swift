@@ -343,7 +343,8 @@ struct ReordersView: View {
                     onImageTap: { item in
                         // TODO: Implement image enlargement when ImageEnlargementView is added to project
                         print("🖼️ Image tapped for item: \(item.name)")
-                    }
+                    },
+                    onQuantityTap: showQuantityModalForItem
                 )
 
                 // CRITICAL: Global barcode receiver (invisible, handles external keyboard input)
@@ -860,6 +861,7 @@ struct ReorderContentView: View {
     let onRemoveItem: (String) -> Void
     let onBarcodeScanned: (String) -> Void
     let onImageTap: (ReorderItem) -> Void
+    let onQuantityTap: (SearchResultItem) -> Void // NEW: For opening quantity modal
 
     var body: some View {
         GeometryReader { geometry in
@@ -878,7 +880,8 @@ struct ReorderContentView: View {
                                     onStatusChange: onStatusChange,
                                     onQuantityChange: onQuantityChange,
                                     onRemoveItem: onRemoveItem,
-                                    onImageTap: onImageTap
+                                    onImageTap: onImageTap,
+                                    onQuantityTap: onQuantityTap
                                 )
                             }
                         } header: {
@@ -953,11 +956,12 @@ struct ReorderItemsContent: View {
     let onQuantityChange: (String, Int) -> Void
     let onRemoveItem: (String) -> Void
     let onImageTap: (ReorderItem) -> Void
+    let onQuantityTap: (SearchResultItem) -> Void // NEW: For opening quantity modal
 
     var body: some View {
         LazyVStack(spacing: 0) {
-            ForEach(Array(organizedItems.enumerated()), id: \.offset) { index, section in
-                let (sectionTitle, items) = section
+            ForEach(0..<organizedItems.count, id: \.self) { sectionIndex in
+                let (sectionTitle, items) = organizedItems[sectionIndex]
 
                 // Section header (only show if there's a title and multiple sections)
                 if !sectionTitle.isEmpty && organizedItems.count > 1 {
@@ -988,6 +992,18 @@ struct ReorderItemsContent: View {
                             },
                             onQuantityChange: { newQuantity in
                                 onQuantityChange(item.id, newQuantity)
+                            },
+                            onQuantityTap: {
+                                // Convert ReorderItem to SearchResultItem and show modal
+                                let searchItem = SearchResultItem(
+                                    id: item.itemId,
+                                    name: item.name,
+                                    categoryName: item.categoryName,
+                                    sku: item.sku,
+                                    barcode: item.barcode,
+                                    price: item.price
+                                )
+                                onQuantityTap(searchItem)
                             },
                             onRemove: {
                                 onRemoveItem(item.id)
