@@ -95,43 +95,48 @@ struct EmbeddedQuantitySelectionModal: View {
                         .padding(.top, 12)
                         .padding(.horizontal, 16)
 
-                        // COMPACT Existing item notification
-                        if isExistingItem {
-                            HStack(spacing: 8) {
-                                Image(systemName: "info.circle.fill")
+                        // ULTRA COMPACT Quantity Section - ONE LINE
+                        VStack(spacing: 8) {
+                            // SINGLE LINE: "Select Quantity" + Number + Warning
+                            HStack(spacing: 12) {
+                                Text("Qty:")
                                     .font(.subheadline)
-                                    .foregroundColor(.blue)
-                                Text("Already in list (qty: \(initialQuantity))")
-                                    .font(.caption)
-                                    .fontWeight(.medium)
-                                    .foregroundColor(.blue)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.primary)
+
+                                // Quantity display
+                                Text("\(currentQuantity)")
+                                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                                    .foregroundColor(.primary)
+                                    .frame(minWidth: 50)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 4)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .fill(Color(.systemBackground))
+                                            .stroke(Color(.systemGray4), lineWidth: 1)
+                                    )
+
+                                // INLINE warning if existing item
+                                if isExistingItem {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "info.circle.fill")
+                                            .font(.caption)
+                                            .foregroundColor(.blue)
+                                        Text("In list: \(initialQuantity)")
+                                            .font(.caption2)
+                                            .fontWeight(.medium)
+                                            .foregroundColor(.blue)
+                                    }
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.blue.opacity(0.1))
+                                    .cornerRadius(4)
+                                }
+
+                                Spacer()
                             }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(Color.blue.opacity(0.1))
-                            .cornerRadius(8)
                             .padding(.horizontal, 16)
-                        }
-
-                        // COMPACT Quantity Section
-                        VStack(spacing: 12) {
-                            Text("Select Quantity")
-                                .font(.subheadline)
-                                .fontWeight(.bold)
-                                .foregroundColor(.primary)
-
-                            // SMALLER Quantity display
-                            Text("\(currentQuantity)")
-                                .font(.system(size: 32, weight: .bold, design: .rounded))
-                                .foregroundColor(.primary)
-                                .frame(minWidth: 80)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .fill(Color(.systemBackground))
-                                        .stroke(Color(.systemGray4), lineWidth: 1)
-                                )
 
                             // COMPACT NUMPAD
                             QuantityNumpad(currentQuantity: $currentQuantity)
@@ -165,7 +170,5 @@ struct EmbeddedQuantitySelectionModal: View {
                 }
             }
         }
-        .presentationDetents([.fraction(0.75)])
-        .presentationDragIndicator(.visible)
     }
 }

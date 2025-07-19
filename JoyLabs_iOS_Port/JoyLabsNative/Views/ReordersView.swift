@@ -374,6 +374,8 @@ struct ReordersView: View {
                     onSubmit: handleQuantityModalSubmit,
                     onCancel: handleQuantityModalCancel
                 )
+                .presentationDetents([.fraction(0.75)])
+                .presentationDragIndicator(.visible)
             }
         }
     }

@@ -18,11 +18,13 @@ class ReorderBadgeManager: ObservableObject {
 
     @objc private func updateBadgeCount() {
         // Load reorder items from UserDefaults and count unpurchased
-        if let data = UserDefaults.standard.data(forKey: "reorderItems"),
-           let items = try? JSONDecoder().decode([ReorderItem].self, from: data) {
-            unpurchasedCount = items.filter { $0.status == .added }.count
-        } else {
-            unpurchasedCount = 0
+        DispatchQueue.main.async {
+            if let data = UserDefaults.standard.data(forKey: "reorderItems"),
+               let items = try? JSONDecoder().decode([ReorderItem].self, from: data) {
+                self.unpurchasedCount = items.filter { $0.status == .added }.count
+            } else {
+                self.unpurchasedCount = 0
+            }
         }
     }
 
