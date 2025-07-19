@@ -281,7 +281,8 @@ struct HIDScannerIntegratedSearchField: View {
     private func setupScannerCallbacks() {
         scannerService.onBarcodeScanned = { barcode in
             DispatchQueue.main.async {
-                searchText = barcode
+                // DO NOT set searchText = barcode to prevent duplicate .onSubmit trigger
+                // Only call the callback directly for HID scanner input
                 onBarcodeScanned(barcode)
             }
         }

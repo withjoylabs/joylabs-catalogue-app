@@ -552,7 +552,9 @@ struct ReordersView: View {
 
             // Process results immediately (same performance as scan page)
             await MainActor.run {
+                print("🔍 Search results count: \(results.count)")
                 if let foundItem = results.first {
+                    print("🔍 Found item: \(foundItem.name ?? "Unknown") - calling showQuantityModalForItem")
                     // NEW LOGIC: Show quantity modal instead of directly adding
                     showQuantityModalForItem(foundItem)
                 } else {
@@ -623,11 +625,12 @@ struct ReordersView: View {
         // Mark processing complete
         isProcessingBarcode = false
 
-        // Process next barcode in queue if any
+        // REMOVED: Auto-processing next barcode after modal dismissal
+        // User should scan next barcode manually to avoid confusion
+        // Clear any remaining barcodes in queue
         if !barcodeQueue.isEmpty {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                processNextBarcodeInQueue()
-            }
+            print("🗑️ Clearing remaining barcodes in queue: \(barcodeQueue)")
+            barcodeQueue.removeAll()
         }
     }
 
@@ -642,11 +645,12 @@ struct ReordersView: View {
         // Mark processing complete
         isProcessingBarcode = false
 
-        // Process next barcode in queue if any
+        // REMOVED: Auto-processing next barcode after modal dismissal
+        // User should scan next barcode manually to avoid confusion
+        // Clear any remaining barcodes in queue
         if !barcodeQueue.isEmpty {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                processNextBarcodeInQueue()
-            }
+            print("🗑️ Clearing remaining barcodes in queue: \(barcodeQueue)")
+            barcodeQueue.removeAll()
         }
     }
 
@@ -661,11 +665,12 @@ struct ReordersView: View {
         // Mark processing complete
         isProcessingBarcode = false
 
-        // Process next barcode in queue if any
+        // REMOVED: Auto-processing next barcode after modal dismissal
+        // User should scan next barcode manually to avoid confusion
+        // Clear any remaining barcodes in queue
         if !barcodeQueue.isEmpty {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                processNextBarcodeInQueue()
-            }
+            print("🗑️ Clearing remaining barcodes in queue: \(barcodeQueue)")
+            barcodeQueue.removeAll()
         }
     }
 
