@@ -324,6 +324,7 @@ struct ReordersView: View {
                 loadReorderData()
                 // Auto-focus removed - user can manually tap to focus
             }
+
             // TODO: Add ImageEnlargementView when file is properly included in Xcode project
             // .sheet(isPresented: $showingImageEnlargement) {
             //     if let item = selectedItemForEnlargement {
@@ -544,6 +545,7 @@ struct ReordersView: View {
             // Process results immediately (same performance as scan page)
             await MainActor.run {
                 if let foundItem = results.first {
+                    // For now, just add with quantity 1 - we'll implement modal later
                     addItemToReorderList(foundItem)
                 } else {
                     print("❌ No item found for barcode: \(barcodeToProcess)")
@@ -551,11 +553,6 @@ struct ReordersView: View {
 
                 // Mark processing complete
                 isProcessingBarcode = false
-
-                // DISABLED: Auto-refocus removed for global scanner testing
-                // DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                //     isScannerFieldFocused = true
-                // }
 
                 // Process next barcode in queue if any
                 if !barcodeQueue.isEmpty {
@@ -570,32 +567,7 @@ struct ReordersView: View {
     private func addItemToReorderList(_ foundItem: SearchResultItem) {
         print("🔍 Attempting to add item to reorder list: \(foundItem.name ?? "Unknown Item") (ID: \(foundItem.id))")
 
-        // CRITICAL FIX: Implement proper reorder logic as specified by user
-
-        // 1. Check if item already exists in reorder list (any status)
-        if let existingIndex = reorderItems.firstIndex(where: { $0.itemId == foundItem.id }) {
-            let existingItem = reorderItems[existingIndex]
-
-            // 2. If item is at the top (index 0), increment quantity
-            if existingIndex == 0 {
-                reorderItems[0].quantity += 1
-                reorderItems[0].addedDate = Date() // Update timestamp
-                saveReorderData()
-                print("🔄 Item at top - incremented quantity to \(reorderItems[0].quantity): \(foundItem.name ?? "Unknown Item")")
-                return
-            }
-
-            // 3. If item exists but not at top, move to top and update timestamp
-            reorderItems.remove(at: existingIndex)
-            var movedItem = existingItem
-            movedItem.addedDate = Date() // Update timestamp
-            reorderItems.insert(movedItem, at: 0)
-            saveReorderData()
-            print("🔄 Moved existing item to top: \(foundItem.name ?? "Unknown Item")")
-            return
-        }
-
-        // 4. Item doesn't exist - create new item and add to top
+        // Simple implementation: just add item with quantity 1
         let newItem = ReorderItem(
             id: UUID().uuidString,
             itemId: foundItem.id,
@@ -618,8 +590,8 @@ struct ReordersView: View {
             updatedItem.imageUrl = firstImage.imageData?.url
         }
 
-        // Add to reorder list at top for visibility
-        reorderItems.insert(updatedItem, at: 0)
+        // Add to reorder list
+        reorderItems.append(updatedItem)
 
         // Save to persistence immediately
         saveReorderData()
@@ -637,7 +609,6 @@ struct ReorderContentView: View {
     let unpurchasedItems: Int
     let purchasedItems: Int
     let totalQuantity: Int
-
     @Binding var sortOption: ReorderSortOption
     @Binding var filterOption: ReorderFilterOption
     @Binding var showCategoryFilter: Bool
@@ -646,7 +617,6 @@ struct ReorderContentView: View {
     @Binding var displayMode: ReorderDisplayMode
     @Binding var scannerSearchText: String
     @FocusState.Binding var isScannerFieldFocused: Bool
-
     let onManagementAction: (ManagementAction) -> Void
     let onStatusChange: (String, ReorderStatus) -> Void
     let onQuantityChange: (String, Int) -> Void
@@ -660,7 +630,13 @@ struct ReorderContentView: View {
                 ScrollView {
                     LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
                         Section {
-                            // Content area
+                            // Scanner field
+                            ReorderScannerField(
+                                scannerSearchText: $scannerSearchText,
+                                isScannerFieldFocused: $isScannerFieldFocused,
+                                onBarcodeScanned: onBarcodeScanned
+                            )
+
                             if reorderItems.isEmpty {
                                 ReordersEmptyState()
                                     .frame(height: geometry.size.height - 200)
@@ -694,7 +670,6 @@ struct ReorderContentView: View {
                 .coordinateSpace(name: "scroll")
             }
         }
-        // TEXT FIELD REMOVED: Global HID scanner handles all barcode input without focus requirement
     }
 }
 
@@ -704,19 +679,16 @@ struct ReorderHeaderSection: View {
     let unpurchasedItems: Int
     let purchasedItems: Int
     let totalQuantity: Int
-
     @Binding var sortOption: ReorderSortOption
     @Binding var filterOption: ReorderFilterOption
     @Binding var showCategoryFilter: Bool
     @Binding var showVendorFilter: Bool
     @Binding var organizationOption: ReorderOrganizationOption
     @Binding var displayMode: ReorderDisplayMode
-
     let onManagementAction: (ManagementAction) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header with stats (will collapse on scroll)
             ReordersScrollableHeader(
                 totalItems: totalItems,
                 unpurchasedItems: unpurchasedItems,
@@ -725,7 +697,6 @@ struct ReorderHeaderSection: View {
                 onManagementAction: onManagementAction
             )
 
-            // Filter Row (stays pinned)
             ReorderFilterRow(
                 sortOption: $sortOption,
                 filterOption: $filterOption,
@@ -739,9 +710,7 @@ struct ReorderHeaderSection: View {
     }
 }
 
-// MARK: - Old ReorderBottomSearchField removed - replaced with custom BarcodeScannerField
-
-// MARK: - Reorder Items Content (Handles Organization and Display Modes)
+// MARK: - Reorder Items Content
 struct ReorderItemsContent: View {
     let organizedItems: [(String, [ReorderItem])]
     let displayMode: ReorderDisplayMode
@@ -762,7 +731,9 @@ struct ReorderItemsContent: View {
                             .font(.headline)
                             .fontWeight(.semibold)
                             .foregroundColor(.primary)
+
                         Spacer()
+
                         Text("\(items.count) items")
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -772,7 +743,7 @@ struct ReorderItemsContent: View {
                     .background(Color(.systemGray6))
                 }
 
-                // Items in this section
+                // Items for this section
                 switch displayMode {
                 case .list:
                     ForEach(items) { item in
@@ -816,6 +787,7 @@ struct ReorderItemsContent: View {
 
                 case .photosMedium, .photosSmall:
                     let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: displayMode.columnsPerRow)
+
                     LazyVGrid(columns: columns, spacing: 8) {
                         ForEach(items) { item in
                             ReorderPhotoCard(

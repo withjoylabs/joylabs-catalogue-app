@@ -715,3 +715,37 @@ struct ReorderPhotoCard: View {
         }
     }
 }
+
+// MARK: - Reorder Scanner Field
+struct ReorderScannerField: View {
+    @Binding var scannerSearchText: String
+    @FocusState.Binding var isScannerFieldFocused: Bool
+    let onBarcodeScanned: (String) -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                Image(systemName: "barcode.viewfinder")
+                    .foregroundColor(.blue)
+                    .font(.title2)
+
+                TextField("Scan or type barcode", text: $scannerSearchText)
+                    .focused($isScannerFieldFocused)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .submitLabel(.done)
+                    .onSubmit {
+                        if !scannerSearchText.isEmpty {
+                            onBarcodeScanned(scannerSearchText)
+                        }
+                    }
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+
+            Divider()
+        }
+        .background(Color(.systemBackground))
+    }
+}
