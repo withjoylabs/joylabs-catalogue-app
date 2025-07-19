@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		33ACA92EB8376CDDB719088F /* QuantityNumpad.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B4067D357704001C7A0D307 /* QuantityNumpad.swift */; };
+		94A74FD2395D032A7A95E565 /* QuantitySelectionModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 597F8E705740772BDB9B9C76 /* QuantitySelectionModal.swift */; };
 		A1B2C3D4E5F6789012345678 /* JoyLabsNativeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345679 /* JoyLabsNativeApp.swift */; };
 		A1B2C3D4E5F6789012345680 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345681 /* ContentView.swift */; };
 		A1B2C3D4E5F6789012345682 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345683 /* Assets.xcassets */; };
@@ -47,12 +48,11 @@
 		A1B2C3D4E5F6789012345901 /* CatalogTableDefinitions.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345902 /* CatalogTableDefinitions.swift */; };
 		A1B2C3D4E5F6789012345903 /* CatalogTableCreator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345904 /* CatalogTableCreator.swift */; };
 		A1B2C3D4E5F6789012345905 /* CatalogObjectInserters.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345906 /* CatalogObjectInserters.swift */; };
-		E3640B5A352238E3BBCBA54C /* QuantitySelectionModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49F205ABCD2886EE193196AE /* QuantitySelectionModal.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		0B4067D357704001C7A0D307 /* QuantityNumpad.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QuantityNumpad.swift; sourceTree = "<group>"; };
-		49F205ABCD2886EE193196AE /* QuantitySelectionModal.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QuantitySelectionModal.swift; sourceTree = "<group>"; };
+		597F8E705740772BDB9B9C76 /* QuantitySelectionModal.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = QuantitySelectionModal.swift; path = Views/Components/QuantitySelectionModal.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345679 /* JoyLabsNativeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNativeApp.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345681 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345683 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -106,6 +106,14 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		28A38C553CC16D918D546621 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				D0AB509709FDC88A502F7199 /* Components */,
+			);
+			name = Views;
+			sourceTree = "<group>";
+		};
 		A1B2C3D4E5F6789012345688 = {
 			isa = PBXGroup;
 			children = (
@@ -123,8 +131,8 @@
 				A1B2C3D4E5F6789012345849A /* CatalogModels.swift */,
 				A1B2C3D4E5F6789012345683 /* Assets.xcassets */,
 				A1B2C3D4E5F6789012345691 /* Preview Content */,
-				49F205ABCD2886EE193196AE /* QuantitySelectionModal.swift */,
 				0B4067D357704001C7A0D307 /* QuantityNumpad.swift */,
+				28A38C553CC16D918D546621 /* Views */,
 			);
 			path = JoyLabsNative;
 			sourceTree = "<group>";
@@ -143,6 +151,14 @@
 				A1B2C3D4E5F6789012345685 /* Preview Assets.xcassets */,
 			);
 			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+		D0AB509709FDC88A502F7199 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				597F8E705740772BDB9B9C76 /* QuantitySelectionModal.swift */,
+			);
+			name = Components;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -257,8 +273,8 @@
 				A1B2C3D4E5F6789012345867 /* LabelModels.swift in Sources */,
 				A1B2C3D4E5F6789012345869 /* LabelComponents.swift in Sources */,
 				A1B2C3D4E5F6789012345871 /* ReorderComponents.swift in Sources */,
-				E3640B5A352238E3BBCBA54C /* QuantitySelectionModal.swift in Sources */,
 				33ACA92EB8376CDDB719088F /* QuantityNumpad.swift in Sources */,
+				94A74FD2395D032A7A95E565 /* QuantitySelectionModal.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -74,25 +74,30 @@ struct NumpadButton: View {
     let text: String
     let action: () -> Void
     let isSpecial: Bool
-    
+
     init(text: String, action: @escaping () -> Void, isSpecial: Bool = false) {
         self.text = text
         self.action = action
         self.isSpecial = isSpecial
     }
-    
+
     var body: some View {
         Button(action: action) {
             Text(text)
                 .font(.title2)
-                .fontWeight(.medium)
+                .fontWeight(.semibold)
                 .foregroundColor(isSpecial ? .blue : .primary)
-                .frame(height: 50)
+                .frame(height: 56)
                 .frame(maxWidth: .infinity)
-                .background(Color(.systemGray6))
-                .cornerRadius(8)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(.systemBackground))
+                        .stroke(Color(.systemGray4), lineWidth: 1)
+                )
         }
         .buttonStyle(PlainButtonStyle())
+        .scaleEffect(1.0)
+        .animation(.easeInOut(duration: 0.1), value: false)
     }
 }
 
