@@ -1,10 +1,40 @@
 import SwiftUI
 import UIKit
 
-// CRITICAL FIX: Global storage to prevent SwiftUI state reset
-private var globalSelectedItem: SearchResultItem?
-private var globalModalQuantity: Int = 1
-private var globalIsExistingItem: Bool = false
+// MARK: - Quantity Modal State Manager (Industry Standard Solution)
+class QuantityModalStateManager: ObservableObject {
+    @Published var showingQuantityModal = false
+    @Published var selectedItemForQuantity: SearchResultItem?
+    @Published var modalQuantity: Int = 1
+    @Published var isExistingItem = false
+    @Published var modalJustPresented = false
+
+    func setItem(_ item: SearchResultItem, quantity: Int, isExisting: Bool) {
+        selectedItemForQuantity = item
+        modalQuantity = quantity
+        isExistingItem = isExisting
+        print("🚨 DEBUG: QuantityModalStateManager - Set item: \(item.name ?? "Unknown"), qty: \(quantity), existing: \(isExisting)")
+    }
+
+    func showModal() {
+        modalJustPresented = true
+        showingQuantityModal = true
+        print("🚨 DEBUG: QuantityModalStateManager - Modal shown")
+
+        // Clear the flag after a short delay to allow normal dismiss behavior
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.modalJustPresented = false
+        }
+    }
+
+    func clearState() {
+        selectedItemForQuantity = nil
+        showingQuantityModal = false
+        isExistingItem = false
+        modalJustPresented = false
+        print("🚨 DEBUG: QuantityModalStateManager - State cleared")
+    }
+}
 
 // MARK: - Global Barcode Receiving UIViewController
 class GlobalBarcodeReceivingViewController: UIViewController {
@@ -202,18 +232,8 @@ struct ReordersView: View {
     @State private var barcodeQueue: [String] = []
     @State private var isProcessingBarcode = false
 
-    // Quantity selection modal state
-    @State private var showingQuantityModal = false
-    @State private var selectedItemForQuantity: SearchResultItem? {
-        didSet {
-            print("🚨 DEBUG: selectedItemForQuantity changed from \(oldValue?.name ?? "nil") to \(selectedItemForQuantity?.name ?? "nil")")
-            // CRITICAL FIX: Store in global variable to prevent SwiftUI reset
-            globalSelectedItem = selectedItemForQuantity
-        }
-    }
-    @State private var modalQuantity: Int = 1
-    @State private var isExistingItem = false
-    @State private var modalJustPresented = false
+    // Quantity selection modal state - INDUSTRY STANDARD SOLUTION
+    @StateObject private var modalStateManager = QuantityModalStateManager()
 
     // Search manager (same as scan page)
     @StateObject private var searchManager: SearchManager = {
@@ -375,30 +395,26 @@ struct ReordersView: View {
             }
 
         }
-        // Quantity Selection Modal (EMBEDDED VERSION)
-        .sheet(isPresented: $showingQuantityModal, onDismiss: handleQuantityModalDismiss) {
-            // CRITICAL FIX: Use global fallback if selectedItemForQuantity is nil
-            if let item = selectedItemForQuantity ?? globalSelectedItem {
+        // Quantity Selection Modal (INDUSTRY STANDARD SOLUTION)
+        .sheet(isPresented: $modalStateManager.showingQuantityModal, onDismiss: handleQuantityModalDismiss) {
+            if let item = modalStateManager.selectedItemForQuantity {
                 EmbeddedQuantitySelectionModal(
                     item: item,
-                    currentQuantity: modalQuantity,
-                    isExistingItem: isExistingItem,
-                    isPresented: $showingQuantityModal,
+                    currentQuantity: modalStateManager.modalQuantity,
+                    isExistingItem: modalStateManager.isExistingItem,
+                    isPresented: $modalStateManager.showingQuantityModal,
                     onSubmit: handleQuantityModalSubmit,
                     onCancel: handleQuantityModalCancel
                 )
                 .presentationDetents([.fraction(0.75)])
                 .presentationDragIndicator(.visible)
                 .onAppear {
-                    print("🚨 DEBUG: Sheet presentation triggered! showingQuantityModal = \(showingQuantityModal)")
-                    print("🚨 DEBUG: Using item: \(item.name ?? "Unknown") (from selectedItemForQuantity: \(selectedItemForQuantity != nil), from global: \(globalSelectedItem != nil))")
+                    print("🚨 DEBUG: Sheet presentation triggered! Using StateObject item: \(item.name ?? "Unknown")")
                 }
             } else {
                 Text("Error: No item selected")
                     .onAppear {
-                        print("🚨 DEBUG: ERROR - Both selectedItemForQuantity and globalSelectedItem are nil!")
-                        print("🚨 DEBUG: selectedItemForQuantity: \(selectedItemForQuantity?.name ?? "nil")")
-                        print("🚨 DEBUG: globalSelectedItem: \(globalSelectedItem?.name ?? "nil")")
+                        print("🚨 DEBUG: ERROR - StateObject selectedItemForQuantity is nil!")
                     }
             }
         }
@@ -601,47 +617,39 @@ struct ReordersView: View {
 
     private func showQuantityModalForItem(_ foundItem: SearchResultItem) {
         print("� DEBUG: showQuantityModalForItem() called for: \(foundItem.name ?? "Unknown Item")")
-        print("🚨 DEBUG: Current showingQuantityModal state: \(showingQuantityModal)")
-        print("🚨 DEBUG: Current selectedItemForQuantity: \(selectedItemForQuantity?.name ?? "nil")")
+        print("🚨 DEBUG: Current modal state: showing=\(modalStateManager.showingQuantityModal), item=\(modalStateManager.selectedItemForQuantity?.name ?? "nil")")
 
         // CRITICAL FIX: Set item data FIRST, then show modal
         // This prevents blank modal from appearing when selectedItemForQuantity is nil
 
         // Set the selected item FIRST
-        selectedItemForQuantity = foundItem
+        // Will be set via modalStateManager.setItem() below
         print("🚨 DEBUG: Set selectedItemForQuantity to: \(foundItem.name ?? "Unknown Item")")
 
         // Check if item already exists in reorder list
         if let existingItem = reorderItems.first(where: { $0.itemId == foundItem.id }) {
             // Item exists - show current quantity and mark as existing
-            modalQuantity = existingItem.quantity
-            isExistingItem = true
+            // Will be set via modalStateManager.setItem() below
             print("� DEBUG: Item already in list with quantity: \(existingItem.quantity)")
         } else {
             // New item - default quantity 1
-            modalQuantity = 1
-            isExistingItem = false
+            // Will be set via modalStateManager.setItem() below
             print("� DEBUG: New item - default quantity: 1")
         }
 
-        print("🚨 DEBUG: About to set showingQuantityModal = true")
-        // Set flag to prevent premature dismiss
-        modalJustPresented = true
-        // Show modal AFTER all data is set
-        showingQuantityModal = true
-        print("🚨 DEBUG: Set showingQuantityModal = true")
-
-        // Clear the flag after a short delay to allow normal dismiss behavior
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            modalJustPresented = false
-        }
+        // INDUSTRY STANDARD: Use StateObject methods for atomic state updates
+        let existingItemForQuantity = reorderItems.first(where: { $0.itemId == foundItem.id })
+        let quantity = existingItemForQuantity?.quantity ?? 1
+        let isExisting = existingItemForQuantity != nil
+        modalStateManager.setItem(foundItem, quantity: quantity, isExisting: isExisting)
+        modalStateManager.showModal()
 
         // Note: isProcessingBarcode remains true until modal is dismissed
         // This prevents new barcodes from being processed while modal is open
     }
 
     private func handleQuantityModalSubmit(_ quantity: Int) {
-        guard let item = selectedItemForQuantity else { return }
+        guard let item = modalStateManager.selectedItemForQuantity else { return }
 
         print("📱 Modal submitted with quantity: \(quantity)")
 
@@ -653,11 +661,8 @@ struct ReordersView: View {
             addOrUpdateItemInReorderList(item, quantity: quantity)
         }
 
-        // Clear modal state
-        selectedItemForQuantity = nil
-        globalSelectedItem = nil // CRITICAL FIX: Clear global storage
-        showingQuantityModal = false
-        isExistingItem = false
+        // Clear modal state using StateObject
+        modalStateManager.clearState()
 
         // Mark processing complete
         isProcessingBarcode = false
@@ -674,11 +679,8 @@ struct ReordersView: View {
     private func handleQuantityModalCancel() {
         print("📱 Modal cancelled")
 
-        // Clear modal state
-        selectedItemForQuantity = nil
-        globalSelectedItem = nil // CRITICAL FIX: Clear global storage
-        showingQuantityModal = false
-        isExistingItem = false
+        // Clear modal state using StateObject
+        modalStateManager.clearState()
 
         // Mark processing complete
         isProcessingBarcode = false
@@ -694,21 +696,18 @@ struct ReordersView: View {
 
     private func handleQuantityModalDismiss() {
         print("� DEBUG: handleQuantityModalDismiss() called")
-        print("🚨 DEBUG: modalJustPresented = \(modalJustPresented)")
+        print("🚨 DEBUG: modalJustPresented = \(modalStateManager.modalJustPresented)")
 
         // CRITICAL FIX: Prevent premature dismiss from clearing state
-        if modalJustPresented {
+        if modalStateManager.modalJustPresented {
             print("🚨 DEBUG: Modal just presented - ignoring premature dismiss")
             return
         }
 
         print("�📱 Modal dismissed (swiped away)")
 
-        // Clear modal state - same as cancel
-        selectedItemForQuantity = nil
-        globalSelectedItem = nil // CRITICAL FIX: Clear global storage
-        showingQuantityModal = false
-        isExistingItem = false
+        // Clear modal state using StateObject - same as cancel
+        modalStateManager.clearState()
 
         // Mark processing complete
         isProcessingBarcode = false
