@@ -7,9 +7,9 @@ struct QuantityNumpad: View {
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 3)
     
     var body: some View {
-        VStack(spacing: 12) {
-            // Number grid (1-9)
-            LazyVGrid(columns: columns, spacing: 12) {
+        VStack(spacing: 8) {
+            // Number grid (1-9) - COMPACT
+            LazyVGrid(columns: columns, spacing: 8) {
                 ForEach(1...9, id: \.self) { number in
                     NumpadButton(
                         text: "\(number)",
@@ -19,9 +19,9 @@ struct QuantityNumpad: View {
                     )
                 }
             }
-            
-            // Bottom row: Clear, 0, Done
-            HStack(spacing: 12) {
+
+            // Bottom row: Clear, 0, Backspace - COMPACT
+            HStack(spacing: 8) {
                 NumpadButton(
                     text: "Clear",
                     action: {
@@ -29,14 +29,14 @@ struct QuantityNumpad: View {
                     },
                     isSpecial: true
                 )
-                
+
                 NumpadButton(
                     text: "0",
                     action: {
                         handleNumberInput(0)
                     }
                 )
-                
+
                 NumpadButton(
                     text: "⌫",
                     action: {
@@ -46,7 +46,6 @@ struct QuantityNumpad: View {
                 )
             }
         }
-        .padding(.horizontal, 20)
     }
     
     private func handleNumberInput(_ number: Int) {
@@ -84,20 +83,18 @@ struct NumpadButton: View {
     var body: some View {
         Button(action: action) {
             Text(text)
-                .font(.title2)
+                .font(.headline)
                 .fontWeight(.semibold)
                 .foregroundColor(isSpecial ? .blue : .primary)
-                .frame(height: 56)
+                .frame(height: 44)
                 .frame(maxWidth: .infinity)
                 .background(
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: 8)
                         .fill(Color(.systemBackground))
                         .stroke(Color(.systemGray4), lineWidth: 1)
                 )
         }
         .buttonStyle(PlainButtonStyle())
-        .scaleEffect(1.0)
-        .animation(.easeInOut(duration: 0.1), value: false)
     }
 }
 
