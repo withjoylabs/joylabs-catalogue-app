@@ -202,6 +202,7 @@ struct ReordersView: View {
     @State private var selectedItemForQuantity: SearchResultItem?
     @State private var modalQuantity: Int = 1
     @State private var isExistingItem = false
+    @State private var modalJustPresented = false // Prevent premature dismiss
 
     // Search manager (same as scan page)
     @StateObject private var searchManager: SearchManager = {
@@ -610,9 +611,16 @@ struct ReordersView: View {
         }
 
         print("🚨 DEBUG: About to set showingQuantityModal = true")
+        // Set flag to prevent premature dismiss
+        modalJustPresented = true
         // Show modal AFTER all data is set
         showingQuantityModal = true
         print("🚨 DEBUG: Set showingQuantityModal = true")
+
+        // Clear the flag after a short delay to allow normal dismiss behavior
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            modalJustPresented = false
+        }
 
         // Note: isProcessingBarcode remains true until modal is dismissed
         // This prevents new barcodes from being processed while modal is open
@@ -669,7 +677,16 @@ struct ReordersView: View {
     }
 
     private func handleQuantityModalDismiss() {
-        print("📱 Modal dismissed (swiped away)")
+        print("� DEBUG: handleQuantityModalDismiss() called")
+        print("🚨 DEBUG: modalJustPresented = \(modalJustPresented)")
+
+        // CRITICAL FIX: Prevent premature dismiss from clearing state
+        if modalJustPresented {
+            print("🚨 DEBUG: Modal just presented - ignoring premature dismiss")
+            return
+        }
+
+        print("�📱 Modal dismissed (swiped away)")
 
         // Clear modal state - same as cancel
         selectedItemForQuantity = nil
