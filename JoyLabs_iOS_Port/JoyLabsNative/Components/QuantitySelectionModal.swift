@@ -95,10 +95,12 @@ struct EmbeddedQuantitySelectionModal: View {
                         .padding(.top, 12)
                         .padding(.horizontal, 16)
 
-                        // ULTRA COMPACT Quantity Section - ONE LINE
+                        // ULTRA COMPACT Quantity Section - ONE LINE CENTERED
                         VStack(spacing: 8) {
-                            // SINGLE LINE: "Select Quantity" + Number + Warning
+                            // SINGLE LINE: "Select Quantity" + Number + Warning - CENTERED
                             HStack(spacing: 12) {
+                                Spacer()
+
                                 Text("Qty:")
                                     .font(.subheadline)
                                     .fontWeight(.bold)

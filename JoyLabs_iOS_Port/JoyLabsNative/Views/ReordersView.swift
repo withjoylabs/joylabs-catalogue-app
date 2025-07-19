@@ -495,6 +495,13 @@ struct ReordersView: View {
     private func handleBarcodeScanned(_ barcode: String) {
         print("🔍 Barcode input received from text field: \(barcode)")
 
+        // DUPLICATE PREVENTION: Check if this barcode is already in queue
+        if barcodeQueue.contains(barcode) {
+            print("⚠️ DUPLICATE BARCODE DETECTED - Ignoring text field input: \(barcode)")
+            scannerSearchText = ""
+            return
+        }
+
         // Add barcode to processing queue
         barcodeQueue.append(barcode)
         print("📥 Added barcode to queue: \(barcode) (Queue size: \(barcodeQueue.count))")
@@ -510,6 +517,12 @@ struct ReordersView: View {
 
     private func handleGlobalBarcodeScanned(_ barcode: String) {
         print("🌍 Global barcode input received (NO FOCUS REQUIRED): \(barcode)")
+
+        // DUPLICATE PREVENTION: Check if this barcode is already in queue
+        if barcodeQueue.contains(barcode) {
+            print("⚠️ DUPLICATE BARCODE DETECTED - Ignoring global input: \(barcode)")
+            return
+        }
 
         // Add barcode to processing queue (same as text field input)
         barcodeQueue.append(barcode)
