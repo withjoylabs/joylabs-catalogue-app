@@ -2,7 +2,9 @@ import SwiftUI
 
 struct QuantityNumpad: View {
     @Binding var currentQuantity: Int
+    let itemId: String
     @State private var isFirstInput = true // Track if this is the first input after opening modal
+    @State private var lastItemId: String = "" // Track item changes to reset state
 
     // Grid layout for numpad
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 3)
@@ -50,6 +52,15 @@ struct QuantityNumpad: View {
         }
         .onAppear {
             isFirstInput = true // Reset first input flag when numpad appears
+            lastItemId = itemId
+        }
+        .onChange(of: itemId) { _, newItemId in
+            // RESET FIRST INPUT FLAG WHEN ITEM CHANGES (CHAIN SCANNING)
+            if newItemId != lastItemId {
+                print("🔄 NUMPAD RESET: Item changed (ID: \(newItemId)), resetting isFirstInput")
+                isFirstInput = true
+                lastItemId = newItemId
+            }
         }
     }
     
@@ -112,6 +123,6 @@ struct NumpadButton: View {
 }
 
 #Preview("Quantity Numpad") {
-    QuantityNumpad(currentQuantity: .constant(1))
+    QuantityNumpad(currentQuantity: .constant(1), itemId: "preview-item")
         .padding()
 }

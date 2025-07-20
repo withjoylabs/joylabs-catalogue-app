@@ -446,6 +446,10 @@ struct ReorderItemCard: View {
                 .offset(x: dragOffset) // Move divider with content
             )
             .offset(x: dragOffset)
+            .onTapGesture {
+                // Tap anywhere on the card to open quantity modal
+                onQuantityTap?()
+            }
             .gesture(
                 DragGesture()
                     .onChanged { value in
@@ -695,3 +699,5 @@ struct ReorderPhotoCard: View {
         }
     }
 }
+
+

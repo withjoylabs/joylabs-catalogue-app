@@ -228,9 +228,14 @@ struct ReordersView: View {
     @FocusState private var isScannerFieldFocused: Bool
     @State private var searchDebounceTimer: Timer?
 
-    // Barcode processing queue
-    @State private var barcodeQueue: [String] = []
+    // Barcode processing state (simplified - no queue needed)
     @State private var isProcessingBarcode = false
+
+    // Success notification state - STACKING SYSTEM
+    @State private var successNotifications: [SuccessNotification] = []
+
+    // Current modal quantity tracking
+    @State private var currentModalQuantity: Int = 1
 
     // Quantity selection modal state - INDUSTRY STANDARD SOLUTION
     @StateObject private var modalStateManager = QuantityModalStateManager()
@@ -405,7 +410,10 @@ struct ReordersView: View {
                     isExistingItem: modalStateManager.isExistingItem,
                     isPresented: $modalStateManager.showingQuantityModal,
                     onSubmit: handleQuantityModalSubmit,
-                    onCancel: handleQuantityModalCancel
+                    onCancel: handleQuantityModalCancel,
+                    onQuantityChange: { newQuantity in
+                        currentModalQuantity = newQuantity
+                    }
                 )
                 .presentationDetents([.fraction(0.75)])
                 .presentationDragIndicator(.visible)
@@ -418,6 +426,26 @@ struct ReordersView: View {
                         print("🚨 DEBUG: ERROR - StateObject selectedItemForQuantity is nil!")
                     }
             }
+        }
+        // SUCCESS NOTIFICATION OVERLAY - STACKING FROM RIGHT
+        .overlay(alignment: .topTrailing) {
+            VStack(spacing: 8) {
+                ForEach(successNotifications) { notification in
+                    SuccessNotificationView(
+                        item: notification.item,
+                        quantity: notification.quantity,
+                        onDismiss: {
+                            withAnimation(.easeOut(duration: 0.3)) {
+                                successNotifications.removeAll { $0.id == notification.id }
+                            }
+                        }
+                    )
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                    .zIndex(10000) // HIGHER Z-INDEX to appear above modal dimming
+                }
+            }
+            .padding(.top, 8)
+            .padding(.trailing, 16)
         }
     }
 
@@ -536,52 +564,107 @@ struct ReordersView: View {
     private func handleBarcodeScanned(_ barcode: String) {
         print("🔍 Barcode input received from text field: \(barcode)")
 
-        // DUPLICATE PREVENTION: Check if this barcode is already in queue
-        if barcodeQueue.contains(barcode) {
-            print("⚠️ DUPLICATE BARCODE DETECTED - Ignoring text field input: \(barcode)")
-            scannerSearchText = ""
-            return
-        }
-
-        // Add barcode to processing queue
-        barcodeQueue.append(barcode)
-        print("📥 Added barcode to queue: \(barcode) (Queue size: \(barcodeQueue.count))")
-
         // Clear the search field immediately for next scan
         scannerSearchText = ""
 
-        // Process queue if not already processing
-        if !isProcessingBarcode {
-            processNextBarcodeInQueue()
+        // INSTANT CHAIN SCANNING: If modal is open, submit async and repopulate instantly
+        if modalStateManager.showingQuantityModal {
+            print("🔗 INSTANT CHAIN SCAN: Modal is open, submitting current item and switching to new item")
+
+            // Get current item info for success notification
+            let currentItem = modalStateManager.selectedItemForQuantity
+            let currentQuantity = currentModalQuantity // Use actual current quantity from modal
+            print("🔗 CHAIN SCAN DEBUG: Submitting '\(currentItem?.name ?? "Unknown")' with quantity: \(currentQuantity)")
+
+            // Submit current item asynchronously in background (WITHOUT CLEARING MODAL)
+            Task {
+                await MainActor.run {
+                    // Direct database operation without modal state changes
+                    if let item = currentItem {
+                        print("📱 Chain scan: submitting \(item.name ?? "Unknown") with quantity: \(currentQuantity)")
+                        addOrUpdateItemInReorderList(item, quantity: currentQuantity)
+
+                        // Show success notification for submitted item
+                        showSuccessNotification(for: item, quantity: currentQuantity)
+                    }
+                }
+            }
+
+            // Reset processing flag and immediately process new barcode
+            isProcessingBarcode = false
+            processSingleBarcode(barcode)
+            return
         }
+
+        // No modal open - process barcode directly
+        processSingleBarcode(barcode)
     }
 
     private func handleGlobalBarcodeScanned(_ barcode: String) {
         print("🌍 Global barcode input received (NO FOCUS REQUIRED): \(barcode)")
 
-        // DUPLICATE PREVENTION: Check if this barcode is already in queue
-        if barcodeQueue.contains(barcode) {
-            print("⚠️ DUPLICATE BARCODE DETECTED - Ignoring global input: \(barcode)")
+        // INSTANT CHAIN SCANNING: If modal is open, submit async and repopulate instantly
+        if modalStateManager.showingQuantityModal {
+            print("🔗 INSTANT CHAIN SCAN: Modal is open, submitting current item and switching to new item")
+
+            // Get current item info for success notification
+            let currentItem = modalStateManager.selectedItemForQuantity
+            let currentQuantity = currentModalQuantity // Use actual current quantity from modal
+            print("🔗 CHAIN SCAN DEBUG: Submitting '\(currentItem?.name ?? "Unknown")' with quantity: \(currentQuantity)")
+
+            // Submit current item asynchronously in background (WITHOUT CLEARING MODAL)
+            Task {
+                await MainActor.run {
+                    // Direct database operation without modal state changes
+                    if let item = currentItem {
+                        print("📱 Chain scan: submitting \(item.name ?? "Unknown") with quantity: \(currentQuantity)")
+                        addOrUpdateItemInReorderList(item, quantity: currentQuantity)
+
+                        // Show success notification for submitted item
+                        showSuccessNotification(for: item, quantity: currentQuantity)
+                    }
+                }
+            }
+
+            // Reset processing flag and immediately process new barcode
+            isProcessingBarcode = false
+            processSingleBarcode(barcode)
             return
         }
 
-        // Add barcode to processing queue (same as text field input)
-        barcodeQueue.append(barcode)
-        print("📥 Added global barcode to queue: \(barcode) (Queue size: \(barcodeQueue.count))")
+        // No modal open - process barcode directly
+        processSingleBarcode(barcode)
+    }
 
-        // Process queue if not already processing
-        if !isProcessingBarcode {
-            processNextBarcodeInQueue()
+    private func showSuccessNotification(for item: SearchResultItem, quantity: Int) {
+        print("🎉 Showing success notification for: \(item.name ?? "Unknown") (qty: \(quantity))")
+
+        let notification = SuccessNotification(
+            id: UUID(),
+            item: item,
+            quantity: quantity
+        )
+
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            successNotifications.append(notification)
+        }
+
+        // Auto-hide after 2 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            withAnimation(.easeOut(duration: 0.3)) {
+                successNotifications.removeAll { $0.id == notification.id }
+            }
         }
     }
 
-    private func processNextBarcodeInQueue() {
-        guard !barcodeQueue.isEmpty && !isProcessingBarcode else { return }
+    private func processSingleBarcode(_ barcode: String) {
+        guard !isProcessingBarcode else {
+            print("⚠️ Already processing a barcode, ignoring: \(barcode)")
+            return
+        }
 
         isProcessingBarcode = true
-        let barcodeToProcess = barcodeQueue.removeFirst()
-
-        print("🔄 Processing barcode from queue: \(barcodeToProcess) (Remaining in queue: \(barcodeQueue.count))")
+        print("🔄 Processing single barcode: \(barcode)")
 
         // CRITICAL FIX: Clear search manager state to ensure fresh search with offset 0
         searchManager.clearSearch()
@@ -589,26 +672,19 @@ struct ReordersView: View {
         // Use EXACT same pattern as scan page - immediate search without debounce for barcode scans
         Task {
             let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
-            let results = await searchManager.performSearch(searchTerm: barcodeToProcess, filters: filters)
+            let results = await searchManager.performSearch(searchTerm: barcode, filters: filters)
 
             // Process results immediately (same performance as scan page)
             await MainActor.run {
                 print("🔍 Search results count: \(results.count)")
                 if let foundItem = results.first {
                     print("🔍 Found item: \(foundItem.name ?? "Unknown") - calling showQuantityModalForItem")
-                    // NEW LOGIC: Show quantity modal instead of directly adding
+                    // Show quantity modal (or repopulate existing modal instantly)
                     showQuantityModalForItem(foundItem)
                 } else {
-                    print("❌ No item found for barcode: \(barcodeToProcess)")
+                    print("❌ No item found for barcode: \(barcode)")
                     // Mark processing complete for failed searches
                     isProcessingBarcode = false
-
-                    // Process next barcode in queue if any
-                    if !barcodeQueue.isEmpty {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                            processNextBarcodeInQueue()
-                        }
-                    }
                 }
             }
         }
@@ -642,6 +718,13 @@ struct ReordersView: View {
         let existingItemForQuantity = reorderItems.first(where: { $0.itemId == foundItem.id })
         let quantity = existingItemForQuantity?.quantity ?? 1
         let isExisting = existingItemForQuantity != nil
+
+        print("🔢 QUANTITY DEBUG: Item '\(foundItem.name ?? "Unknown")' - existing qty: \(existingItemForQuantity?.quantity ?? 0), final qty: \(quantity), isExisting: \(isExisting)")
+
+        // Initialize current modal quantity tracking
+        currentModalQuantity = quantity
+        print("🔢 QUANTITY DEBUG: Set currentModalQuantity to \(quantity)")
+
         modalStateManager.setItem(foundItem, quantity: quantity, isExisting: isExisting)
         modalStateManager.showModal()
 
@@ -667,14 +750,6 @@ struct ReordersView: View {
 
         // Mark processing complete
         isProcessingBarcode = false
-
-        // REMOVED: Auto-processing next barcode after modal dismissal
-        // User should scan next barcode manually to avoid confusion
-        // Clear any remaining barcodes in queue
-        if !barcodeQueue.isEmpty {
-            print("🗑️ Clearing remaining barcodes in queue: \(barcodeQueue)")
-            barcodeQueue.removeAll()
-        }
     }
 
     private func handleQuantityModalCancel() {
@@ -685,14 +760,6 @@ struct ReordersView: View {
 
         // Mark processing complete
         isProcessingBarcode = false
-
-        // REMOVED: Auto-processing next barcode after modal dismissal
-        // User should scan next barcode manually to avoid confusion
-        // Clear any remaining barcodes in queue
-        if !barcodeQueue.isEmpty {
-            print("🗑️ Clearing remaining barcodes in queue: \(barcodeQueue)")
-            barcodeQueue.removeAll()
-        }
     }
 
     private func handleQuantityModalDismiss() {
@@ -712,74 +779,18 @@ struct ReordersView: View {
 
         // Mark processing complete
         isProcessingBarcode = false
-
-        // REMOVED: Auto-processing next barcode after modal dismissal
-        // User should scan next barcode manually to avoid confusion
-        // Clear any remaining barcodes in queue
-        if !barcodeQueue.isEmpty {
-            print("🗑️ Clearing remaining barcodes in queue: \(barcodeQueue)")
-            barcodeQueue.removeAll()
-        }
     }
 
     private func addItemToReorderList(_ foundItem: SearchResultItem) {
-        print("🔍 Attempting to add item to reorder list: \(foundItem.name ?? "Unknown Item") (ID: \(foundItem.id))")
+        print("🔍 DEPRECATED: addItemToReorderList should not be called - use quantity modal system instead")
+        print("� This function is deprecated and should be removed once modal system is fully implemented")
 
-        // CRITICAL FIX: Implement proper reorder logic as specified by user
+        // This function is now deprecated in favor of the quantity modal system
+        // All item additions should go through the modal workflow
+        // Keeping this as a fallback for now, but it should be removed
 
-        // 1. Check if item already exists in reorder list (any status)
-        if let existingIndex = reorderItems.firstIndex(where: { $0.itemId == foundItem.id }) {
-            let existingItem = reorderItems[existingIndex]
-
-            // 2. If item is at the top (index 0), increment quantity
-            if existingIndex == 0 {
-                reorderItems[0].quantity += 1
-                reorderItems[0].addedDate = Date() // Update timestamp
-                saveReorderData()
-                print("🔄 Item at top - incremented quantity to \(reorderItems[0].quantity): \(foundItem.name ?? "Unknown Item")")
-                return
-            }
-
-            // 3. If item exists but not at top, move to top and update timestamp
-            reorderItems.remove(at: existingIndex)
-            var movedItem = existingItem
-            movedItem.addedDate = Date() // Update timestamp
-            reorderItems.insert(movedItem, at: 0)
-            saveReorderData()
-            print("🔄 Moved existing item to top: \(foundItem.name ?? "Unknown Item")")
-            return
-        }
-
-        // 4. Item doesn't exist - create new item and add to top
-        let newItem = ReorderItem(
-            id: UUID().uuidString,
-            itemId: foundItem.id,
-            name: foundItem.name ?? "Unknown Item",
-            sku: foundItem.sku,
-            barcode: foundItem.barcode,
-            quantity: 1,
-            status: .added
-        )
-
-        // Copy additional data from search result
-        var updatedItem = newItem
-        updatedItem.categoryName = foundItem.categoryName
-        updatedItem.price = foundItem.price
-        updatedItem.hasTax = foundItem.hasTax
-
-        // Extract image data from SearchResultItem.images array
-        if let images = foundItem.images, let firstImage = images.first {
-            updatedItem.imageId = firstImage.id
-            updatedItem.imageUrl = firstImage.imageData?.url
-        }
-
-        // Add to reorder list at top for visibility
-        reorderItems.insert(updatedItem, at: 0)
-
-        // Save to persistence immediately
-        saveReorderData()
-
-        print("✅ Added new item to reorder list: \(foundItem.name ?? "Unknown Item")")
+        // Simple fallback: just add item with quantity 1
+        addOrUpdateItemInReorderList(foundItem, quantity: 1)
     }
 
     // MARK: - Simplified Item Management (No Complex Reorder Logic)
@@ -791,7 +802,7 @@ struct ReordersView: View {
         if let existingIndex = reorderItems.firstIndex(where: { $0.itemId == foundItem.id }) {
             // Update existing item with new quantity (replace, don't increment)
             reorderItems[existingIndex].quantity = quantity
-            reorderItems[existingIndex].addedDate = Date() // Update timestamp
+            // REMOVED: timestamp updating logic - no longer needed with modal system
             saveReorderData()
             print("✅ Updated existing item quantity to \(quantity): \(foundItem.name ?? "Unknown Item")")
         } else {
@@ -818,6 +829,7 @@ struct ReordersView: View {
                 updatedItem.imageUrl = firstImage.imageData?.url
             }
 
+            // SIMPLIFIED: Just append to end - no complex positioning logic
             reorderItems.append(updatedItem)
             saveReorderData()
             print("✅ Added new item to reorder list: \(foundItem.name ?? "Unknown Item") with quantity: \(quantity)")
@@ -960,106 +972,187 @@ struct ReorderItemsContent: View {
 
     var body: some View {
         LazyVStack(spacing: 0) {
-            ForEach(0..<organizedItems.count, id: \.self) { sectionIndex in
-                let (sectionTitle, items) = organizedItems[sectionIndex]
+            // ELEGANT SOLUTION: Manual rendering to avoid SwiftUI ForEach compiler bug
+            if organizedItems.count == 1 {
+                // Single section - render directly
+                let (_, items) = organizedItems[0]
+                renderItemsSection(items: items, displayMode: displayMode)
+            } else if organizedItems.count > 1 {
+                // Multiple sections - render each manually
+                let (sectionTitle1, items1) = organizedItems[0]
+                if !sectionTitle1.isEmpty {
+                    sectionHeader(title: sectionTitle1, itemCount: items1.count)
+                }
+                renderItemsSection(items: items1, displayMode: displayMode)
 
-                // Section header (only show if there's a title and multiple sections)
-                if !sectionTitle.isEmpty && organizedItems.count > 1 {
-                    HStack {
-                        Text(sectionTitle)
-                            .font(.headline)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.primary)
-                        Spacer()
-                        Text("\(items.count) items")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                if organizedItems.count > 1 {
+                    let (sectionTitle2, items2) = organizedItems[1]
+                    if !sectionTitle2.isEmpty {
+                        sectionHeader(title: sectionTitle2, itemCount: items2.count)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .background(Color(.systemGray6))
+                    renderItemsSection(items: items2, displayMode: displayMode)
                 }
 
-                // Items in this section
-                switch displayMode {
-                case .list:
-                    ForEach(items) { item in
-                        ReorderItemCard(
-                            item: item,
-                            displayMode: displayMode,
-                            onStatusChange: { newStatus in
-                                onStatusChange(item.id, newStatus)
-                            },
-                            onQuantityChange: { newQuantity in
-                                onQuantityChange(item.id, newQuantity)
-                            },
-                            onQuantityTap: {
-                                // Convert ReorderItem to SearchResultItem and show modal
-                                let searchItem = SearchResultItem(
-                                    id: item.itemId,
-                                    name: item.name,
-                                    categoryName: item.categoryName,
-                                    sku: item.sku,
-                                    barcode: item.barcode,
-                                    price: item.price
-                                )
-                                onQuantityTap(searchItem)
-                            },
-                            onRemove: {
-                                onRemoveItem(item.id)
-                            },
-                            onImageTap: {
-                                onImageTap(item)
-                            }
-                        )
+                if organizedItems.count > 2 {
+                    let (sectionTitle3, items3) = organizedItems[2]
+                    if !sectionTitle3.isEmpty {
+                        sectionHeader(title: sectionTitle3, itemCount: items3.count)
                     }
-
-                case .photosLarge:
-                    ForEach(items) { item in
-                        ReorderPhotoCard(
-                            item: item,
-                            displayMode: displayMode,
-                            onStatusChange: { newStatus in
-                                onStatusChange(item.id, newStatus)
-                            },
-                            onQuantityChange: { newQuantity in
-                                onQuantityChange(item.id, newQuantity)
-                            },
-                            onRemove: {
-                                onRemoveItem(item.id)
-                            },
-                            onImageTap: {
-                                onImageTap(item)
-                            }
-                        )
-                    }
-
-                case .photosMedium, .photosSmall:
-                    let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: displayMode.columnsPerRow)
-                    LazyVGrid(columns: columns, spacing: 8) {
-                        ForEach(items) { item in
-                            ReorderPhotoCard(
-                                item: item,
-                                displayMode: displayMode,
-                                onStatusChange: { newStatus in
-                                    onStatusChange(item.id, newStatus)
-                                },
-                                onQuantityChange: { newQuantity in
-                                    onQuantityChange(item.id, newQuantity)
-                                },
-                                onRemove: {
-                                    onRemoveItem(item.id)
-                                },
-                                onImageTap: {
-                                    onImageTap(item)
-                                }
-                            )
-                        }
-                    }
-                    .padding(.horizontal, 16)
+                    renderItemsSection(items: items3, displayMode: displayMode)
                 }
             }
         }
+    }
+
+    // MARK: - Helper Functions
+    @ViewBuilder
+    private func sectionHeader(title: String, itemCount: Int) -> some View {
+        HStack {
+            Text(title)
+                .font(.headline)
+                .fontWeight(.semibold)
+                .foregroundColor(.primary)
+            Spacer()
+            Text("\(itemCount) items")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(Color(.systemGray6))
+    }
+
+    @ViewBuilder
+    private func renderItemsSection(items: [ReorderItem], displayMode: ReorderDisplayMode) -> some View {
+        switch displayMode {
+        case .list:
+            ForEach(items) { item in
+                ReorderItemCard(
+                    item: item,
+                    displayMode: displayMode,
+                    onStatusChange: { newStatus in
+                        onStatusChange(item.id, newStatus)
+                    },
+                    onQuantityChange: { newQuantity in
+                        onQuantityChange(item.id, newQuantity)
+                    },
+                    onQuantityTap: {
+                        // Convert ReorderItem to SearchResultItem and show modal
+                        let searchItem = SearchResultItem(
+                            id: item.itemId,
+                            name: item.name,
+                            sku: item.sku,
+                            price: item.price,
+                            barcode: item.barcode,
+                            categoryId: nil,
+                            categoryName: item.categoryName,
+                            images: [],
+                            matchType: "reorder",
+                            matchContext: item.name,
+                            isFromCaseUpc: false,
+                            caseUpcData: nil,
+                            hasTax: item.hasTax
+                        )
+                        onQuantityTap(searchItem)
+                    },
+                    onRemove: {
+                        onRemoveItem(item.id)
+                    },
+                    onImageTap: {
+                        onImageTap(item)
+                    }
+                )
+            }
+
+        case .photosLarge:
+            ForEach(items) { item in
+                ReorderPhotoCard(
+                    item: item,
+                    displayMode: displayMode,
+                    onStatusChange: { newStatus in
+                        onStatusChange(item.id, newStatus)
+                    },
+                    onQuantityChange: { newQuantity in
+                        onQuantityChange(item.id, newQuantity)
+                    },
+                    onRemove: {
+                        onRemoveItem(item.id)
+                    },
+                    onImageTap: {
+                        onImageTap(item)
+                    }
+                )
+            }
+
+        case .photosMedium, .photosSmall:
+            let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: displayMode.columnsPerRow)
+            LazyVGrid(columns: columns, spacing: 8) {
+                ForEach(items) { item in
+                    ReorderPhotoCard(
+                        item: item,
+                        displayMode: displayMode,
+                        onStatusChange: { newStatus in
+                            onStatusChange(item.id, newStatus)
+                        },
+                        onQuantityChange: { newQuantity in
+                            onQuantityChange(item.id, newQuantity)
+                        },
+                        onRemove: {
+                            onRemoveItem(item.id)
+                        },
+                        onImageTap: {
+                            onImageTap(item)
+                        }
+                    )
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+    }
+}
+
+// MARK: - Success Notification Models
+struct SuccessNotification: Identifiable {
+    let id: UUID
+    let item: SearchResultItem
+    let quantity: Int
+}
+
+// MARK: - Success Notification View
+struct SuccessNotificationView: View {
+    let item: SearchResultItem
+    let quantity: Int
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            // Success icon
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundColor(.green)
+                .font(.caption)
+
+            // Item info - SINGLE LINE
+            Text("\(item.name ?? "Unknown") (Qty: \(quantity))")
+                .font(.caption)
+                .fontWeight(.medium)
+                .lineLimit(1)
+                .foregroundColor(.primary)
+
+            // Dismiss button
+            Button(action: onDismiss) {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundColor(.secondary)
+                    .font(.caption2)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(.regularMaterial)
+                .shadow(color: .black.opacity(0.1), radius: 4, x: 2, y: 2)
+        )
+        .frame(maxWidth: 280)
     }
 }
 

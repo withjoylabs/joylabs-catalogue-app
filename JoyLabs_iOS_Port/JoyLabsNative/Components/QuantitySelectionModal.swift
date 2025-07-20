@@ -10,14 +10,16 @@ struct EmbeddedQuantitySelectionModal: View {
     
     let onSubmit: (Int) -> Void
     let onCancel: () -> Void
-    
+    let onQuantityChange: ((Int) -> Void)?
+
     init(
         item: SearchResultItem,
         currentQuantity: Int = 1,
         isExistingItem: Bool = false,
         isPresented: Binding<Bool>,
         onSubmit: @escaping (Int) -> Void,
-        onCancel: @escaping () -> Void
+        onCancel: @escaping () -> Void,
+        onQuantityChange: ((Int) -> Void)? = nil
     ) {
         self.item = item
         self.initialQuantity = currentQuantity
@@ -26,6 +28,7 @@ struct EmbeddedQuantitySelectionModal: View {
         self._currentQuantity = State(initialValue: currentQuantity)
         self.onSubmit = onSubmit
         self.onCancel = onCancel
+        self.onQuantityChange = onQuantityChange
     }
     
     var body: some View {
@@ -100,64 +103,31 @@ struct EmbeddedQuantitySelectionModal: View {
                         .padding(.top, 12)
                         .padding(.horizontal, 16)
 
-                        // ULTRA COMPACT Quantity Section - ONE LINE CENTERED
-                        VStack(spacing: 8) {
-                            // SINGLE LINE: "Qty:" + Number + Warning - PERFECTLY CENTERED
-                            HStack(spacing: 12) {
-                                // Left spacer
-                                Spacer()
-
-                                Text("Qty:")
+                        // QUANTITY SECTION - QTY AND NUMBER ON SAME LINE
+                        VStack(spacing: 16) {
+                            // QTY LABEL + NUMBER ON SAME LINE
+                            HStack(spacing: 8) {
+                                Text("QTY")
                                     .font(.subheadline)
                                     .fontWeight(.bold)
                                     .foregroundColor(.primary)
 
-                                // FIXED WIDTH Quantity display - EXACTLY 4 characters wide
                                 Text("\(currentQuantity)")
-                                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                                    .font(.system(size: 32, weight: .bold, design: .rounded))
                                     .foregroundColor(.primary)
-                                    .frame(width: 80, height: 36) // Wider for 4 digits (9999)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .fill(Color(.systemBackground))
-                                            .stroke(Color(.systemGray4), lineWidth: 1)
-                                    )
 
-                                // INLINE warning if existing item
+                                // EXISTING ITEM WARNING
                                 if isExistingItem {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "info.circle.fill")
-                                            .font(.caption)
-                                            .foregroundColor(.blue)
-                                        Text("In list: \(initialQuantity)")
-                                            .font(.caption2)
-                                            .fontWeight(.medium)
-                                            .foregroundColor(.blue)
-                                    }
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(Color.blue.opacity(0.1))
-                                    .cornerRadius(4)
-                                } else {
-                                    // Invisible spacer to balance the layout when no warning
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "info.circle.fill")
-                                            .font(.caption)
-                                        Text("In list: 999")
-                                            .font(.caption2)
-                                    }
-                                    .opacity(0)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
+                                    Text("(Already in list)")
+                                        .font(.caption)
+                                        .foregroundColor(.orange)
+                                        .fontWeight(.medium)
                                 }
-
-                                // Right spacer
-                                Spacer()
                             }
-                            .padding(.horizontal, 16)
+                            .frame(maxWidth: .infinity)
 
                             // COMPACT NUMPAD
-                            QuantityNumpad(currentQuantity: $currentQuantity)
+                            QuantityNumpad(currentQuantity: $currentQuantity, itemId: item.id)
                                 .padding(.horizontal, 16)
                         }
                         .padding(.top, 8)
@@ -187,6 +157,15 @@ struct EmbeddedQuantitySelectionModal: View {
                     }
                 }
             }
+        }
+        .onChange(of: currentQuantity) { _, newQuantity in
+            onQuantityChange?(newQuantity)
+        }
+        .onChange(of: item.id) { _, newItemId in
+            // RESET MODAL STATE WHEN ITEM CHANGES (CHAIN SCANNING)
+            print("🔄 MODAL RESET: Item changed to \(item.name ?? "Unknown"), resetting quantity to \(initialQuantity)")
+            currentQuantity = initialQuantity
+            onQuantityChange?(initialQuantity)
         }
     }
 }
