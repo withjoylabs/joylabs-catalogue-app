@@ -121,7 +121,7 @@ struct EmbeddedQuantitySelectionModal: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .foregroundColor(.primary)
 
-            // SINGLE LINE: Category | UPC | SKU | Price
+            // SINGLE LINE: Category | UPC | SKU | Price - CENTERED
             HStack(spacing: 8) {
                 // CATEGORY BADGE
                 if let category = item.categoryName {
@@ -149,8 +149,6 @@ struct EmbeddedQuantitySelectionModal: View {
                         .foregroundColor(.secondary)
                 }
 
-                Spacer()
-
                 // PRICE
                 if let price = item.price {
                     Text("$\(price, specifier: "%.2f")")
@@ -159,6 +157,8 @@ struct EmbeddedQuantitySelectionModal: View {
                         .foregroundColor(.green)
                 }
             }
+            .frame(maxWidth: .infinity)
+            .multilineTextAlignment(.center)
         }
         .padding(.top, 12)
         .padding(.horizontal, 16)
