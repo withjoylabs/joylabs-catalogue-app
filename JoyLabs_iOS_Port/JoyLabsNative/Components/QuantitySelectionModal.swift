@@ -37,101 +37,27 @@ struct EmbeddedQuantitySelectionModal: View {
         print("🚨 DEBUG: Modal currentQuantity: \(currentQuantity)")
         print("🚨 DEBUG: Modal isExistingItem: \(isExistingItem)")
 
-        return GeometryReader { geometry in
+        return modalContent
+        .onChange(of: currentQuantity) { _, newQuantity in
+            onQuantityChange?(newQuantity)
+        }
+        .onChange(of: item.id) { _, newItemId in
+            // RESET MODAL STATE WHEN ITEM CHANGES (CHAIN SCANNING)
+            print("🔄 MODAL RESET: Item changed to \(item.name ?? "Unknown"), resetting quantity to \(initialQuantity)")
+            currentQuantity = initialQuantity
+            onQuantityChange?(initialQuantity)
+        }
+    }
+
+    // MARK: - Computed Properties for Clean Architecture
+    private var modalContent: some View {
+        GeometryReader { geometry in
             NavigationView {
                 ScrollView {
-                    VStack(spacing: 6) { // REDUCED from 12 to 6 - half the margin
-                        // COMPACT Item Information Section
-                        VStack(spacing: 12) {
-                            // RESPONSIVE THUMBNAIL - 70% SCREEN WIDTH
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(
-                                    LinearGradient(
-                                        colors: [Color(.systemGray6), Color(.systemGray5)],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
-                                )
-                                .frame(
-                                    width: geometry.size.width * 0.7,
-                                    height: geometry.size.width * 0.5
-                                )
-                                .overlay(
-                                    Text(String(item.name?.prefix(2) ?? "??").uppercased())
-                                        .font(.system(size: geometry.size.width * 0.08, weight: .bold, design: .rounded))
-                                        .foregroundColor(.secondary)
-                                )
-                                .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
-
-                            // COMPACT Item details - SINGLE LINE EACH
-                            VStack(spacing: 4) {
-                                Text(item.name ?? "Unknown Item")
-                                    .font(.headline)
-                                    .fontWeight(.bold)
-                                    .multilineTextAlignment(.center)
-                                    .lineLimit(1)
-                                    .foregroundColor(.primary)
-
-                                // SINGLE LINE: Category | SKU | Price
-                                HStack(spacing: 8) {
-                                    if let category = item.categoryName {
-                                        Text(category)
-                                            .font(.caption)
-                                            .fontWeight(.medium)
-                                            .foregroundColor(.blue)
-                                            .padding(.horizontal, 6)
-                                            .padding(.vertical, 2)
-                                            .background(Color.blue.opacity(0.1))
-                                            .cornerRadius(4)
-                                    }
-
-                                    if let sku = item.sku, !sku.isEmpty {
-                                        Text("SKU: \(sku)")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-
-                                    if let price = item.price {
-                                        Text("$\(price, specifier: "%.2f")")
-                                            .font(.subheadline)
-                                            .fontWeight(.bold)
-                                            .foregroundColor(.green)
-                                    }
-                                }
-                            }
-                        }
-                        .padding(.top, 12)
-                        .padding(.horizontal, 16)
-
-                        // QUANTITY SECTION - QTY AND NUMBER ON SAME LINE
-                        VStack(spacing: 16) {
-                            // QTY LABEL + NUMBER ON SAME LINE
-                            HStack(spacing: 8) {
-                                Text("QTY")
-                                    .font(.subheadline)
-                                    .fontWeight(.bold)
-                                    .foregroundColor(.primary)
-
-                                Text("\(currentQuantity)")
-                                    .font(.system(size: 32, weight: .bold, design: .rounded))
-                                    .foregroundColor(.primary)
-
-                                // EXISTING ITEM WARNING
-                                if isExistingItem {
-                                    Text("(Already in list)")
-                                        .font(.caption)
-                                        .foregroundColor(.orange)
-                                        .fontWeight(.medium)
-                                }
-                            }
-                            .frame(maxWidth: .infinity)
-
-                            // COMPACT NUMPAD
-                            QuantityNumpad(currentQuantity: $currentQuantity, itemId: item.id)
-                                .padding(.horizontal, 16)
-                        }
-                        .padding(.top, 8)
-
+                    VStack(spacing: 6) {
+                        itemThumbnailSection(geometry: geometry)
+                        itemDetailsSection
+                        quantitySection
                         Spacer(minLength: 20)
                     }
                 }
@@ -158,14 +84,127 @@ struct EmbeddedQuantitySelectionModal: View {
                 }
             }
         }
-        .onChange(of: currentQuantity) { _, newQuantity in
-            onQuantityChange?(newQuantity)
+    }
+
+    private func itemThumbnailSection(geometry: GeometryProxy) -> some View {
+        VStack(spacing: 12) {
+            // RESPONSIVE THUMBNAIL - 70% SCREEN WIDTH
+            RoundedRectangle(cornerRadius: 12)
+                .fill(
+                    LinearGradient(
+                        colors: [Color(.systemGray6), Color(.systemGray5)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(
+                    width: geometry.size.width * 0.7,
+                    height: geometry.size.width * 0.5
+                )
+                .overlay(
+                    Text(String(item.name?.prefix(2) ?? "??").uppercased())
+                        .font(.system(size: geometry.size.width * 0.08, weight: .bold, design: .rounded))
+                        .foregroundColor(.secondary)
+                )
+                .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
         }
-        .onChange(of: item.id) { _, newItemId in
-            // RESET MODAL STATE WHEN ITEM CHANGES (CHAIN SCANNING)
-            print("🔄 MODAL RESET: Item changed to \(item.name ?? "Unknown"), resetting quantity to \(initialQuantity)")
-            currentQuantity = initialQuantity
-            onQuantityChange?(initialQuantity)
+    }
+
+    private var itemDetailsSection: some View {
+        VStack(spacing: 6) {
+            // ITEM NAME WITH WORD WRAPPING
+            Text(item.name ?? "Unknown Item")
+                .font(.headline)
+                .fontWeight(.bold)
+                .multilineTextAlignment(.center)
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
+                .foregroundColor(.primary)
+
+            // SINGLE LINE: Category | UPC | SKU | Price
+            HStack(spacing: 8) {
+                // CATEGORY BADGE
+                if let category = item.categoryName {
+                    Text(category)
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.blue)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.blue.opacity(0.1))
+                        .cornerRadius(4)
+                }
+
+                // UPC (NO LABEL - EASILY INFERRED)
+                if let barcode = item.barcode, !barcode.isEmpty {
+                    Text(barcode)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                // SKU
+                if let sku = item.sku, !sku.isEmpty {
+                    Text("SKU: \(sku)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                // PRICE
+                if let price = item.price {
+                    Text("$\(price, specifier: "%.2f")")
+                        .font(.subheadline)
+                        .fontWeight(.bold)
+                        .foregroundColor(.green)
+                }
+            }
         }
+        .padding(.top, 12)
+        .padding(.horizontal, 16)
+    }
+
+    private var quantitySection: some View {
+        VStack(spacing: 16) {
+            // 3-COLUMN QTY LAYOUT ALIGNED WITH NUMPAD
+            HStack(spacing: 0) {
+                // COLUMN 1: "QTY" RIGHT JUSTIFIED
+                HStack {
+                    Spacer()
+                    Text("QTY")
+                        .font(.subheadline)
+                        .fontWeight(.bold)
+                        .foregroundColor(.primary)
+                }
+                .frame(maxWidth: .infinity)
+
+                // COLUMN 2: QUANTITY NUMBER CENTERED
+                HStack {
+                    Spacer()
+                    Text("\(currentQuantity)")
+                        .font(.system(size: 32, weight: .bold, design: .rounded))
+                        .foregroundColor(.primary)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity)
+
+                // COLUMN 3: "ALREADY IN LIST" LEFT JUSTIFIED
+                HStack {
+                    if isExistingItem {
+                        Text("(Already in list)")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                            .fontWeight(.medium)
+                    }
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity)
+            }
+
+            // COMPACT NUMPAD
+            QuantityNumpad(currentQuantity: $currentQuantity, itemId: item.id)
+                .padding(.horizontal, 16)
+        }
+        .padding(.top, 8)
     }
 }
