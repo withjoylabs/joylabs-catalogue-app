@@ -237,49 +237,7 @@ class SQLiteSwiftCatalogManager {
         }
     }
 
-    /// Fetch team data for an item (case UPC, vendor info, etc.)
-    func fetchTeamDataForItem(_ itemId: String) throws -> TeamData? {
-        guard let db = db else {
-            throw SQLiteSwiftError.noConnection
-        }
 
-        logger.debug("Fetching team data for item: \(itemId)")
-
-        // Query the team_data table
-        let query = CatalogTableDefinitions.teamData
-            .filter(CatalogTableDefinitions.teamDataItemId == itemId)
-
-        guard let row = try db.pluck(query) else {
-            logger.debug("No team data found for item: \(itemId)")
-            return nil
-        }
-
-        // Extract team data from the row
-        let caseUpc = try row.get(CatalogTableDefinitions.teamDataCaseUpc)
-        let caseCost = try row.get(CatalogTableDefinitions.teamDataCaseCost)
-        let caseQuantity = try row.get(CatalogTableDefinitions.teamDataCaseQuantity)
-        let vendor = try row.get(CatalogTableDefinitions.teamDataVendor)
-        let discontinued = try row.get(CatalogTableDefinitions.teamDataDiscontinued)
-        let notes = try row.get(CatalogTableDefinitions.teamDataNotes)
-        let createdAt = try row.get(CatalogTableDefinitions.teamDataCreatedAt)
-        let updatedAt = try row.get(CatalogTableDefinitions.teamDataUpdatedAt)
-        let lastSyncAt = try row.get(CatalogTableDefinitions.teamDataLastSyncAt)
-        let owner = try row.get(CatalogTableDefinitions.teamDataOwner)
-
-        return TeamData(
-            itemId: itemId,
-            caseUpc: caseUpc,
-            caseCost: caseCost,
-            caseQuantity: caseQuantity,
-            vendor: vendor,
-            discontinued: discontinued,
-            notes: notes,
-            createdAt: createdAt,
-            updatedAt: updatedAt,
-            lastSyncAt: lastSyncAt,
-            owner: owner
-        )
-    }
 
     func disconnect() {
         db = nil

@@ -239,7 +239,6 @@ class ItemDetailsViewModel: ObservableObject {
     
     // MARK: - Private Properties
     private var cancellables = Set<AnyCancellable>()
-    private let itemLoadingService = ItemLoadingService()
     
     // MARK: - Initialization
     init() {
@@ -328,18 +327,16 @@ class ItemDetailsViewModel: ObservableObject {
     private func loadExistingItem(itemId: String) async {
         print("Loading existing item: \(itemId)")
 
-        do {
-            // Load item from database using ItemLoadingService
-            if let loadedItem = try await itemLoadingService.loadItemById(itemId) {
-                // Successfully loaded item from database
-                itemData = loadedItem
-                print("Successfully loaded item from database: \(itemData.name)")
+        // Load item from database using SQLiteSwiftCatalogManager
+        let catalogManager = SQLiteSwiftCatalogManager()
 
-                // Validate the loaded item
-                let validationErrors = itemLoadingService.validateItemForEditing(itemData)
-                if !validationErrors.isEmpty {
-                    print("Validation warnings for loaded item: \(validationErrors.joined(separator: ", "))")
-                }
+        do {
+            try catalogManager.connect()
+
+            if let catalogObject = try catalogManager.fetchItemById(itemId) {
+                // Successfully loaded item from database
+                itemData = transformCatalogObjectToItemDetails(catalogObject)
+                print("Successfully loaded item from database: \(itemData.name)")
 
             } else {
                 // Item not found in database
@@ -359,6 +356,78 @@ class ItemDetailsViewModel: ObservableObject {
             // Create a new item as fallback
             setupNewItem()
             itemData.id = itemId
+        }
+    }
+
+    // MARK: - Data Transformation
+
+    /// Transform a CatalogObject from database to ItemDetailsData for UI
+    private func transformCatalogObjectToItemDetails(_ catalogObject: CatalogObject) -> ItemDetailsData {
+        var itemDetails = ItemDetailsData()
+
+        // Basic identification
+        itemDetails.id = catalogObject.id
+        itemDetails.version = catalogObject.version
+        itemDetails.updatedAt = catalogObject.updatedAt
+        itemDetails.isDeleted = catalogObject.isDeleted
+        itemDetails.presentAtAllLocations = catalogObject.presentAtAllLocations ?? true
+
+        // Extract item data
+        if let itemData = catalogObject.itemData {
+            // Basic information
+            itemDetails.name = itemData.name ?? ""
+            itemDetails.description = itemData.description ?? ""
+            itemDetails.abbreviation = itemData.abbreviation ?? ""
+
+            // Product classification
+            itemDetails.productType = transformProductType(itemData.productType)
+
+            // Transform variations - use empty array if no variations
+            itemDetails.variations = []
+
+            // Availability and visibility
+            itemDetails.availableOnline = itemData.availableOnline ?? false
+            itemDetails.availableForPickup = itemData.availableForPickup ?? false
+            itemDetails.skipModifierScreen = itemData.skipModifierScreen ?? false
+
+            // Tax information
+            itemDetails.taxIds = itemData.taxIds ?? []
+
+            // Images
+            itemDetails.imageIds = itemData.imageIds ?? []
+        }
+
+        return itemDetails
+    }
+
+    // MARK: - Helper Transformation Methods
+
+    private func transformProductType(_ productType: String?) -> ProductType {
+        switch productType {
+        case "APPOINTMENTS_SERVICE": return .appointmentsService
+        default: return .regular
+        }
+    }
+
+    private func transformPricingType(_ pricingType: String?) -> PricingType {
+        switch pricingType {
+        case "VARIABLE_PRICING": return .variablePricing
+        default: return .fixedPricing
+        }
+    }
+
+    private func transformInventoryAlertType(_ alertType: String?) -> InventoryAlertType {
+        switch alertType {
+        case "LOW_QUANTITY": return .lowQuantity
+        default: return .none
+        }
+    }
+
+    private func transformEcomVisibility(_ visibility: String?) -> EcomVisibility {
+        switch visibility {
+        case "HIDDEN": return .hidden
+        case "VISIBLE": return .visible
+        default: return .unindexed
         }
     }
     
