@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0B753D913638A7840142AD79 /* ItemLoadingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9A126343BC539EBF292558D /* ItemLoadingService.swift */; };
 		1569B20890AD45422D438BC1 /* FieldVisibilityModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF8BABE731647487EFC23A76 /* FieldVisibilityModifier.swift */; };
 		1BB8215A1AE0C24A8659DCB1 /* CachedImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EDE99120BC4616B6E3A9926 /* CachedImageView.swift */; };
 		21D4D3B4CE1031814FDAFCCB /* ComprehensiveItemModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 463F35C3BE9ED261FEE0206F /* ComprehensiveItemModels.swift */; };
@@ -14,6 +15,7 @@
 		2FD1191823A920EBC8718583 /* ItemDetailsAdvancedSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7C7A71E405D29DA8DA233CD /* ItemDetailsAdvancedSection.swift */; };
 		33ACA92EB8376CDDB719088F /* QuantityNumpad.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B4067D357704001C7A0D307 /* QuantityNumpad.swift */; };
 		343A5BEB820EB07235EEFE35 /* ItemDetailsPricingSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65695EAA6350279F084BF63B /* ItemDetailsPricingSection.swift */; };
+		36AFC1DF98D002660ED9D58A /* ItemDataTransformers.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6B0B77B97C10BF407A56C9A /* ItemDataTransformers.swift */; };
 		3D033F23814EAC17F1F30659 /* ItemSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DC776666D9E1A98076720A2 /* ItemSettingsView.swift */; };
 		41826807649EF63DBBA03CCD /* FieldConfigurationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D71532DF527344EFA478B1B3 /* FieldConfigurationManager.swift */; };
 		4E9DC0AFA4C7DF303C097202 /* ItemAvailabilitySection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75FC10AFED4E5423B76916D5 /* ItemAvailabilitySection.swift */; };
@@ -125,12 +127,14 @@
 		A1B2C3D4E5F6789012345902 /* CatalogTableDefinitions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Database/CatalogTableDefinitions.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345904 /* CatalogTableCreator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Database/CatalogTableCreator.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345906 /* CatalogObjectInserters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Database/CatalogObjectInserters.swift; sourceTree = "<group>"; };
+		B9A126343BC539EBF292558D /* ItemLoadingService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemLoadingService.swift; path = JoyLabsNative/Core/Services/ItemLoadingService.swift; sourceTree = "<group>"; };
 		BF8BABE731647487EFC23A76 /* FieldVisibilityModifier.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FieldVisibilityModifier.swift; path = Components/FieldVisibilityModifier.swift; sourceTree = "<group>"; };
 		D583607765D3CA494A3F396E /* ItemDetailsViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsViewModel.swift; path = Components/ItemDetailsViewModel.swift; sourceTree = "<group>"; };
 		D71532DF527344EFA478B1B3 /* FieldConfigurationManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FieldConfigurationManager.swift; path = Components/FieldConfigurationManager.swift; sourceTree = "<group>"; };
 		D96C042150C12C4387D96347 /* ItemFieldConfiguration.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemFieldConfiguration.swift; path = Components/ItemFieldConfiguration.swift; sourceTree = "<group>"; };
 		E05265C6905F14EE507527F2 /* ItemEnabledLocationsSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemEnabledLocationsSection.swift; path = Components/ItemEnabledLocationsSection.swift; sourceTree = "<group>"; };
 		E2D5FAE44721EA24C8E50126 /* ItemImageSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemImageSection.swift; path = Components/ItemImageSection.swift; sourceTree = "<group>"; };
+		E6B0B77B97C10BF407A56C9A /* ItemDataTransformers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDataTransformers.swift; path = JoyLabsNative/Components/ItemDataTransformers.swift; sourceTree = "<group>"; };
 		E7C7A71E405D29DA8DA233CD /* ItemDetailsAdvancedSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsAdvancedSection.swift; path = Components/ItemDetailsAdvancedSection.swift; sourceTree = "<group>"; };
 		E7E80DE7F61C9C720F968463 /* FieldConfigurationSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FieldConfigurationSettingsView.swift; path = Components/FieldConfigurationSettingsView.swift; sourceTree = "<group>"; };
 		EB32D29A7FF02592B9894919 /* QuantitySelectionModal.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = QuantitySelectionModal.swift; path = Components/QuantitySelectionModal.swift; sourceTree = "<group>"; };
@@ -182,6 +186,7 @@
 				109D8EF3405D7C8718DCDF2B /* ItemCustomAttributesSection.swift */,
 				4AFAF5D9F92448678D1A1EE2 /* ItemEcommerceSection.swift */,
 				0E3B3F77BC194AF2CF9CED6F /* ItemMeasurementSection.swift */,
+				E6B0B77B97C10BF407A56C9A /* ItemDataTransformers.swift */,
 			);
 			name = Components;
 			sourceTree = "<group>";
@@ -207,6 +212,7 @@
 				0B4067D357704001C7A0D307 /* QuantityNumpad.swift */,
 				28A38C553CC16D918D546621 /* Views */,
 				4D8B30827E46D710BD0E75EE /* Components */,
+				ACFBF512FC988948E6642742 /* Core */,
 			);
 			path = JoyLabsNative;
 			sourceTree = "<group>";
@@ -263,6 +269,22 @@
 				A1B2C3D4E5F6789012345872 /* ReorderComponents.swift */,
 			);
 			name = "Recovered References";
+			sourceTree = "<group>";
+		};
+		ACFBF512FC988948E6642742 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				C02562C64D770137DB730E52 /* Services */,
+			);
+			name = Core;
+			sourceTree = "<group>";
+		};
+		C02562C64D770137DB730E52 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				B9A126343BC539EBF292558D /* ItemLoadingService.swift */,
+			);
+			name = Services;
 			sourceTree = "<group>";
 		};
 		D0AB509709FDC88A502F7199 /* Components */ = {
@@ -407,6 +429,8 @@
 				DA39CFBD36DCA1D81A5F2AB6 /* ItemCustomAttributesSection.swift in Sources */,
 				611221FE14DD319E9DC39D50 /* ItemEcommerceSection.swift in Sources */,
 				FB639BE785F378A20A1A5252 /* ItemMeasurementSection.swift in Sources */,
+				36AFC1DF98D002660ED9D58A /* ItemDataTransformers.swift in Sources */,
+				0B753D913638A7840142AD79 /* ItemLoadingService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

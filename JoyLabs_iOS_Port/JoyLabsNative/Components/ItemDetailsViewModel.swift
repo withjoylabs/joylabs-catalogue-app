@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import os.log
 
 // MARK: - Item Details Data
 /// Complete data model for item details that captures all Square catalog fields
@@ -238,6 +239,7 @@ class ItemDetailsViewModel: ObservableObject {
     
     // MARK: - Private Properties
     private var cancellables = Set<AnyCancellable>()
+    private let itemLoadingService = ItemLoadingService()
     
     // MARK: - Initialization
     init() {
@@ -325,12 +327,39 @@ class ItemDetailsViewModel: ObservableObject {
     
     private func loadExistingItem(itemId: String) async {
         print("Loading existing item: \(itemId)")
-        
-        // TODO: Implement loading from database/API
-        // For now, create a placeholder
-        itemData.id = itemId
-        itemData.name = "Sample Item"
-        itemData.variations = [ItemDetailsVariationData()]
+
+        do {
+            // Load item from database using ItemLoadingService
+            if let loadedItem = try await itemLoadingService.loadItemById(itemId) {
+                // Successfully loaded item from database
+                itemData = loadedItem
+                print("Successfully loaded item from database: \(itemData.name)")
+
+                // Validate the loaded item
+                let validationErrors = itemLoadingService.validateItemForEditing(itemData)
+                if !validationErrors.isEmpty {
+                    print("Validation warnings for loaded item: \(validationErrors.joined(separator: ", "))")
+                }
+
+            } else {
+                // Item not found in database
+                print("Item not found in database: \(itemId)")
+                error = "Item not found in database"
+
+                // Create a new item with the provided ID as fallback
+                setupNewItem()
+                itemData.id = itemId
+            }
+
+        } catch {
+            // Error loading item
+            print("Error loading item \(itemId): \(error)")
+            self.error = "Failed to load item: \(error.localizedDescription)"
+
+            // Create a new item as fallback
+            setupNewItem()
+            itemData.id = itemId
+        }
     }
     
     private func setupNewItem() {
