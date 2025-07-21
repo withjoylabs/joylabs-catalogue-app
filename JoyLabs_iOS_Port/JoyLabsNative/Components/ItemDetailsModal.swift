@@ -87,6 +87,7 @@ struct ItemDetailsModal: View {
                 }
             }
         }
+        .ignoresSafeArea(.keyboard, edges: .bottom)
         .onAppear {
             setupForContext()
         }

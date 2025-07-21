@@ -327,12 +327,10 @@ class ItemDetailsViewModel: ObservableObject {
     private func loadExistingItem(itemId: String) async {
         print("Loading existing item: \(itemId)")
 
-        // Load item from database using SQLiteSwiftCatalogManager
-        let catalogManager = SQLiteSwiftCatalogManager()
+        // Use the shared database manager - no need to connect again
+        let catalogManager = SquareAPIServiceFactory.createDatabaseManager()
 
         do {
-            try catalogManager.connect()
-
             if let catalogObject = try catalogManager.fetchItemById(itemId) {
                 // Successfully loaded item from database
                 itemData = transformCatalogObjectToItemDetails(catalogObject)

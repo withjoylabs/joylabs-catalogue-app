@@ -74,7 +74,7 @@ struct ContentView: View {
             }
             .accentColor(.blue)
 
-            // FAB positioned exactly where center tab would be
+            // FAB positioned exactly where center tab would be - ignores keyboard
             VStack {
                 Spacer()
                 Button(action: {
@@ -91,6 +91,7 @@ struct ContentView: View {
                 }
                 .padding(.bottom, 1) // Move down to actual tab bar level
             }
+            .ignoresSafeArea(.keyboard, edges: .all)
         }
         .sheet(isPresented: $showingItemDetails) {
             ItemDetailsModal(
