@@ -220,7 +220,10 @@ struct ItemSettingsView: View {
         if configManager.currentConfiguration.serviceFields.serviceDurationEnabled { count += 1 }
         if configManager.currentConfiguration.serviceFields.teamMembersEnabled { count += 1 }
         if configManager.currentConfiguration.advancedFields.customAttributesEnabled { count += 1 }
+        if configManager.currentConfiguration.advancedFields.measurementUnitEnabled { count += 1 }
         if configManager.currentConfiguration.ecommerceFields.availabilityEnabled { count += 1 }
+        if configManager.currentConfiguration.ecommerceFields.onlineVisibilityEnabled { count += 1 }
+        if configManager.currentConfiguration.ecommerceFields.seoEnabled { count += 1 }
         if configManager.currentConfiguration.advancedFields.enabledLocationsEnabled { count += 1 }
         if configManager.currentConfiguration.teamDataFields.caseDataEnabled { count += 1 }
 
@@ -433,6 +436,62 @@ struct FieldVisibilityDetailView: View {
                         set: { configManager.updateFieldConfiguration(\.advancedFields.enabledLocationsRequired, value: $0) }
                     ),
                     description: "Specify which locations this item is available at"
+                )
+            }
+
+            Section("Advanced Features") {
+                FieldToggleRow(
+                    title: "Custom Attributes",
+                    isEnabled: Binding(
+                        get: { configManager.currentConfiguration.advancedFields.customAttributesEnabled },
+                        set: { configManager.updateFieldConfiguration(\.advancedFields.customAttributesEnabled, value: $0) }
+                    ),
+                    isRequired: Binding(
+                        get: { configManager.currentConfiguration.advancedFields.customAttributesRequired },
+                        set: { configManager.updateFieldConfiguration(\.advancedFields.customAttributesRequired, value: $0) }
+                    ),
+                    description: "Add custom key-value pairs for additional item metadata"
+                )
+
+                FieldToggleRow(
+                    title: "Measurement Units",
+                    isEnabled: Binding(
+                        get: { configManager.currentConfiguration.advancedFields.measurementUnitEnabled },
+                        set: { configManager.updateFieldConfiguration(\.advancedFields.measurementUnitEnabled, value: $0) }
+                    ),
+                    isRequired: Binding(
+                        get: { configManager.currentConfiguration.advancedFields.measurementUnitRequired },
+                        set: { configManager.updateFieldConfiguration(\.advancedFields.measurementUnitRequired, value: $0) }
+                    ),
+                    description: "Set measurement units and sellable/stockable properties"
+                )
+            }
+
+            Section("E-commerce & SEO") {
+                FieldToggleRow(
+                    title: "Online Visibility",
+                    isEnabled: Binding(
+                        get: { configManager.currentConfiguration.ecommerceFields.onlineVisibilityEnabled },
+                        set: { configManager.updateFieldConfiguration(\.ecommerceFields.onlineVisibilityEnabled, value: $0) }
+                    ),
+                    isRequired: Binding(
+                        get: { configManager.currentConfiguration.ecommerceFields.onlineVisibilityRequired },
+                        set: { configManager.updateFieldConfiguration(\.ecommerceFields.onlineVisibilityRequired, value: $0) }
+                    ),
+                    description: "Control item visibility in online channels"
+                )
+
+                FieldToggleRow(
+                    title: "SEO Settings",
+                    isEnabled: Binding(
+                        get: { configManager.currentConfiguration.ecommerceFields.seoEnabled },
+                        set: { configManager.updateFieldConfiguration(\.ecommerceFields.seoEnabled, value: $0) }
+                    ),
+                    isRequired: Binding(
+                        get: { configManager.currentConfiguration.ecommerceFields.seoRequired },
+                        set: { configManager.updateFieldConfiguration(\.ecommerceFields.seoRequired, value: $0) }
+                    ),
+                    description: "SEO title, description, and keywords for search optimization"
                 )
             }
         }

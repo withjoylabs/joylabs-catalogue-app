@@ -47,6 +47,23 @@ struct ItemDetailsData {
     // Custom attributes
     var customAttributes: [String: String] = [:]
 
+    // Location overrides
+    var locationOverrides: [LocationOverrideData] = []
+
+    // E-commerce fields
+    var onlineVisibility: OnlineVisibility = .public
+    var ecomVisibility: EcomVisibility = .unindexed
+    var seoTitle: String?
+    var seoDescription: String?
+    var seoKeywords: String?
+    var channels: [String] = []
+
+    // Measurement and units
+    var measurementUnitId: String?
+    var sellable: Bool = true
+    var stockable: Bool = true
+    var userData: String?
+
     // Image
     var imageURL: String? = nil
 
@@ -159,9 +176,17 @@ struct LocationOverrideData: Identifiable {
     var locationId: String
     var locationName: String?
     var priceMoney: MoneyData?
-    var trackInventory: Bool?
+    var trackInventory: Bool = false
     var inventoryAlertType: InventoryAlertType?
     var inventoryAlertThreshold: Int?
+    var stockOnHand: Int = 0
+
+    init(locationId: String, priceMoney: MoneyData? = nil, trackInventory: Bool = false, stockOnHand: Int = 0) {
+        self.locationId = locationId
+        self.priceMoney = priceMoney
+        self.trackInventory = trackInventory
+        self.stockOnHand = stockOnHand
+    }
 }
 
 // MARK: - Location Data

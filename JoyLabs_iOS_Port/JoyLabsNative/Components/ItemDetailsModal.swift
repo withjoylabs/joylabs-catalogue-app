@@ -47,6 +47,9 @@ struct ItemDetailsModal: View {
     let context: ItemDetailsContext
     let onDismiss: () -> Void
     let onSave: (ItemDetailsData) -> Void
+
+    @State private var showingCancelConfirmation = false
+    @FocusState private var isAnyFieldFocused: Bool
     
     @StateObject private var viewModel = ItemDetailsViewModel()
     @Environment(\.dismiss) private var dismiss
@@ -61,9 +64,14 @@ struct ItemDetailsModal: View {
                     viewModel: viewModel,
                     onSave: handleSave
                 )
+                .focused($isAnyFieldFocused)
                 .navigationTitle(context.title)
                 .navigationBarTitleDisplayMode(.inline)
                 .navigationBarHidden(true)
+                .onTapGesture {
+                    // Dismiss keyboard when tapping outside text fields
+                    isAnyFieldFocused = false
+                }
 
                 // Floating Action Buttons
                 VStack {
@@ -81,6 +89,19 @@ struct ItemDetailsModal: View {
         }
         .onAppear {
             setupForContext()
+        }
+        .confirmationDialog(
+            "Discard Changes?",
+            isPresented: $showingCancelConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Discard Changes", role: .destructive) {
+                onDismiss()
+                dismiss()
+            }
+            Button("Keep Editing", role: .cancel) {}
+        } message: {
+            Text("You have unsaved changes. Are you sure you want to discard them?")
         }
     }
     
@@ -110,13 +131,19 @@ struct ItemDetailsModal: View {
     private func handleCancel() {
         print("Cancel button tapped")
 
-        if viewModel.hasUnsavedChanges {
-            // TODO: Show confirmation dialog
-            print("User has unsaved changes - should show confirmation")
-        }
+        // Dismiss keyboard first to prevent layout conflicts
+        isAnyFieldFocused = false
 
-        onDismiss()
-        dismiss()
+        if viewModel.hasUnsavedChanges {
+            print("User has unsaved changes - showing confirmation")
+            // Small delay to ensure keyboard dismissal completes
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                showingCancelConfirmation = true
+            }
+        } else {
+            onDismiss()
+            dismiss()
+        }
     }
 
     private func handlePrint() {
@@ -181,6 +208,26 @@ struct ItemDetailsContent: View {
                     ItemEnabledLocationsSection(viewModel: viewModel)
                 }
 
+                // Location overrides (conditionally shown)
+                if configManager.currentConfiguration.advancedFields.enabledLocationsEnabled && !viewModel.itemData.locationOverrides.isEmpty {
+                    ItemLocationOverridesSection(viewModel: viewModel)
+                }
+
+                // Custom attributes (conditionally shown)
+                if configManager.currentConfiguration.advancedFields.customAttributesEnabled {
+                    ItemCustomAttributesSection(viewModel: viewModel)
+                }
+
+                // E-commerce settings (conditionally shown)
+                if shouldShowEcommerceSection {
+                    ItemEcommerceSection(viewModel: viewModel)
+                }
+
+                // Measurement and units (conditionally shown)
+                if shouldShowMeasurementSection {
+                    ItemMeasurementSection(viewModel: viewModel)
+                }
+
                 // Advanced features (conditionally shown)
                 if viewModel.showAdvancedFeatures {
                     ItemDetailsAdvancedSection(viewModel: viewModel)
@@ -205,6 +252,19 @@ struct ItemDetailsContent: View {
                configManager.currentConfiguration.classificationFields.reportingCategoryEnabled ||
                configManager.currentConfiguration.pricingFields.taxEnabled ||
                configManager.currentConfiguration.pricingFields.modifiersEnabled
+    }
+
+    private var shouldShowEcommerceSection: Bool {
+        return configManager.currentConfiguration.ecommerceFields.onlineVisibilityEnabled ||
+               configManager.currentConfiguration.ecommerceFields.seoEnabled ||
+               configManager.currentConfiguration.advancedFields.channelsEnabled
+    }
+
+    private var shouldShowMeasurementSection: Bool {
+        return configManager.currentConfiguration.advancedFields.measurementUnitEnabled ||
+               configManager.currentConfiguration.advancedFields.sellableEnabled ||
+               configManager.currentConfiguration.advancedFields.stockableEnabled ||
+               configManager.currentConfiguration.advancedFields.userDataEnabled
     }
 }
 
