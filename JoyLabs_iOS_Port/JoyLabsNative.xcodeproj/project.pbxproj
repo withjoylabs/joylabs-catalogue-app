@@ -7,12 +7,15 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1569B20890AD45422D438BC1 /* FieldVisibilityModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF8BABE731647487EFC23A76 /* FieldVisibilityModifier.swift */; };
 		1BB8215A1AE0C24A8659DCB1 /* CachedImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EDE99120BC4616B6E3A9926 /* CachedImageView.swift */; };
 		21D4D3B4CE1031814FDAFCCB /* ComprehensiveItemModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 463F35C3BE9ED261FEE0206F /* ComprehensiveItemModels.swift */; };
 		2762D04C26D1C662BFB79CF0 /* ItemDetailsModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 099140CF4DCC3454A9EC9A5C /* ItemDetailsModal.swift */; };
 		2FD1191823A920EBC8718583 /* ItemDetailsAdvancedSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7C7A71E405D29DA8DA233CD /* ItemDetailsAdvancedSection.swift */; };
 		33ACA92EB8376CDDB719088F /* QuantityNumpad.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B4067D357704001C7A0D307 /* QuantityNumpad.swift */; };
 		343A5BEB820EB07235EEFE35 /* ItemDetailsPricingSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65695EAA6350279F084BF63B /* ItemDetailsPricingSection.swift */; };
+		3D033F23814EAC17F1F30659 /* ItemSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DC776666D9E1A98076720A2 /* ItemSettingsView.swift */; };
+		41826807649EF63DBBA03CCD /* FieldConfigurationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D71532DF527344EFA478B1B3 /* FieldConfigurationManager.swift */; };
 		4E9DC0AFA4C7DF303C097202 /* ItemAvailabilitySection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75FC10AFED4E5423B76916D5 /* ItemAvailabilitySection.swift */; };
 		6EA41FDD40E6B3236E5DC902 /* FloatingActionButtons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3773602C0EF0A589CED63975 /* FloatingActionButtons.swift */; };
 		9189A53F265287C2C25FF411 /* ItemDetailsBasicSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5A87F50DC4826C17C46DD0 /* ItemDetailsBasicSection.swift */; };
@@ -56,10 +59,10 @@
 		A1B2C3D4E5F6789012345901 /* CatalogTableDefinitions.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345902 /* CatalogTableDefinitions.swift */; };
 		A1B2C3D4E5F6789012345903 /* CatalogTableCreator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345904 /* CatalogTableCreator.swift */; };
 		A1B2C3D4E5F6789012345905 /* CatalogObjectInserters.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345906 /* CatalogObjectInserters.swift */; };
-		A1E0427AE3A4EE84A8C2CFEC /* ItemDataTransformers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53832E2B0035BC8C16ACFE91 /* ItemDataTransformers.swift */; };
 		CC4CE3294C46EDAA954DC559 /* ItemDetailsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D583607765D3CA494A3F396E /* ItemDetailsViewModel.swift */; };
 		E0A4C587E31A4D97E9D4D827 /* ItemDetailsCategoriesSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36FF7B27B9EC548A6363CA3B /* ItemDetailsCategoriesSection.swift */; };
 		EAF11475F8FA6178769828DA /* ItemEnabledLocationsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E05265C6905F14EE507527F2 /* ItemEnabledLocationsSection.swift */; };
+		EE69A41B578F628319F0F67C /* FieldConfigurationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7E80DE7F61C9C720F968463 /* FieldConfigurationSettingsView.swift */; };
 		F691E68C7ADFDA1137A12D8D /* ItemDeleteSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68CAE024F232AEDA149CF627 /* ItemDeleteSection.swift */; };
 		F734B51CB83D78322A781674 /* QuantitySelectionModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB32D29A7FF02592B9894919 /* QuantitySelectionModal.swift */; };
 /* End PBXBuildFile section */
@@ -72,10 +75,10 @@
 		36FF7B27B9EC548A6363CA3B /* ItemDetailsCategoriesSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsCategoriesSection.swift; path = Components/ItemDetailsCategoriesSection.swift; sourceTree = "<group>"; };
 		3773602C0EF0A589CED63975 /* FloatingActionButtons.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FloatingActionButtons.swift; path = Components/FloatingActionButtons.swift; sourceTree = "<group>"; };
 		463F35C3BE9ED261FEE0206F /* ComprehensiveItemModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ComprehensiveItemModels.swift; path = Components/ComprehensiveItemModels.swift; sourceTree = "<group>"; };
-		53832E2B0035BC8C16ACFE91 /* ItemDataTransformers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDataTransformers.swift; path = Components/ItemDataTransformers.swift; sourceTree = "<group>"; };
 		65695EAA6350279F084BF63B /* ItemDetailsPricingSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsPricingSection.swift; path = Components/ItemDetailsPricingSection.swift; sourceTree = "<group>"; };
 		68CAE024F232AEDA149CF627 /* ItemDeleteSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDeleteSection.swift; path = Components/ItemDeleteSection.swift; sourceTree = "<group>"; };
 		75FC10AFED4E5423B76916D5 /* ItemAvailabilitySection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemAvailabilitySection.swift; path = Components/ItemAvailabilitySection.swift; sourceTree = "<group>"; };
+		9DC776666D9E1A98076720A2 /* ItemSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemSettingsView.swift; path = Views/ItemSettingsView.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345679 /* JoyLabsNativeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNativeApp.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345681 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345683 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -114,11 +117,14 @@
 		A1B2C3D4E5F6789012345902 /* CatalogTableDefinitions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Database/CatalogTableDefinitions.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345904 /* CatalogTableCreator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Database/CatalogTableCreator.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345906 /* CatalogObjectInserters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Database/CatalogObjectInserters.swift; sourceTree = "<group>"; };
+		BF8BABE731647487EFC23A76 /* FieldVisibilityModifier.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FieldVisibilityModifier.swift; path = Components/FieldVisibilityModifier.swift; sourceTree = "<group>"; };
 		D583607765D3CA494A3F396E /* ItemDetailsViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsViewModel.swift; path = Components/ItemDetailsViewModel.swift; sourceTree = "<group>"; };
+		D71532DF527344EFA478B1B3 /* FieldConfigurationManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FieldConfigurationManager.swift; path = Components/FieldConfigurationManager.swift; sourceTree = "<group>"; };
 		D96C042150C12C4387D96347 /* ItemFieldConfiguration.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemFieldConfiguration.swift; path = Components/ItemFieldConfiguration.swift; sourceTree = "<group>"; };
 		E05265C6905F14EE507527F2 /* ItemEnabledLocationsSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemEnabledLocationsSection.swift; path = Components/ItemEnabledLocationsSection.swift; sourceTree = "<group>"; };
 		E2D5FAE44721EA24C8E50126 /* ItemImageSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemImageSection.swift; path = Components/ItemImageSection.swift; sourceTree = "<group>"; };
 		E7C7A71E405D29DA8DA233CD /* ItemDetailsAdvancedSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsAdvancedSection.swift; path = Components/ItemDetailsAdvancedSection.swift; sourceTree = "<group>"; };
+		E7E80DE7F61C9C720F968463 /* FieldConfigurationSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FieldConfigurationSettingsView.swift; path = Components/FieldConfigurationSettingsView.swift; sourceTree = "<group>"; };
 		EB32D29A7FF02592B9894919 /* QuantitySelectionModal.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = QuantitySelectionModal.swift; path = Components/QuantitySelectionModal.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -138,6 +144,7 @@
 			isa = PBXGroup;
 			children = (
 				D0AB509709FDC88A502F7199 /* Components */,
+				9DC776666D9E1A98076720A2 /* ItemSettingsView.swift */,
 			);
 			name = Views;
 			sourceTree = "<group>";
@@ -160,7 +167,9 @@
 				3773602C0EF0A589CED63975 /* FloatingActionButtons.swift */,
 				463F35C3BE9ED261FEE0206F /* ComprehensiveItemModels.swift */,
 				D96C042150C12C4387D96347 /* ItemFieldConfiguration.swift */,
-				53832E2B0035BC8C16ACFE91 /* ItemDataTransformers.swift */,
+				D71532DF527344EFA478B1B3 /* FieldConfigurationManager.swift */,
+				E7E80DE7F61C9C720F968463 /* FieldConfigurationSettingsView.swift */,
+				BF8BABE731647487EFC23A76 /* FieldVisibilityModifier.swift */,
 			);
 			name = Components;
 			sourceTree = "<group>";
@@ -378,7 +387,10 @@
 				6EA41FDD40E6B3236E5DC902 /* FloatingActionButtons.swift in Sources */,
 				21D4D3B4CE1031814FDAFCCB /* ComprehensiveItemModels.swift in Sources */,
 				99776EE3F97CD95D3C775838 /* ItemFieldConfiguration.swift in Sources */,
-				A1E0427AE3A4EE84A8C2CFEC /* ItemDataTransformers.swift in Sources */,
+				41826807649EF63DBBA03CCD /* FieldConfigurationManager.swift in Sources */,
+				EE69A41B578F628319F0F67C /* FieldConfigurationSettingsView.swift in Sources */,
+				1569B20890AD45422D438BC1 /* FieldVisibilityModifier.swift in Sources */,
+				3D033F23814EAC17F1F30659 /* ItemSettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

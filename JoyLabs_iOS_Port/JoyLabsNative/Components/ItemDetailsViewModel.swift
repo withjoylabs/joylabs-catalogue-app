@@ -69,7 +69,7 @@ struct ItemDetailsData {
 }
 
 // MARK: - Supporting Enums
-enum ProductType: String, CaseIterable {
+enum ProductType: String, CaseIterable, Codable {
     case regular = "REGULAR"
     case appointmentsService = "APPOINTMENTS_SERVICE"
     
@@ -83,7 +83,7 @@ enum ProductType: String, CaseIterable {
     }
 }
 
-enum InventoryAlertType: String, CaseIterable {
+enum InventoryAlertType: String, CaseIterable, Codable {
     case none = "NONE"
     case lowQuantity = "LOW_QUANTITY"
     

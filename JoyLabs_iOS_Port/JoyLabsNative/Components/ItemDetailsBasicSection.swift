@@ -4,13 +4,14 @@ import SwiftUI
 /// Handles basic item information fields (name, description, abbreviation)
 struct ItemDetailsBasicSection: View {
     @ObservedObject var viewModel: ItemDetailsViewModel
+    @StateObject private var configManager = FieldConfigurationManager.shared
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             ItemDetailsSectionHeader(title: "Basic Information", icon: "info.circle")
             
             VStack(spacing: 12) {
-                // Item Name
+                // Item Name (always shown - required field)
                 ItemNameField(
                     name: Binding(
                         get: { viewModel.itemData.name },
@@ -18,30 +19,36 @@ struct ItemDetailsBasicSection: View {
                     ),
                     error: viewModel.nameError
                 )
-                
-                // Description
-                ItemDescriptionField(
-                    description: Binding(
-                        get: { viewModel.itemData.description },
-                        set: { viewModel.itemData.description = $0 }
+
+                // Description (configurable)
+                if configManager.isFieldEnabled(.basicDescription) {
+                    ItemDescriptionField(
+                        description: Binding(
+                            get: { viewModel.itemData.description },
+                            set: { viewModel.itemData.description = $0 }
+                        )
                     )
-                )
-                
-                // Abbreviation
-                ItemAbbreviationField(
-                    abbreviation: Binding(
-                        get: { viewModel.itemData.abbreviation },
-                        set: { viewModel.itemData.abbreviation = $0 }
+                }
+
+                // Abbreviation (configurable)
+                if configManager.isFieldEnabled(.basicAbbreviation) {
+                    ItemAbbreviationField(
+                        abbreviation: Binding(
+                            get: { viewModel.itemData.abbreviation },
+                            set: { viewModel.itemData.abbreviation = $0 }
+                        )
                     )
-                )
-                
-                // Product Type
-                ProductTypeSelector(
-                    productType: Binding(
-                        get: { viewModel.itemData.productType },
-                        set: { viewModel.itemData.productType = $0 }
+                }
+
+                // Product Type (configurable)
+                if configManager.isFieldEnabled(.classificationCategory) {
+                    ProductTypeSelector(
+                        productType: Binding(
+                            get: { viewModel.itemData.productType },
+                            set: { viewModel.itemData.productType = $0 }
+                        )
                     )
-                )
+                }
             }
         }
     }

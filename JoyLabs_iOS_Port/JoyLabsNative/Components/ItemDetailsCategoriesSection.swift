@@ -4,43 +4,52 @@ import SwiftUI
 /// Handles categories, taxes, and modifiers
 struct ItemDetailsCategoriesSection: View {
     @ObservedObject var viewModel: ItemDetailsViewModel
+    @StateObject private var configManager = FieldConfigurationManager.shared
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             ItemDetailsSectionHeader(title: "Categories & Organization", icon: "folder")
             
             VStack(spacing: 12) {
-                // Reporting Category
-                ReportingCategorySelector(
-                    reportingCategoryId: Binding(
-                        get: { viewModel.itemData.reportingCategoryId },
-                        set: { viewModel.itemData.reportingCategoryId = $0 }
+                // Reporting Category (conditionally shown)
+                if configManager.currentConfiguration.classificationFields.reportingCategoryEnabled {
+                    ReportingCategorySelector(
+                        reportingCategoryId: Binding(
+                            get: { viewModel.itemData.reportingCategoryId },
+                            set: { viewModel.itemData.reportingCategoryId = $0 }
+                        )
                     )
-                )
-                
-                // Additional Categories
-                AdditionalCategoriesSelector(
-                    categoryIds: Binding(
-                        get: { viewModel.itemData.categoryIds },
-                        set: { viewModel.itemData.categoryIds = $0 }
+                }
+
+                // Additional Categories (conditionally shown)
+                if configManager.currentConfiguration.classificationFields.categoryEnabled {
+                    AdditionalCategoriesSelector(
+                        categoryIds: Binding(
+                            get: { viewModel.itemData.categoryIds },
+                            set: { viewModel.itemData.categoryIds = $0 }
+                        )
                     )
-                )
-                
-                // Tax Settings
-                TaxSelector(
-                    taxIds: Binding(
-                        get: { viewModel.itemData.taxIds },
-                        set: { viewModel.itemData.taxIds = $0 }
+                }
+
+                // Tax Settings (conditionally shown)
+                if configManager.currentConfiguration.pricingFields.taxEnabled {
+                    TaxSelector(
+                        taxIds: Binding(
+                            get: { viewModel.itemData.taxIds },
+                            set: { viewModel.itemData.taxIds = $0 }
+                        )
                     )
-                )
-                
-                // Modifier Lists
-                ModifierListSelector(
-                    modifierListIds: Binding(
-                        get: { viewModel.itemData.modifierListIds },
-                        set: { viewModel.itemData.modifierListIds = $0 }
+                }
+
+                // Modifier Lists (conditionally shown)
+                if configManager.currentConfiguration.pricingFields.modifiersEnabled {
+                    ModifierListSelector(
+                        modifierListIds: Binding(
+                            get: { viewModel.itemData.modifierListIds },
+                            set: { viewModel.itemData.modifierListIds = $0 }
+                        )
                     )
-                )
+                }
             }
         }
     }

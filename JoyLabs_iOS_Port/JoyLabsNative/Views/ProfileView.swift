@@ -140,6 +140,11 @@ struct ProfileView: View {
                         SectionHeader(title: "App Settings")
 
                         VStack(spacing: 12) {
+                            NavigationLink(destination: ItemSettingsView()) {
+                                SettingsRowContent(icon: "square.and.pencil", title: "Item Settings", subtitle: "Customize item defaults and views")
+                            }
+                            .buttonStyle(PlainButtonStyle())
+
                             SettingsRow(icon: "barcode", title: "Scanner Settings", subtitle: "Configure barcode scanner")
                             SettingsRow(icon: "printer", title: "Label Preferences", subtitle: "Default label settings")
                             SettingsRow(icon: "bell", title: "Notifications", subtitle: "Manage alerts and updates")
@@ -312,6 +317,44 @@ struct IntegrationCard: View {
     }
 }
 
+struct SettingsRowContent: View {
+    let icon: String
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        HStack {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundColor(.blue)
+                .frame(width: 30)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.headline)
+                    .foregroundColor(.primary)
+
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .padding(16)
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(.systemGray4), lineWidth: 1)
+        )
+    }
+}
+
 struct SettingsRow: View {
     let icon: String
     let title: String
@@ -319,35 +362,7 @@ struct SettingsRow: View {
 
     var body: some View {
         Button(action: {}) {
-            HStack {
-                Image(systemName: icon)
-                    .font(.title2)
-                    .foregroundColor(.blue)
-                    .frame(width: 30)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.headline)
-                        .foregroundColor(.primary)
-
-                    Text(subtitle)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-
-                Spacer()
-
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            .padding(16)
-            .background(Color(.systemBackground))
-            .cornerRadius(12)
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color(.systemGray4), lineWidth: 1)
-            )
+            SettingsRowContent(icon: icon, title: title, subtitle: subtitle)
         }
         .buttonStyle(PlainButtonStyle())
     }

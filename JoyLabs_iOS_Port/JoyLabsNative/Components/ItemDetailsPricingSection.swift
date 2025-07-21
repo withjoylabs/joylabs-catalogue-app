@@ -4,6 +4,7 @@ import SwiftUI
 /// Handles pricing, variations, SKU, and UPC information
 struct ItemDetailsPricingSection: View {
     @ObservedObject var viewModel: ItemDetailsViewModel
+    @StateObject private var configManager = FieldConfigurationManager.shared
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {

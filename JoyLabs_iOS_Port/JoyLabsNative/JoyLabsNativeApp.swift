@@ -24,6 +24,15 @@ struct JoyLabsNativeApp: App {
     private func initializeSharedServices() {
         logger.info("🚀 Initializing shared services on app startup...")
 
+        // Initialize field configuration manager early to ensure settings persist
+        Task.detached(priority: .high) {
+            await MainActor.run {
+                // Initialize field configuration manager to load saved settings
+                let _ = FieldConfigurationManager.shared
+                self.logger.info("✅ Field configuration manager initialized")
+            }
+        }
+
         // Initialize the shared database manager early
         // This ensures database is ready before any views try to use it
         Task.detached(priority: .high) {

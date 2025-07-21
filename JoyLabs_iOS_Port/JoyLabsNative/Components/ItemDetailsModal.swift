@@ -147,6 +147,7 @@ struct ItemDetailsContent: View {
     let context: ItemDetailsContext
     @ObservedObject var viewModel: ItemDetailsViewModel
     let onSave: () -> Void
+    @StateObject private var configManager = FieldConfigurationManager.shared
     
     var body: some View {
         ScrollView {
@@ -165,19 +166,27 @@ struct ItemDetailsContent: View {
                 // Pricing and variations
                 ItemDetailsPricingSection(viewModel: viewModel)
                 
-                // Categories and organization
-                ItemDetailsCategoriesSection(viewModel: viewModel)
-                
+                // Categories and organization (conditionally shown)
+                if shouldShowCategoriesSection {
+                    ItemDetailsCategoriesSection(viewModel: viewModel)
+                }
+
+                // Availability settings (conditionally shown)
+                if configManager.currentConfiguration.ecommerceFields.availabilityEnabled {
+                    ItemAvailabilitySection(viewModel: viewModel)
+                }
+
+                // Enabled locations (conditionally shown)
+                if configManager.currentConfiguration.advancedFields.enabledLocationsEnabled {
+                    ItemEnabledLocationsSection(viewModel: viewModel)
+                }
+
                 // Advanced features (conditionally shown)
                 if viewModel.showAdvancedFeatures {
                     ItemDetailsAdvancedSection(viewModel: viewModel)
                 }
 
-                // Item Availability Section
-                ItemAvailabilitySection(viewModel: viewModel)
 
-                // Enabled Locations Section
-                ItemEnabledLocationsSection(viewModel: viewModel)
 
                 // Delete Button Section
                 ItemDeleteSection(viewModel: viewModel)
@@ -188,6 +197,14 @@ struct ItemDetailsContent: View {
             }
             .padding()
         }
+    }
+
+    // MARK: - Computed Properties
+    private var shouldShowCategoriesSection: Bool {
+        return configManager.currentConfiguration.classificationFields.categoryEnabled ||
+               configManager.currentConfiguration.classificationFields.reportingCategoryEnabled ||
+               configManager.currentConfiguration.pricingFields.taxEnabled ||
+               configManager.currentConfiguration.pricingFields.modifiersEnabled
     }
 }
 

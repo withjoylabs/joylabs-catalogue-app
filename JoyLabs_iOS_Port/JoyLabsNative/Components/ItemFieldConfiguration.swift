@@ -5,7 +5,7 @@ import Foundation
 // Note: Uses existing types from ItemDetailsViewModel.swift and CatalogModels.swift
 
 /// Configuration for item detail fields with settings-driven visibility and defaults
-struct ItemFieldConfiguration {
+struct ItemFieldConfiguration: Codable {
     
     // MARK: - Basic Information Fields
     var basicFields = BasicFieldsConfig()
@@ -96,7 +96,7 @@ struct ItemFieldConfiguration {
 
 // MARK: - Field Configuration Structures
 
-struct BasicFieldsConfig {
+struct BasicFieldsConfig: Codable {
     var nameEnabled: Bool = true
     var nameRequired: Bool = true
     var defaultName: String = ""
@@ -116,7 +116,7 @@ struct BasicFieldsConfig {
     var defaultSortName: String = ""
 }
 
-struct ClassificationFieldsConfig {
+struct ClassificationFieldsConfig: Codable {
     var categoryEnabled: Bool = true
     var categoryRequired: Bool = false
     var defaultCategoryId: String?
@@ -132,7 +132,7 @@ struct ClassificationFieldsConfig {
     var multiCategoriesEnabled: Bool = false
 }
 
-struct PricingFieldsConfig {
+struct PricingFieldsConfig: Codable {
     var variationsEnabled: Bool = true
     var variationsRequired: Bool = true
     var defaultVariationCount: Int = 1
@@ -152,7 +152,7 @@ struct PricingFieldsConfig {
     var itemOptionsRequired: Bool = false
 }
 
-struct InventoryFieldsConfig {
+struct InventoryFieldsConfig: Codable {
     var trackInventoryEnabled: Bool = true
     var trackInventoryRequired: Bool = false
     var defaultTrackInventory: Bool = false
@@ -170,7 +170,7 @@ struct InventoryFieldsConfig {
     var defaultStockOnHand: Int = 0
 }
 
-struct ServiceFieldsConfig {
+struct ServiceFieldsConfig: Codable {
     var serviceDurationEnabled: Bool = false
     var serviceDurationRequired: Bool = false
     var defaultServiceDuration: Int? // in minutes
@@ -184,7 +184,7 @@ struct ServiceFieldsConfig {
     var defaultAvailableForBooking: Bool = false
 }
 
-struct AdvancedFieldsConfig {
+struct AdvancedFieldsConfig: Codable {
     var customAttributesEnabled: Bool = false
     var customAttributesRequired: Bool = false
     
@@ -207,9 +207,13 @@ struct AdvancedFieldsConfig {
     var channelsEnabled: Bool = false
     var channelsRequired: Bool = false
     var defaultChannels: [String] = []
+
+    var enabledLocationsEnabled: Bool = true
+    var enabledLocationsRequired: Bool = false
+    var defaultEnabledAtAllLocations: Bool = true
 }
 
-struct EcommerceFieldsConfig {
+struct EcommerceFieldsConfig: Codable {
     var onlineVisibilityEnabled: Bool = false
     var onlineVisibilityRequired: Bool = false
     var defaultOnlineVisibility: OnlineVisibility = .public
@@ -231,7 +235,7 @@ struct EcommerceFieldsConfig {
     var availabilityPeriodsRequired: Bool = false
 }
 
-struct TeamDataFieldsConfig {
+struct TeamDataFieldsConfig: Codable {
     var caseDataEnabled: Bool = true
     var caseDataRequired: Bool = false
     
