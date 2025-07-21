@@ -51,8 +51,8 @@ struct ContentView: View {
                 }
                 .badge(reorderBadgeManager.unpurchasedCount > 0 ? "\(reorderBadgeManager.unpurchasedCount)" : nil)
 
-            // FAB placeholder - will be replaced with custom implementation
-            FABPlaceholderView()
+            // FAB - Direct modal access
+            FABDirectModalView()
                 .tabItem {
                     Image(systemName: "plus.circle.fill")
                     Text("")
@@ -74,24 +74,87 @@ struct ContentView: View {
     }
 }
 
-// MARK: - FAB Placeholder
-struct FABPlaceholderView: View {
+// MARK: - FAB Direct Modal View
+struct FABDirectModalView: View {
+    @State private var showingItemDetails = false
+
     var body: some View {
         VStack(spacing: 20) {
-            Image(systemName: "plus.circle.fill")
-                .font(.system(size: 60))
-                .foregroundColor(.blue)
+            Button(action: {
+                showingItemDetails = true
+            }) {
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 60))
+                    .foregroundColor(.blue)
+            }
 
-            Text("Quick Actions")
+            Text("Create New Item")
                 .font(.title2)
                 .fontWeight(.semibold)
 
-            Text("Coming Soon")
+            Text("Tap the + button to create a new item")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemBackground))
+        .onAppear {
+            // Automatically show the modal when this tab is selected
+            showingItemDetails = true
+        }
+        .sheet(isPresented: $showingItemDetails) {
+            ItemDetailsModal(
+                context: .createNew,
+                onDismiss: {
+                    showingItemDetails = false
+                },
+                onSave: { itemData in
+                    // TODO: Handle saved item
+                    showingItemDetails = false
+                }
+            )
+        }
+    }
+}
+
+// MARK: - FAB Placeholder (Legacy)
+struct FABPlaceholderView: View {
+    @State private var showingItemDetails = false
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Button(action: {
+                showingItemDetails = true
+            }) {
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 60))
+                    .foregroundColor(.blue)
+            }
+
+            Text("Create New Item")
+                .font(.title2)
+                .fontWeight(.semibold)
+
+            Text("Tap the + button to create a new item")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.systemBackground))
+        .sheet(isPresented: $showingItemDetails) {
+            ItemDetailsModal(
+                context: .createNew,
+                onDismiss: {
+                    showingItemDetails = false
+                },
+                onSave: { itemData in
+                    // TODO: Handle saved item
+                    showingItemDetails = false
+                }
+            )
+        }
     }
 }
 

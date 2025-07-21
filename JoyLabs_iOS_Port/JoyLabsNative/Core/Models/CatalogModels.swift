@@ -496,6 +496,82 @@ struct CatalogResponse: Codable {
     let errors: [APIError]?
 }
 
+/// Response for fetching a single catalog object
+struct CatalogObjectResponse: Codable {
+    let object: CatalogObject?
+    let relatedObjects: [CatalogObject]?
+    let errors: [APIError]?
+
+    enum CodingKeys: String, CodingKey {
+        case object
+        case relatedObjects = "related_objects"
+        case errors
+    }
+}
+
+/// Request for upserting a catalog object
+struct UpsertCatalogObjectRequest: Codable {
+    let idempotencyKey: String
+    let object: CatalogObject
+
+    enum CodingKeys: String, CodingKey {
+        case idempotencyKey = "idempotency_key"
+        case object
+    }
+}
+
+/// Response for upserting a catalog object
+struct UpsertCatalogObjectResponse: Codable {
+    let catalogObject: CatalogObject?
+    let idMappings: [IdMapping]?
+    let errors: [APIError]?
+
+    enum CodingKeys: String, CodingKey {
+        case catalogObject = "catalog_object"
+        case idMappings = "id_mappings"
+        case errors
+    }
+}
+
+/// Response for deleting a catalog object
+struct DeleteCatalogObjectResponse: Codable {
+    let deletedObject: DeletedCatalogObject?
+    let deletedObjectIds: [String]?
+    let errors: [APIError]?
+
+    enum CodingKeys: String, CodingKey {
+        case deletedObject = "deleted_object"
+        case deletedObjectIds = "deleted_object_ids"
+        case errors
+    }
+}
+
+/// Information about a deleted catalog object
+struct DeletedCatalogObject: Codable {
+    let objectType: String?
+    let id: String?
+    let version: Int64?
+    let deletedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case objectType = "object_type"
+        case id
+        case version
+        case deletedAt = "deleted_at"
+    }
+}
+
+/// ID mapping for upsert operations
+struct IdMapping: Codable {
+    let clientObjectId: String?
+    let objectId: String?
+
+    enum CodingKeys: String, CodingKey {
+        case clientObjectId = "client_object_id"
+        case objectId = "object_id"
+    }
+}
+
 struct APIError: Codable {
     let category: String?
     let code: String?

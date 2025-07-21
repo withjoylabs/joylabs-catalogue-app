@@ -24,19 +24,13 @@ struct SquareConfiguration {
     /// AWS Lambda Backend Base URL
     static let backendBaseURL = "https://gki8kva7e3.execute-api.us-west-1.amazonaws.com/production"
     
-    /// Backend API Endpoints
+    /// Backend API Endpoints (OAuth only - catalog operations use direct Square API)
     struct Endpoints {
         static let registerState = "/api/auth/register-state"
         static let squareCallback = "/api/auth/square/callback"
         static let tokenExchange = "/api/auth/square/token"
         static let storeVerifier = "/api/auth/store-verifier"
         static let retrieveVerifier = "/api/auth/retrieve-verifier"
-        
-        // Catalog API endpoints (proxied through backend)
-        static let catalogList = "/v2/catalog/list"
-        static let catalogObject = "/v2/catalog/object"
-        static let catalogSearch = "/v2/catalog/search"
-        static let catalogUpsert = "/v2/catalog/object"
     }
     
     // MARK: - OAuth Configuration
@@ -180,6 +174,10 @@ enum SquareAPIError: LocalizedError {
     case networkError(Error)
     case decodingError(Error)
     case unknownError
+    case objectNotFound(String)
+    case upsertFailed(String)
+    case deleteFailed(String)
+    case versionConflict(String)
     
     var errorDescription: String? {
         switch self {
@@ -203,6 +201,14 @@ enum SquareAPIError: LocalizedError {
             return "Failed to decode response: \(error.localizedDescription)"
         case .unknownError:
             return "Unknown Square API error"
+        case .objectNotFound(let objectId):
+            return "Catalog object not found: \(objectId)"
+        case .upsertFailed(let reason):
+            return "Failed to create or update catalog object: \(reason)"
+        case .deleteFailed(let reason):
+            return "Failed to delete catalog object: \(reason)"
+        case .versionConflict(let objectId):
+            return "Version conflict for catalog object: \(objectId)"
         }
     }
 }

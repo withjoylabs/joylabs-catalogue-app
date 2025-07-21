@@ -253,6 +253,7 @@ struct ReorderItemCard: View {
 
     @State private var dragOffset: CGFloat = 0
     @State private var isDragging = false
+    @State private var showingItemDetails = false
 
     private let deleteThreshold: CGFloat = -120
     private let receivedThreshold: CGFloat = 120
@@ -450,6 +451,10 @@ struct ReorderItemCard: View {
                 // Tap anywhere on the card to open quantity modal
                 onQuantityTap?()
             }
+            .onLongPressGesture {
+                // Long press to open item details
+                showingItemDetails = true
+            }
             .gesture(
                 DragGesture()
                     .onChanged { value in
@@ -482,6 +487,18 @@ struct ReorderItemCard: View {
             )
         }
         .clipped()
+        .sheet(isPresented: $showingItemDetails) {
+            ItemDetailsModal(
+                context: .editExisting(itemId: item.itemId),
+                onDismiss: {
+                    showingItemDetails = false
+                },
+                onSave: { itemData in
+                    // TODO: Handle saved item
+                    showingItemDetails = false
+                }
+            )
+        }
     }
 
     private func toggleStatus() {

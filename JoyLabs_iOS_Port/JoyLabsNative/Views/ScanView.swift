@@ -368,7 +368,7 @@ struct SearchResultsView: View {
             } else if let error = searchManager.searchError {
                 SearchErrorView(error: error)
             } else if searchManager.searchResults.isEmpty {
-                NoResultsView()
+                NoResultsView(searchManager: searchManager)
             } else {
                 SearchResultsList(results: searchManager.searchResults, searchManager: searchManager)
             }
@@ -417,6 +417,9 @@ struct SearchErrorView: View {
 }
 
 struct NoResultsView: View {
+    let searchManager: SearchManager
+    @State private var showingItemDetails = false
+
     var body: some View {
         VStack(spacing: 20) {
             Spacer()
@@ -436,9 +439,97 @@ struct NoResultsView: View {
                     .multilineTextAlignment(.center)
             }
 
+            // Create item button if there's a search query
+            if let searchQuery = searchManager.currentSearchTerm, !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                CreateItemButton(searchQuery: searchQuery) {
+                    showingItemDetails = true
+                }
+            }
+
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .sheet(isPresented: $showingItemDetails) {
+            if let searchQuery = searchManager.currentSearchTerm {
+                ItemDetailsModal(
+                    context: .createFromSearch(
+                        query: searchQuery,
+                        queryType: detectQueryType(searchQuery)
+                    ),
+                    onDismiss: {
+                        showingItemDetails = false
+                    },
+                    onSave: { itemData in
+                        // TODO: Handle saved item
+                        showingItemDetails = false
+                    }
+                )
+            }
+        }
+    }
+
+    private func detectQueryType(_ query: String) -> SearchQueryType {
+        // Simple heuristic to detect query type
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Check if it's likely a barcode (all digits, common barcode lengths)
+        if trimmedQuery.allSatisfy(\.isNumber) && [8, 12, 13, 14].contains(trimmedQuery.count) {
+            return .barcode
+        }
+
+        // Check if it looks like an SKU (short alphanumeric)
+        if trimmedQuery.count <= 20 && trimmedQuery.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" }) {
+            return .sku
+        }
+
+        // Default to name
+        return .name
+    }
+}
+
+// MARK: - Create Item Button
+struct CreateItemButton: View {
+    let searchQuery: String
+    let action: () -> Void
+
+    private var queryType: SearchQueryType {
+        let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if trimmedQuery.allSatisfy(\.isNumber) && [8, 12, 13, 14].contains(trimmedQuery.count) {
+            return .barcode
+        }
+
+        if trimmedQuery.count <= 20 && trimmedQuery.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" }) {
+            return .sku
+        }
+
+        return .name
+    }
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 8) {
+                HStack {
+                    Image(systemName: "plus.circle.fill")
+                        .foregroundColor(.blue)
+                        .font(.title2)
+
+                    Text("Create New Item")
+                        .fontWeight(.semibold)
+                        .foregroundColor(.blue)
+                }
+
+                Text("Pre-fill \(queryType.displayName): \(searchQuery)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Color.blue.opacity(0.1))
+            .cornerRadius(12)
+        }
+        .padding(.horizontal)
     }
 }
 

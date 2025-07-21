@@ -12,6 +12,7 @@ class SearchManager: ObservableObject {
     @Published var isSearching: Bool = false
     @Published var searchError: String?
     @Published var lastSearchTerm: String = ""
+    @Published var currentSearchTerm: String? = nil
     @Published var hasMoreResults = false
     @Published var totalResultsCount: Int?
     @Published var isLoadingMore = false
@@ -150,6 +151,7 @@ class SearchManager: ObservableObject {
             }
             searchError = nil
             lastSearchTerm = trimmedTerm
+            currentSearchTerm = trimmedTerm
         }
 
         logger.info("🔍 Performing search for: '\(trimmedTerm)' (offset: \(self.currentOffset), loadMore: \(loadMore))")
@@ -267,6 +269,7 @@ class SearchManager: ObservableObject {
         searchResults = []
         searchError = nil
         lastSearchTerm = ""
+        currentSearchTerm = nil
         isSearching = false
         isLoadingMore = false
         hasMoreResults = false

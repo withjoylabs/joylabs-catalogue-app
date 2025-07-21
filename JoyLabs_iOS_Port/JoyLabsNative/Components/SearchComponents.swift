@@ -79,6 +79,7 @@ struct ScanButton: View {
 // MARK: - Search Result Card
 struct ScanResultCard: View {
     let result: SearchResultItem
+    @State private var showingItemDetails = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -184,11 +185,23 @@ struct ScanResultCard: View {
         .onTapGesture {
             handleItemSelection()
         }
+        .sheet(isPresented: $showingItemDetails) {
+            ItemDetailsModal(
+                context: .editExisting(itemId: result.id),
+                onDismiss: {
+                    showingItemDetails = false
+                },
+                onSave: { itemData in
+                    // TODO: Handle saved item
+                    showingItemDetails = false
+                }
+            )
+        }
     }
-    
+
     private func handleItemSelection() {
-        // Handle item selection
         print("Selected item: \(result.name ?? result.id)")
+        showingItemDetails = true
     }
 }
 

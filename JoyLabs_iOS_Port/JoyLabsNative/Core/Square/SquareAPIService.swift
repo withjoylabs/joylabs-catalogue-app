@@ -370,6 +370,76 @@ class SquareAPIService: ObservableObject {
         return try await performCatalogFetch()
     }
 
+    /// Fetch a specific catalog object by ID
+    func fetchCatalogObjectById(
+        _ objectId: String,
+        includeRelatedObjects: Bool = true,
+        catalogVersion: Int64? = nil
+    ) async throws -> CatalogObject {
+        logger.info("Fetching catalog object by ID: \(objectId)")
+
+        guard isAuthenticated else {
+            throw SquareAPIError.authenticationFailed
+        }
+
+        let response = try await httpClient.fetchCatalogObjectById(
+            objectId,
+            includeRelatedObjects: includeRelatedObjects,
+            catalogVersion: catalogVersion
+        )
+
+        guard let object = response.object else {
+            throw SquareAPIError.objectNotFound(objectId)
+        }
+
+        logger.info("Successfully fetched catalog object: \(objectId)")
+        return object
+    }
+
+    /// Create or update a catalog object
+    func upsertCatalogObject(
+        _ object: CatalogObject,
+        idempotencyKey: String? = nil
+    ) async throws -> CatalogObject {
+        logger.info("Upserting catalog object: \(object.id) (type: \(object.type))")
+
+        guard isAuthenticated else {
+            throw SquareAPIError.authenticationFailed
+        }
+
+        let requestKey = idempotencyKey ?? UUID().uuidString
+
+        let response = try await httpClient.upsertCatalogObject(
+            object,
+            idempotencyKey: requestKey
+        )
+
+        guard let upsertedObject = response.catalogObject else {
+            throw SquareAPIError.upsertFailed("No object returned from upsert operation")
+        }
+
+        logger.info("Successfully upserted catalog object: \(upsertedObject.id) (version: \(upsertedObject.version))")
+        return upsertedObject
+    }
+
+    /// Delete a catalog object
+    func deleteCatalogObject(_ objectId: String) async throws -> DeletedCatalogObject {
+        logger.info("Deleting catalog object: \(objectId)")
+
+        guard isAuthenticated else {
+            throw SquareAPIError.authenticationFailed
+        }
+
+        let response = try await httpClient.deleteCatalogObject(objectId)
+
+        guard let deletedObject = response.deletedObject else {
+            throw SquareAPIError.deleteFailed("No deleted object information returned")
+        }
+
+        logger.info("Successfully deleted catalog object: \(objectId) at \(deletedObject.deletedAt ?? "unknown time")")
+        return deletedObject
+    }
+
     /// Perform the actual catalog fetch operation
     private func performCatalogFetch() async throws -> [CatalogObject] {
         var allObjects: [CatalogObject] = []

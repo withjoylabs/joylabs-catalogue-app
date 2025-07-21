@@ -172,25 +172,25 @@ actor SquareHTTPClient {
         )
     }
     
-    /// Fetch catalog page from Square API
+    /// Fetch catalog page from Square API (DIRECT API CALL)
     func fetchCatalogPage(cursor: String? = nil, types: String? = nil) async throws -> CatalogResponse {
-        logger.debug("Fetching catalog page with cursor: \(cursor ?? "none")")
-        
+        logger.debug("Fetching catalog page with cursor: \(cursor ?? "none") - DIRECT Square API")
+
         var queryItems = [URLQueryItem]()
-        
+
         if let cursor = cursor {
             queryItems.append(URLQueryItem(name: "cursor", value: cursor))
         }
-        
+
         let objectTypes = types ?? configuration.catalogObjectTypes
         queryItems.append(URLQueryItem(name: "types", value: objectTypes))
-        
+
         let endpoint = buildEndpointWithQuery(
-            base: configuration.Endpoints.catalogList,
+            base: "/v2/catalog/list",  // Direct Square API endpoint
             queryItems: queryItems
         )
-        
-        return try await makeBackendRequest(
+
+        return try await makeSquareAPIRequest(
             endpoint: endpoint,
             method: .GET,
             body: nil,
@@ -198,26 +198,90 @@ actor SquareHTTPClient {
         )
     }
     
-    /// Search catalog objects with timestamp filter
+    /// Search catalog objects with timestamp filter (DIRECT API CALL)
     func searchCatalogObjects(beginTime: String? = nil) async throws -> CatalogResponse {
-        logger.debug("Searching catalog objects with beginTime: \(beginTime ?? "none")")
-        
+        logger.debug("Searching catalog objects with beginTime: \(beginTime ?? "none") - DIRECT Square API")
+
         var queryItems = [URLQueryItem]()
-        
+
         if let beginTime = beginTime {
             queryItems.append(URLQueryItem(name: "begin_time", value: beginTime))
         }
-        
+
         let endpoint = buildEndpointWithQuery(
-            base: configuration.Endpoints.catalogSearch,
+            base: "/v2/catalog/search",  // Direct Square API endpoint
             queryItems: queryItems
         )
-        
-        return try await makeBackendRequest(
+
+        return try await makeSquareAPIRequest(
             endpoint: endpoint,
             method: .GET,
             body: nil,
             responseType: CatalogResponse.self
+        )
+    }
+
+    /// Fetch a specific catalog object by ID (DIRECT API CALL)
+    func fetchCatalogObjectById(
+        _ objectId: String,
+        includeRelatedObjects: Bool = true,
+        catalogVersion: Int64? = nil
+    ) async throws -> CatalogObjectResponse {
+        logger.debug("Fetching catalog object by ID: \(objectId) - DIRECT Square API")
+
+        var queryItems = [URLQueryItem]()
+        queryItems.append(URLQueryItem(name: "include_related_objects", value: String(includeRelatedObjects)))
+
+        if let version = catalogVersion {
+            queryItems.append(URLQueryItem(name: "catalog_version", value: String(version)))
+        }
+
+        let endpoint = buildEndpointWithQuery(
+            base: "/v2/catalog/object/\(objectId)",  // Direct Square API endpoint
+            queryItems: queryItems
+        )
+
+        return try await makeSquareAPIRequest(
+            endpoint: endpoint,
+            method: .GET,
+            body: nil,
+            responseType: CatalogObjectResponse.self
+        )
+    }
+
+    /// Create or update a catalog object (DIRECT API CALL)
+    func upsertCatalogObject(
+        _ object: CatalogObject,
+        idempotencyKey: String
+    ) async throws -> UpsertCatalogObjectResponse {
+        logger.debug("Upserting catalog object: \(object.id) (type: \(object.type)) - DIRECT Square API")
+
+        let requestBody = UpsertCatalogObjectRequest(
+            idempotencyKey: idempotencyKey,
+            object: object
+        )
+
+        let bodyData = try JSONEncoder().encode(requestBody)
+
+        return try await makeSquareAPIRequest(
+            endpoint: "/v2/catalog/object",  // Direct Square API endpoint
+            method: .POST,
+            body: bodyData,
+            responseType: UpsertCatalogObjectResponse.self
+        )
+    }
+
+    /// Delete a catalog object (DIRECT API CALL)
+    func deleteCatalogObject(_ objectId: String) async throws -> DeleteCatalogObjectResponse {
+        logger.debug("Deleting catalog object: \(objectId) - DIRECT Square API")
+
+        let endpoint = "/v2/catalog/object/\(objectId)"  // Direct Square API endpoint
+
+        return try await makeSquareAPIRequest(
+            endpoint: endpoint,
+            method: .DELETE,
+            body: nil,
+            responseType: DeleteCatalogObjectResponse.self
         )
     }
     
