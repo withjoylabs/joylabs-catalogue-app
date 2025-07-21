@@ -25,9 +25,9 @@ class CatalogObjectInserters {
             CatalogTableDefinitions.categoryId <- object.id,
             CatalogTableDefinitions.categoryName <- categoryName,
             CatalogTableDefinitions.categoryImageUrl <- imageUrl,
-            CatalogTableDefinitions.categoryIsDeleted <- object.isDeleted,
+            CatalogTableDefinitions.categoryIsDeleted <- object.safeIsDeleted,
             CatalogTableDefinitions.categoryUpdatedAt <- timestamp,
-            CatalogTableDefinitions.categoryVersion <- String(object.version),
+            CatalogTableDefinitions.categoryVersion <- String(object.safeVersion),
             CatalogTableDefinitions.categoryDataJson <- categoryDataJson
         )
 
@@ -61,9 +61,9 @@ class CatalogObjectInserters {
             CatalogTableDefinitions.taxPercentage <- percentage,
             CatalogTableDefinitions.taxAppliesToCustomAmounts <- appliesToCustomAmounts,
             CatalogTableDefinitions.taxEnabled <- enabled,
-            CatalogTableDefinitions.taxIsDeleted <- object.isDeleted,
+            CatalogTableDefinitions.taxIsDeleted <- object.safeIsDeleted,
             CatalogTableDefinitions.taxUpdatedAt <- timestamp,
-            CatalogTableDefinitions.taxVersion <- String(object.version),
+            CatalogTableDefinitions.taxVersion <- String(object.safeVersion),
             CatalogTableDefinitions.taxDataJson <- taxDataJson
         )
 
@@ -96,9 +96,9 @@ class CatalogObjectInserters {
             CatalogTableDefinitions.modifierPriceCurrency <- priceMoney?.currency,
             CatalogTableDefinitions.modifierOrdinal <- ordinal.map { Int64($0) },
             CatalogTableDefinitions.modifierOnByDefault <- onByDefault,
-            CatalogTableDefinitions.modifierIsDeleted <- object.isDeleted,
+            CatalogTableDefinitions.modifierIsDeleted <- object.safeIsDeleted,
             CatalogTableDefinitions.modifierUpdatedAt <- timestamp,
-            CatalogTableDefinitions.modifierVersion <- String(object.version),
+            CatalogTableDefinitions.modifierVersion <- String(object.safeVersion),
             CatalogTableDefinitions.modifierDataJson <- modifierDataJson
         )
 
@@ -126,9 +126,9 @@ class CatalogObjectInserters {
             CatalogTableDefinitions.modifierListName <- modifierListName,
             CatalogTableDefinitions.modifierListSelectionType <- selectionType,
             CatalogTableDefinitions.modifierListOrdinal <- ordinal.map { Int64($0) },
-            CatalogTableDefinitions.modifierListIsDeleted <- object.isDeleted,
+            CatalogTableDefinitions.modifierListIsDeleted <- object.safeIsDeleted,
             CatalogTableDefinitions.modifierListUpdatedAt <- timestamp,
-            CatalogTableDefinitions.modifierListVersion <- String(object.version),
+            CatalogTableDefinitions.modifierListVersion <- String(object.safeVersion),
             CatalogTableDefinitions.modifierListDataJson <- modifierListDataJson
         )
 

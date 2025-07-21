@@ -72,9 +72,9 @@ struct SearchResultItem: Identifiable, Hashable {
 struct CatalogObject: Codable {
     let id: String
     let type: String
-    let updatedAt: String
-    let version: Int64
-    let isDeleted: Bool
+    let updatedAt: String?  // Make optional since it might be missing
+    let version: Int64?     // Make optional since it might be missing
+    let isDeleted: Bool?    // Make optional with default
     let presentAtAllLocations: Bool?
     let itemData: ItemData?
     let categoryData: CategoryData?
@@ -84,6 +84,19 @@ struct CatalogObject: Codable {
     let taxData: TaxData?
     let discountData: DiscountData?
     let imageData: ImageData?
+
+    // Provide default values for missing fields
+    var safeUpdatedAt: String {
+        return updatedAt ?? ""
+    }
+
+    var safeVersion: Int64 {
+        return version ?? 0
+    }
+
+    var safeIsDeleted: Bool {
+        return isDeleted ?? false
+    }
 
 
     

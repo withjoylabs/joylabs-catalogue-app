@@ -418,7 +418,7 @@ class SquareAPIService: ObservableObject {
             throw SquareAPIError.upsertFailed("No object returned from upsert operation")
         }
 
-        logger.info("Successfully upserted catalog object: \(upsertedObject.id) (version: \(upsertedObject.version))")
+        logger.info("Successfully upserted catalog object: \(upsertedObject.id) (version: \(upsertedObject.safeVersion))")
         return upsertedObject
     }
 

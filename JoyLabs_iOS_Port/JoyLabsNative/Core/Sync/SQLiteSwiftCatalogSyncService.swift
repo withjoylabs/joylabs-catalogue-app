@@ -481,7 +481,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
 
 
         // Skip processing deleted images to avoid wasting overhead
-        if object.isDeleted {
+        if object.safeIsDeleted {
             return
         }
 

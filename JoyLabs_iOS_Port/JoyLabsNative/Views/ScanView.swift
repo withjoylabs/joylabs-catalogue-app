@@ -419,6 +419,7 @@ struct SearchErrorView: View {
 struct NoResultsView: View {
     let searchManager: SearchManager
     @State private var showingItemDetails = false
+    @State private var selectedQueryType: SearchQueryType = .sku
 
     var body: some View {
         VStack(spacing: 20) {
@@ -439,9 +440,10 @@ struct NoResultsView: View {
                     .multilineTextAlignment(.center)
             }
 
-            // Create item button if there's a search query
+            // Create item buttons if there's a search query
             if let searchQuery = searchManager.currentSearchTerm, !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                CreateItemButton(searchQuery: searchQuery) {
+                CreateItemButtons(searchQuery: searchQuery) { queryType in
+                    selectedQueryType = queryType
                     showingItemDetails = true
                 }
             }
@@ -454,7 +456,7 @@ struct NoResultsView: View {
                 ItemDetailsModal(
                     context: .createFromSearch(
                         query: searchQuery,
-                        queryType: detectQueryType(searchQuery)
+                        queryType: selectedQueryType
                     ),
                     onDismiss: {
                         showingItemDetails = false
@@ -468,66 +470,67 @@ struct NoResultsView: View {
         }
     }
 
-    private func detectQueryType(_ query: String) -> SearchQueryType {
-        // Simple heuristic to detect query type
-        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        // Check if it's likely a barcode (all digits, common barcode lengths)
-        if trimmedQuery.allSatisfy(\.isNumber) && [8, 12, 13, 14].contains(trimmedQuery.count) {
-            return .barcode
-        }
-
-        // Check if it looks like an SKU (short alphanumeric)
-        if trimmedQuery.count <= 20 && trimmedQuery.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" }) {
-            return .sku
-        }
-
-        // Default to name
-        return .name
-    }
 }
 
-// MARK: - Create Item Button
-struct CreateItemButton: View {
+// MARK: - Create Item Buttons
+struct CreateItemButtons: View {
     let searchQuery: String
-    let action: () -> Void
-
-    private var queryType: SearchQueryType {
-        let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        if trimmedQuery.allSatisfy(\.isNumber) && [8, 12, 13, 14].contains(trimmedQuery.count) {
-            return .barcode
-        }
-
-        if trimmedQuery.count <= 20 && trimmedQuery.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" }) {
-            return .sku
-        }
-
-        return .name
-    }
+    let action: (SearchQueryType) -> Void
 
     var body: some View {
-        Button(action: action) {
-            VStack(spacing: 8) {
-                HStack {
-                    Image(systemName: "plus.circle.fill")
-                        .foregroundColor(.blue)
-                        .font(.title2)
+        VStack(spacing: 12) {
+            Text("Create New Item")
+                .font(.headline)
+                .foregroundColor(.primary)
 
-                    Text("Create New Item")
-                        .fontWeight(.semibold)
-                        .foregroundColor(.blue)
+            VStack(spacing: 8) {
+                // SKU Button
+                Button(action: { action(.sku) }) {
+                    HStack {
+                        Image(systemName: "tag.fill")
+                            .foregroundColor(.blue)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Create with SKU")
+                                .fontWeight(.semibold)
+                                .foregroundColor(.blue)
+                            Text("Pre-fill SKU: \(searchQuery)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.blue.opacity(0.1))
+                    .cornerRadius(12)
                 }
 
-                Text("Pre-fill \(queryType.displayName): \(searchQuery)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
+                // UPC Button
+                Button(action: { action(.barcode) }) {
+                    HStack {
+                        Image(systemName: "barcode")
+                            .foregroundColor(.green)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Create with UPC")
+                                .fontWeight(.semibold)
+                                .foregroundColor(.green)
+                            Text("Pre-fill UPC: \(searchQuery)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.green.opacity(0.1))
+                    .cornerRadius(12)
+                }
             }
-            .frame(maxWidth: .infinity)
-            .padding()
-            .background(Color.blue.opacity(0.1))
-            .cornerRadius(12)
         }
         .padding(.horizontal)
     }

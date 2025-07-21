@@ -136,6 +136,7 @@ struct PricingFieldsConfig: Codable {
     var variationsEnabled: Bool = true
     var variationsRequired: Bool = true
     var defaultVariationCount: Int = 1
+    var defaultVariationName: String = ""  // Empty string allows blank variation names
     
     var taxEnabled: Bool = true
     var taxRequired: Bool = false

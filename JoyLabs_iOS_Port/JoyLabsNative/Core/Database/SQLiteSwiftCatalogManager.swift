@@ -225,7 +225,8 @@ class SQLiteSwiftCatalogManager {
 
         do {
             let decoder = JSONDecoder()
-            // Don't use convertFromSnakeCase since the data was encoded in camelCase
+            // Use convertFromSnakeCase since the data comes from React Native in snake_case format
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
             let catalogObject = try decoder.decode(CatalogObject.self, from: jsonData)
 
             logger.info("Successfully fetched item: \(itemId)")
@@ -329,8 +330,8 @@ class SQLiteSwiftCatalogManager {
                 let insert = CatalogTableDefinitions.catalogItems.insert(or: .replace,
                     CatalogTableDefinitions.itemId <- object.id,
                     CatalogTableDefinitions.itemUpdatedAt <- timestamp,
-                    CatalogTableDefinitions.itemVersion <- String(object.version),
-                    CatalogTableDefinitions.itemIsDeleted <- object.isDeleted,
+                    CatalogTableDefinitions.itemVersion <- String(object.safeVersion),
+                    CatalogTableDefinitions.itemIsDeleted <- object.safeIsDeleted,
                     CatalogTableDefinitions.itemCategoryId <- itemData.categoryId,
                     CatalogTableDefinitions.itemCategoryName <- primaryCategoryName,
                     CatalogTableDefinitions.itemReportingCategoryName <- reportingCategoryName,
@@ -353,9 +354,9 @@ class SQLiteSwiftCatalogManager {
                     CatalogTableDefinitions.variationPricingType <- variationData.pricingType,
                     CatalogTableDefinitions.variationPriceAmount <- variationData.priceMoney?.amount,
                     CatalogTableDefinitions.variationPriceCurrency <- variationData.priceMoney?.currency,
-                    CatalogTableDefinitions.variationIsDeleted <- object.isDeleted,
+                    CatalogTableDefinitions.variationIsDeleted <- object.safeIsDeleted,
                     CatalogTableDefinitions.variationUpdatedAt <- timestamp,
-                    CatalogTableDefinitions.variationVersion <- String(object.version),
+                    CatalogTableDefinitions.variationVersion <- String(object.safeVersion),
                     CatalogTableDefinitions.variationDataJson <- encodeJSON(variationData)
                 )
                 try db.run(insert)
@@ -374,9 +375,9 @@ class SQLiteSwiftCatalogManager {
                     CatalogTableDefinitions.imageName <- imageName,
                     CatalogTableDefinitions.imageUrl <- imageUrl,
                     CatalogTableDefinitions.imageCaption <- imageCaption,
-                    CatalogTableDefinitions.imageIsDeleted <- object.isDeleted,
+                    CatalogTableDefinitions.imageIsDeleted <- object.safeIsDeleted,
                     CatalogTableDefinitions.imageUpdatedAt <- timestamp,
-                    CatalogTableDefinitions.imageVersion <- String(object.version),
+                    CatalogTableDefinitions.imageVersion <- String(object.safeVersion),
                     CatalogTableDefinitions.imageDataJson <- imageDataJson
                 )
                 try db.run(insert)
@@ -395,9 +396,9 @@ class SQLiteSwiftCatalogManager {
             let discountInsert = CatalogTableDefinitions.discounts.insert(or: .replace,
                 CatalogTableDefinitions.discountId <- object.id,
                 CatalogTableDefinitions.discountName <- "Discount \(object.id)",
-                CatalogTableDefinitions.discountIsDeleted <- object.isDeleted,
+                CatalogTableDefinitions.discountIsDeleted <- object.safeIsDeleted,
                 CatalogTableDefinitions.discountUpdatedAt <- timestamp,
-                CatalogTableDefinitions.discountVersion <- String(object.version),
+                CatalogTableDefinitions.discountVersion <- String(object.safeVersion),
                 CatalogTableDefinitions.discountDataJson <- nil
             )
             try db.run(discountInsert)

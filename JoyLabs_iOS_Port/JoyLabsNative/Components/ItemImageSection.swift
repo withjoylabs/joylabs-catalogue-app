@@ -7,25 +7,20 @@ struct ItemImageSection: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            ItemDetailsSectionHeader(title: "Item Image", icon: "photo")
-            
             HStack {
                 Spacer()
                 
-                // Image Display/Placeholder
+                // Image Display/Placeholder using cached image system
                 Button(action: {
                     showingImagePicker = true
                 }) {
                     if let imageURL = viewModel.itemData.imageURL, !imageURL.isEmpty {
-                        // TODO: Replace with actual image loading
-                        AsyncImage(url: URL(string: imageURL)) { image in
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                        } placeholder: {
-                            ImagePlaceholder()
-                        }
-                        .frame(width: 120, height: 120)
+                        // Use the same cached image system as search results
+                        CachedImageView.catalogItem(
+                            imageURL: imageURL,
+                            imageId: viewModel.itemData.imageId,
+                            size: 200
+                        )
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                         .overlay(
                             RoundedRectangle(cornerRadius: 12)
@@ -88,7 +83,7 @@ struct ImagePlaceholder: View {
     var body: some View {
         RoundedRectangle(cornerRadius: 12)
             .fill(Color(.systemGray5))
-            .frame(width: 120, height: 120)
+            .frame(width: 200, height: 200)
             .overlay(
                 VStack(spacing: 8) {
                     Image(systemName: "photo")

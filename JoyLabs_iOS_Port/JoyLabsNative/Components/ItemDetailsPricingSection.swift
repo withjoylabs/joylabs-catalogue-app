@@ -7,36 +7,42 @@ struct ItemDetailsPricingSection: View {
     @StateObject private var configManager = FieldConfigurationManager.shared
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            ItemDetailsSectionHeader(title: "Pricing & Variations", icon: "dollarsign.circle")
-            
-            VStack(spacing: 16) {
-                // Variations list
-                ForEach(Array(viewModel.itemData.variations.enumerated()), id: \.offset) { index, variation in
+        // Variations list - same hierarchy as other sections
+        ForEach(Array(viewModel.itemData.variations.enumerated()), id: \.offset) { index, variation in
                     VariationCard(
                         variation: Binding(
-                            get: { viewModel.itemData.variations[index] },
-                            set: { viewModel.itemData.variations[index] = $0 }
+                            get: {
+                                // Safe bounds checking
+                                guard index < viewModel.itemData.variations.count else {
+                                    return ItemDetailsVariationData()
+                                }
+                                return viewModel.itemData.variations[index]
+                            },
+                            set: { newValue in
+                                // Safe bounds checking
+                                guard index < viewModel.itemData.variations.count else { return }
+                                viewModel.itemData.variations[index] = newValue
+                                viewModel.hasUnsavedChanges = true
+                            }
                         ),
                         index: index,
                         onDelete: {
-                            if viewModel.itemData.variations.count > 1 {
-                                viewModel.itemData.variations.remove(at: index)
-                            }
+                            // Safe removal with bounds checking
+                            guard index < viewModel.itemData.variations.count && viewModel.itemData.variations.count > 1 else { return }
+                            viewModel.itemData.variations.remove(at: index)
+                            viewModel.hasUnsavedChanges = true
                         }
                     )
-                }
-                
-                // Add variation button
-                if viewModel.itemData.variations.count < 5 {
-                    AddVariationButton {
-                        addNewVariation()
-                    }
-                }
+        }
+
+        // Add variation button - same hierarchy
+        if viewModel.itemData.variations.count < 5 {
+            AddVariationButton {
+                addNewVariation()
             }
         }
     }
-    
+
     private func addNewVariation() {
         let newVariation = ItemDetailsVariationData()
         viewModel.itemData.variations.append(newVariation)
@@ -50,7 +56,15 @@ struct VariationCard: View {
     let onDelete: () -> Void
     
     @State private var showingDeleteConfirmation = false
-    
+
+    // Check if variation has meaningful data
+    private var variationHasData: Bool {
+        return !(variation.name ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+               !(variation.sku ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+               !(variation.upc ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+               (variation.priceMoney?.amount ?? 0) > 0
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Header with variation name and delete button
@@ -64,7 +78,12 @@ struct VariationCard: View {
                 
                 if index > 0 { // Don't allow deleting the first variation
                     Button(action: {
-                        showingDeleteConfirmation = true
+                        // Check if variation has data before showing confirmation
+                        if variationHasData {
+                            showingDeleteConfirmation = true
+                        } else {
+                            onDelete()
+                        }
                     }) {
                         Image(systemName: "trash")
                             .foregroundColor(.red)
@@ -82,46 +101,44 @@ struct VariationCard: View {
                     )
                 )
                 
-                // SKU and UPC row
+                // UPC and SKU row (UPC first)
                 HStack(spacing: 12) {
-                    VariationSKUField(
-                        sku: Binding(
-                            get: { variation.sku ?? "" },
-                            set: { variation.sku = $0.isEmpty ? nil : $0 }
-                        )
-                    )
-                    
                     VariationUPCField(
                         upc: Binding(
                             get: { variation.upc ?? "" },
                             set: { variation.upc = $0.isEmpty ? nil : $0 }
                         )
                     )
+
+                    VariationSKUField(
+                        sku: Binding(
+                            get: { variation.sku ?? "" },
+                            set: { variation.sku = $0.isEmpty ? nil : $0 }
+                        )
+                    )
                 }
                 
-                // Pricing type and price
-                VStack(spacing: 8) {
+                // Pricing type and price (50/50 split - always show both)
+                HStack(spacing: 12) {
+                    PriceField(
+                        priceMoney: Binding(
+                            get: { variation.priceMoney },
+                            set: { variation.priceMoney = $0 }
+                        ),
+                        isDisabled: variation.pricingType == .variablePricing
+                    )
+                    .frame(maxWidth: .infinity)
+
                     PricingTypeSelector(
                         pricingType: Binding(
                             get: { variation.pricingType },
                             set: { variation.pricingType = $0 }
                         )
                     )
-                    
-                    if variation.pricingType == .fixedPricing {
-                        PriceField(
-                            priceMoney: Binding(
-                                get: { variation.priceMoney },
-                                set: { variation.priceMoney = $0 }
-                            )
-                        )
-                    }
+                    .frame(maxWidth: .infinity)
                 }
             }
         }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(8)
         .confirmationDialog(
             "Delete Variation",
             isPresented: $showingDeleteConfirmation,
@@ -218,33 +235,49 @@ struct PricingTypeSelector: View {
 struct PriceField: View {
     @Binding var priceMoney: MoneyData?
     @State private var priceText: String = ""
-    
+    let isDisabled: Bool
+
+    init(priceMoney: Binding<MoneyData?>, isDisabled: Bool = false) {
+        self._priceMoney = priceMoney
+        self.isDisabled = isDisabled
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Price")
                 .font(.caption)
                 .fontWeight(.medium)
                 .foregroundColor(.primary)
-            
+
             HStack {
                 Text("$")
-                    .foregroundColor(.secondary)
-                
-                TextField("0.00", text: $priceText)
-                    .keyboardType(.decimalPad)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .onChange(of: priceText) { newValue in
-                        updatePriceFromText(newValue)
-                    }
-                    .onAppear {
-                        if let price = priceMoney {
-                            priceText = String(format: "%.2f", price.displayAmount)
+                    .foregroundColor(isDisabled ? .secondary : .secondary)
+
+                if isDisabled {
+                    Text("Variable")
+                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 8)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(6)
+                } else {
+                    TextField("0.00", text: $priceText)
+                        .keyboardType(.decimalPad)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .onChange(of: priceText) { newValue in
+                            updatePriceFromText(newValue)
                         }
-                    }
+                }
+            }
+        }
+        .onAppear {
+            if let price = priceMoney {
+                priceText = String(format: "%.2f", price.displayAmount)
             }
         }
     }
-    
+
     private func updatePriceFromText(_ text: String) {
         if let amount = Double(text) {
             priceMoney = MoneyData(dollars: amount)
@@ -263,15 +296,17 @@ struct AddVariationButton: View {
             HStack {
                 Image(systemName: "plus.circle")
                     .foregroundColor(.blue)
-                
+                    .font(.caption)
+
                 Text("Add Variation")
                     .foregroundColor(.blue)
+                    .font(.caption)
                     .fontWeight(.medium)
             }
-            .frame(maxWidth: .infinity)
-            .padding()
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
             .background(Color.blue.opacity(0.1))
-            .cornerRadius(8)
+            .cornerRadius(6)
         }
     }
 }

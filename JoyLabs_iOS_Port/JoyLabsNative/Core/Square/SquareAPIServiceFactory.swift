@@ -16,6 +16,7 @@ class SquareAPIServiceFactory {
     private var cachedSyncCoordinator: SQLiteSwiftSyncCoordinator?
     private var cachedCatalogSyncService: SQLiteSwiftCatalogSyncService?
     private var cachedTokenService: TokenService?
+    private var cachedImageURLManager: ImageURLManager?
 
     private let logger = Logger(subsystem: "com.joylabs.native", category: "SquareAPIServiceFactory")
 
@@ -48,7 +49,7 @@ class SquareAPIServiceFactory {
 
     private func getOrCreateDatabaseManager() -> SQLiteSwiftCatalogManager {
         if let cachedManager = cachedDatabaseManager {
-            logger.debug("Returning cached SQLiteSwiftCatalogManager instance")
+            // Remove this debug log to reduce console noise
             return cachedManager
         }
 
@@ -111,6 +112,23 @@ class SquareAPIServiceFactory {
         return service
     }
 
+    /// Get or create the image URL manager instance
+    static func createImageURLManager() -> ImageURLManager {
+        return shared.getOrCreateImageURLManager()
+    }
+
+    private func getOrCreateImageURLManager() -> ImageURLManager {
+        if let cachedManager = cachedImageURLManager {
+            return cachedManager
+        }
+
+        logger.info("Creating NEW ImageURLManager instance")
+        let databaseManager = getOrCreateDatabaseManager()
+        let manager = ImageURLManager(databaseManager: databaseManager)
+        cachedImageURLManager = manager
+        return manager
+    }
+
     /// Reset ALL cached services (for testing or re-authentication)
     static func resetAllServices() {
         shared.logger.info("Resetting ALL cached services")
@@ -119,6 +137,7 @@ class SquareAPIServiceFactory {
         shared.cachedSyncCoordinator = nil
         shared.cachedCatalogSyncService = nil
         shared.cachedTokenService = nil
+        shared.cachedImageURLManager = nil
     }
 
     /// Get service status for debugging

@@ -28,6 +28,8 @@ struct ItemDetailsData {
     
     // Images
     var imageIds: [String] = []
+    var imageURL: String? = nil
+    var imageId: String? = nil
     
     // Advanced features
     var skipModifierScreen: Bool = false
@@ -65,8 +67,7 @@ struct ItemDetailsData {
     var stockable: Bool = true
     var userData: String?
 
-    // Image
-    var imageURL: String? = nil
+
 
     // Availability settings
     var isAvailableForSale: Bool = true
@@ -84,6 +85,19 @@ struct ItemDetailsData {
     var presentAtAllLocations: Bool = true
     var updatedAt: String?
     var createdAt: String?
+
+    /// Check if this item data is equal to another (for change detection)
+    func isEqual(to other: ItemDetailsData) -> Bool {
+        return self.name == other.name &&
+               self.description == other.description &&
+               self.abbreviation == other.abbreviation &&
+               self.productType == other.productType &&
+               self.reportingCategoryId == other.reportingCategoryId &&
+               self.categoryIds == other.categoryIds &&
+               self.enabledAtAllLocations == other.enabledAtAllLocations &&
+               self.variations.count == other.variations.count &&
+               zip(self.variations, other.variations).allSatisfy { $0.isEqual(to: $1) }
+    }
 }
 
 // MARK: - Supporting Enums
@@ -135,6 +149,16 @@ struct ItemDetailsVariationData: Identifiable {
     var teamMemberIds: [String] = []
     var stockable: Bool = true
     var sellable: Bool = true
+
+    /// Check if this variation data is equal to another (for change detection)
+    func isEqual(to other: ItemDetailsVariationData) -> Bool {
+        return self.name == other.name &&
+               self.sku == other.sku &&
+               self.upc == other.upc &&
+               self.pricingType == other.pricingType &&
+               self.priceMoney?.amount == other.priceMoney?.amount &&
+               self.priceMoney?.currency == other.priceMoney?.currency
+    }
 }
 
 enum PricingType: String, CaseIterable {
@@ -144,9 +168,9 @@ enum PricingType: String, CaseIterable {
     var displayName: String {
         switch self {
         case .fixedPricing:
-            return "Fixed Price"
+            return "Fixed"
         case .variablePricing:
-            return "Variable Price"
+            return "Variable"
         }
     }
 }
@@ -222,8 +246,26 @@ class ItemDetailsViewModel: ObservableObject {
     // Available locations (loaded from Square)
     @Published var availableLocations: [LocationData] = []
 
+    // Critical data for dropdowns and selections (loaded from local database)
+    @Published var availableCategories: [CategoryData] = []
+    @Published var availableTaxes: [TaxData] = []
+    @Published var availableModifierLists: [ModifierListData] = []
+
+    // Service dependencies
+    private let databaseManager: SQLiteSwiftCatalogManager
+
+    // MARK: - Initialization
+
+    init(databaseManager: SQLiteSwiftCatalogManager? = nil) {
+        self.databaseManager = databaseManager ?? SquareAPIServiceFactory.createDatabaseManager()
+        setupValidationAndTracking()
+    }
+
     // Context
     var context: ItemDetailsContext = .createNew
+
+    // Store original data for change detection
+    private var originalItemData: ItemDetailsData?
 
     // Validation
     @Published var nameError: String?
@@ -236,12 +278,30 @@ class ItemDetailsViewModel: ObservableObject {
         !isSaving &&
         nameError == nil
     }
+
+    // Override hasUnsavedChanges to use proper comparison
+    var hasChanges: Bool {
+        guard let original = originalItemData else {
+            // For new items, check if any meaningful data has been entered
+            return !itemData.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                   !itemData.description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                   itemData.variations.contains { variation in
+                       !(variation.name ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                       !(variation.sku ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                       !(variation.upc ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                       (variation.priceMoney?.amount ?? 0) > 0
+                   }
+        }
+        return !itemData.isEqual(to: original)
+    }
     
     // MARK: - Private Properties
     private var cancellables = Set<AnyCancellable>()
-    
-    // MARK: - Initialization
-    init() {
+    private let imageURLManager = SquareAPIServiceFactory.createImageURLManager()
+    private let logger = Logger(subsystem: "com.joylabs.native", category: "ItemDetailsViewModel")
+
+    // MARK: - Additional Initialization
+    private func setupValidationAndTracking() {
         setupValidation()
         setupChangeTracking()
     }
@@ -261,15 +321,20 @@ class ItemDetailsViewModel: ObservableObject {
         switch context {
         case .editExisting(let itemId):
             await loadExistingItem(itemId: itemId)
-            
+
         case .createNew:
             setupNewItem()
-            
+
         case .createFromSearch(let query, let queryType):
             setupNewItemFromSearch(query: query, queryType: queryType)
         }
-        
+
+        // Store original data for change detection
+        originalItemData = itemData
         hasUnsavedChanges = false
+
+        // Load critical dropdown data
+        await loadCriticalData()
     }
     
     /// Save the current item data
@@ -333,7 +398,7 @@ class ItemDetailsViewModel: ObservableObject {
         do {
             if let catalogObject = try catalogManager.fetchItemById(itemId) {
                 // Successfully loaded item from database
-                itemData = transformCatalogObjectToItemDetails(catalogObject)
+                itemData = await transformCatalogObjectToItemDetails(catalogObject)
                 print("Successfully loaded item from database: \(itemData.name)")
 
             } else {
@@ -360,14 +425,14 @@ class ItemDetailsViewModel: ObservableObject {
     // MARK: - Data Transformation
 
     /// Transform a CatalogObject from database to ItemDetailsData for UI
-    private func transformCatalogObjectToItemDetails(_ catalogObject: CatalogObject) -> ItemDetailsData {
+    private func transformCatalogObjectToItemDetails(_ catalogObject: CatalogObject) async -> ItemDetailsData {
         var itemDetails = ItemDetailsData()
 
         // Basic identification
         itemDetails.id = catalogObject.id
         itemDetails.version = catalogObject.version
         itemDetails.updatedAt = catalogObject.updatedAt
-        itemDetails.isDeleted = catalogObject.isDeleted
+        itemDetails.isDeleted = catalogObject.safeIsDeleted
         itemDetails.presentAtAllLocations = catalogObject.presentAtAllLocations ?? true
 
         // Extract item data
@@ -380,8 +445,8 @@ class ItemDetailsViewModel: ObservableObject {
             // Product classification
             itemDetails.productType = transformProductType(itemData.productType)
 
-            // Transform variations - use empty array if no variations
-            itemDetails.variations = []
+            // Load actual variations from database
+            await loadVariations(for: &itemDetails)
 
             // Availability and visibility
             itemDetails.availableOnline = itemData.availableOnline ?? false
@@ -391,8 +456,15 @@ class ItemDetailsViewModel: ObservableObject {
             // Tax information
             itemDetails.taxIds = itemData.taxIds ?? []
 
-            // Images
-            itemDetails.imageIds = itemData.imageIds ?? []
+            // Images - use the EXACT same logic as search results
+            let images = populateImageData(for: itemDetails.id ?? "")
+            if let firstImage = images?.first {
+                itemDetails.imageURL = firstImage.imageData?.url
+                itemDetails.imageId = firstImage.id
+                logger.info("Loaded image for item modal: \(firstImage.id ?? "no-id") -> \(firstImage.imageData?.url ?? "no-url")")
+            } else {
+                logger.info("No images found for item: \(itemDetails.id ?? "no-id")")
+            }
         }
 
         return itemDetails
@@ -431,9 +503,13 @@ class ItemDetailsViewModel: ObservableObject {
     
     private func setupNewItem() {
         print("Setting up new item")
-        
+
         itemData = ItemDetailsData()
-        itemData.variations = [ItemDetailsVariationData()]
+
+        // Create variation with configurable default name
+        var variation = ItemDetailsVariationData()
+        variation.name = ItemFieldConfiguration.defaultConfiguration().pricingFields.defaultVariationName
+        itemData.variations = [variation]
     }
     
     private func setupNewItemFromSearch(query: String, queryType: SearchQueryType) {
@@ -477,4 +553,257 @@ class ItemDetailsViewModel: ObservableObject {
         // In real implementation, this would call the Square API to delete the item
         print("Item deleted successfully")
     }
+
+    /// Populate image data for an item - EXACT same logic as SearchManager
+    private func populateImageData(for itemId: String) -> [CatalogImage]? {
+        do {
+            // Get image mappings for this item
+            let imageMappings = try imageURLManager.getImageMappings(for: itemId, objectType: "ITEM")
+
+            guard !imageMappings.isEmpty else {
+                return nil
+            }
+
+            // Convert image mappings to CatalogImage objects
+            let catalogImages = imageMappings.map { mapping in
+                return CatalogImage(
+                    id: mapping.squareImageId,
+                    type: "IMAGE",
+                    updatedAt: ISO8601DateFormatter().string(from: mapping.lastAccessedAt),
+                    version: nil,
+                    isDeleted: false,
+                    presentAtAllLocations: true,
+                    imageData: ImageData(
+                        name: nil,
+                        url: mapping.originalAwsUrl, // Use original AWS URL for Swift to download
+                        caption: nil,
+                        photoStudioOrderId: nil
+                    )
+                )
+            }
+
+            return catalogImages.isEmpty ? nil : catalogImages
+        } catch {
+            logger.error("Failed to populate image data for item \(itemId): \(error)")
+            return nil
+        }
+    }
+
+    /// Load variations from database for an item
+    private func loadVariations(for itemDetails: inout ItemDetailsData) async {
+        guard let db = databaseManager.getConnection() else {
+            // Fallback to default variation if no database connection
+            var variation = ItemDetailsVariationData()
+            variation.name = ItemFieldConfiguration.defaultConfiguration().pricingFields.defaultVariationName
+            itemDetails.variations = [variation]
+            return
+        }
+
+        do {
+            let sql = """
+                SELECT id, name, sku, upc, ordinal, pricing_type, price_amount, price_currency, data_json
+                FROM item_variations
+                WHERE item_id = ? AND is_deleted = 0
+                ORDER BY ordinal ASC
+            """
+            let statement = try db.prepare(sql)
+            var variations: [ItemDetailsVariationData] = []
+
+            for row in try statement.run(itemDetails.id ?? "") {
+                var variation = ItemDetailsVariationData()
+                variation.id = row[0] as? String
+                variation.name = row[1] as? String
+                variation.sku = row[2] as? String
+                variation.upc = row[3] as? String
+                variation.ordinal = (row[4] as? Int64).map(Int.init) ?? 0
+
+                // Parse pricing type
+                if let pricingTypeStr = row[5] as? String {
+                    variation.pricingType = transformPricingType(pricingTypeStr)
+                }
+
+                // Parse price money
+                if let priceAmount = row[6] as? Int64,
+                   let priceCurrency = row[7] as? String {
+                    variation.priceMoney = MoneyData(amount: Int(priceAmount), currency: priceCurrency)
+                }
+
+                variations.append(variation)
+                logger.info("Loaded variation: \(variation.name ?? "unnamed") - SKU: \(variation.sku ?? "none") - UPC: \(variation.upc ?? "none")")
+            }
+
+            // If no variations found, create default one
+            if variations.isEmpty {
+                var variation = ItemDetailsVariationData()
+                variation.name = ItemFieldConfiguration.defaultConfiguration().pricingFields.defaultVariationName
+                variations = [variation]
+                logger.info("No variations found, created default variation")
+            }
+
+            itemDetails.variations = variations
+
+        } catch {
+            logger.error("Failed to load variations: \(error)")
+            // Fallback to default variation
+            var variation = ItemDetailsVariationData()
+            variation.name = ItemFieldConfiguration.defaultConfiguration().pricingFields.defaultVariationName
+            itemDetails.variations = [variation]
+        }
+    }
+
+    // MARK: - Critical Data Loading
+
+    /// Load all critical dropdown data from local database using same patterns as search
+    private func loadCriticalData() async {
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { await self.loadCategories() }
+            group.addTask { await self.loadTaxes() }
+            group.addTask { await self.loadModifierLists() }
+        }
+    }
+
+    /// Load categories from local database (same pattern as search)
+    private func loadCategories() async {
+        do {
+            guard let db = databaseManager.getConnection() else {
+                logger.error("No database connection available")
+                return
+            }
+
+            let query = """
+                SELECT id, name, is_deleted
+                FROM categories
+                WHERE is_deleted = 0
+                ORDER BY name ASC
+            """
+
+            let statement = try db.prepare(query)
+            var categories: [CategoryData] = []
+
+            for row in statement {
+                let id = row[0] as? String ?? ""
+                let name = row[1] as? String ?? ""
+                let isDeleted = (row[2] as? Int64 ?? 0) != 0
+
+                guard !id.isEmpty, !name.isEmpty else { continue }
+
+                // Create a simple CategoryData for UI display
+                let categoryData = CategoryData(
+                    name: name,
+                    imageIds: nil,
+                    imageUrl: nil,
+                    categoryType: nil,
+                    parentCategory: nil,
+                    isTopLevel: nil,
+                    channels: nil,
+                    availabilityPeriodIds: nil,
+                    onlineVisibility: nil,
+                    rootCategory: nil,
+                    ecomSeoData: nil,
+                    pathToRoot: nil
+                )
+                categories.append(categoryData)
+            }
+
+            await MainActor.run {
+                self.availableCategories = categories
+                logger.debug("Loaded \(categories.count) categories for item modal")
+            }
+        } catch {
+            logger.error("Failed to load categories: \(error)")
+        }
+    }
+
+    /// Load taxes from local database (same pattern as search)
+    private func loadTaxes() async {
+        do {
+            guard let db = databaseManager.getConnection() else {
+                logger.error("No database connection available")
+                return
+            }
+
+            let query = """
+                SELECT id, name, percentage, enabled
+                FROM taxes
+                WHERE is_deleted = 0 AND enabled = 1
+                ORDER BY name ASC
+            """
+
+            let statement = try db.prepare(query)
+            var taxes: [TaxData] = []
+
+            for row in statement {
+                let id = row[0] as? String ?? ""
+                let name = row[1] as? String ?? ""
+                let percentage = row[2] as? String
+                let enabled = (row[3] as? Int64 ?? 0) != 0
+
+                guard !id.isEmpty, !name.isEmpty else { continue }
+
+                // Create a simple TaxData for UI display
+                let taxData = TaxData(
+                    name: name,
+                    calculationPhase: nil,
+                    inclusionType: nil,
+                    percentage: percentage,
+                    appliesToCustomAmounts: nil,
+                    enabled: enabled
+                )
+                taxes.append(taxData)
+            }
+
+            await MainActor.run {
+                self.availableTaxes = taxes
+                logger.debug("Loaded \(taxes.count) taxes for item modal")
+            }
+        } catch {
+            logger.error("Failed to load taxes: \(error)")
+        }
+    }
+
+    /// Load modifier lists from local database (same pattern as search)
+    private func loadModifierLists() async {
+        do {
+            guard let db = databaseManager.getConnection() else {
+                logger.error("No database connection available")
+                return
+            }
+
+            let query = """
+                SELECT id, name, selection_type
+                FROM modifier_lists
+                WHERE is_deleted = 0
+                ORDER BY name ASC
+            """
+
+            let statement = try db.prepare(query)
+            var modifierLists: [ModifierListData] = []
+
+            for row in statement {
+                let id = row[0] as? String ?? ""
+                let name = row[1] as? String ?? ""
+                let selectionType = row[2] as? String
+
+                guard !id.isEmpty, !name.isEmpty else { continue }
+
+                // Create a simple ModifierListData for UI display
+                let modifierListData = ModifierListData(
+                    name: name,
+                    ordinal: nil,
+                    selectionType: selectionType,
+                    modifiers: nil,
+                    imageIds: nil
+                )
+                modifierLists.append(modifierListData)
+            }
+
+            await MainActor.run {
+                self.availableModifierLists = modifierLists
+                logger.debug("Loaded \(modifierLists.count) modifier lists for item modal")
+            }
+        } catch {
+            logger.error("Failed to load modifier lists: \(error)")
+        }
+    }
+
 }

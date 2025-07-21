@@ -41,7 +41,7 @@ struct FloatingActionButtons: View {
             )
         }
         .padding(.horizontal, 20)
-        .padding(.bottom, 34) // Account for safe area
+        .padding(.bottom, 20) // Closer to keyboard
     }
 }
 

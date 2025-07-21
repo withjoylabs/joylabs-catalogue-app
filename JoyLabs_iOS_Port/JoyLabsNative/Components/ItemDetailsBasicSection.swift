@@ -8,8 +8,6 @@ struct ItemDetailsBasicSection: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            ItemDetailsSectionHeader(title: "Basic Information", icon: "info.circle")
-            
             VStack(spacing: 12) {
                 // Item Name (always shown - required field)
                 ItemNameField(

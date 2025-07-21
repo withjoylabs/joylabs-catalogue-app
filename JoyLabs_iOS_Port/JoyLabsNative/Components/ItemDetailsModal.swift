@@ -55,7 +55,17 @@ struct ItemDetailsModal: View {
     @Environment(\.dismiss) private var dismiss
     
     private let logger = Logger(subsystem: "com.joylabs.native", category: "ItemDetailsModal")
-    
+
+    // Dynamic title showing item name or fallback
+    private var dynamicTitle: String {
+        let itemName = viewModel.itemData.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if itemName.isEmpty {
+            return context.title
+        } else {
+            return itemName
+        }
+    }
+
     var body: some View {
         NavigationView {
             ZStack {
@@ -65,15 +75,16 @@ struct ItemDetailsModal: View {
                     onSave: handleSave
                 )
                 .focused($isAnyFieldFocused)
-                .navigationTitle(context.title)
+                .navigationTitle(dynamicTitle)
                 .navigationBarTitleDisplayMode(.inline)
-                .navigationBarHidden(true)
+                .navigationBarHidden(false)
                 .onTapGesture {
                     // Dismiss keyboard when tapping outside text fields
                     isAnyFieldFocused = false
+                    hideKeyboard()
                 }
 
-                // Floating Action Buttons
+                // Floating Action Buttons (hidden during confirmation with animation)
                 VStack {
                     Spacer()
 
@@ -84,10 +95,20 @@ struct ItemDetailsModal: View {
                         onSaveAndPrint: handleSaveAndPrint,
                         canSave: viewModel.canSave
                     )
+                    .opacity(showingCancelConfirmation ? 0 : 1)
+                    .animation(.easeInOut(duration: 0.1), value: showingCancelConfirmation)
                 }
             }
         }
-        .ignoresSafeArea(.keyboard, edges: .bottom)
+        .onDisappear {
+            // Ensure keyboard is dismissed when modal disappears
+            hideKeyboard()
+        }
+        .interactiveDismissDisabled(viewModel.hasChanges)
+        .onDisappear {
+            // This will be called if user tries to swipe down with changes
+            // but we prevent it with interactiveDismissDisabled
+        }
         .onAppear {
             setupForContext()
         }
@@ -134,8 +155,9 @@ struct ItemDetailsModal: View {
 
         // Dismiss keyboard first to prevent layout conflicts
         isAnyFieldFocused = false
+        hideKeyboard()
 
-        if viewModel.hasUnsavedChanges {
+        if viewModel.hasChanges {
             print("User has unsaved changes - showing confirmation")
             // Small delay to ensure keyboard dismissal completes
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
@@ -145,6 +167,10 @@ struct ItemDetailsModal: View {
             onDismiss()
             dismiss()
         }
+    }
+
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 
     private func handlePrint() {
@@ -178,8 +204,9 @@ struct ItemDetailsContent: View {
     @StateObject private var configManager = FieldConfigurationManager.shared
     
     var body: some View {
-        ScrollView {
-            LazyVStack(spacing: 20) {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 10) {
                 // Context-specific header message
                 if case .createFromSearch(let query, let queryType) = context {
                     CreateFromSearchHeader(query: query, queryType: queryType)
@@ -191,8 +218,10 @@ struct ItemDetailsContent: View {
                 // Basic item information
                 ItemDetailsBasicSection(viewModel: viewModel)
                 
-                // Pricing and variations
-                ItemDetailsPricingSection(viewModel: viewModel)
+                // Pricing and variations (conditionally shown)
+                if shouldShowPricingSection {
+                    ItemDetailsPricingSection(viewModel: viewModel)
+                }
                 
                 // Categories and organization (conditionally shown)
                 if shouldShowCategoriesSection {
@@ -239,15 +268,23 @@ struct ItemDetailsContent: View {
                 // Delete Button Section
                 ItemDeleteSection(viewModel: viewModel)
 
-                // Bottom spacing for floating buttons
+                // Bottom spacing for floating buttons and keyboard (much closer)
                 Spacer()
-                    .frame(height: 120)
+                    .frame(height: 20)
+                }
+                .padding()
             }
-            .padding()
         }
     }
 
     // MARK: - Computed Properties
+    private var shouldShowPricingSection: Bool {
+        return configManager.currentConfiguration.pricingFields.variationsEnabled ||
+               configManager.currentConfiguration.pricingFields.taxEnabled ||
+               configManager.currentConfiguration.pricingFields.modifiersEnabled ||
+               configManager.currentConfiguration.pricingFields.itemOptionsEnabled
+    }
+
     private var shouldShowCategoriesSection: Bool {
         return configManager.currentConfiguration.classificationFields.categoryEnabled ||
                configManager.currentConfiguration.classificationFields.reportingCategoryEnabled ||
