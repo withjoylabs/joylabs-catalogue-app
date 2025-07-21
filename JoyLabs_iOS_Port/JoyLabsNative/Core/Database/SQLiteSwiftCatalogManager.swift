@@ -225,7 +225,7 @@ class SQLiteSwiftCatalogManager {
 
         do {
             let decoder = JSONDecoder()
-            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            // Don't use convertFromSnakeCase since the data was encoded in camelCase
             let catalogObject = try decoder.decode(CatalogObject.self, from: jsonData)
 
             logger.info("Successfully fetched item: \(itemId)")

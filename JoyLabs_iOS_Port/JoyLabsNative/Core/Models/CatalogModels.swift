@@ -85,20 +85,7 @@ struct CatalogObject: Codable {
     let discountData: DiscountData?
     let imageData: ImageData?
 
-    enum CodingKeys: String, CodingKey {
-        case id, type, version
-        case updatedAt = "updated_at"
-        case isDeleted = "is_deleted"
-        case presentAtAllLocations = "present_at_all_locations"
-        case itemData = "item_data"
-        case categoryData = "category_data"
-        case itemVariationData = "item_variation_data"
-        case modifierData = "modifier_data"
-        case modifierListData = "modifier_list_data"
-        case taxData = "tax_data"
-        case discountData = "discount_data"
-        case imageData = "image_data"
-    }
+
     
     func toDictionary() -> [String: Any] {
         let encoder = JSONEncoder()
