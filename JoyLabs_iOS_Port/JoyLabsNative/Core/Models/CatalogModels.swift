@@ -226,6 +226,7 @@ struct ItemVariationData: Codable {
 
 // MARK: - Category Data
 struct CategoryData: Codable {
+    let id: String?
     let name: String?
     let imageIds: [String]?
     let imageUrl: String?
@@ -238,9 +239,9 @@ struct CategoryData: Codable {
     let rootCategory: String?
     let ecomSeoData: EcomSeoData?
     let pathToRoot: [PathToRootCategory]?
-    
+
     enum CodingKeys: String, CodingKey {
-        case name
+        case id, name
         case imageIds = "image_ids"
         case imageUrl = "image_url"
         case categoryType = "category_type"
@@ -405,14 +406,15 @@ struct ModifierData: Codable {
 }
 
 struct ModifierListData: Codable {
+    let id: String?
     let name: String?
     let ordinal: Int?
     let selectionType: String?
     let modifiers: [CatalogObject]?
     let imageIds: [String]?
-    
+
     enum CodingKeys: String, CodingKey {
-        case name, ordinal, modifiers
+        case id, name, ordinal, modifiers
         case selectionType = "selection_type"
         case imageIds = "image_ids"
     }
@@ -420,15 +422,16 @@ struct ModifierListData: Codable {
 
 // MARK: - Tax Data
 struct TaxData: Codable {
+    let id: String?
     let name: String?
     let calculationPhase: String?
     let inclusionType: String?
     let percentage: String?
     let appliesToCustomAmounts: Bool?
     let enabled: Bool?
-    
+
     enum CodingKeys: String, CodingKey {
-        case name, percentage, enabled
+        case id, name, percentage, enabled
         case calculationPhase = "calculation_phase"
         case inclusionType = "inclusion_type"
         case appliesToCustomAmounts = "applies_to_custom_amounts"

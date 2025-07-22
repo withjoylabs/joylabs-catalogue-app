@@ -62,7 +62,25 @@ struct ItemDetailsCategoriesSection: View {
 struct ReportingCategorySelector: View {
     @Binding var reportingCategoryId: String?
     @ObservedObject var viewModel: ItemDetailsViewModel
-    @State private var showingPicker = false
+    @State private var showingDropdown = false
+    @State private var searchText = ""
+
+    // Computed property to get the category name for display
+    private var selectedCategoryName: String? {
+        guard let categoryId = reportingCategoryId else { return nil }
+        return viewModel.availableCategories.first { $0.id == categoryId }?.name
+    }
+
+    // Filtered categories based on search
+    private var filteredCategories: [CategoryData] {
+        if searchText.isEmpty {
+            return viewModel.availableCategories
+        } else {
+            return viewModel.availableCategories.filter { category in
+                category.name?.localizedCaseInsensitiveContains(searchText) ?? false
+            }
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -80,15 +98,15 @@ struct ReportingCategorySelector: View {
             }
 
             Button(action: {
-                showingPicker = true
+                showingDropdown.toggle()
             }) {
                 HStack {
-                    Text(reportingCategoryId ?? "Select reporting category")
+                    Text(selectedCategoryName ?? "Select reporting category")
                         .foregroundColor(reportingCategoryId == nil ? .secondary : .primary)
-                    
+
                     Spacer()
-                    
-                    Image(systemName: "chevron.right")
+
+                    Image(systemName: showingDropdown ? "chevron.up" : "chevron.down")
                         .foregroundColor(.secondary)
                         .font(.caption)
                 }
@@ -96,39 +114,112 @@ struct ReportingCategorySelector: View {
                 .background(Color(.systemGray6))
                 .cornerRadius(8)
             }
-            
-            Text("Primary category for reporting and analytics")
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-        .sheet(isPresented: $showingPicker) {
-            NavigationView {
-                List {
-                    ForEach(viewModel.availableCategories.indices, id: \.self) { index in
-                        let category = viewModel.availableCategories[index]
-                        Button(action: {
-                            reportingCategoryId = category.name
-                            showingPicker = false
-                        }) {
-                            HStack {
-                                Text(category.name ?? "Unnamed Category")
-                                    .foregroundColor(.primary)
-                                Spacer()
-                                if reportingCategoryId == category.name {
-                                    Image(systemName: "checkmark")
-                                        .foregroundColor(.blue)
+
+            // Dropdown Content
+            if showingDropdown {
+                VStack(spacing: 0) {
+                    // Search Field
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundColor(.secondary)
+                        TextField("Search categories...", text: $searchText)
+                            .textFieldStyle(PlainTextFieldStyle())
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color(.systemGray6))
+
+                    Divider()
+
+                    // Categories List
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(filteredCategories.indices, id: \.self) { index in
+                                let category = filteredCategories[index]
+                                Button(action: {
+                                    reportingCategoryId = category.id
+                                    showingDropdown = false
+                                    searchText = ""
+                                }) {
+                                    HStack {
+                                        Text(category.name ?? "Unnamed Category")
+                                            .foregroundColor(.primary)
+                                        Spacer()
+                                        if reportingCategoryId == category.id {
+                                            Image(systemName: "checkmark")
+                                                .foregroundColor(.blue)
+                                        }
+                                    }
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                }
+                                .background(Color(.systemBackground))
+
+                                if index < filteredCategories.count - 1 {
+                                    Divider()
                                 }
                             }
                         }
                     }
+                    .frame(maxHeight: 200)
                 }
-                .navigationTitle("Select Category")
-                .navigationBarTitleDisplayMode(.inline)
-                .navigationBarItems(
-                    leading: Button("Cancel") {
-                        showingPicker = false
+                .background(Color(.systemBackground))
+                .cornerRadius(8)
+                .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+            }
+
+            // Recent Categories Horizontal Scroll
+            RecentCategoriesScroll(reportingCategoryId: $reportingCategoryId, viewModel: viewModel)
+
+            Text("Primary category for reporting and analytics")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+    }
+}
+
+// MARK: - Recent Categories Scroll
+struct RecentCategoriesScroll: View {
+    @Binding var reportingCategoryId: String?
+    @ObservedObject var viewModel: ItemDetailsViewModel
+
+    // For now, we'll use the first 10 categories as "recent"
+    // TODO: Implement actual recent categories tracking
+    private var recentCategories: [CategoryData] {
+        Array(viewModel.availableCategories.prefix(10))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Recent Categories")
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundColor(.secondary)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(recentCategories.indices, id: \.self) { index in
+                        let category = recentCategories[index]
+                        Button(action: {
+                            reportingCategoryId = category.id
+                        }) {
+                            Text(category.name ?? "Unnamed")
+                                .font(.caption)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(
+                                    reportingCategoryId == category.id ?
+                                    Color.blue : Color(.systemGray5)
+                                )
+                                .foregroundColor(
+                                    reportingCategoryId == category.id ?
+                                    .white : .primary
+                                )
+                                .cornerRadius(16)
+                        }
                     }
-                )
+                }
+                .padding(.horizontal, 1)
             }
         }
     }
@@ -214,14 +305,22 @@ struct CategoryChip: View {
     }
 }
 
-// MARK: - Tax Selector
+// MARK: - Tax Checkboxes (Inline)
 struct TaxSelector: View {
     @Binding var taxIds: [String]
     @ObservedObject var viewModel: ItemDetailsViewModel
-    @State private var showingPicker = false
+
+    // Computed property to check if all taxes are selected
+    private var allTaxesSelected: Bool {
+        !viewModel.availableTaxes.isEmpty &&
+        viewModel.availableTaxes.allSatisfy { tax in
+            guard let taxId = tax.id else { return false }
+            return taxIds.contains(taxId)
+        }
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("Tax Settings")
                     .font(.subheadline)
@@ -235,75 +334,91 @@ struct TaxSelector: View {
                     .foregroundColor(.secondary)
             }
 
-            Button(action: {
-                showingPicker = true
-            }) {
-                HStack {
-                    if taxIds.isEmpty {
-                        Text("No taxes applied")
-                            .foregroundColor(.secondary)
+            // Select All Option
+            if !viewModel.availableTaxes.isEmpty {
+                Button(action: {
+                    if allTaxesSelected {
+                        // Deselect all
+                        taxIds.removeAll()
                     } else {
-                        Text("\(taxIds.count) tax(es) applied")
-                            .foregroundColor(.primary)
+                        // Select all
+                        taxIds = viewModel.availableTaxes.compactMap { $0.id }
                     }
+                }) {
+                    HStack {
+                        Image(systemName: allTaxesSelected ? "checkmark.square.fill" : "square")
+                            .foregroundColor(allTaxesSelected ? .blue : .secondary)
 
-                    Spacer()
+                        Text("Select All Taxes")
+                            .font(.subheadline)
+                            .foregroundColor(.primary)
 
-                    Image(systemName: "chevron.right")
-                        .foregroundColor(.secondary)
-                        .font(.caption)
+                        Spacer()
+                    }
                 }
-                .padding()
-                .background(Color(.systemGray6))
-                .cornerRadius(8)
+                .padding(.vertical, 4)
             }
-        }
-        .sheet(isPresented: $showingPicker) {
-            NavigationView {
-                List {
-                    ForEach(viewModel.availableTaxes.indices, id: \.self) { index in
-                        let tax = viewModel.availableTaxes[index]
-                        Button(action: {
-                            if let taxName = tax.name {
-                                if taxIds.contains(taxName) {
-                                    taxIds.removeAll { $0 == taxName }
-                                } else {
-                                    taxIds.append(taxName)
-                                }
-                            }
-                        }) {
-                            HStack {
+
+            // Individual Tax Checkboxes
+            ForEach(viewModel.availableTaxes.indices, id: \.self) { index in
+                let tax = viewModel.availableTaxes[index]
+                if let taxId = tax.id {
+                    Button(action: {
+                        if taxIds.contains(taxId) {
+                            taxIds.removeAll { $0 == taxId }
+                        } else {
+                            taxIds.append(taxId)
+                        }
+                    }) {
+                        HStack {
+                            Image(systemName: taxIds.contains(taxId) ? "checkmark.square.fill" : "square")
+                                .foregroundColor(taxIds.contains(taxId) ? .blue : .secondary)
+
+                            VStack(alignment: .leading, spacing: 2) {
                                 Text(tax.name ?? "Unnamed Tax")
+                                    .font(.subheadline)
                                     .foregroundColor(.primary)
-                                Spacer()
-                                if let taxName = tax.name, taxIds.contains(taxName) {
-                                    Image(systemName: "checkmark")
-                                        .foregroundColor(.blue)
+
+                                if let percentage = tax.percentage {
+                                    Text("\(percentage)%")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
                                 }
                             }
+
+                            Spacer()
                         }
                     }
+                    .padding(.vertical, 2)
                 }
-                .navigationTitle("Select Taxes")
-                .navigationBarTitleDisplayMode(.inline)
-                .navigationBarItems(
-                    leading: Button("Done") {
-                        showingPicker = false
-                    }
-                )
+            }
+
+            if viewModel.availableTaxes.isEmpty {
+                Text("No taxes available")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.vertical, 8)
             }
         }
     }
 }
 
-// MARK: - Modifier List Selector
+// MARK: - Modifier List Checkboxes (Inline)
 struct ModifierListSelector: View {
     @Binding var modifierListIds: [String]
     @ObservedObject var viewModel: ItemDetailsViewModel
-    @State private var showingPicker = false
+
+    // Computed property to check if all modifier lists are selected
+    private var allModifiersSelected: Bool {
+        !viewModel.availableModifierLists.isEmpty &&
+        viewModel.availableModifierLists.allSatisfy { modifierList in
+            guard let modifierId = modifierList.id else { return false }
+            return modifierListIds.contains(modifierId)
+        }
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("Modifier Lists")
                     .font(.subheadline)
@@ -317,66 +432,75 @@ struct ModifierListSelector: View {
                     .foregroundColor(.secondary)
             }
 
-            Button(action: {
-                showingPicker = true
-            }) {
-                HStack {
-                    if modifierListIds.isEmpty {
-                        Text("No modifiers")
-                            .foregroundColor(.secondary)
+            // Select All Option
+            if !viewModel.availableModifierLists.isEmpty {
+                Button(action: {
+                    if allModifiersSelected {
+                        // Deselect all
+                        modifierListIds.removeAll()
                     } else {
-                        Text("\(modifierListIds.count) modifier list(s)")
-                            .foregroundColor(.primary)
+                        // Select all
+                        modifierListIds = viewModel.availableModifierLists.compactMap { $0.id }
                     }
+                }) {
+                    HStack {
+                        Image(systemName: allModifiersSelected ? "checkmark.square.fill" : "square")
+                            .foregroundColor(allModifiersSelected ? .blue : .secondary)
 
-                    Spacer()
+                        Text("Select All Modifier Lists")
+                            .font(.subheadline)
+                            .foregroundColor(.primary)
 
-                    Image(systemName: "chevron.right")
-                        .foregroundColor(.secondary)
-                        .font(.caption)
+                        Spacer()
+                    }
                 }
-                .padding()
-                .background(Color(.systemGray6))
-                .cornerRadius(8)
+                .padding(.vertical, 4)
             }
 
-            Text("Add-ons and customizations for this item")
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-        .sheet(isPresented: $showingPicker) {
-            NavigationView {
-                List {
-                    ForEach(viewModel.availableModifierLists.indices, id: \.self) { index in
-                        let modifierList = viewModel.availableModifierLists[index]
-                        Button(action: {
-                            if let modifierName = modifierList.name {
-                                if modifierListIds.contains(modifierName) {
-                                    modifierListIds.removeAll { $0 == modifierName }
-                                } else {
-                                    modifierListIds.append(modifierName)
-                                }
-                            }
-                        }) {
-                            HStack {
+            // Individual Modifier List Checkboxes
+            ForEach(viewModel.availableModifierLists.indices, id: \.self) { index in
+                let modifierList = viewModel.availableModifierLists[index]
+                if let modifierId = modifierList.id {
+                    Button(action: {
+                        if modifierListIds.contains(modifierId) {
+                            modifierListIds.removeAll { $0 == modifierId }
+                        } else {
+                            modifierListIds.append(modifierId)
+                        }
+                    }) {
+                        HStack {
+                            Image(systemName: modifierListIds.contains(modifierId) ? "checkmark.square.fill" : "square")
+                                .foregroundColor(modifierListIds.contains(modifierId) ? .blue : .secondary)
+
+                            VStack(alignment: .leading, spacing: 2) {
                                 Text(modifierList.name ?? "Unnamed Modifier List")
+                                    .font(.subheadline)
                                     .foregroundColor(.primary)
-                                Spacer()
-                                if let modifierName = modifierList.name, modifierListIds.contains(modifierName) {
-                                    Image(systemName: "checkmark")
-                                        .foregroundColor(.blue)
+
+                                if let selectionType = modifierList.selectionType {
+                                    Text(selectionType.capitalized)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
                                 }
                             }
+
+                            Spacer()
                         }
                     }
+                    .padding(.vertical, 2)
                 }
-                .navigationTitle("Select Modifier Lists")
-                .navigationBarTitleDisplayMode(.inline)
-                .navigationBarItems(
-                    leading: Button("Done") {
-                        showingPicker = false
-                    }
-                )
+            }
+
+            if viewModel.availableModifierLists.isEmpty {
+                Text("No modifier lists available")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.vertical, 8)
+            } else {
+                Text("Add-ons and customizations for this item")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 4)
             }
         }
     }

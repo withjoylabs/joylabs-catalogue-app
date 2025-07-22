@@ -437,6 +437,13 @@ class ItemDetailsViewModel: ObservableObject {
 
         // Extract item data
         if let itemData = catalogObject.itemData {
+            // Debug: Log the raw data we're working with
+            logger.info("🔍 ITEM MODAL: Processing item \(catalogObject.id)")
+            logger.info("🔍 ITEM MODAL: taxIds in itemData: \(itemData.taxIds ?? [])")
+            logger.info("🔍 ITEM MODAL: modifierListInfo count: \(itemData.modifierListInfo?.count ?? 0)")
+            logger.info("🔍 ITEM MODAL: categories count: \(itemData.categories?.count ?? 0)")
+            logger.info("🔍 ITEM MODAL: reportingCategory: \(itemData.reportingCategory?.id ?? "nil")")
+
             // Basic information
             itemDetails.name = itemData.name ?? ""
             itemDetails.description = itemData.description ?? ""
@@ -444,6 +451,56 @@ class ItemDetailsViewModel: ObservableObject {
 
             // Product classification
             itemDetails.productType = transformProductType(itemData.productType)
+
+            // CRITICAL: Extract categories following Square's logic and user requirements
+            let allCategories = itemData.categories ?? []
+            let explicitReportingCategory = itemData.reportingCategory
+
+            if allCategories.count == 1 {
+                // Rule 1: If item has only 1 category, it should be treated as the reporting category
+                let singleCategory = allCategories.first!
+                itemDetails.reportingCategoryId = singleCategory.id
+                itemDetails.categoryIds = [] // No additional categories
+                logger.info("Single category found - treating as reporting category: \(singleCategory.id)")
+
+            } else if allCategories.count > 1 {
+                // Rule 2: If there are multiple categories, use Square's explicit reporting_category field
+                if let reportingCategory = explicitReportingCategory {
+                    itemDetails.reportingCategoryId = reportingCategory.id
+                    // Additional categories are all categories except the reporting category
+                    itemDetails.categoryIds = allCategories.compactMap { category in
+                        category.id != reportingCategory.id ? category.id : nil
+                    }
+                    logger.info("Multiple categories found - using explicit reporting category: \(reportingCategory.id), additional: \(itemDetails.categoryIds)")
+                } else {
+                    // Fallback: Use first category as reporting category if no explicit one is set
+                    let firstCategory = allCategories.first!
+                    itemDetails.reportingCategoryId = firstCategory.id
+                    itemDetails.categoryIds = Array(allCategories.dropFirst()).map { $0.id }
+                    logger.warning("Multiple categories but no explicit reporting category - using first as reporting: \(firstCategory.id)")
+                }
+
+            } else {
+                // No categories at all - check legacy categoryId field
+                if let legacyCategoryId = itemData.categoryId {
+                    itemDetails.reportingCategoryId = legacyCategoryId
+                    itemDetails.categoryIds = []
+                    logger.info("No categories array - using legacy categoryId as reporting category: \(legacyCategoryId)")
+                } else {
+                    itemDetails.reportingCategoryId = nil
+                    itemDetails.categoryIds = []
+                    logger.info("No categories found for item: \(itemDetails.id ?? "no-id")")
+                }
+            }
+
+            // CRITICAL: Extract modifier lists (from modifierListInfo)
+            if let modifierListInfo = itemData.modifierListInfo {
+                itemDetails.modifierListIds = modifierListInfo.compactMap { $0.modifierListId }
+                logger.info("Loaded \(itemDetails.modifierListIds.count) modifier lists for item: \(itemDetails.modifierListIds)")
+            } else {
+                itemDetails.modifierListIds = []
+                logger.info("No modifier lists found for item: \(itemDetails.id ?? "no-id")")
+            }
 
             // Load actual variations from database
             await loadVariations(for: &itemDetails)
@@ -453,8 +510,9 @@ class ItemDetailsViewModel: ObservableObject {
             itemDetails.availableForPickup = itemData.availableForPickup ?? false
             itemDetails.skipModifierScreen = itemData.skipModifierScreen ?? false
 
-            // Tax information
+            // Tax information (already working correctly)
             itemDetails.taxIds = itemData.taxIds ?? []
+            logger.info("Loaded \(itemDetails.taxIds.count) taxes for item: \(itemDetails.taxIds)")
 
             // Images - use the EXACT same logic as search results
             let images = populateImageData(for: itemDetails.id ?? "")
@@ -683,12 +741,13 @@ class ItemDetailsViewModel: ObservableObject {
             for row in statement {
                 let id = row[0] as? String ?? ""
                 let name = row[1] as? String ?? ""
-                let isDeleted = (row[2] as? Int64 ?? 0) != 0
+                let _ = (row[2] as? Int64 ?? 0) != 0 // isDeleted - already filtered in query
 
                 guard !id.isEmpty, !name.isEmpty else { continue }
 
                 // Create a simple CategoryData for UI display
                 let categoryData = CategoryData(
+                    id: id,
                     name: name,
                     imageIds: nil,
                     imageUrl: nil,
@@ -742,6 +801,7 @@ class ItemDetailsViewModel: ObservableObject {
 
                 // Create a simple TaxData for UI display
                 let taxData = TaxData(
+                    id: id,
                     name: name,
                     calculationPhase: nil,
                     inclusionType: nil,
@@ -788,6 +848,7 @@ class ItemDetailsViewModel: ObservableObject {
 
                 // Create a simple ModifierListData for UI display
                 let modifierListData = ModifierListData(
+                    id: id,
                     name: name,
                     ordinal: nil,
                     selectionType: selectionType,
