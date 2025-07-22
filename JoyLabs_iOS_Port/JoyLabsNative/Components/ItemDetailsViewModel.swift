@@ -717,6 +717,7 @@ class ItemDetailsViewModel: ObservableObject {
             group.addTask { await self.loadCategories() }
             group.addTask { await self.loadTaxes() }
             group.addTask { await self.loadModifierLists() }
+            group.addTask { await self.loadLocations() }
         }
     }
 
@@ -864,6 +865,51 @@ class ItemDetailsViewModel: ObservableObject {
             }
         } catch {
             logger.error("Failed to load modifier lists: \(error)")
+        }
+    }
+
+    /// Load locations from local database (same pattern as other data)
+    private func loadLocations() async {
+        do {
+            guard let db = databaseManager.getConnection() else {
+                logger.error("No database connection available")
+                return
+            }
+
+            let query = """
+                SELECT id, name, address, status
+                FROM locations
+                WHERE is_deleted = 0 AND status = 'ACTIVE'
+                ORDER BY name ASC
+            """
+
+            let statement = try db.prepare(query)
+            var locations: [LocationData] = []
+
+            for row in statement {
+                let id = row[0] as? String ?? ""
+                let name = row[1] as? String ?? ""
+                let address = row[2] as? String ?? ""
+                let status = row[3] as? String ?? ""
+
+                guard !id.isEmpty, !name.isEmpty else { continue }
+
+                // Create a LocationData for UI display
+                let locationData = LocationData(
+                    id: id,
+                    name: name,
+                    address: address,
+                    isActive: status.uppercased() == "ACTIVE"
+                )
+                locations.append(locationData)
+            }
+
+            await MainActor.run {
+                self.availableLocations = locations
+                logger.debug("Loaded \(locations.count) locations for item modal")
+            }
+        } catch {
+            logger.error("Failed to load locations: \(error)")
         }
     }
 

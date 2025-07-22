@@ -8,9 +8,7 @@ struct ItemDetailsCategoriesSection: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            ItemDetailsSectionHeader(title: "Categories & Organization", icon: "folder")
-            
-            VStack(spacing: 12) {
+            VStack(spacing: 0) {
                 // Reporting Category (conditionally shown)
                 if configManager.currentConfiguration.classificationFields.reportingCategoryEnabled {
                     ReportingCategorySelector(
@@ -20,6 +18,10 @@ struct ItemDetailsCategoriesSection: View {
                         ),
                         viewModel: viewModel
                     )
+                    .padding(.bottom, 16)
+
+                    Divider()
+                        .padding(.bottom, 16)
                 }
 
                 // Additional Categories (conditionally shown)
@@ -28,8 +30,17 @@ struct ItemDetailsCategoriesSection: View {
                         categoryIds: Binding(
                             get: { viewModel.itemData.categoryIds },
                             set: { viewModel.itemData.categoryIds = $0 }
-                        )
+                        ),
+                        reportingCategoryId: Binding(
+                            get: { viewModel.itemData.reportingCategoryId },
+                            set: { viewModel.itemData.reportingCategoryId = $0 }
+                        ),
+                        viewModel: viewModel
                     )
+                    .padding(.bottom, 16)
+
+                    Divider()
+                        .padding(.bottom, 16)
                 }
 
                 // Tax Settings (conditionally shown)
@@ -41,6 +52,10 @@ struct ItemDetailsCategoriesSection: View {
                         ),
                         viewModel: viewModel
                     )
+                    .padding(.bottom, 16)
+
+                    Divider()
+                        .padding(.bottom, 16)
                 }
 
                 // Modifier Lists (conditionally shown)
@@ -52,6 +67,7 @@ struct ItemDetailsCategoriesSection: View {
                         ),
                         viewModel: viewModel
                     )
+                    // No divider after the last section
                 }
             }
         }
@@ -84,6 +100,7 @@ struct ReportingCategorySelector: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
+            // Header
             HStack {
                 Text("Reporting Category")
                     .font(.subheadline)
@@ -97,6 +114,12 @@ struct ReportingCategorySelector: View {
                 Spacer()
             }
 
+            // Description
+            Text("Primary category for reporting and analytics")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            // Dropdown Button
             Button(action: {
                 showingDropdown.toggle()
             }) {
@@ -170,10 +193,6 @@ struct ReportingCategorySelector: View {
 
             // Recent Categories Horizontal Scroll
             RecentCategoriesScroll(reportingCategoryId: $reportingCategoryId, viewModel: viewModel)
-
-            Text("Primary category for reporting and analytics")
-                .font(.caption)
-                .foregroundColor(.secondary)
         }
     }
 }
@@ -225,27 +244,44 @@ struct RecentCategoriesScroll: View {
     }
 }
 
-// MARK: - Additional Categories Selector
+// MARK: - Additional Categories Selector with Dropdown
 struct AdditionalCategoriesSelector: View {
     @Binding var categoryIds: [String]
-    
+    @Binding var reportingCategoryId: String?
+    @ObservedObject var viewModel: ItemDetailsViewModel
+    @State private var showingDropdown = false
+    @State private var searchText = ""
+
+    // Filtered categories based on search
+    private var filteredCategories: [CategoryData] {
+        if searchText.isEmpty {
+            return viewModel.availableCategories
+        } else {
+            return viewModel.availableCategories.filter { category in
+                category.name?.localizedCaseInsensitiveContains(searchText) ?? false
+            }
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
+            // Header
             HStack {
                 Text("Additional Categories")
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .foregroundColor(.primary)
-                
+
                 Spacer()
-                
+
                 Text("Optional")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
-            
+
+            // Dropdown Button
             Button(action: {
-                // TODO: Show multi-category picker
+                showingDropdown.toggle()
             }) {
                 HStack {
                     if categoryIds.isEmpty {
@@ -255,10 +291,10 @@ struct AdditionalCategoriesSelector: View {
                         Text("\(categoryIds.count) categories selected")
                             .foregroundColor(.primary)
                     }
-                    
+
                     Spacer()
-                    
-                    Image(systemName: "chevron.right")
+
+                    Image(systemName: showingDropdown ? "chevron.up" : "chevron.down")
                         .foregroundColor(.secondary)
                         .font(.caption)
                 }
@@ -266,16 +302,84 @@ struct AdditionalCategoriesSelector: View {
                 .background(Color(.systemGray6))
                 .cornerRadius(8)
             }
-            
-            // Show selected categories
+
+            // Dropdown Content
+            if showingDropdown {
+                VStack(spacing: 0) {
+                    // Search Field
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundColor(.secondary)
+                        TextField("Search categories...", text: $searchText)
+                            .textFieldStyle(PlainTextFieldStyle())
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color(.systemGray6))
+
+                    Divider()
+
+                    // Categories List
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(filteredCategories.indices, id: \.self) { index in
+                                let category = filteredCategories[index]
+                                if let categoryId = category.id {
+                                    Button(action: {
+                                        if categoryIds.contains(categoryId) {
+                                            categoryIds.removeAll { $0 == categoryId }
+                                        } else {
+                                            categoryIds.append(categoryId)
+                                        }
+                                    }) {
+                                        HStack {
+                                            // Show if this is the reporting category
+                                            if reportingCategoryId == categoryId {
+                                                Text("\(category.name ?? "Unnamed Category") (Reporting)")
+                                                    .foregroundColor(.blue)
+                                                    .fontWeight(.medium)
+                                            } else {
+                                                Text(category.name ?? "Unnamed Category")
+                                                    .foregroundColor(.primary)
+                                            }
+
+                                            Spacer()
+
+                                            if categoryIds.contains(categoryId) {
+                                                Image(systemName: "checkmark")
+                                                    .foregroundColor(.blue)
+                                            }
+                                        }
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 8)
+                                    }
+                                    .background(Color(.systemBackground))
+                                    .disabled(reportingCategoryId == categoryId) // Can't select reporting category as additional
+
+                                    if index < filteredCategories.count - 1 {
+                                        Divider()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .frame(maxHeight: 200)
+                }
+                .background(Color(.systemBackground))
+                .cornerRadius(8)
+                .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+            }
+
+            // Show selected categories as chips
             if !categoryIds.isEmpty {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))], spacing: 8) {
                     ForEach(categoryIds, id: \.self) { categoryId in
-                        CategoryChip(categoryId: categoryId) {
+                        CategoryChip(categoryId: categoryId, viewModel: viewModel) {
                             categoryIds.removeAll { $0 == categoryId }
                         }
                     }
                 }
+                .padding(.top, 4)
             }
         }
     }
@@ -284,14 +388,20 @@ struct AdditionalCategoriesSelector: View {
 // MARK: - Category Chip
 struct CategoryChip: View {
     let categoryId: String
+    let viewModel: ItemDetailsViewModel
     let onRemove: () -> Void
-    
+
+    // Get category name from viewModel
+    private var categoryName: String {
+        viewModel.availableCategories.first { $0.id == categoryId }?.name ?? "Unknown Category"
+    }
+
     var body: some View {
         HStack(spacing: 4) {
-            Text(categoryId) // TODO: Replace with actual category name
+            Text(categoryName)
                 .font(.caption)
                 .foregroundColor(.primary)
-            
+
             Button(action: onRemove) {
                 Image(systemName: "xmark")
                     .font(.caption2)
@@ -320,7 +430,7 @@ struct TaxSelector: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text("Tax Settings")
                     .font(.subheadline)
@@ -329,34 +439,32 @@ struct TaxSelector: View {
 
                 Spacer()
 
-                Text("Optional")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
+                // Select All Button (inline with header)
+                if !viewModel.availableTaxes.isEmpty {
+                    Button(action: {
+                        if allTaxesSelected {
+                            // Deselect all
+                            taxIds.removeAll()
+                        } else {
+                            // Select all
+                            taxIds = viewModel.availableTaxes.compactMap { $0.id }
+                        }
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: allTaxesSelected ? "checkmark.square.fill" : "square")
+                                .foregroundColor(allTaxesSelected ? .blue : .secondary)
+                                .font(.caption)
 
-            // Select All Option
-            if !viewModel.availableTaxes.isEmpty {
-                Button(action: {
-                    if allTaxesSelected {
-                        // Deselect all
-                        taxIds.removeAll()
-                    } else {
-                        // Select all
-                        taxIds = viewModel.availableTaxes.compactMap { $0.id }
+                            Text("Select All")
+                                .font(.caption)
+                                .foregroundColor(.primary)
+                        }
                     }
-                }) {
-                    HStack {
-                        Image(systemName: allTaxesSelected ? "checkmark.square.fill" : "square")
-                            .foregroundColor(allTaxesSelected ? .blue : .secondary)
-
-                        Text("Select All Taxes")
-                            .font(.subheadline)
-                            .foregroundColor(.primary)
-
-                        Spacer()
-                    }
+                } else {
+                    Text("Optional")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
-                .padding(.vertical, 4)
             }
 
             // Individual Tax Checkboxes
@@ -418,7 +526,7 @@ struct ModifierListSelector: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text("Modifier Lists")
                     .font(.subheadline)
@@ -427,34 +535,32 @@ struct ModifierListSelector: View {
 
                 Spacer()
 
-                Text("Optional")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
+                // Select All Button (inline with header)
+                if !viewModel.availableModifierLists.isEmpty {
+                    Button(action: {
+                        if allModifiersSelected {
+                            // Deselect all
+                            modifierListIds.removeAll()
+                        } else {
+                            // Select all
+                            modifierListIds = viewModel.availableModifierLists.compactMap { $0.id }
+                        }
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: allModifiersSelected ? "checkmark.square.fill" : "square")
+                                .foregroundColor(allModifiersSelected ? .blue : .secondary)
+                                .font(.caption)
 
-            // Select All Option
-            if !viewModel.availableModifierLists.isEmpty {
-                Button(action: {
-                    if allModifiersSelected {
-                        // Deselect all
-                        modifierListIds.removeAll()
-                    } else {
-                        // Select all
-                        modifierListIds = viewModel.availableModifierLists.compactMap { $0.id }
+                            Text("Select All")
+                                .font(.caption)
+                                .foregroundColor(.primary)
+                        }
                     }
-                }) {
-                    HStack {
-                        Image(systemName: allModifiersSelected ? "checkmark.square.fill" : "square")
-                            .foregroundColor(allModifiersSelected ? .blue : .secondary)
-
-                        Text("Select All Modifier Lists")
-                            .font(.subheadline)
-                            .foregroundColor(.primary)
-
-                        Spacer()
-                    }
+                } else {
+                    Text("Optional")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
-                .padding(.vertical, 4)
             }
 
             // Individual Modifier List Checkboxes
