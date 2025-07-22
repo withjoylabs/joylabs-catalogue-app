@@ -7,10 +7,10 @@ struct ItemEcommerceSection: View {
     @StateObject private var configManager = FieldConfigurationManager.shared
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 4) {
             ItemDetailsSectionHeader(title: "E-commerce Settings", icon: "globe")
-            
-            VStack(spacing: 16) {
+
+            VStack(spacing: 4) {
                 // Online Visibility
                 if configManager.currentConfiguration.ecommerceFields.onlineVisibilityEnabled {
                     OnlineVisibilitySettings(

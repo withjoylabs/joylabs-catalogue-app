@@ -7,10 +7,10 @@ struct ItemCustomAttributesSection: View {
     @State private var showingAddAttribute = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 4) {
             ItemDetailsSectionHeader(title: "Custom Attributes", icon: "tag")
-            
-            VStack(spacing: 12) {
+
+            VStack(spacing: 4) {
                 // Info text
                 HStack {
                     Image(systemName: "info.circle")

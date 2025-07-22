@@ -5,14 +5,15 @@ struct ItemEnabledLocationsSection: View {
     @ObservedObject var viewModel: ItemDetailsViewModel
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 4) {
             ItemDetailsSectionHeader(title: "Enabled at Locations", icon: "location")
-            
-            VStack(spacing: 12) {
+
+            VStack(spacing: 4) {
                 // All Locations Toggle
                 HStack {
                     Text("Enable at All Locations")
-                        .font(.body)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
                         .foregroundColor(.primary)
                     
                     Spacer()
@@ -26,12 +27,13 @@ struct ItemEnabledLocationsSection: View {
                             }
                         }
                 }
-                
+                .padding(.vertical, 4)
+
                 if !viewModel.itemData.enabledAtAllLocations {
                     Divider()
-                    
+
                     // Individual Location Selection
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 4) {
                         Text("Select Specific Locations")
                             .font(.subheadline)
                             .fontWeight(.medium)

@@ -7,10 +7,10 @@ struct ItemMeasurementSection: View {
     @StateObject private var configManager = FieldConfigurationManager.shared
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 4) {
             ItemDetailsSectionHeader(title: "Measurement & Units", icon: "ruler")
-            
-            VStack(spacing: 16) {
+
+            VStack(spacing: 4) {
                 // Measurement Unit
                 if configManager.currentConfiguration.advancedFields.measurementUnitEnabled {
                     MeasurementUnitSettings(

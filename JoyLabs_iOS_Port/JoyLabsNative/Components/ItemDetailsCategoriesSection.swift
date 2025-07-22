@@ -310,12 +310,12 @@ struct AdditionalCategoriesSelector: View {
                     HStack {
                         Image(systemName: "magnifyingglass")
                             .foregroundColor(.secondary)
+                            .font(.caption)
                         TextField("Search categories...", text: $searchText)
-                            .textFieldStyle(PlainTextFieldStyle())
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Color(.systemGray6))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
 
                     Divider()
 
@@ -471,16 +471,23 @@ struct TaxSelector: View {
             ForEach(viewModel.availableTaxes.indices, id: \.self) { index in
                 let tax = viewModel.availableTaxes[index]
                 if let taxId = tax.id {
+                    let isSelected = taxIds.contains(taxId)
                     Button(action: {
-                        if taxIds.contains(taxId) {
+                        print("🔍 TAX DEBUG: Tapping tax \(tax.name ?? "Unknown") (ID: \(taxId))")
+                        print("🔍 TAX DEBUG: Current taxIds: \(taxIds)")
+                        print("🔍 TAX DEBUG: Is currently selected: \(isSelected)")
+
+                        if isSelected {
                             taxIds.removeAll { $0 == taxId }
                         } else {
                             taxIds.append(taxId)
                         }
+
+                        print("🔍 TAX DEBUG: New taxIds: \(taxIds)")
                     }) {
                         HStack {
-                            Image(systemName: taxIds.contains(taxId) ? "checkmark.square.fill" : "square")
-                                .foregroundColor(taxIds.contains(taxId) ? .blue : .secondary)
+                            Image(systemName: isSelected ? "checkmark.square.fill" : "square")
+                                .foregroundColor(isSelected ? .blue : .secondary)
 
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(tax.name ?? "Unnamed Tax")
@@ -567,16 +574,23 @@ struct ModifierListSelector: View {
             ForEach(viewModel.availableModifierLists.indices, id: \.self) { index in
                 let modifierList = viewModel.availableModifierLists[index]
                 if let modifierId = modifierList.id {
+                    let isSelected = modifierListIds.contains(modifierId)
                     Button(action: {
-                        if modifierListIds.contains(modifierId) {
+                        print("🔍 MODIFIER DEBUG: Tapping modifier \(modifierList.name ?? "Unknown") (ID: \(modifierId))")
+                        print("🔍 MODIFIER DEBUG: Current modifierListIds: \(modifierListIds)")
+                        print("🔍 MODIFIER DEBUG: Is currently selected: \(isSelected)")
+
+                        if isSelected {
                             modifierListIds.removeAll { $0 == modifierId }
                         } else {
                             modifierListIds.append(modifierId)
                         }
+
+                        print("🔍 MODIFIER DEBUG: New modifierListIds: \(modifierListIds)")
                     }) {
                         HStack {
-                            Image(systemName: modifierListIds.contains(modifierId) ? "checkmark.square.fill" : "square")
-                                .foregroundColor(modifierListIds.contains(modifierId) ? .blue : .secondary)
+                            Image(systemName: isSelected ? "checkmark.square.fill" : "square")
+                                .foregroundColor(isSelected ? .blue : .secondary)
 
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(modifierList.name ?? "Unnamed Modifier List")

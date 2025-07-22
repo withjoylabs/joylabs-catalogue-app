@@ -5,49 +5,55 @@ struct ItemAvailabilitySection: View {
     @ObservedObject var viewModel: ItemDetailsViewModel
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 4) {
             ItemDetailsSectionHeader(title: "Availability", icon: "clock")
-            
-            VStack(spacing: 12) {
+
+            VStack(spacing: 4) {
                 // Available for Sale Toggle
                 HStack {
                     Text("Available for Sale")
-                        .font(.body)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
                         .foregroundColor(.primary)
-                    
+
                     Spacer()
-                    
+
                     Toggle("", isOn: $viewModel.itemData.isAvailableForSale)
                         .labelsHidden()
                 }
-                
+                .padding(.vertical, 4)
+
                 Divider()
-                
+
                 // Available Online Toggle
                 HStack {
                     Text("Available Online")
-                        .font(.body)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
                         .foregroundColor(.primary)
-                    
+
                     Spacer()
-                    
+
                     Toggle("", isOn: $viewModel.itemData.isAvailableOnline)
                         .labelsHidden()
                 }
-                
+                .padding(.vertical, 4)
+
                 Divider()
-                
+
                 // Available for Pickup Toggle
                 HStack {
                     Text("Available for Pickup")
-                        .font(.body)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
                         .foregroundColor(.primary)
-                    
+
                     Spacer()
-                    
+
                     Toggle("", isOn: $viewModel.itemData.isAvailableForPickup)
                         .labelsHidden()
                 }
+                .padding(.vertical, 4)
                 
                 // Availability Schedule (if needed)
                 if viewModel.showAdvancedFeatures {
