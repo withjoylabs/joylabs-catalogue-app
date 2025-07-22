@@ -224,10 +224,18 @@ class SQLiteSwiftCatalogManager {
         }
 
         do {
+            // CRITICAL DEBUG: Log the raw JSON to see what's actually stored
+            logger.info("🔍 RAW JSON for item \(itemId): \(dataJson ?? "nil")")
+
             let decoder = JSONDecoder()
-            // Use convertFromSnakeCase since the data comes from React Native in snake_case format
-            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            // DON'T use convertFromSnakeCase - the JSON is already in snake_case format and our CodingKeys handle the mapping
+            // decoder.keyDecodingStrategy = .convertFromSnakeCase
             let catalogObject = try decoder.decode(CatalogObject.self, from: jsonData)
+
+            // CRITICAL DEBUG: Log the decoded item data structure
+            if let itemData = catalogObject.itemData {
+                logger.info("🔍 DECODED itemData - taxIds: \(itemData.taxIds ?? []), modifierListInfo: \(itemData.modifierListInfo?.count ?? 0)")
+            }
 
             logger.info("Successfully fetched item: \(itemId)")
             return catalogObject
@@ -324,8 +332,12 @@ class SQLiteSwiftCatalogManager {
                 let reportingCategoryName = extractReportingCategoryName(from: itemData, in: db)
                 let primaryCategoryName = extractPrimaryCategoryName(from: itemData, in: db)
 
-                // Debug: Log what category names we resolved
-                logger.debug("🔍 Item \(object.id) resolved names: reporting='\(reportingCategoryName ?? "nil")', primary='\(primaryCategoryName ?? "nil")'")
+                // PERFORMANCE OPTIMIZATION: Extract tax and modifier names during sync for fast retrieval
+                let taxNames = extractTaxNames(from: itemData, in: db)
+                let modifierNames = extractModifierNames(from: itemData, in: db)
+
+                // Debug: Log what names we resolved
+                logger.debug("🔍 Item \(object.id) resolved names: reporting='\(reportingCategoryName ?? "nil")', primary='\(primaryCategoryName ?? "nil")', taxes='\(taxNames ?? "nil")', modifiers='\(modifierNames ?? "nil")'")
 
                 let insert = CatalogTableDefinitions.catalogItems.insert(or: .replace,
                     CatalogTableDefinitions.itemId <- object.id,
@@ -335,6 +347,8 @@ class SQLiteSwiftCatalogManager {
                     CatalogTableDefinitions.itemCategoryId <- itemData.categoryId,
                     CatalogTableDefinitions.itemCategoryName <- primaryCategoryName,
                     CatalogTableDefinitions.itemReportingCategoryName <- reportingCategoryName,
+                    CatalogTableDefinitions.itemTaxNames <- taxNames, // Pre-resolved tax names for performance
+                    CatalogTableDefinitions.itemModifierNames <- modifierNames, // Pre-resolved modifier names for performance
                     CatalogTableDefinitions.itemName <- itemData.name,
                     CatalogTableDefinitions.itemDescription <- itemData.description,
                     CatalogTableDefinitions.itemDataJson <- encodeJSON(object)  // Store FULL CatalogObject, not just itemData
@@ -500,7 +514,73 @@ class SQLiteSwiftCatalogManager {
         return nil
     }
 
+    // MARK: - Tax and Modifier Name Extraction (for performance optimization)
 
+    /// Extract tax names during sync for fast retrieval - returns comma-separated string
+    private func extractTaxNames(from itemData: ItemData, in db: Connection) -> String? {
+        guard let taxIds = itemData.taxIds, !taxIds.isEmpty else {
+            return nil
+        }
+
+        logger.debug("🔍 Looking up tax names for IDs: \(taxIds)")
+
+        var taxNames: [String] = []
+
+        for taxId in taxIds {
+            do {
+                let query = CatalogTableDefinitions.taxes
+                    .select(CatalogTableDefinitions.taxName)
+                    .filter(CatalogTableDefinitions.taxId == taxId && CatalogTableDefinitions.taxIsDeleted == false)
+
+                if let row = try db.pluck(query) {
+                    if let taxName = try row.get(CatalogTableDefinitions.taxName) {
+                        taxNames.append(taxName)
+                        logger.debug("🔍 Found tax name: '\(taxName)' for ID: \(taxId)")
+                    }
+                } else {
+                    logger.warning("🔍 No tax found in database for ID: \(taxId)")
+                }
+            } catch {
+                logger.error("🔍 Failed to get tax name for \(taxId): \(error)")
+            }
+        }
+
+        return taxNames.isEmpty ? nil : taxNames.joined(separator: ", ")
+    }
+
+    /// Extract modifier names during sync for fast retrieval - returns comma-separated string
+    private func extractModifierNames(from itemData: ItemData, in db: Connection) -> String? {
+        guard let modifierListInfo = itemData.modifierListInfo, !modifierListInfo.isEmpty else {
+            return nil
+        }
+
+        logger.debug("🔍 Looking up modifier list names for \(modifierListInfo.count) modifier lists")
+
+        var modifierNames: [String] = []
+
+        for modifierInfo in modifierListInfo {
+            guard let modifierListId = modifierInfo.modifierListId else { continue }
+
+            do {
+                let query = CatalogTableDefinitions.modifierLists
+                    .select(CatalogTableDefinitions.modifierListName)
+                    .filter(CatalogTableDefinitions.modifierListPrimaryId == modifierListId && CatalogTableDefinitions.modifierListIsDeleted == false)
+
+                if let row = try db.pluck(query) {
+                    if let modifierName = try row.get(CatalogTableDefinitions.modifierListName) {
+                        modifierNames.append(modifierName)
+                        logger.debug("🔍 Found modifier list name: '\(modifierName)' for ID: \(modifierListId)")
+                    }
+                } else {
+                    logger.warning("🔍 No modifier list found in database for ID: \(modifierListId)")
+                }
+            } catch {
+                logger.error("🔍 Failed to get modifier list name for \(modifierListId): \(error)")
+            }
+        }
+
+        return modifierNames.isEmpty ? nil : modifierNames.joined(separator: ", ")
+    }
 
 }
 

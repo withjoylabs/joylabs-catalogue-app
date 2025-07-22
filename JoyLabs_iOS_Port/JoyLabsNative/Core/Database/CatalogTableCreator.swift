@@ -28,6 +28,8 @@ class CatalogTableCreator {
             t.column(CatalogTableDefinitions.itemCategoryId)
             t.column(CatalogTableDefinitions.itemCategoryName)
             t.column(CatalogTableDefinitions.itemReportingCategoryName)
+            t.column(CatalogTableDefinitions.itemTaxNames) // Pre-resolved tax names for performance
+            t.column(CatalogTableDefinitions.itemModifierNames) // Pre-resolved modifier names for performance
             t.column(CatalogTableDefinitions.itemIsDeleted, defaultValue: false)
             t.column(CatalogTableDefinitions.itemUpdatedAt)
             t.column(CatalogTableDefinitions.itemVersion)

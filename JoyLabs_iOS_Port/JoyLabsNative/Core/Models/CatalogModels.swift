@@ -137,6 +137,10 @@ struct ItemData: Codable {
     let reportingCategory: ReportingCategory?
     let imageIds: [String]?
 
+    // PERFORMANCE OPTIMIZATION: Pre-resolved names stored during sync
+    let taxNames: String? // Comma-separated tax names for display
+    let modifierNames: String? // Comma-separated modifier names for display
+
     enum CodingKeys: String, CodingKey {
         case name, description, variations, images, abbreviation
         case categoryId = "category_id"
@@ -152,6 +156,8 @@ struct ItemData: Codable {
         case categories
         case reportingCategory = "reporting_category"
         case imageIds = "image_ids"
+        case taxNames = "tax_names"
+        case modifierNames = "modifier_names"
     }
 }
 

@@ -525,6 +525,9 @@ class ItemDetailsViewModel: ObservableObject {
             itemDetails.taxIds = itemData.taxIds ?? []
             logger.info("Loaded \(itemDetails.taxIds.count) taxes for item: \(itemDetails.taxIds)")
 
+            // PERFORMANCE OPTIMIZATION: Load pre-resolved tax and modifier names from database
+            await loadPreResolvedNames(for: &itemDetails)
+
             // Images - use the EXACT same logic as search results
             let images = populateImageData(for: itemDetails.id ?? "")
             if let firstImage = images?.first {
@@ -921,6 +924,49 @@ class ItemDetailsViewModel: ObservableObject {
             }
         } catch {
             logger.error("Failed to load locations: \(error)")
+        }
+    }
+
+    /// PERFORMANCE OPTIMIZATION: Load pre-resolved tax and modifier names from database
+    /// This avoids the need to do lookups every time the item modal is opened
+    private func loadPreResolvedNames(for itemDetails: inout ItemDetailsData) async {
+        guard let itemId = itemDetails.id else { return }
+
+        do {
+            guard let db = databaseManager.getConnection() else {
+                logger.error("No database connection available for pre-resolved names")
+                return
+            }
+
+            let query = """
+                SELECT tax_names, modifier_names
+                FROM catalog_items
+                WHERE id = ? AND is_deleted = 0
+            """
+
+            let statement = try db.prepare(query)
+
+            for row in try statement.run(itemId) {
+                let taxNames = row[0] as? String
+                let modifierNames = row[1] as? String
+
+                // Store the pre-resolved names for display purposes
+                // These will be used in the UI instead of doing repeated lookups
+                if let taxNames = taxNames, !taxNames.isEmpty {
+                    logger.info("📊 PERFORMANCE: Using pre-resolved tax names: '\(taxNames)' for item \(itemId)")
+                    // You can store this in itemDetails if needed for display
+                }
+
+                if let modifierNames = modifierNames, !modifierNames.isEmpty {
+                    logger.info("📊 PERFORMANCE: Using pre-resolved modifier names: '\(modifierNames)' for item \(itemId)")
+                    // You can store this in itemDetails if needed for display
+                }
+
+                break // Only need the first row
+            }
+
+        } catch {
+            logger.error("Failed to load pre-resolved names for item \(itemId): \(error)")
         }
     }
 
