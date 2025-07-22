@@ -1,6 +1,35 @@
 import Foundation
 import os.log
 
+// ⚠️ CRITICAL RULES FOR SQUARE API INTEGRATION - DO NOT IGNORE ⚠️
+//
+// 1. SNAKE_CASE vs CAMELCASE MAPPING:
+//    - Square API returns JSON with snake_case keys: "category_data", "tax_data", "modifier_data", "image_data", "updated_at", "is_deleted"
+//    - Swift models use camelCase properties: categoryData, taxData, modifierData, imageData, updatedAt, isDeleted
+//    - ALL structs that decode Square API JSON MUST have CodingKeys to map snake_case → camelCase
+//    - Missing CodingKeys will cause JSON decoding to fail silently, resulting in nil data fields
+//
+// 2. REQUIRED CODINGKEYS FOR ALL SQUARE API MODELS:
+//    - CatalogObject: Maps "category_data" → categoryData, "tax_data" → taxData, etc.
+//    - CategoryData: Maps "image_ids" → imageIds, "category_type" → categoryType, etc.
+//    - TaxData: Maps "calculation_phase" → calculationPhase, "inclusion_type" → inclusionType, etc.
+//    - ModifierData: Maps "price_money" → priceMoney, "modifier_list_id" → modifierListId, etc.
+//    - ItemVariationData: Maps "item_id" → itemId, "pricing_type" → pricingType, etc.
+//
+// 3. TESTING REQUIREMENTS:
+//    - Always test sync after modifying any CodingKeys
+//    - Verify that categoryData, taxData, modifierData, imageData are NOT nil after JSON decoding
+//    - Check Square API documentation for exact field names: https://developer.squareup.com/reference/square/catalog-api/list-catalog
+//
+// 4. DEBUGGING SYNC ISSUES:
+//    - If you see "missing categoryData/taxData/modifierData" errors, check CodingKeys first
+//    - Use the test button in Catalog Management to debug without full sync
+//    - Never assume field names - always verify against Square API docs
+//
+// 5. SAFE PROPERTIES:
+//    - Use safeVersion, safeIsDeleted for database operations to handle nil values gracefully
+//    - These provide default values (0, false) when JSON decoding fails
+
 // MARK: - Search Models
 struct SearchFilters {
     var name: Bool = true
@@ -98,8 +127,22 @@ struct CatalogObject: Codable {
         return isDeleted ?? false
     }
 
+    enum CodingKeys: String, CodingKey {
+        case id, type
+        case updatedAt = "updated_at"
+        case version
+        case isDeleted = "is_deleted"
+        case presentAtAllLocations = "present_at_all_locations"
+        case itemData = "item_data"
+        case categoryData = "category_data"
+        case itemVariationData = "item_variation_data"
+        case modifierData = "modifier_data"
+        case modifierListData = "modifier_list_data"
+        case taxData = "tax_data"
+        case discountData = "discount_data"
+        case imageData = "image_data"
+    }
 
-    
     func toDictionary() -> [String: Any] {
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase

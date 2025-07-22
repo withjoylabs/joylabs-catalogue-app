@@ -285,6 +285,23 @@ struct CatalogManagementView: View {
                 .foregroundColor(.white)
                 .cornerRadius(12)
             }
+
+            // TEST PROCESSING BUTTON - Debug existing objects without downloading
+            Button(action: {
+                testProcessExistingObjects()
+            }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "wrench.and.screwdriver.fill")
+                        .font(.title3)
+                    Text("TEST: Process Existing Objects")
+                        .fontWeight(.semibold)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(Color.orange)
+                .foregroundColor(.white)
+                .cornerRadius(12)
+            }
         }
         .padding()
         .background(Color(.systemGray6))
@@ -579,6 +596,94 @@ struct CatalogManagementView: View {
             // Show success modal if sync completed successfully
             if syncCoordinator.syncState == .completed {
                 showingSyncSuccessModal = true
+            }
+        }
+    }
+
+    private func testProcessExistingObjects() {
+        Task {
+            logger.info("🧪 TEST: Starting to process existing objects in database...")
+
+            let databaseManager = syncCoordinator.catalogSyncService.sharedDatabaseManager
+            guard let db = databaseManager.getConnection() else {
+                logger.error("🧪 TEST: No database connection available")
+                return
+            }
+
+            do {
+                // Get raw JSON data from database to test processing
+                let query = """
+                    SELECT id, type, data_json FROM catalog_objects
+                    WHERE type IN ('CATEGORY', 'TAX', 'MODIFIER_LIST', 'MODIFIER', 'IMAGE')
+                    LIMIT 20
+                """
+
+                let statement = try db.prepare(query)
+                var processedCount = 0
+
+                for row in try statement.run() {
+                    let objectId = row[0] as! String
+                    let objectType = row[1] as! String
+                    let jsonData = row[2] as! String
+
+                    logger.info("🧪 TEST: Processing \(objectType) object \(objectId)")
+                    logger.debug("🧪 TEST: Raw JSON: \(jsonData)")
+
+                    // Try to decode the JSON to see if it has the required data
+                    if let data = jsonData.data(using: .utf8) {
+                        do {
+                            let decoder = JSONDecoder()
+                            decoder.keyDecodingStrategy = .convertFromSnakeCase
+                            let catalogObject = try decoder.decode(CatalogObject.self, from: data)
+
+                            // Check if the object has the required data fields
+                            switch objectType {
+                            case "CATEGORY":
+                                if catalogObject.categoryData != nil {
+                                    logger.info("✅ TEST: Category \(objectId) has categoryData")
+                                } else {
+                                    logger.error("❌ TEST: Category \(objectId) missing categoryData")
+                                }
+                            case "TAX":
+                                if catalogObject.taxData != nil {
+                                    logger.info("✅ TEST: Tax \(objectId) has taxData")
+                                } else {
+                                    logger.error("❌ TEST: Tax \(objectId) missing taxData")
+                                }
+                            case "MODIFIER_LIST":
+                                if catalogObject.modifierListData != nil {
+                                    logger.info("✅ TEST: ModifierList \(objectId) has modifierListData")
+                                } else {
+                                    logger.error("❌ TEST: ModifierList \(objectId) missing modifierListData")
+                                }
+                            case "MODIFIER":
+                                if catalogObject.modifierData != nil {
+                                    logger.info("✅ TEST: Modifier \(objectId) has modifierData")
+                                } else {
+                                    logger.error("❌ TEST: Modifier \(objectId) missing modifierData")
+                                }
+                            case "IMAGE":
+                                if catalogObject.imageData != nil {
+                                    logger.info("✅ TEST: Image \(objectId) has imageData")
+                                } else {
+                                    logger.error("❌ TEST: Image \(objectId) missing imageData")
+                                }
+                            default:
+                                break
+                            }
+
+                            processedCount += 1
+
+                        } catch {
+                            logger.error("🧪 TEST: Failed to decode \(objectType) \(objectId): \(error)")
+                        }
+                    }
+                }
+
+                logger.info("🧪 TEST: Processed \(processedCount) objects")
+
+            } catch {
+                logger.error("🧪 TEST: Database query failed: \(error)")
             }
         }
     }
