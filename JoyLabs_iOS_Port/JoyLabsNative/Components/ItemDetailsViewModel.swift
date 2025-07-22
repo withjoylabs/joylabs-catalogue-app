@@ -283,7 +283,7 @@ class ItemDetailsViewModel: ObservableObject {
     var hasChanges: Bool {
         guard let original = originalItemData else {
             // For new items, check if any meaningful data has been entered
-            return !itemData.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+            let hasData = !itemData.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
                    !itemData.description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
                    itemData.variations.contains { variation in
                        !(variation.name ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
@@ -291,8 +291,13 @@ class ItemDetailsViewModel: ObservableObject {
                        !(variation.upc ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
                        (variation.priceMoney?.amount ?? 0) > 0
                    }
+            print("🔍 CHANGE DETECTION: New item has data: \(hasData)")
+            return hasData
         }
-        return !itemData.isEqual(to: original)
+
+        let hasChanges = !itemData.isEqual(to: original)
+        print("🔍 CHANGE DETECTION: Existing item has changes: \(hasChanges)")
+        return hasChanges
     }
     
     // MARK: - Private Properties
@@ -443,6 +448,12 @@ class ItemDetailsViewModel: ObservableObject {
             logger.info("🔍 ITEM MODAL: modifierListInfo count: \(itemData.modifierListInfo?.count ?? 0)")
             logger.info("🔍 ITEM MODAL: categories count: \(itemData.categories?.count ?? 0)")
             logger.info("🔍 ITEM MODAL: reportingCategory: \(itemData.reportingCategory?.id ?? "nil")")
+
+            // CRITICAL DEBUG: Log the entire itemData structure to see what's missing
+            if let modifierListInfo = itemData.modifierListInfo {
+                logger.info("🔍 ITEM MODAL: modifierListInfo details: \(modifierListInfo)")
+            }
+            logger.info("🔍 ITEM MODAL: Full itemData structure available fields: name=\(itemData.name != nil), description=\(itemData.description != nil), categoryId=\(itemData.categoryId != nil), taxIds=\(itemData.taxIds != nil), variations=\(itemData.variations != nil), modifierListInfo=\(itemData.modifierListInfo != nil)")
 
             // Basic information
             itemDetails.name = itemData.name ?? ""

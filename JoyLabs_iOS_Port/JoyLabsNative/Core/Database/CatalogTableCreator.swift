@@ -146,5 +146,25 @@ class CatalogTableCreator {
             t.column(CatalogTableDefinitions.syncUpdatedAt)
         })
 
+        // Create locations table
+        try db.run(CatalogTableDefinitions.locations.create(ifNotExists: true) { t in
+            t.column(CatalogTableDefinitions.locationId, primaryKey: true)
+            t.column(CatalogTableDefinitions.locationName)
+            t.column(CatalogTableDefinitions.locationMerchantId)
+            t.column(CatalogTableDefinitions.locationAddress)
+            t.column(CatalogTableDefinitions.locationTimezone)
+            t.column(CatalogTableDefinitions.locationPhoneNumber)
+            t.column(CatalogTableDefinitions.locationBusinessName)
+            t.column(CatalogTableDefinitions.locationBusinessEmail)
+            t.column(CatalogTableDefinitions.locationWebsiteUrl)
+            t.column(CatalogTableDefinitions.locationDescription)
+            t.column(CatalogTableDefinitions.locationStatus)
+            t.column(CatalogTableDefinitions.locationLogoUrl)
+            t.column(CatalogTableDefinitions.locationCreatedAt)
+            t.column(CatalogTableDefinitions.locationLastUpdated)
+            t.column(CatalogTableDefinitions.locationData)
+            t.column(CatalogTableDefinitions.locationIsDeleted, defaultValue: false)
+        })
+
     }
 }

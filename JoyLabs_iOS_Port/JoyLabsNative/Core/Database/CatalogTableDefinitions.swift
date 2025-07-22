@@ -123,4 +123,23 @@ class CatalogTableDefinitions {
     static let syncKey = Expression<String>("key")
     static let syncValue = Expression<String>("value")
     static let syncUpdatedAt = Expression<String>("updated_at")
+
+    // MARK: - Locations Table
+    static let locations = Table("locations")
+    static let locationId = Expression<String>("id")
+    static let locationName = Expression<String?>("name")
+    static let locationMerchantId = Expression<String?>("merchant_id")
+    static let locationAddress = Expression<String?>("address")
+    static let locationTimezone = Expression<String?>("timezone")
+    static let locationPhoneNumber = Expression<String?>("phone_number")
+    static let locationBusinessName = Expression<String?>("business_name")
+    static let locationBusinessEmail = Expression<String?>("business_email")
+    static let locationWebsiteUrl = Expression<String?>("website_url")
+    static let locationDescription = Expression<String?>("description")
+    static let locationStatus = Expression<String?>("status")
+    static let locationLogoUrl = Expression<String?>("logo_url")
+    static let locationCreatedAt = Expression<String?>("created_at")
+    static let locationLastUpdated = Expression<String?>("last_updated")
+    static let locationData = Expression<String?>("data")
+    static let locationIsDeleted = Expression<Bool>("is_deleted")
 }

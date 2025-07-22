@@ -104,11 +104,16 @@ struct ItemDetailsModal: View {
             // Ensure keyboard is dismissed when modal disappears
             hideKeyboard()
         }
-        .interactiveDismissDisabled(viewModel.hasChanges)
-        .onDisappear {
-            // This will be called if user tries to swipe down with changes
-            // but we prevent it with interactiveDismissDisabled
-        }
+        .gesture(
+            // Custom swipe down gesture to handle changes confirmation
+            DragGesture()
+                .onEnded { value in
+                    // Detect swipe down gesture
+                    if value.translation.height > 100 && value.translation.height > abs(value.translation.width) {
+                        handleSwipeDown()
+                    }
+                }
+        )
         .onAppear {
             setupForContext()
         }
@@ -164,6 +169,26 @@ struct ItemDetailsModal: View {
                 showingCancelConfirmation = true
             }
         } else {
+            onDismiss()
+            dismiss()
+        }
+    }
+
+    private func handleSwipeDown() {
+        print("Swipe down detected")
+
+        // Dismiss keyboard first
+        isAnyFieldFocused = false
+        hideKeyboard()
+
+        if viewModel.hasChanges {
+            print("User has unsaved changes - showing confirmation from swipe")
+            // Small delay to ensure keyboard dismissal completes
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                showingCancelConfirmation = true
+            }
+        } else {
+            print("No changes - dismissing modal")
             onDismiss()
             dismiss()
         }
