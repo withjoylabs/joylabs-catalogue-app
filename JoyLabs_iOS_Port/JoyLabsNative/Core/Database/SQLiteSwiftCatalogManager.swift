@@ -339,21 +339,40 @@ class SQLiteSwiftCatalogManager {
                 // Debug: Log what names we resolved
                 logger.debug("🔍 Item \(object.id) resolved names: reporting='\(reportingCategoryName ?? "nil")', primary='\(primaryCategoryName ?? "nil")', taxes='\(taxNames ?? "nil")', modifiers='\(modifierNames ?? "nil")'")
 
-                let insert = CatalogTableDefinitions.catalogItems.insert(or: .replace,
-                    CatalogTableDefinitions.itemId <- object.id,
-                    CatalogTableDefinitions.itemUpdatedAt <- timestamp,
-                    CatalogTableDefinitions.itemVersion <- String(object.safeVersion),
-                    CatalogTableDefinitions.itemIsDeleted <- object.safeIsDeleted,
-                    CatalogTableDefinitions.itemCategoryId <- itemData.categoryId,
-                    CatalogTableDefinitions.itemCategoryName <- primaryCategoryName,
-                    CatalogTableDefinitions.itemReportingCategoryName <- reportingCategoryName,
-                    CatalogTableDefinitions.itemTaxNames <- taxNames, // Pre-resolved tax names for performance
-                    CatalogTableDefinitions.itemModifierNames <- modifierNames, // Pre-resolved modifier names for performance
-                    CatalogTableDefinitions.itemName <- itemData.name,
-                    CatalogTableDefinitions.itemDescription <- itemData.description,
-                    CatalogTableDefinitions.itemDataJson <- encodeJSON(object)  // Store FULL CatalogObject, not just itemData
-                )
-                try db.run(insert)
+                // SAFE INSERT: Try with new columns first, fallback to old structure if needed
+                do {
+                    let insert = CatalogTableDefinitions.catalogItems.insert(or: .replace,
+                        CatalogTableDefinitions.itemId <- object.id,
+                        CatalogTableDefinitions.itemUpdatedAt <- timestamp,
+                        CatalogTableDefinitions.itemVersion <- String(object.safeVersion),
+                        CatalogTableDefinitions.itemIsDeleted <- object.safeIsDeleted,
+                        CatalogTableDefinitions.itemCategoryId <- itemData.categoryId,
+                        CatalogTableDefinitions.itemCategoryName <- primaryCategoryName,
+                        CatalogTableDefinitions.itemReportingCategoryName <- reportingCategoryName,
+                        CatalogTableDefinitions.itemTaxNames <- taxNames, // Pre-resolved tax names for performance
+                        CatalogTableDefinitions.itemModifierNames <- modifierNames, // Pre-resolved modifier names for performance
+                        CatalogTableDefinitions.itemName <- itemData.name,
+                        CatalogTableDefinitions.itemDescription <- itemData.description,
+                        CatalogTableDefinitions.itemDataJson <- encodeJSON(object)  // Store FULL CatalogObject, not just itemData
+                    )
+                    try db.run(insert)
+                } catch {
+                    // FALLBACK: If new columns don't exist, insert without them
+                    logger.warning("Failed to insert with new columns, falling back to old structure: \(error)")
+                    let fallbackInsert = CatalogTableDefinitions.catalogItems.insert(or: .replace,
+                        CatalogTableDefinitions.itemId <- object.id,
+                        CatalogTableDefinitions.itemUpdatedAt <- timestamp,
+                        CatalogTableDefinitions.itemVersion <- String(object.safeVersion),
+                        CatalogTableDefinitions.itemIsDeleted <- object.safeIsDeleted,
+                        CatalogTableDefinitions.itemCategoryId <- itemData.categoryId,
+                        CatalogTableDefinitions.itemCategoryName <- primaryCategoryName,
+                        CatalogTableDefinitions.itemReportingCategoryName <- reportingCategoryName,
+                        CatalogTableDefinitions.itemName <- itemData.name,
+                        CatalogTableDefinitions.itemDescription <- itemData.description,
+                        CatalogTableDefinitions.itemDataJson <- encodeJSON(object)  // Store FULL CatalogObject, not just itemData
+                    )
+                    try db.run(fallbackInsert)
+                }
             }
             
         case "ITEM_VARIATION":
