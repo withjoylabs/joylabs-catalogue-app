@@ -281,7 +281,23 @@ class ItemDetailsViewModel: ObservableObject {
         !itemData.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         !itemData.variations.isEmpty &&
         !isSaving &&
-        nameError == nil
+        nameError == nil &&
+        allUPCsValid
+    }
+
+    /// Check if all UPCs in variations are valid according to Square's requirements
+    private var allUPCsValid: Bool {
+        let duplicateService = DuplicateDetectionService()
+
+        for variation in itemData.variations {
+            if let upc = variation.upc, !upc.isEmpty {
+                let validationResult = duplicateService.validateUPC(upc)
+                if !validationResult.isValid {
+                    return false
+                }
+            }
+        }
+        return true
     }
 
     // Override hasUnsavedChanges to use proper comparison

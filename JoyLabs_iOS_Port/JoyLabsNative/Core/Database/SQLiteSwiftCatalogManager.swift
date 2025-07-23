@@ -207,9 +207,11 @@ class SQLiteSwiftCatalogManager {
         if let row = try db.pluck(query) {
             let versionString = row[CatalogTableDefinitions.itemVersion]
             let version = Int64(versionString) ?? 0
+            logger.debug("🔍 Found item \(itemId) in database with version: \(version) (string: '\(versionString)')")
             return version
         } else {
             // Item not found, return 0 (will be treated as new item)
+            logger.debug("🔍 Item \(itemId) not found in database, returning version 0")
             return 0
         }
     }
@@ -333,10 +335,27 @@ class SQLiteSwiftCatalogManager {
         logger.info("Image mapping table recreated")
     }
     
-    func insertCatalogObject(_ object: CatalogObject) throws {
-        guard let db = db else { throw SQLiteSwiftError.noConnection }
-        
-        let timestamp = ISO8601DateFormatter().string(from: Date())
+    func insertCatalogObject(_ object: CatalogObject) async throws {
+        return try await withCheckedThrowingContinuation { continuation in
+            Task {
+                do {
+                    guard let db = db else {
+                        continuation.resume(throwing: SQLiteSwiftError.noConnection)
+                        return
+                    }
+
+                    let timestamp = ISO8601DateFormatter().string(from: Date())
+
+                    try self.performSyncInsert(object, timestamp: timestamp, db: db)
+                    continuation.resume()
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    private func performSyncInsert(_ object: CatalogObject, timestamp: String, db: Connection) throws {
         
         switch object.type {
         case "CATEGORY":
@@ -376,6 +395,7 @@ class SQLiteSwiftCatalogManager {
                         CatalogTableDefinitions.itemDataJson <- encodeJSON(object)  // Store FULL CatalogObject, not just itemData
                     )
                     try db.run(insert)
+                    logger.debug("🔍 Successfully inserted item \(object.id) with version: \(object.safeVersion)")
                 } catch {
                     // FALLBACK: If new columns don't exist, insert without them
                     logger.warning("Failed to insert with new columns, falling back to old structure: \(error)")

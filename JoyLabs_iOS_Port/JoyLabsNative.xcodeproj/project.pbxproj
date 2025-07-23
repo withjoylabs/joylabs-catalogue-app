@@ -18,6 +18,7 @@
 		41826807649EF63DBBA03CCD /* FieldConfigurationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D71532DF527344EFA478B1B3 /* FieldConfigurationManager.swift */; };
 		43A12C33A2000D835D11605B /* ItemDataTransformers.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA6CAB610624BBFC8C7C36B6 /* ItemDataTransformers.swift */; };
 		4E9DC0AFA4C7DF303C097202 /* ItemAvailabilitySection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75FC10AFED4E5423B76916D5 /* ItemAvailabilitySection.swift */; };
+		5C42100E0690BACD20C3D6F2 /* DuplicateDetectionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16B4FF1AB7482AE61C22D7F0 /* DuplicateDetectionService.swift */; };
 		611221FE14DD319E9DC39D50 /* ItemEcommerceSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AFAF5D9F92448678D1A1EE2 /* ItemEcommerceSection.swift */; };
 		6EA41FDD40E6B3236E5DC902 /* FloatingActionButtons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3773602C0EF0A589CED63975 /* FloatingActionButtons.swift */; };
 		9189A53F265287C2C25FF411 /* ItemDetailsBasicSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5A87F50DC4826C17C46DD0 /* ItemDetailsBasicSection.swift */; };
@@ -72,6 +73,7 @@
 		F691E68C7ADFDA1137A12D8D /* ItemDeleteSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68CAE024F232AEDA149CF627 /* ItemDeleteSection.swift */; };
 		F734B51CB83D78322A781674 /* QuantitySelectionModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB32D29A7FF02592B9894919 /* QuantitySelectionModal.swift */; };
 		FB639BE785F378A20A1A5252 /* ItemMeasurementSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E3B3F77BC194AF2CF9CED6F /* ItemMeasurementSection.swift */; };
+		FBD9A264FF0F76391E23E3E1 /* DuplicateWarningView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84F97B5C958182F299BA523E /* DuplicateWarningView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -79,6 +81,7 @@
 		0B4067D357704001C7A0D307 /* QuantityNumpad.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QuantityNumpad.swift; sourceTree = "<group>"; };
 		0E3B3F77BC194AF2CF9CED6F /* ItemMeasurementSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemMeasurementSection.swift; path = Components/ItemMeasurementSection.swift; sourceTree = "<group>"; };
 		109D8EF3405D7C8718DCDF2B /* ItemCustomAttributesSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemCustomAttributesSection.swift; path = Components/ItemCustomAttributesSection.swift; sourceTree = "<group>"; };
+		16B4FF1AB7482AE61C22D7F0 /* DuplicateDetectionService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DuplicateDetectionService.swift; path = Components/DuplicateDetectionService.swift; sourceTree = "<group>"; };
 		1E5A87F50DC4826C17C46DD0 /* ItemDetailsBasicSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsBasicSection.swift; path = Components/ItemDetailsBasicSection.swift; sourceTree = "<group>"; };
 		1EDE99120BC4616B6E3A9926 /* CachedImageView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CachedImageView.swift; path = Components/CachedImageView.swift; sourceTree = "<group>"; };
 		24FCFC0D136AEF6740D9E682 /* ItemLocationOverridesSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemLocationOverridesSection.swift; path = Components/ItemLocationOverridesSection.swift; sourceTree = "<group>"; };
@@ -90,6 +93,7 @@
 		65695EAA6350279F084BF63B /* ItemDetailsPricingSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsPricingSection.swift; path = Components/ItemDetailsPricingSection.swift; sourceTree = "<group>"; };
 		68CAE024F232AEDA149CF627 /* ItemDeleteSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDeleteSection.swift; path = Components/ItemDeleteSection.swift; sourceTree = "<group>"; };
 		75FC10AFED4E5423B76916D5 /* ItemAvailabilitySection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemAvailabilitySection.swift; path = Components/ItemAvailabilitySection.swift; sourceTree = "<group>"; };
+		84F97B5C958182F299BA523E /* DuplicateWarningView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DuplicateWarningView.swift; path = Components/DuplicateWarningView.swift; sourceTree = "<group>"; };
 		9DAB355F729C92CB2F1631E3 /* SquareDataConverter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SquareDataConverter.swift; path = Core/Services/SquareDataConverter.swift; sourceTree = "<group>"; };
 		9DC776666D9E1A98076720A2 /* ItemSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemSettingsView.swift; path = Views/ItemSettingsView.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345679 /* JoyLabsNativeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNativeApp.swift; sourceTree = "<group>"; };
@@ -197,6 +201,8 @@
 				4AFAF5D9F92448678D1A1EE2 /* ItemEcommerceSection.swift */,
 				0E3B3F77BC194AF2CF9CED6F /* ItemMeasurementSection.swift */,
 				BA6CAB610624BBFC8C7C36B6 /* ItemDataTransformers.swift */,
+				16B4FF1AB7482AE61C22D7F0 /* DuplicateDetectionService.swift */,
+				84F97B5C958182F299BA523E /* DuplicateWarningView.swift */,
 			);
 			name = Components;
 			sourceTree = "<group>";
@@ -459,6 +465,8 @@
 				43A12C33A2000D835D11605B /* ItemDataTransformers.swift in Sources */,
 				99246C9B894AF2AE6D86F627 /* SquareCRUDService.swift in Sources */,
 				B839576176BE6BDF2B053D07 /* SquareDataConverter.swift in Sources */,
+				5C42100E0690BACD20C3D6F2 /* DuplicateDetectionService.swift in Sources */,
+				FBD9A264FF0F76391E23E3E1 /* DuplicateWarningView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

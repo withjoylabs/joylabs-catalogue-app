@@ -31,7 +31,8 @@ struct ItemDetailsPricingSection: View {
                             guard index < viewModel.itemData.variations.count && viewModel.itemData.variations.count > 1 else { return }
                             viewModel.itemData.variations.remove(at: index)
                             viewModel.hasUnsavedChanges = true
-                        }
+                        },
+                        viewModel: viewModel
                     )
         }
 
@@ -54,8 +55,10 @@ struct VariationCard: View {
     @Binding var variation: ItemDetailsVariationData
     let index: Int
     let onDelete: () -> Void
-    
+
     @State private var showingDeleteConfirmation = false
+    @StateObject private var duplicateDetection = DuplicateDetectionService()
+    @ObservedObject var viewModel: ItemDetailsViewModel
 
     // Check if variation has meaningful data
     private var variationHasData: Bool {
@@ -106,17 +109,49 @@ struct VariationCard: View {
                     VariationUPCField(
                         upc: Binding(
                             get: { variation.upc ?? "" },
-                            set: { variation.upc = $0.isEmpty ? nil : $0 }
+                            set: {
+                                variation.upc = $0.isEmpty ? nil : $0
+                                // Trigger duplicate detection when UPC changes
+                                duplicateDetection.checkForDuplicates(
+                                    sku: variation.sku ?? "",
+                                    upc: $0,
+                                    excludeItemId: viewModel.itemData.id
+                                )
+                            }
                         )
                     )
 
                     VariationSKUField(
                         sku: Binding(
                             get: { variation.sku ?? "" },
-                            set: { variation.sku = $0.isEmpty ? nil : $0 }
+                            set: {
+                                variation.sku = $0.isEmpty ? nil : $0
+                                // Trigger duplicate detection when SKU changes
+                                duplicateDetection.checkForDuplicates(
+                                    sku: $0,
+                                    upc: variation.upc ?? "",
+                                    excludeItemId: viewModel.itemData.id
+                                )
+                            }
                         )
                     )
                 }
+
+                // UPC validation error
+                if let upc = variation.upc, !upc.isEmpty {
+                    let validationResult = duplicateDetection.validateUPC(upc)
+                    if !validationResult.isValid, case .invalid(let error) = validationResult {
+                        UPCValidationErrorView(error: error)
+                    }
+                }
+
+                // Duplicate detection loading
+                if duplicateDetection.isValidating {
+                    DuplicateDetectionLoadingView()
+                }
+
+                // Duplicate warnings
+                DuplicateWarningView(warnings: duplicateDetection.duplicateWarnings)
                 
                 // Pricing type and price (50/50 split - always show both)
                 HStack(spacing: 12) {

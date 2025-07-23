@@ -291,7 +291,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
             // Update sync status based on object type being processed
             updateSyncStatusForObjectType(object.type, index: index, total: totalObjects)
 
-            try databaseManager.insertCatalogObject(object)
+            try await databaseManager.insertCatalogObject(object)
 
             // Process image URL mappings for on-demand loading
             if object.type == "IMAGE" {
