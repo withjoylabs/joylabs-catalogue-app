@@ -51,7 +51,7 @@ struct CachedImageView: View {
                 ProgressView()
                     .frame(width: safeWidth, height: safeHeight)
             } else {
-                Image(systemName: placeholder)
+                Image(systemName: placeholder.isEmpty ? "photo" : placeholder)
                     .foregroundColor(.gray)
                     .frame(width: safeWidth, height: safeHeight)
             }

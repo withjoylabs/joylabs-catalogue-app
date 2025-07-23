@@ -261,7 +261,19 @@ actor SquareHTTPClient {
             object: object
         )
 
-        let bodyData = try JSONEncoder().encode(requestBody)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .prettyPrinted
+        var bodyData = try encoder.encode(requestBody)
+
+        // Log the request body for debugging
+        if let bodyString = String(data: bodyData, encoding: .utf8) {
+            logger.debug("Request body: \(bodyString)")
+        }
+
+        // Log the request body for debugging
+        if let bodyString = String(data: bodyData, encoding: .utf8) {
+            logger.debug("Request body: \(bodyString)")
+        }
 
         return try await makeSquareAPIRequest(
             endpoint: "/v2/catalog/object",  // Direct Square API endpoint
@@ -366,7 +378,9 @@ actor SquareHTTPClient {
         }
         
         logger.debug("Making Square API request: \(method.rawValue) \(endpoint)")
-        
+        logger.debug("Request headers: \(request.allHTTPHeaderFields ?? [:])")
+        logger.debug("Request timeout: \(request.timeoutInterval)s")
+
         // Perform request
         let (data, response) = try await session.data(for: request)
         
@@ -442,12 +456,30 @@ actor SquareHTTPClient {
                 throw SquareAPIError.decodingError(error)
             }
             
-        case 401:
-            throw SquareAPIError.authenticationFailed
-            
-        case 429:
-            throw SquareAPIError.rateLimitExceeded
-            
+        case 400...499:
+            // Client errors - log the response body for debugging
+            if let responseString = String(data: data, encoding: .utf8) {
+                logger.error("Client error response: \(responseString)")
+            }
+
+            // Try to parse Square API error response
+            do {
+                let decoder = JSONDecoder()
+                let errorResponse = try decoder.decode(SquareErrorResponse.self, from: data)
+                let errorMessages = errorResponse.errors.map { "\($0.category): \($0.detail ?? $0.code)" }.joined(separator: "; ")
+                throw SquareAPIError.apiError(httpResponse.statusCode, errorMessages)
+            } catch {
+                // If we can't parse the error response, handle specific status codes
+                switch httpResponse.statusCode {
+                case 401:
+                    throw SquareAPIError.authenticationFailed
+                case 429:
+                    throw SquareAPIError.rateLimitExceeded
+                default:
+                    throw SquareAPIError.clientError(httpResponse.statusCode)
+                }
+            }
+
         case 500...599:
             logger.error("❌ Square API server error: \(httpResponse.statusCode)")
             if let responseString = String(data: data, encoding: .utf8) {

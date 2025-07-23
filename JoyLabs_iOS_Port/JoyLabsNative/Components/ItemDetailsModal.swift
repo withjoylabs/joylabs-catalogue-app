@@ -100,6 +100,15 @@ struct ItemDetailsModal: View {
                 }
             }
         }
+        .alert("Error", isPresented: .constant(viewModel.error != nil)) {
+            Button("OK") {
+                viewModel.error = nil
+            }
+        } message: {
+            if let error = viewModel.error {
+                Text(error)
+            }
+        }
         .onDisappear {
             // Ensure keyboard is dismissed when modal disappears
             hideKeyboard()
@@ -293,9 +302,9 @@ struct ItemDetailsContent: View {
                 // Delete Button Section
                 ItemDeleteSection(viewModel: viewModel)
 
-                // Bottom spacing for floating buttons and keyboard (much closer)
+                // Bottom spacing for floating buttons and keyboard - increased to clear FAB
                 Spacer()
-                    .frame(height: 20)
+                    .frame(height: 120)
                 }
                 .padding()
             }

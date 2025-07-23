@@ -194,6 +194,26 @@ class SQLiteSwiftCatalogManager {
         return Int(countInt64)
     }
 
+    /// Get the current version of an item from the database
+    func getItemVersion(itemId: String) async throws -> Int64 {
+        guard let db = db else {
+            throw SQLiteSwiftError.noConnection
+        }
+
+        let query = CatalogTableDefinitions.catalogItems
+            .select(CatalogTableDefinitions.itemVersion)
+            .where(CatalogTableDefinitions.itemId == itemId)
+
+        if let row = try db.pluck(query) {
+            let versionString = row[CatalogTableDefinitions.itemVersion]
+            let version = Int64(versionString) ?? 0
+            return version
+        } else {
+            // Item not found, return 0 (will be treated as new item)
+            return 0
+        }
+    }
+
     // MARK: - Item Fetching Methods
 
     /// Fetch a complete catalog item by ID with all related data

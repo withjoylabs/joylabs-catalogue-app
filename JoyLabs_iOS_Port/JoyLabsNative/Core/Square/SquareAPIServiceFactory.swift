@@ -17,6 +17,7 @@ class SquareAPIServiceFactory {
     private var cachedCatalogSyncService: SQLiteSwiftCatalogSyncService?
     private var cachedTokenService: TokenService?
     private var cachedImageURLManager: ImageURLManager?
+    private var cachedCRUDService: SquareCRUDService?
 
     private let logger = Logger(subsystem: "com.joylabs.native", category: "SquareAPIServiceFactory")
 
@@ -129,6 +130,31 @@ class SquareAPIServiceFactory {
         return manager
     }
 
+    /// Get or create the CRUD service instance
+    static func createCRUDService() -> SquareCRUDService {
+        return shared.getOrCreateCRUDService()
+    }
+
+    private func getOrCreateCRUDService() -> SquareCRUDService {
+        if let cachedService = cachedCRUDService {
+            logger.debug("Returning cached SquareCRUDService instance")
+            return cachedService
+        }
+
+        logger.info("Creating NEW SquareCRUDService instance")
+        let squareAPIService = getOrCreateSquareAPIService()
+        let databaseManager = getOrCreateDatabaseManager()
+        let dataConverter = SquareDataConverter(databaseManager: databaseManager)
+
+        let service = SquareCRUDService(
+            squareAPIService: squareAPIService,
+            databaseManager: databaseManager,
+            dataConverter: dataConverter
+        )
+        cachedCRUDService = service
+        return service
+    }
+
     /// Reset ALL cached services (for testing or re-authentication)
     static func resetAllServices() {
         shared.logger.info("Resetting ALL cached services")
@@ -138,6 +164,7 @@ class SquareAPIServiceFactory {
         shared.cachedCatalogSyncService = nil
         shared.cachedTokenService = nil
         shared.cachedImageURLManager = nil
+        shared.cachedCRUDService = nil
     }
 
     /// Get service status for debugging
@@ -147,7 +174,9 @@ class SquareAPIServiceFactory {
             "SQLiteSwiftCatalogManager": shared.cachedDatabaseManager != nil,
             "SQLiteSwiftSyncCoordinator": shared.cachedSyncCoordinator != nil,
             "SQLiteSwiftCatalogSyncService": shared.cachedCatalogSyncService != nil,
-            "TokenService": shared.cachedTokenService != nil
+            "TokenService": shared.cachedTokenService != nil,
+            "ImageURLManager": shared.cachedImageURLManager != nil,
+            "SquareCRUDService": shared.cachedCRUDService != nil
         ]
     }
 }

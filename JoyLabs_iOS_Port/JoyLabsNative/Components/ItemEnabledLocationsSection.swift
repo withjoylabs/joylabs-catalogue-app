@@ -20,7 +20,7 @@ struct ItemEnabledLocationsSection: View {
                     
                     Toggle("", isOn: $viewModel.itemData.enabledAtAllLocations)
                         .labelsHidden()
-                        .onChange(of: viewModel.itemData.enabledAtAllLocations) { newValue in
+                        .onChange(of: viewModel.itemData.enabledAtAllLocations) { _, newValue in
                             if newValue {
                                 // If enabling at all locations, select all
                                 viewModel.itemData.enabledLocationIds = viewModel.availableLocations.map { $0.id }

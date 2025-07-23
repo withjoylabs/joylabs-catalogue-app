@@ -59,12 +59,12 @@ struct SquareConfiguration {
     static let awsRegion = "us-west-1"
     
     // MARK: - Request Configuration
-    
-    /// Default timeout for API requests
-    static let requestTimeout: TimeInterval = 30.0
-    
-    /// Token exchange timeout
-    static let tokenExchangeTimeout: TimeInterval = 15.0
+
+    /// Default timeout for API requests (fast timeout for connection issues)
+    static let requestTimeout: TimeInterval = 10.0
+
+    /// Token exchange timeout (fast timeout for connection issues)
+    static let tokenExchangeTimeout: TimeInterval = 10.0
     
     /// User Agent for API requests
     static let userAgent = "JoyLabsApp/1.0.0"
@@ -171,6 +171,8 @@ enum SquareAPIError: LocalizedError {
     case authenticationFailed
     case rateLimitExceeded
     case serverError(Int)
+    case clientError(Int)
+    case apiError(Int, String)
     case networkError(Error)
     case decodingError(Error)
     case unknownError
@@ -195,6 +197,10 @@ enum SquareAPIError: LocalizedError {
             return "Square API rate limit exceeded"
         case .serverError(let code):
             return "Square API server error: \(code)"
+        case .clientError(let code):
+            return "Square API client error: \(code)"
+        case .apiError(let code, let message):
+            return "Square API error (\(code)): \(message)"
         case .networkError(let error):
             return "Network error: \(error.localizedDescription)"
         case .decodingError(let error):
@@ -230,6 +236,10 @@ struct SquareError: Codable {
     let code: String
     let detail: String?
     let field: String?
+}
+
+struct SquareErrorResponse: Codable {
+    let errors: [SquareError]
 }
 
 // MARK: - OAuth Response Models

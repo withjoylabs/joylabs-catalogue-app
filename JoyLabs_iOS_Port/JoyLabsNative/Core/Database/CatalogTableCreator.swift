@@ -38,7 +38,7 @@ class CatalogTableCreator {
             // Foreign key constraint
             t.foreignKey(CatalogTableDefinitions.itemCategoryId, references: CatalogTableDefinitions.categories, CatalogTableDefinitions.categoryId)
         })
-        
+
         // Create item_variations table
         try db.run(CatalogTableDefinitions.itemVariations.create(ifNotExists: true) { t in
             t.column(CatalogTableDefinitions.variationId, primaryKey: true)
@@ -168,5 +168,27 @@ class CatalogTableCreator {
             t.column(CatalogTableDefinitions.locationIsDeleted, defaultValue: false)
         })
 
+        logger.info("All catalog tables created successfully")
+    }
+
+    /// Add missing columns to existing databases
+    private func addMissingColumnsIfNeeded(_ db: Connection) throws {
+        // Add tax_names column if missing
+        do {
+            try db.run("ALTER TABLE catalog_items ADD COLUMN tax_names TEXT")
+            logger.debug("Added tax_names column to catalog_items")
+        } catch {
+            // Column already exists or other error - continue
+            logger.debug("tax_names column already exists: \(error)")
+        }
+
+        // Add modifier_names column if missing
+        do {
+            try db.run("ALTER TABLE catalog_items ADD COLUMN modifier_names TEXT")
+            logger.debug("Added modifier_names column to catalog_items")
+        } catch {
+            // Column already exists or other error - continue
+            logger.debug("modifier_names column already exists: \(error)")
+        }
     }
 }

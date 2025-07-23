@@ -86,6 +86,9 @@ struct ItemDetailsData {
     var updatedAt: String?
     var createdAt: String?
 
+    // Team Data (AppSync Integration)
+    var teamData: TeamItemData?
+
     /// Check if this item data is equal to another (for change detection)
     func isEqual(to other: ItemDetailsData) -> Bool {
         return self.name == other.name &&
@@ -253,11 +256,13 @@ class ItemDetailsViewModel: ObservableObject {
 
     // Service dependencies
     private let databaseManager: SQLiteSwiftCatalogManager
+    private let crudService: SquareCRUDService
 
     // MARK: - Initialization
 
     init(databaseManager: SQLiteSwiftCatalogManager? = nil) {
         self.databaseManager = databaseManager ?? SquareAPIServiceFactory.createDatabaseManager()
+        self.crudService = SquareAPIServiceFactory.createCRUDService()
         setupValidationAndTracking()
     }
 
@@ -342,24 +347,95 @@ class ItemDetailsViewModel: ObservableObject {
         await loadCriticalData()
     }
     
-    /// Save the current item data
+    /// Save the current item data using SquareCRUDService
     func saveItem() async -> ItemDetailsData? {
         print("Saving item data")
 
         guard canSave else {
             print("Cannot save - validation failed")
+            await MainActor.run {
+                self.error = "Cannot save - please check required fields"
+            }
             return nil
         }
-        
+
         isSaving = true
         defer { isSaving = false }
-        
-        // TODO: Implement actual save logic with Square API
-        print("Item saved successfully")
-        hasUnsavedChanges = false
-        return itemData
+
+        do {
+            let savedObject: CatalogObject
+
+            if itemData.id == nil || itemData.id?.isEmpty == true {
+                // CREATE: New item
+                print("Creating new item via Square API")
+                savedObject = try await crudService.createItem(itemData)
+                print("✅ Item created successfully: \(savedObject.id)")
+            } else {
+                // UPDATE: Existing item
+                print("Updating existing item via Square API: \(itemData.id!)")
+                savedObject = try await crudService.updateItem(itemData)
+                print("✅ Item updated successfully: \(savedObject.id) (version: \(savedObject.safeVersion))")
+            }
+
+            // Update local data with Square API response
+            let updatedItemData = ItemDataTransformers.transformCatalogObjectToItemDetails(savedObject)
+            await MainActor.run {
+                self.itemData = updatedItemData
+                self.originalItemData = updatedItemData
+                self.hasUnsavedChanges = false
+                self.error = nil // Clear any previous errors
+            }
+            print("✅ Local data synchronized with Square API response")
+            return updatedItemData
+
+        } catch {
+            print("❌ Failed to save item: \(error.localizedDescription)")
+
+            // Set user-friendly error message
+            await MainActor.run {
+                if error.localizedDescription.contains("timed out") {
+                    self.error = "Request timed out. Please check your internet connection and try again."
+                } else if error.localizedDescription.contains("authentication") {
+                    self.error = "Authentication failed. Please reconnect to Square in Profile settings."
+                } else {
+                    self.error = "Failed to save: \(error.localizedDescription)"
+                }
+            }
+
+            // Keep hasUnsavedChanges = true so user can retry
+            return nil
+        }
     }
-    
+
+    /// Delete the current item using SquareCRUDService
+    func deleteItem() async -> Bool {
+        guard let itemId = itemData.id, !itemId.isEmpty else {
+            print("Cannot delete - no item ID")
+            return false
+        }
+
+        print("Deleting item: \(itemId)")
+        isSaving = true
+        defer { isSaving = false }
+
+        do {
+            _ = try await crudService.deleteItem(itemId)
+            print("✅ Item deleted successfully: \(itemId)")
+
+            // Mark as deleted locally
+            await MainActor.run {
+                self.itemData.isDeleted = true
+                self.hasUnsavedChanges = false
+            }
+
+            return true
+
+        } catch {
+            print("❌ Failed to delete item: \(error.localizedDescription)")
+            return false
+        }
+    }
+
     // MARK: - Private Methods
     
     private func setupValidation() {
@@ -603,28 +679,7 @@ class ItemDetailsViewModel: ObservableObject {
         }
     }
 
-    // MARK: - Delete Item
-    func deleteItem() async {
-        guard case .editExisting(let itemId) = self.context else {
-            print("Cannot delete - not editing existing item")
-            return
-        }
-
-        isLoading = true
-        error = nil
-
-        // TODO: Implement actual delete logic with Square API
-        print("Deleting item: \(itemId)")
-
-        // Simulate API call
-        try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
-
-        isLoading = false
-
-        // For now, just dismiss the modal
-        // In real implementation, this would call the Square API to delete the item
-        print("Item deleted successfully")
-    }
+    // MARK: - Delete Item (OLD IMPLEMENTATION REMOVED - NOW USING CRUD SERVICE)
 
     /// Populate image data for an item - EXACT same logic as SearchManager
     private func populateImageData(for itemId: String) -> [CatalogImage]? {
@@ -893,7 +948,7 @@ class ItemDetailsViewModel: ObservableObject {
             let query = """
                 SELECT id, name, address, status
                 FROM locations
-                WHERE is_deleted = 0 AND status = 'ACTIVE'
+                WHERE (is_deleted = 0 OR is_deleted IS NULL) AND (status = 'ACTIVE' OR status IS NULL)
                 ORDER BY name ASC
             """
 

@@ -24,6 +24,7 @@ struct TestRunnerView: View {
         case authentication = "Authentication"
         case tokenManagement = "Token Management"
         case syncService = "Sync Service"
+        case dataConverter = "Data Converter"
         case errorHandling = "Error Handling"
         case performance = "Performance"
         
@@ -33,6 +34,7 @@ struct TestRunnerView: View {
             case .authentication: return "person.badge.key"
             case .tokenManagement: return "key"
             case .syncService: return "arrow.triangle.2.circlepath"
+            case .dataConverter: return "arrow.left.arrow.right"
             case .errorHandling: return "exclamationmark.triangle"
             case .performance: return "speedometer"
             }
@@ -126,6 +128,14 @@ struct TestRunnerView: View {
                 
                 Button("Refresh") {
                     refreshTestResults()
+                }
+                .buttonStyle(.bordered)
+
+                NavigationLink(destination: SquareDataConverterTests()) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrow.left.arrow.right")
+                        Text("Data Converter")
+                    }
                 }
                 .buttonStyle(.bordered)
             }

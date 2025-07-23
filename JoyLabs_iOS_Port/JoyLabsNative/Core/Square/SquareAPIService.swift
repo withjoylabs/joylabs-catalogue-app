@@ -422,6 +422,37 @@ class SquareAPIService: ObservableObject {
         return upsertedObject
     }
 
+    /// Create or update a catalog object (returns full response with ID mappings)
+    func upsertCatalogObjectWithMappings(
+        _ object: CatalogObject,
+        idempotencyKey: String? = nil
+    ) async throws -> UpsertCatalogObjectResponse {
+        logger.info("Upserting catalog object with mappings: \(object.id) (type: \(object.type))")
+
+        guard isAuthenticated else {
+            throw SquareAPIError.authenticationFailed
+        }
+
+        let requestKey = idempotencyKey ?? UUID().uuidString
+
+        let response = try await httpClient.upsertCatalogObject(
+            object,
+            idempotencyKey: requestKey
+        )
+
+        guard let upsertedObject = response.catalogObject else {
+            throw SquareAPIError.upsertFailed("No object returned from upsert operation")
+        }
+
+        logger.info("Successfully upserted catalog object: \(upsertedObject.id) (version: \(upsertedObject.safeVersion))")
+
+        if let mappings = response.idMappings, !mappings.isEmpty {
+            logger.info("Received \(mappings.count) ID mappings from Square API")
+        }
+
+        return response
+    }
+
     /// Delete a catalog object
     func deleteCatalogObject(_ objectId: String) async throws -> DeletedCatalogObject {
         logger.info("Deleting catalog object: \(objectId)")
