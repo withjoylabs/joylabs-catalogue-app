@@ -223,6 +223,10 @@ struct ReordersView: View {
     @State private var selectedItemForEnlargement: ReorderItem?
     @State private var showingImageEnlargement = false
 
+    // Image picker for updating item images
+    @State private var selectedItemForImageUpdate: ReorderItem?
+    @State private var showingImagePicker = false
+
     // Barcode scanner state
     @State private var scannerSearchText = ""
     @FocusState private var isScannerFieldFocused: Bool
@@ -349,6 +353,10 @@ struct ReordersView: View {
                         // TODO: Implement image enlargement when ImageEnlargementView is added to project
                         print("🖼️ Image tapped for item: \(item.name)")
                     },
+                    onImageLongPress: { item in
+                        selectedItemForImageUpdate = item
+                        showingImagePicker = true
+                    },
                     onQuantityTap: showQuantityModalForItem
                 )
 
@@ -425,6 +433,26 @@ struct ReordersView: View {
                     .onAppear {
                         print("🚨 DEBUG: ERROR - StateObject selectedItemForQuantity is nil!")
                     }
+            }
+        }
+        // Image Picker Modal for updating item images
+        .sheet(isPresented: $showingImagePicker) {
+            if let item = selectedItemForImageUpdate {
+                ImagePickerModal(
+                    context: .reordersViewLongPress(
+                        itemId: item.itemId,
+                        imageId: item.imageId
+                    ),
+                    onDismiss: {
+                        showingImagePicker = false
+                        selectedItemForImageUpdate = nil
+                    },
+                    onImageUploaded: { result in
+                        // TODO: Update the reorder item with new image
+                        showingImagePicker = false
+                        selectedItemForImageUpdate = nil
+                    }
+                )
             }
         }
         // SUCCESS NOTIFICATION OVERLAY - STACKING FROM RIGHT
@@ -873,6 +901,7 @@ struct ReorderContentView: View {
     let onRemoveItem: (String) -> Void
     let onBarcodeScanned: (String) -> Void
     let onImageTap: (ReorderItem) -> Void
+    let onImageLongPress: (ReorderItem) -> Void // NEW: For updating item images
     let onQuantityTap: (SearchResultItem) -> Void // NEW: For opening quantity modal
 
     var body: some View {
@@ -893,6 +922,7 @@ struct ReorderContentView: View {
                                     onQuantityChange: onQuantityChange,
                                     onRemoveItem: onRemoveItem,
                                     onImageTap: onImageTap,
+                                    onImageLongPress: onImageLongPress,
                                     onQuantityTap: onQuantityTap
                                 )
                             }
@@ -968,6 +998,7 @@ struct ReorderItemsContent: View {
     let onQuantityChange: (String, Int) -> Void
     let onRemoveItem: (String) -> Void
     let onImageTap: (ReorderItem) -> Void
+    let onImageLongPress: (ReorderItem) -> Void // NEW: For updating item images
     let onQuantityTap: (SearchResultItem) -> Void // NEW: For opening quantity modal
 
     var body: some View {
@@ -1060,6 +1091,9 @@ struct ReorderItemsContent: View {
                     },
                     onImageTap: {
                         onImageTap(item)
+                    },
+                    onImageLongPress: {
+                        onImageLongPress(item)
                     }
                 )
             }
@@ -1080,6 +1114,9 @@ struct ReorderItemsContent: View {
                     },
                     onImageTap: {
                         onImageTap(item)
+                    },
+                    onImageLongPress: {
+                        onImageLongPress(item)
                     }
                 )
             }
@@ -1102,6 +1139,9 @@ struct ReorderItemsContent: View {
                         },
                         onImageTap: {
                             onImageTap(item)
+                        },
+                        onImageLongPress: {
+                            onImageLongPress(item)
                         }
                     )
                 }

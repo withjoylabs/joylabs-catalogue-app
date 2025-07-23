@@ -250,10 +250,12 @@ struct ReorderItemCard: View {
     let onQuantityTap: (() -> Void)? // NEW: Callback for tapping quantity to edit
     let onRemove: () -> Void
     let onImageTap: () -> Void
+    let onImageLongPress: (() -> Void)? // NEW: Callback for long-pressing image to update
 
     @State private var dragOffset: CGFloat = 0
     @State private var isDragging = false
     @State private var showingItemDetails = false
+    @State private var refreshTrigger = UUID()
 
     private let deleteThreshold: CGFloat = -120
     private let receivedThreshold: CGFloat = 120
@@ -341,15 +343,19 @@ struct ReorderItemCard: View {
                 }
                 .buttonStyle(PlainButtonStyle())
 
-                // Thumbnail image - exact same size as scan page (50px) - tappable for enlargement
+                // Thumbnail image - exact same size as scan page (50px) - tappable for enlargement, long-press for update
                 Button(action: onImageTap) {
                     CachedImageView.catalogItem(
                         imageURL: item.imageUrl,
                         imageId: item.imageId,
                         size: 50
                     )
+                    .id(refreshTrigger) // Force refresh when trigger changes
                 }
                 .buttonStyle(PlainButtonStyle())
+                .onLongPressGesture {
+                    onImageLongPress?()
+                }
 
                 // Main content section - exact same as scan page
                 VStack(alignment: .leading, spacing: 6) {
@@ -499,6 +505,20 @@ struct ReorderItemCard: View {
                 }
             )
         }
+        .onReceive(NotificationCenter.default.publisher(for: .imageUpdated)) { notification in
+            if let itemId = notification.userInfo?["itemId"] as? String {
+                print("🔄 [Reorder] Received imageUpdated notification for item: \(itemId), current item.id: \(item.id)")
+                if itemId == item.id {
+                    print("✅ [Reorder] Refreshing image for matching item: \(itemId)")
+                    // Refresh the image display for this specific item
+                    refreshTrigger = UUID()
+                } else {
+                    print("❌ [Reorder] Item ID mismatch: notification=\(itemId), item=\(item.id)")
+                }
+            } else {
+                print("⚠️ [Reorder] Received imageUpdated notification but no itemId in userInfo")
+            }
+        }
     }
 
     private func toggleStatus() {
@@ -566,7 +586,8 @@ struct CategoryBadge: View {
         onQuantityChange: { _ in },
         onQuantityTap: nil, // No tap action in preview
         onRemove: {},
-        onImageTap: {}
+        onImageTap: {},
+        onImageLongPress: nil // No long press action in preview
     )
     .padding()
 }
@@ -579,6 +600,7 @@ struct ReorderPhotoCard: View {
     let onQuantityChange: (Int) -> Void
     let onRemove: () -> Void
     let onImageTap: () -> Void
+    let onImageLongPress: (() -> Void)? // NEW: Callback for long-pressing image to update
 
     @State private var dragOffset: CGFloat = 0
     @State private var isDragging = false
@@ -588,7 +610,7 @@ struct ReorderPhotoCard: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            // Image (tappable for enlargement)
+            // Image (tappable for enlargement, long-press for update)
             Button(action: onImageTap) {
                 CachedImageView.catalogItem(
                     imageURL: item.imageUrl,
@@ -600,6 +622,9 @@ struct ReorderPhotoCard: View {
                 .cornerRadius(8)
             }
             .buttonStyle(PlainButtonStyle())
+            .onLongPressGesture {
+                onImageLongPress?()
+            }
 
             // Details (if enabled for this display mode)
             if displayMode.showDetails {

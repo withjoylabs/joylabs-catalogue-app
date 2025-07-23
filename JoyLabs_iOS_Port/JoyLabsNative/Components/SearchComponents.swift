@@ -80,15 +80,22 @@ struct ScanButton: View {
 struct ScanResultCard: View {
     let result: SearchResultItem
     @State private var showingItemDetails = false
+    @State private var showingImagePicker = false
+    @State private var refreshTrigger = UUID()
 
     var body: some View {
         HStack(spacing: 12) {
             // Thumbnail image (left side) - using cached image system with real Square image ID
+            // Long press to update image
             CachedImageView.catalogItem(
                 imageURL: result.images?.first?.imageData?.url,
                 imageId: result.images?.first?.id,
                 size: 50
             )
+            .id(refreshTrigger) // Force refresh when trigger changes
+            .onLongPressGesture {
+                showingImagePicker = true
+            }
 
             // Main content section
             VStack(alignment: .leading, spacing: 6) {
@@ -196,6 +203,36 @@ struct ScanResultCard: View {
                     showingItemDetails = false
                 }
             )
+        }
+        .sheet(isPresented: $showingImagePicker) {
+            ImagePickerModal(
+                context: .scanViewLongPress(
+                    itemId: result.id,
+                    imageId: result.images?.first?.id
+                ),
+                onDismiss: {
+                    showingImagePicker = false
+                },
+                onImageUploaded: { uploadResult in
+                    // Refresh the image display
+                    refreshTrigger = UUID()
+                    showingImagePicker = false
+                }
+            )
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .imageUpdated)) { notification in
+            if let itemId = notification.userInfo?["itemId"] as? String {
+                print("🔄 Received imageUpdated notification for item: \(itemId), current result.id: \(result.id)")
+                if itemId == result.id {
+                    print("✅ Refreshing image for matching item: \(itemId)")
+                    // Refresh the image display for this specific item
+                    refreshTrigger = UUID()
+                } else {
+                    print("❌ Item ID mismatch: notification=\(itemId), result=\(result.id)")
+                }
+            } else {
+                print("⚠️ Received imageUpdated notification but no itemId in userInfo")
+            }
         }
     }
 

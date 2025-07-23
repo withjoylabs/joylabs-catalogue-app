@@ -1,10 +1,14 @@
 import SwiftUI
+import OSLog
 
 // MARK: - Item Image Section
 struct ItemImageSection: View {
     @ObservedObject var viewModel: ItemDetailsViewModel
     @State private var showingImagePicker = false
-    
+    @State private var isRemoving = false
+
+    private let logger = Logger(subsystem: "com.joylabs.native", category: "ItemImageSection")
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
@@ -52,7 +56,9 @@ struct ItemImageSection: View {
                 
                 if viewModel.itemData.imageURL != nil && !viewModel.itemData.imageURL!.isEmpty {
                     Button(action: {
-                        viewModel.itemData.imageURL = nil
+                        Task {
+                            await handleImageRemoval()
+                        }
                     }) {
                         HStack(spacing: 8) {
                             Image(systemName: "trash")
@@ -71,9 +77,69 @@ struct ItemImageSection: View {
         .background(Color(.systemGray6))
         .cornerRadius(12)
         .sheet(isPresented: $showingImagePicker) {
-            // TODO: Implement image picker
-            Text("Image Picker Coming Soon")
-                .padding()
+            ImagePickerModal(
+                context: .itemDetails(itemId: viewModel.itemData.id),
+                onDismiss: {
+                    showingImagePicker = false
+                },
+                onImageUploaded: { result in
+                    // Update the view model with the new image
+                    viewModel.itemData.imageURL = result.localCacheUrl
+                    viewModel.itemData.imageId = result.squareImageId
+                    showingImagePicker = false
+
+                    // Trigger UI refresh across all views
+                    let itemId = viewModel.itemData.id ?? ""
+                    print("📢 Posting imageUpdated notification for item: \(itemId)")
+                    NotificationCenter.default.post(name: .imageUpdated, object: nil, userInfo: [
+                        "itemId": itemId,
+                        "imageId": result.squareImageId,
+                        "imageURL": result.localCacheUrl,
+                        "action": "uploaded"
+                    ])
+                }
+            )
+        }
+    }
+
+    // MARK: - Private Methods
+
+    /// Handle image removal with Square API integration
+    private func handleImageRemoval() async {
+        guard let imageId = viewModel.itemData.imageId, !imageId.isEmpty else {
+            logger.warning("No image ID found for removal")
+            return
+        }
+
+        isRemoving = true
+
+        do {
+            // Delete from Square API
+            let imageService = SquareImageService.create()
+            try await imageService.deleteImage(imageId: imageId)
+
+            // Update local data
+            await MainActor.run {
+                viewModel.itemData.imageURL = nil
+                viewModel.itemData.imageId = nil
+                isRemoving = false
+            }
+
+            // Trigger UI refresh across all views
+            let itemId = viewModel.itemData.id ?? ""
+            print("📢 Posting imageUpdated notification for deleted image, item: \(itemId)")
+            NotificationCenter.default.post(name: .imageUpdated, object: nil, userInfo: [
+                "itemId": itemId,
+                "action": "deleted"
+            ])
+
+            logger.info("Successfully removed image: \(imageId)")
+
+        } catch {
+            await MainActor.run {
+                isRemoving = false
+            }
+            logger.error("Failed to remove image: \(error.localizedDescription)")
         }
     }
 }

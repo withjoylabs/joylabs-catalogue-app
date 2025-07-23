@@ -15,7 +15,9 @@ class DuplicateDetectionService: ObservableObject {
     
     // MARK: - Private Properties
     private var debounceTimer: Timer?
-    private let debounceDelay: TimeInterval = 0.8 // 800ms debounce
+    private let debounceDelay: TimeInterval = 0.5 // 500ms debounce (reduced for better UX)
+    private var lastSearchSku: String = ""
+    private var lastSearchUpc: String = ""
     
     init(databaseManager: SQLiteSwiftCatalogManager? = nil) {
         self.databaseManager = databaseManager ?? SquareAPIServiceFactory.createDatabaseManager()
@@ -49,13 +51,36 @@ class DuplicateDetectionService: ObservableObject {
     
     /// Perform debounced duplicate detection for SKU and UPC
     func checkForDuplicates(sku: String, upc: String, excludeItemId: String? = nil) {
+        let trimmedSku = sku.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedUpc = upc.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Skip search if values haven't changed
+        if trimmedSku == lastSearchSku && trimmedUpc == lastSearchUpc {
+            return
+        }
+
         // Cancel previous timer
         debounceTimer?.invalidate()
-        
-        // Set up new timer
+
+        // Clear warnings immediately if both values are empty or too short
+        if trimmedSku.count < 2 && trimmedUpc.count < 2 {
+            duplicateWarnings.removeAll()
+            isValidating = false
+            lastSearchSku = trimmedSku
+            lastSearchUpc = trimmedUpc
+            return
+        }
+
+        // Update last search values
+        lastSearchSku = trimmedSku
+        lastSearchUpc = trimmedUpc
+
+        // DON'T set isValidating = true here to prevent UI movement during debounce
+
+        // Set up new timer - search will be completely invisible until results appear
         debounceTimer = Timer.scheduledTimer(withTimeInterval: debounceDelay, repeats: false) { [weak self] _ in
             Task { @MainActor in
-                await self?.performDuplicateCheck(sku: sku, upc: upc, excludeItemId: excludeItemId)
+                await self?.performDuplicateCheck(sku: trimmedSku, upc: trimmedUpc, excludeItemId: excludeItemId)
             }
         }
     }
@@ -69,11 +94,10 @@ class DuplicateDetectionService: ObservableObject {
     
     @MainActor
     private func performDuplicateCheck(sku: String, upc: String, excludeItemId: String?) async {
-        isValidating = true
-        defer { isValidating = false }
-        
+        // NO isValidating state change - keep search completely invisible
+
         var warnings: [DuplicateWarning] = []
-        
+
         do {
             // Check SKU duplicates
             if !sku.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -86,7 +110,7 @@ class DuplicateDetectionService: ObservableObject {
                     ))
                 }
             }
-            
+
             // Check UPC duplicates
             if !upc.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 let upcDuplicates = try await findDuplicatesByUPC(upc, excludeItemId: excludeItemId)
@@ -98,11 +122,13 @@ class DuplicateDetectionService: ObservableObject {
                     ))
                 }
             }
-            
+
+            // Only update warnings - UI will only show content if there are actual warnings
             duplicateWarnings = warnings
-            
+
         } catch {
             logger.error("❌ Failed to check for duplicates: \(error)")
+            duplicateWarnings.removeAll() // Clear warnings on error
         }
     }
     

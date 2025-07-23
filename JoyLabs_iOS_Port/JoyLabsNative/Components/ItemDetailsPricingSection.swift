@@ -137,21 +137,11 @@ struct VariationCard: View {
                     )
                 }
 
-                // UPC validation error
-                if let upc = variation.upc, !upc.isEmpty {
-                    let validationResult = duplicateDetection.validateUPC(upc)
-                    if !validationResult.isValid, case .invalid(let error) = validationResult {
-                        UPCValidationErrorView(error: error)
-                    }
-                }
-
-                // Duplicate detection loading
-                if duplicateDetection.isValidating {
-                    DuplicateDetectionLoadingView()
-                }
-
-                // Duplicate warnings
-                DuplicateWarningView(warnings: duplicateDetection.duplicateWarnings)
+                // Validation and duplicate detection section (fixed height to prevent jittering)
+                DuplicateDetectionSection(
+                    variation: variation,
+                    duplicateDetection: duplicateDetection
+                )
                 
                 // Pricing type and price (50/50 split - always show both)
                 HStack(spacing: 12) {
@@ -343,6 +333,36 @@ struct AddVariationButton: View {
             .background(Color.blue.opacity(0.1))
             .cornerRadius(6)
         }
+    }
+}
+
+// MARK: - Duplicate Detection Section (Anti-Jitter)
+
+/// Zero-jitter section for duplicate detection - only shows content when there's something to display
+struct DuplicateDetectionSection: View {
+    let variation: ItemDetailsVariationData
+    @ObservedObject var duplicateDetection: DuplicateDetectionService
+
+    var body: some View {
+        VStack(spacing: 8) {
+            // UPC validation error (always check immediately, no debounce)
+            if let upc = variation.upc, !upc.isEmpty {
+                let validationResult = duplicateDetection.validateUPC(upc)
+                if !validationResult.isValid, case .invalid(let error) = validationResult {
+                    UPCValidationErrorView(error: error)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+            }
+
+            // ONLY show content when we actually have results - NO space reservation during search
+            if !duplicateDetection.duplicateWarnings.isEmpty {
+                DuplicateWarningView(warnings: duplicateDetection.duplicateWarnings)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+
+            // NO loading indicator - completely invisible during search to prevent UI movement
+        }
+        .animation(.easeInOut(duration: 0.2), value: duplicateDetection.duplicateWarnings.count)
     }
 }
 

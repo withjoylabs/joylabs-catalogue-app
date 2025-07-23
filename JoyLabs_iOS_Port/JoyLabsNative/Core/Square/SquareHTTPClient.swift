@@ -296,6 +296,63 @@ actor SquareHTTPClient {
             responseType: DeleteCatalogObjectResponse.self
         )
     }
+
+    /// Upload image to Square using multipart/form-data (DIRECT API CALL)
+    func uploadImageToSquare(
+        imageData: Data,
+        fileName: String,
+        itemId: String?,
+        idempotencyKey: String
+    ) async throws -> CreateCatalogImageResponse {
+        logger.debug("Uploading image to Square: \(fileName) - DIRECT Square API")
+
+        // Get valid access token
+        guard let accessToken = await tokenService.ensureValidToken() else {
+            throw SquareAPIError.noAccessToken
+        }
+
+        // Build URL
+        let baseURL = configuration.apiBaseURL.hasSuffix("/") ?
+            String(configuration.apiBaseURL.dropLast()) : configuration.apiBaseURL
+        let endpoint = "/v2/catalog/images"
+
+        guard let url = URL(string: "\(baseURL)\(endpoint)") else {
+            logger.error("Failed to build URL for image upload")
+            throw SquareAPIError.invalidURL
+        }
+
+        // Create multipart form data
+        let boundary = "Boundary-\(UUID().uuidString)"
+        let multipartData = createMultipartFormData(
+            imageData: imageData,
+            fileName: fileName,
+            itemId: itemId,
+            idempotencyKey: idempotencyKey,
+            boundary: boundary
+        )
+
+        // Create request
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 30.0 // Longer timeout for image upload
+
+        // Set headers for multipart upload
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue(configuration.apiVersion, forHTTPHeaderField: "Square-Version")
+        request.setValue(configuration.userAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.setValue("\(multipartData.count)", forHTTPHeaderField: "Content-Length")
+
+        request.httpBody = multipartData
+
+        logger.debug("Making multipart image upload request: \(url.absoluteString)")
+        logger.debug("Content-Length: \(multipartData.count) bytes")
+
+        // Perform request
+        let (data, response) = try await session.data(for: request)
+
+        return try handleResponse(data: data, response: response, responseType: CreateCatalogImageResponse.self)
+    }
     
     /// Refresh access token
     func refreshToken(refreshToken: String) async throws -> TokenResponse {
@@ -432,6 +489,57 @@ actor SquareHTTPClient {
         return try handleResponse(data: data, response: response, responseType: responseType)
     }
     
+    /// Create multipart form data for image upload
+    private func createMultipartFormData(
+        imageData: Data,
+        fileName: String,
+        itemId: String?,
+        idempotencyKey: String,
+        boundary: String
+    ) -> Data {
+        var formData = Data()
+
+        // Add JSON request part
+        let imageRequest: [String: Any] = [
+            "idempotency_key": idempotencyKey,
+            "object_id": itemId ?? "",
+            "image": [
+                "id": "#TEMP_ID",
+                "type": "IMAGE",
+                "image_data": [
+                    "name": fileName,
+                    "caption": "Uploaded via JoyLabs iOS app"
+                ]
+            ]
+        ]
+
+        do {
+            let jsonData = try JSONSerialization.data(withJSONObject: imageRequest, options: [])
+
+            // Add request field
+            formData.append("--\(boundary)\r\n".data(using: .utf8)!)
+            formData.append("Content-Disposition: form-data; name=\"request\"\r\n".data(using: .utf8)!)
+            formData.append("Content-Type: application/json\r\n\r\n".data(using: .utf8)!)
+            formData.append(jsonData)
+            formData.append("\r\n".data(using: .utf8)!)
+
+            // Add file field
+            formData.append("--\(boundary)\r\n".data(using: .utf8)!)
+            formData.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(fileName)\"\r\n".data(using: .utf8)!)
+            formData.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
+            formData.append(imageData)
+            formData.append("\r\n".data(using: .utf8)!)
+
+            // Add closing boundary
+            formData.append("--\(boundary)--\r\n".data(using: .utf8)!)
+
+        } catch {
+            logger.error("Failed to create multipart form data: \(error)")
+        }
+
+        return formData
+    }
+
     private func handleResponse<T: Codable>(
         data: Data,
         response: URLResponse,
@@ -440,9 +548,9 @@ actor SquareHTTPClient {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw SquareAPIError.invalidResponse
         }
-        
+
         logger.debug("Received response with status: \(httpResponse.statusCode)")
-        
+
         // Handle different status codes
         switch httpResponse.statusCode {
         case 200...299:

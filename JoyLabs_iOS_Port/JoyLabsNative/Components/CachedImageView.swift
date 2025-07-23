@@ -80,10 +80,15 @@ struct CachedImageView: View {
                 // Already cached, load directly
                 image = await imageCache.loadImage(from: imageURL)
             } else if imageURL.hasPrefix("https://") {
-                // AWS URL - use on-demand loader with rate limiting
-                // Use real Square image ID if available, otherwise extract from URL
+                // AWS URL - use intelligent freshness checking
                 let resolvedImageId = imageId ?? extractImageId(from: imageURL)
-                image = await imageCache.loadImageOnDemand(imageId: resolvedImageId, awsUrl: imageURL)
+
+                // Use freshness manager for intelligent caching
+                image = await ImageFreshnessManager.shared.loadImageWithFreshnessCheck(
+                    imageId: resolvedImageId,
+                    awsUrl: imageURL,
+                    imageCacheService: imageCache
+                )
             } else {
                 // Fallback to cache service
                 image = await imageCache.loadImage(from: imageURL)

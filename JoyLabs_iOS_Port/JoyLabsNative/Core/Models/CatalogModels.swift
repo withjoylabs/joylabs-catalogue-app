@@ -666,3 +666,9 @@ struct ItemVariationRow {
     let priceCurrency: String?
     let dataJson: String
 }
+
+// MARK: - Image Upload Response
+struct CreateCatalogImageResponse: Codable {
+    let image: CatalogObject?
+    let errors: [APIError]?
+}
