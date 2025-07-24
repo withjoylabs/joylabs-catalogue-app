@@ -510,7 +510,8 @@ actor SquareHTTPClient {
                     "name": fileName,
                     "caption": "Uploaded via JoyLabs iOS app"
                 ]
-            ]
+            ],
+            "is_primary": true  // Make this the primary image
         ]
 
         do {

@@ -208,7 +208,27 @@ class ImageURLManager {
         
         logger.info("🧹 Cleaned up orphaned image mappings")
     }
-    
+
+    /// Remove image mapping for a specific image ID
+    func removeImageMapping(imageId: String) async {
+        guard let db = databaseManager.getConnection() else {
+            logger.error("❌ No database connection for removing image mapping")
+            return
+        }
+
+        do {
+            let deleteQuery = """
+            DELETE FROM image_url_mappings
+            WHERE square_image_id = ?
+            """
+
+            try db.run(deleteQuery, imageId)
+            logger.info("🗑️ Removed image mapping for: \(imageId)")
+        } catch {
+            logger.error("❌ Failed to remove image mapping for \(imageId): \(error)")
+        }
+    }
+
     // MARK: - Private Methods
     
     private func generateCacheKey(from awsUrl: String, squareImageId: String) -> String {

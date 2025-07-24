@@ -261,8 +261,8 @@ class ImageCacheService: ObservableObject {
         let fileURL = cacheDirectory.appendingPathComponent(fileName)
 
         do {
-            // Save to disk
-            try imageData.write(to: fileURL)
+            // Save to disk with atomic write
+            try imageData.write(to: fileURL, options: .atomic)
 
             // Create UIImage and cache in memory
             if let image = UIImage(data: imageData) {
@@ -341,17 +341,37 @@ class ImageCacheService: ObservableObject {
             logger.debug("📥 Downloading image: \(imageId) from AWS")
             let (data, _) = try await URLSession.shared.data(from: url)
 
-            // Save to disk
-            let fileName = createImageIdFromUrl(awsUrl) + ".jpg"
-            let fileURL = cacheDirectory.appendingPathComponent(fileName)
-            try data.write(to: fileURL)
+            // Get the cache key from the existing mapping (created by storeImageMapping)
+            let cacheKey: String
+            if let existingKey = try? imageURLManager.getLocalCacheKey(for: imageId) {
+                cacheKey = existingKey
+                logger.debug("📋 Using existing cache key from mapping: \(imageId) -> \(cacheKey)")
+            } else {
+                // Fallback (shouldn't happen since mapping was just created)
+                cacheKey = createImageIdFromUrl(awsUrl) + ".jpg"
+                logger.warning("⚠️ No existing mapping for \(imageId) - using fallback cache key")
+            }
 
-            // Cache in memory
+            // Save to disk using the correct cache key with atomic write
+            let fileURL = cacheDirectory.appendingPathComponent(cacheKey)
+            try data.write(to: fileURL, options: .atomic)
+
+            // Validate image data before creating UIImage
+            guard data.count > 0 else {
+                logger.error("❌ Empty image data for \(imageId)")
+                return nil
+            }
+
+
+
+            // Cache in memory using the same cache key
             if let image = UIImage(data: data) {
-                memoryCache.setObject(image, forKey: fileName as NSString)
+                memoryCache.setObject(image, forKey: cacheKey as NSString)
                 await updateCacheStats()
                 logger.debug("✅ Downloaded and cached image (no mapping): \(imageId)")
                 return image
+            } else {
+                logger.error("❌ Failed to create UIImage from data for \(imageId)")
             }
 
         } catch {
@@ -429,9 +449,9 @@ class ImageCacheService: ObservableObject {
                 logger.warning("⚠️ No existing mapping for \(imageId) - using fallback cache key")
             }
 
-            // Save image to disk using existing cache key
+            // Save image to disk using existing cache key with atomic write
             let fileURL = cacheDirectory.appendingPathComponent(cacheKey)
-            try data.write(to: fileURL)
+            try data.write(to: fileURL, options: .atomic)
 
             // Store in memory cache
             memoryCache.setObject(image, forKey: cacheKey as NSString)
@@ -556,6 +576,8 @@ class ImageCacheService: ObservableObject {
         // Fallback to hash-based ID
         return "img_\(urlHash.prefix(12))"
     }
+
+
     
     private func loadImageFromDisk(cacheKey: String) -> UIImage? {
         let fileURL = cacheDirectory.appendingPathComponent(cacheKey)
@@ -565,11 +587,20 @@ class ImageCacheService: ObservableObject {
             return nil
         }
 
-        guard let imageData = try? Data(contentsOf: fileURL),
-              let image = UIImage(data: imageData) else {
+        guard let imageData = try? Data(contentsOf: fileURL) else {
             logger.debug("💾 Failed to load image data from: \(cacheKey)")
             return nil
         }
+
+        // Try to create UIImage from cached data
+        guard let image = UIImage(data: imageData) else {
+            logger.error("💾 Failed to decode cached image data for: \(cacheKey)")
+            // Delete corrupted file
+            try? fileManager.removeItem(at: fileURL)
+            return nil
+        }
+
+
 
         // Update file modification date for LRU cleanup
         try? fileManager.setAttributes([.modificationDate: Date()], ofItemAtPath: fileURL.path)
@@ -582,16 +613,28 @@ class ImageCacheService: ObservableObject {
         logger.info("⬇️ Downloading image: \(url.absoluteString)")
         
         let (data, response) = try await URLSession.shared.data(from: url)
-        
+
         guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200,
-              let image = UIImage(data: data) else {
+              httpResponse.statusCode == 200 else {
+            logger.error("❌ HTTP error: \(response)")
+            throw ImageCacheError.invalidResponse
+        }
+
+        // Validate data size
+        guard data.count > 0 else {
+            logger.error("❌ Empty image data received")
+            throw ImageCacheError.invalidResponse
+        }
+
+        // Try to create UIImage
+        guard let image = UIImage(data: data) else {
+            logger.error("❌ Failed to decode image data (size: \(data.count) bytes)")
             throw ImageCacheError.invalidResponse
         }
         
-        // Save to disk cache
+        // Save to disk cache with atomic write
         let fileURL = cacheDirectory.appendingPathComponent(cacheKey)
-        try data.write(to: fileURL)
+        try data.write(to: fileURL, options: .atomic)
         
         // Store in memory cache
         memoryCache.setObject(image, forKey: cacheKey as NSString, cost: data.count)
@@ -602,6 +645,8 @@ class ImageCacheService: ObservableObject {
         logger.info("✅ Image downloaded and cached: \(url.absoluteString)")
         return image
     }
+
+
 
     // MARK: - Webhook Support Methods
 
@@ -624,6 +669,13 @@ class ImageCacheService: ObservableObject {
         } catch {
             logger.error("❌ Failed to invalidate images for \(objectType) \(objectId): \(error)")
         }
+    }
+
+
+
+    /// Get the cache key for a specific Square image ID (public access)
+    func getLocalCacheKey(for squareImageId: String) throws -> String? {
+        return try imageURLManager.getLocalCacheKey(for: squareImageId)
     }
 
     /// Invalidate a specific image by Square image ID
@@ -675,6 +727,54 @@ class ImageCacheService: ObservableObject {
         } catch {
             logger.error("❌ Failed to cleanup stale cache: \(error)")
         }
+    }
+
+    /// Clear memory cache for a specific image
+    func clearMemoryCache(for imageId: String) async {
+        // Try different possible cache keys
+        let possibleKeys = [
+            imageId,
+            "\(imageId).jpeg",
+            "\(imageId).jpg",
+            "\(imageId).png"
+        ]
+
+        for key in possibleKeys {
+            memoryCache.removeObject(forKey: key as NSString)
+        }
+
+        logger.info("🗑️ Cleared memory cache for image: \(imageId)")
+    }
+
+    /// Delete cached image completely (file + mapping + memory)
+    func deleteCachedImage(imageId: String) async {
+        // Clear memory cache
+        await clearMemoryCache(for: imageId)
+
+        // Try different possible cache keys for file deletion
+        let possibleKeys = [
+            imageId,
+            "\(imageId).jpeg",
+            "\(imageId).jpg",
+            "\(imageId).png"
+        ]
+
+        // Remove files from disk
+        for key in possibleKeys {
+            let fileURL = cacheDirectory.appendingPathComponent("\(key).jpeg")
+            try? fileManager.removeItem(at: fileURL)
+
+            let fileURLJpg = cacheDirectory.appendingPathComponent("\(key).jpg")
+            try? fileManager.removeItem(at: fileURLJpg)
+
+            let fileURLPng = cacheDirectory.appendingPathComponent("\(key).png")
+            try? fileManager.removeItem(at: fileURLPng)
+        }
+
+        // Remove mapping from database
+        await imageURLManager.removeImageMapping(imageId: imageId)
+
+        logger.info("🗑️ Completely deleted cached image: \(imageId)")
     }
 
     /// Clear all cached images and database mappings (for fresh start)

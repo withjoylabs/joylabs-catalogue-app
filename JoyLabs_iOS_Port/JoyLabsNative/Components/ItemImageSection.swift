@@ -83,6 +83,10 @@ struct ItemImageSection: View {
                     showingImagePicker = false
                 },
                 onImageUploaded: { result in
+                    print("🔄 [ItemModal] Image upload completed, updating view model")
+                    print("🔄 [ItemModal] New image ID: \(result.squareImageId)")
+                    print("🔄 [ItemModal] New cache URL: \(result.localCacheUrl)")
+
                     // Update the view model with the new image
                     viewModel.itemData.imageURL = result.localCacheUrl
                     viewModel.itemData.imageId = result.squareImageId
@@ -99,6 +103,31 @@ struct ItemImageSection: View {
                     ])
                 }
             )
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .imageUpdated)) { notification in
+            guard let userInfo = notification.userInfo,
+                  let notificationItemId = userInfo["itemId"] as? String,
+                  let currentItemId = viewModel.itemData.id,
+                  notificationItemId == currentItemId else {
+                return
+            }
+
+            print("🔄 [ItemModal] Received imageUpdated notification for item: \(notificationItemId)")
+
+            if let action = userInfo["action"] as? String {
+                if action == "uploaded" {
+                    if let newImageId = userInfo["imageId"] as? String,
+                       let newImageURL = userInfo["imageURL"] as? String {
+                        print("✅ [ItemModal] Updating image ID to: \(newImageId)")
+                        viewModel.itemData.imageId = newImageId
+                        viewModel.itemData.imageURL = newImageURL
+                    }
+                } else if action == "deleted" {
+                    print("✅ [ItemModal] Clearing image ID")
+                    viewModel.itemData.imageId = nil
+                    viewModel.itemData.imageURL = nil
+                }
+            }
         }
     }
 

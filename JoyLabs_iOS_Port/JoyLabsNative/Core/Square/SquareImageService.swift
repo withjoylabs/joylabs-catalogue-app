@@ -1,18 +1,21 @@
 import Foundation
 import UIKit
 import OSLog
+import SQLite
 
 /// Service for uploading images to Square API and integrating with local caching system
 @MainActor
 class SquareImageService: ObservableObject {
-    
+
     private let httpClient: SquareHTTPClient
     private let imageCacheService: ImageCacheService
+    private let databaseManager: SQLiteSwiftCatalogManager
     private let logger = Logger(subsystem: "com.joylabs.native", category: "SquareImageService")
-    
-    init(httpClient: SquareHTTPClient, imageCacheService: ImageCacheService) {
+
+    init(httpClient: SquareHTTPClient, imageCacheService: ImageCacheService, databaseManager: SQLiteSwiftCatalogManager) {
         self.httpClient = httpClient
         self.imageCacheService = imageCacheService
+        self.databaseManager = databaseManager
         logger.info("SquareImageService initialized")
     }
     
@@ -42,13 +45,35 @@ class SquareImageService: ObservableObject {
         let squareImageId = imageObject.id
         
         logger.info("Successfully uploaded image to Square: \(squareImageId)")
-        
-        // Step 2: Download and cache the image from AWS URL
-        let localCacheUrl = try await cacheImageFromSquare(
+
+        // Step 2: Cache image with mapping (same as sync process)
+        // Note: Square API already associated the image with the item via is_primary flag
+        // This creates the proper mapping that search results expect
+        let localCacheUrl = try await cacheImageWithMapping(
             squareImageId: squareImageId,
             awsUrl: awsUrl,
             itemId: itemId
         )
+
+        // Step 3: Update local database with new image data
+        if let itemId = itemId {
+            // First, get the old image ID to invalidate it
+            let oldImageId = try await getOldImageIdForItem(itemId: itemId)
+
+            try await updateLocalDatabaseWithNewImage(
+                squareImageId: squareImageId,
+                awsUrl: awsUrl,
+                itemId: itemId,
+                fileName: fileName
+            )
+
+            // Step 4: Force cache invalidation and refresh
+            await forceCacheRefreshForImageUpload(
+                oldImageId: oldImageId,
+                newImageId: squareImageId,
+                itemId: itemId
+            )
+        }
 
         return ImagePickerResult(
             squareImageId: squareImageId,
@@ -57,42 +82,122 @@ class SquareImageService: ObservableObject {
         )
     }
     
-    /// Download image from Square AWS URL and integrate with local caching system
-    private func cacheImageFromSquare(
+    /// Cache image with mapping (same as sync process)
+    private func cacheImageWithMapping(
         squareImageId: String,
         awsUrl: String,
         itemId: String?
     ) async throws -> String {
-        logger.info("Caching image from Square AWS URL: \(squareImageId)")
-        
-        // Download and cache the image using existing system with retry logic
+        logger.info("Caching image with mapping (same as sync process): \(squareImageId)")
+
+        // Use the EXACT same method as the sync process to create mappings
+        let cacheUrl = await imageCacheService.cacheImageWithMapping(
+            awsUrl: awsUrl,
+            squareImageId: squareImageId,
+            objectType: "ITEM",
+            objectId: itemId ?? squareImageId, // Use imageId as objectId if no itemId
+            imageType: "PRIMARY"
+        )
+
+        guard let cacheUrl = cacheUrl else {
+            throw SquareAPIError.networkError(NSError(domain: "ImageCache", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to cache image with mapping"]))
+        }
+
+        logger.info("Successfully cached image with mapping: \(cacheUrl)")
+        return cacheUrl
+    }
+
+    /// Update local database with new image data (same as React Native version)
+    private func updateLocalDatabaseWithNewImage(
+        squareImageId: String,
+        awsUrl: String,
+        itemId: String,
+        fileName: String
+    ) async throws {
+        guard let db = databaseManager.getConnection() else {
+            throw SquareAPIError.upsertFailed("Database not connected")
+        }
+
+        logger.info("Updating local database with new image: \(squareImageId)")
+
+        // 1. Save the image to the images table
+        let now = Date().timeIntervalSince1970
+        let imageDataJson = [
+            "name": fileName,
+            "url": awsUrl,
+            "caption": "Uploaded via JoyLabs iOS app"
+        ]
+
         do {
-            // First download the image from AWS with retry for EOF errors
-            let image = await downloadImageWithRetry(from: awsUrl)
+            try db.run("""
+                INSERT OR REPLACE INTO images
+                (id, updated_at, version, is_deleted, name, url, caption, data_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            squareImageId,
+            String(now),
+            "1",
+            false,
+            fileName,
+            awsUrl,
+            "Uploaded via JoyLabs iOS app",
+            try JSONSerialization.data(withJSONObject: imageDataJson).base64EncodedString()
+            )
 
-            if let downloadedImage = image {
-                // Convert UIImage back to Data for caching
-                guard let imageData = downloadedImage.jpegData(compressionQuality: 1.0) else {
-                    throw SquareAPIError.networkError(NSError(domain: "ImageProcessing", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to convert image to data"]))
-                }
+            logger.info("✅ Saved image to images table: \(squareImageId)")
+        } catch {
+            logger.error("❌ Failed to save image to images table: \(error)")
+            throw SquareAPIError.upsertFailed("Failed to save image to database")
+        }
 
-                // Cache the image with mapping (this returns cache:// URL)
-                let cacheUrl = await imageCacheService.cacheImageWithMapping(
-                    imageData: imageData,
-                    imageId: squareImageId,
-                    awsUrl: awsUrl
-                )
+        // 2. Update the item's data to include the new image ID as primary
+        do {
+            // Use raw SQL for complex JSON operations
+            let selectQuery = """
+                SELECT id, data_json FROM catalog_items
+                WHERE id = ? AND is_deleted = 0
+            """
 
-                logger.info("Successfully cached image locally: \(cacheUrl)")
-                return cacheUrl // Already has cache:// prefix
+            let statement = try db.prepare(selectQuery)
 
-            } else {
-                throw SquareAPIError.networkError(NSError(domain: "ImageDownload", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to download image from AWS"]))
+            for row in try statement.run([itemId]) {
+                let dataJsonString = row[1] as? String ?? "{}"
+                let dataJsonData = dataJsonString.data(using: String.Encoding.utf8) ?? Data()
+
+                var currentData = try JSONSerialization.jsonObject(with: dataJsonData) as? [String: Any] ?? [:]
+
+                // Get current image_ids array
+                var imageIds = currentData["image_ids"] as? [String] ?? []
+
+                // Remove the new image ID if it already exists
+                imageIds.removeAll { $0 == squareImageId }
+
+                // Add as primary image (first in array)
+                imageIds.insert(squareImageId, at: 0)
+
+                // Update the data
+                currentData["image_ids"] = imageIds
+
+                // Save back to database
+                let updatedDataJson = try JSONSerialization.data(withJSONObject: currentData)
+                let updatedDataJsonString = String(data: updatedDataJson, encoding: .utf8) ?? "{}"
+
+                let updateQuery = """
+                    UPDATE catalog_items
+                    SET data_json = ?, updated_at = ?
+                    WHERE id = ?
+                """
+
+                try db.run(updateQuery, updatedDataJsonString, now, itemId)
+
+                logger.info("✅ Updated item with new primary image: \(itemId) -> \(squareImageId)")
+                return // Exit after processing the first (and only) row
             }
 
+            logger.warning("⚠️ Item not found in database: \(itemId)")
         } catch {
-            logger.error("Failed to cache image from Square: \(error.localizedDescription)")
-            throw error
+            logger.error("❌ Failed to update item with new image: \(error)")
+            throw SquareAPIError.upsertFailed("Failed to update item with new image")
         }
     }
     
@@ -123,51 +228,9 @@ class SquareImageService: ObservableObject {
         logger.info("Successfully deleted image: \(imageId)")
     }
     
-    /// Download image with retry logic to handle EOF errors
-    private func downloadImageWithRetry(from url: String, maxRetries: Int = 3) async -> UIImage? {
-        for attempt in 1...maxRetries {
-            do {
-                let image = await imageCacheService.loadImageFromAWSUrl(url)
-                if image != nil {
-                    return image
-                }
-            } catch {
-                logger.warning("Image download attempt \(attempt) failed: \(error.localizedDescription)")
-                if attempt < maxRetries {
-                    // Wait briefly before retry
-                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-                }
-            }
-        }
-        logger.error("Failed to download image after \(maxRetries) attempts")
-        return nil
-    }
 
-    /// Check if cached image is fresh (less than 1 hour old)
-    func isImageCacheFresh(for imageId: String) async -> Bool {
-        // Check if we have a recent cache entry
-        // This could be enhanced to check file modification time
-        return false // For now, always refresh to ensure latest images
-    }
 
-    /// Intelligent image refresh - checks if image needs updating
-    func refreshImageIfNeeded(imageId: String, currentUrl: String?) async -> String? {
-        logger.info("Checking if image needs refresh: \(imageId)")
 
-        // For now, we'll implement a simple strategy:
-        // 1. If no current URL, definitely need to fetch
-        // 2. If cache is stale, refresh
-        // 3. Future: Compare with Square's updated_at timestamp
-
-        let isCacheFresh = await isImageCacheFresh(for: imageId)
-        if currentUrl == nil || !isCacheFresh {
-            // Try to get fresh image data from Square
-            // This would require a separate API call to get image metadata
-            logger.info("Image cache is stale or missing, will refresh on next access")
-        }
-
-        return currentUrl // Return existing for now
-    }
 
     /// Clean up local cache for deleted image
     private func cleanupLocalCache(imageId: String) async throws {
@@ -220,6 +283,58 @@ extension SquareImageService {
             throw SquareAPIError.upsertFailed("Image size too small (minimum 1KB required)")
         }
     }
+
+    /// Get the current image ID for an item before uploading new one
+    private func getOldImageIdForItem(itemId: String) async throws -> String? {
+        guard let db = databaseManager.getConnection() else {
+            throw SquareAPIError.upsertFailed("No database connection")
+        }
+
+        // Use SQLite.swift table syntax
+        let catalogItems = Table("catalog_items")
+        let id = Expression<String>("id")
+        let dataJson = Expression<String?>("data_json")
+
+        let query = catalogItems.select(dataJson).where(id == itemId)
+
+        if let row = try db.pluck(query) {
+            let dataJsonString = row[dataJson] ?? ""
+            if let data = dataJsonString.data(using: String.Encoding.utf8),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let imageIds = json["image_ids"] as? [String],
+               let firstImageId = imageIds.first {
+                return firstImageId
+            }
+        }
+
+        return nil
+    }
+
+    /// Delete old cached image and force fresh download
+    private func forceCacheRefreshForImageUpload(
+        oldImageId: String?,
+        newImageId: String,
+        itemId: String
+    ) async {
+        // Delete old cached image completely (file + mapping + memory)
+        if let oldImageId = oldImageId {
+            await imageCacheService.deleteCachedImage(imageId: oldImageId)
+            logger.info("🗑️ Deleted old cached image: \(oldImageId)")
+        }
+
+        // Delete any cached image for the new image ID to force fresh download
+        await imageCacheService.deleteCachedImage(imageId: newImageId)
+        logger.info("🗑️ Deleted cached image for fresh download: \(newImageId)")
+
+        // Force refresh in all UI components by posting notification
+        await MainActor.run {
+            NotificationCenter.default.post(name: .forceImageRefresh, object: nil, userInfo: [
+                "itemId": itemId,
+                "oldImageId": oldImageId ?? "",
+                "newImageId": newImageId
+            ])
+        }
+    }
 }
 
 // MARK: - Static Factory
@@ -230,6 +345,7 @@ extension SquareImageService {
         let tokenService = SquareAPIServiceFactory.createTokenService()
         let httpClient = SquareHTTPClient(tokenService: tokenService, resilienceService: BasicResilienceService())
         let imageCacheService = ImageCacheService.shared
-        return SquareImageService(httpClient: httpClient, imageCacheService: imageCacheService)
+        let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
+        return SquareImageService(httpClient: httpClient, imageCacheService: imageCacheService, databaseManager: databaseManager)
     }
 }

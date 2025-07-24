@@ -64,6 +64,16 @@ struct CachedImageView: View {
             loadedImage = nil
             loadImageIfNeeded()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .forceImageRefresh)) { notification in
+            // Force refresh if this image is affected
+            if let userInfo = notification.userInfo,
+               let affectedImageId = userInfo["newImageId"] as? String,
+               let currentImageId = imageId,
+               affectedImageId == currentImageId {
+                loadedImage = nil
+                loadImageIfNeeded()
+            }
+        }
     }
     
     private func loadImageIfNeeded() {

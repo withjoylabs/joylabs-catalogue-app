@@ -4,4 +4,7 @@ import Foundation
 extension Notification.Name {
     /// Posted when an item's image is updated (uploaded, deleted, or modified)
     static let imageUpdated = Notification.Name("imageUpdated")
+
+    /// Posted to force immediate image refresh across all views
+    static let forceImageRefresh = Notification.Name("forceImageRefresh")
 }

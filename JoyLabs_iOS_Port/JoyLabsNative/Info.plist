@@ -18,10 +18,42 @@
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.joylabs.oauth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>joylabs</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<false/>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>192.168.254.133</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSExceptionMinimumTLSVersion</key>
+				<string>TLSv1.0</string>
+			</dict>
+		</dict>
+	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Camera access needed for barcode scanning</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Photo library access needed for item images</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Permission needed to save photos</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -41,6 +73,11 @@
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>background-app-refresh</string>
+		<string>remote-notification</string>
+	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UIRequiredDeviceCapabilities</key>
@@ -58,49 +95,5 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	
-	<!-- Camera and Photo Library Permissions -->
-	<key>NSCameraUsageDescription</key>
-	<string>This app needs camera access for barcode scanning</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>This app needs photo library access to manage item images</string>
-	
-	<!-- URL Schemes for OAuth -->
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleURLName</key>
-			<string>com.joylabs.oauth</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>joylabs</string>
-			</array>
-		</dict>
-	</array>
-	
-	<!-- Background Modes -->
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>background-app-refresh</string>
-		<string>remote-notification</string>
-	</array>
-	
-	<!-- App Transport Security -->
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsArbitraryLoads</key>
-		<false/>
-		<key>NSExceptionDomains</key>
-		<dict>
-			<!-- Allow Label LIVE printer connections -->
-			<key>192.168.254.133</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<true/>
-				<key>NSExceptionMinimumTLSVersion</key>
-				<string>TLSv1.0</string>
-			</dict>
-		</dict>
-	</dict>
 </dict>
 </plist>

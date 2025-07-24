@@ -46,8 +46,17 @@ class ImageFreshnessManager {
     func invalidateImage(imageId: String) {
         var timestamps = getImageTimestamps() ?? [:]
         timestamps.removeValue(forKey: imageId)
+
+        // Also invalidate any cache keys that might be related
+        let keysToRemove = timestamps.keys.filter { key in
+            key.contains(imageId) || imageId.contains(key)
+        }
+
+        for key in keysToRemove {
+            timestamps.removeValue(forKey: key)
+        }
+
         setImageTimestamps(timestamps)
-        
         logger.info("Invalidated image cache: \(imageId)")
     }
     
