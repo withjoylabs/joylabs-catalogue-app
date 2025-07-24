@@ -310,28 +310,39 @@ extension SquareImageService {
         return nil
     }
 
-    /// Delete old cached image and force fresh download
+    /// Clean up old image and notify UI components of new image
     private func forceCacheRefreshForImageUpload(
         oldImageId: String?,
         newImageId: String,
         itemId: String
     ) async {
-        // Delete old cached image completely (file + mapping + memory)
-        if let oldImageId = oldImageId {
+        // CRITICAL: Invalidate freshness for old image to force refresh
+        if let oldImageId = oldImageId, oldImageId != newImageId {
+            ImageFreshnessManager.shared.invalidateImage(imageId: oldImageId)
             await imageCacheService.deleteCachedImage(imageId: oldImageId)
             logger.info("🗑️ Deleted old cached image: \(oldImageId)")
         }
 
-        // Delete any cached image for the new image ID to force fresh download
-        await imageCacheService.deleteCachedImage(imageId: newImageId)
-        logger.info("🗑️ Deleted cached image for fresh download: \(newImageId)")
+        // Mark new image as fresh
+        ImageFreshnessManager.shared.markImageAsFresh(imageId: newImageId)
 
-        // Force refresh in all UI components by posting notification
+        // Force refresh in all UI components by posting notifications
         await MainActor.run {
+            let cacheURL = "cache://\(newImageId).jpeg"
+
+            // Post forceImageRefresh for image-level updates
             NotificationCenter.default.post(name: .forceImageRefresh, object: nil, userInfo: [
                 "itemId": itemId,
                 "oldImageId": oldImageId ?? "",
                 "newImageId": newImageId
+            ])
+
+            // Also post imageUpdated for item-level updates
+            NotificationCenter.default.post(name: .imageUpdated, object: nil, userInfo: [
+                "itemId": itemId,
+                "imageId": newImageId,
+                "imageURL": cacheURL,
+                "action": "uploaded"
             ])
         }
     }

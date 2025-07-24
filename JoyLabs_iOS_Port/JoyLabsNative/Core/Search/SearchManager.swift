@@ -683,20 +683,42 @@ class SearchManager: ObservableObject {
 
     // MARK: - Image Data Population
 
-    /// Populate image data for a search result item
+    /// Populate image data for a search result item (respects image_ids order)
     private func populateImageData(for itemId: String) -> [CatalogImage]? {
         do {
-            // Get image mappings for this item
-            let imageMappings = try imageURLManager.getImageMappings(for: itemId, objectType: "ITEM")
-
-            guard !imageMappings.isEmpty else {
+            // Get database connection
+            guard let db = databaseManager.getConnection() else {
                 return nil
             }
 
+            // CRITICAL: Get the item's image_ids array to respect the order
+            let query = "SELECT image_ids FROM items WHERE id = ?"
+            let statement = try db.prepare(query)
 
+            var imageIdsOrder: [String] = []
+            for row in try statement.run(itemId) {
+                if let imageIdsJson = row[0] as? String,
+                   let imageIdsData = imageIdsJson.data(using: .utf8),
+                   let imageIds = try? JSONSerialization.jsonObject(with: imageIdsData) as? [String] {
+                    imageIdsOrder = imageIds
+                    break
+                }
+            }
 
-            // Convert image mappings to CatalogImage objects
-            let catalogImages = imageMappings.map { mapping in
+            guard !imageIdsOrder.isEmpty else {
+                return nil
+            }
+
+            // Get image mappings for this item
+            let imageMappings = try imageURLManager.getImageMappings(for: itemId, objectType: "ITEM")
+
+            // Create a dictionary for fast lookup
+            let mappingDict = Dictionary(uniqueKeysWithValues: imageMappings.map { ($0.squareImageId, $0) })
+
+            // Order the images according to the item's image_ids array (PRIMARY FIRST)
+            let orderedCatalogImages: [CatalogImage] = imageIdsOrder.compactMap { imageId in
+                guard let mapping = mappingDict[imageId] else { return nil }
+
                 return CatalogImage(
                     id: mapping.squareImageId,
                     type: "IMAGE",
@@ -713,7 +735,7 @@ class SearchManager: ObservableObject {
                 )
             }
 
-            return catalogImages
+            return orderedCatalogImages.isEmpty ? nil : orderedCatalogImages
 
         } catch {
             logger.error("📷 Failed to get images for item \(itemId): \(error)")

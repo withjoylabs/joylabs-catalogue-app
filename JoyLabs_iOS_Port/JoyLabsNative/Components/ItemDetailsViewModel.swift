@@ -697,9 +697,38 @@ class ItemDetailsViewModel: ObservableObject {
 
     // MARK: - Delete Item (OLD IMPLEMENTATION REMOVED - NOW USING CRUD SERVICE)
 
-    /// Populate image data for an item - EXACT same logic as SearchManager
+    /// Populate image data for an item - RESPECTING ORDER FROM ITEM'S IMAGE_IDS ARRAY
     private func populateImageData(for itemId: String) -> [CatalogImage]? {
         do {
+            // First, get the item's image_ids array to respect the order
+            guard let db = databaseManager.getConnection() else {
+                logger.error("No database connection for image data")
+                return nil
+            }
+
+            let selectQuery = """
+                SELECT data_json FROM catalog_items
+                WHERE id = ? AND is_deleted = 0
+            """
+
+            let statement = try db.prepare(selectQuery)
+            var imageIdsOrder: [String] = []
+
+            for row in try statement.run([itemId]) {
+                let dataJsonString = row[0] as? String ?? "{}"
+                let dataJsonData = dataJsonString.data(using: String.Encoding.utf8) ?? Data()
+
+                if let currentData = try JSONSerialization.jsonObject(with: dataJsonData) as? [String: Any],
+                   let imageIds = currentData["image_ids"] as? [String] {
+                    imageIdsOrder = imageIds
+                    break
+                }
+            }
+
+            guard !imageIdsOrder.isEmpty else {
+                return nil
+            }
+
             // Get image mappings for this item
             let imageMappings = try imageURLManager.getImageMappings(for: itemId, objectType: "ITEM")
 
@@ -707,8 +736,13 @@ class ItemDetailsViewModel: ObservableObject {
                 return nil
             }
 
-            // Convert image mappings to CatalogImage objects
-            let catalogImages = imageMappings.map { mapping in
+            // Create a dictionary for fast lookup
+            let mappingDict = Dictionary(uniqueKeysWithValues: imageMappings.map { ($0.squareImageId, $0) })
+
+            // Order the images according to the item's image_ids array
+            let orderedCatalogImages: [CatalogImage] = imageIdsOrder.compactMap { imageId in
+                guard let mapping = mappingDict[imageId] else { return nil }
+
                 return CatalogImage(
                     id: mapping.squareImageId,
                     type: "IMAGE",
@@ -725,7 +759,7 @@ class ItemDetailsViewModel: ObservableObject {
                 )
             }
 
-            return catalogImages.isEmpty ? nil : catalogImages
+            return orderedCatalogImages.isEmpty ? nil : orderedCatalogImages
         } catch {
             logger.error("Failed to populate image data for item \(itemId): \(error)")
             return nil

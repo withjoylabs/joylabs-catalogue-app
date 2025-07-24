@@ -221,17 +221,11 @@ struct ScanResultCard: View {
             )
         }
         .onReceive(NotificationCenter.default.publisher(for: .imageUpdated)) { notification in
-            if let itemId = notification.userInfo?["itemId"] as? String {
-                print("🔄 Received imageUpdated notification for item: \(itemId), current result.id: \(result.id)")
-                if itemId == result.id {
-                    print("✅ Refreshing image for matching item: \(itemId)")
-                    // Refresh the image display for this specific item
-                    refreshTrigger = UUID()
-                } else {
-                    print("❌ Item ID mismatch: notification=\(itemId), result=\(result.id)")
-                }
-            } else {
-                print("⚠️ Received imageUpdated notification but no itemId in userInfo")
+            if let itemId = notification.userInfo?["itemId"] as? String,
+               itemId == result.id {  // Only process if it matches this specific item
+                print("✅ [Search] Refreshing image for matching item: \(itemId)")
+                // Refresh the image display for this specific item
+                refreshTrigger = UUID()
             }
         }
     }

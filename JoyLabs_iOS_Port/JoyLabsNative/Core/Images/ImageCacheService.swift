@@ -222,13 +222,16 @@ class ImageCacheService: ObservableObject {
         
         // Clear memory cache
         memoryCache.removeAllObjects()
-        
+
         // Cancel ongoing downloads
         for task in downloadTasks.values {
             task.cancel()
         }
         downloadTasks.removeAll()
-        
+
+        // Clear image freshness data
+        ImageFreshnessManager.shared.clearAllImageFreshness()
+
         // Clear URL mappings (gracefully handle database unavailability)
         do {
             try imageURLManager.clearAllImageMappings()
@@ -555,8 +558,9 @@ class ImageCacheService: ObservableObject {
     }
 
     private func cacheKeyForURL(_ urlString: String) -> String {
-        // Create a safe filename from URL
-        return urlString.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? UUID().uuidString
+        // Create a consistent cache key from URL hash instead of encoding
+        let imageId = createImageIdFromUrl(urlString)
+        return "\(imageId).jpg"
     }
 
     private func createImageIdFromUrl(_ urlString: String) -> String {
@@ -783,6 +787,9 @@ class ImageCacheService: ObservableObject {
 
         // Clear memory cache
         memoryCache.removeAllObjects()
+
+        // Clear image freshness data
+        ImageFreshnessManager.shared.clearAllImageFreshness()
 
         // Clear disk cache
         do {

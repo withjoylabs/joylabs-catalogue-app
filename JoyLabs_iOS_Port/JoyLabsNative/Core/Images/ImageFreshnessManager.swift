@@ -74,15 +74,22 @@ class ImageFreshnessManager {
         userDefaults.set(Date(), forKey: lastImageCheckKey)
     }
     
+    /// Clear ALL image freshness data (for cache clear operations)
+    func clearAllImageFreshness() {
+        userDefaults.removeObject(forKey: imageTimestampsKey)
+        userDefaults.removeObject(forKey: lastImageCheckKey)
+        logger.info("🧹 Cleared ALL image freshness data")
+    }
+
     /// Clean up old timestamp entries
     func cleanupOldEntries() {
         guard var timestamps = getImageTimestamps() else { return }
-        
+
         let cutoffDate = Date().addingTimeInterval(-imageCacheMaxAge * 2) // Keep entries for 2x cache age
         let originalCount = timestamps.count
-        
+
         timestamps = timestamps.filter { $0.value > cutoffDate }
-        
+
         if timestamps.count != originalCount {
             setImageTimestamps(timestamps)
             logger.info("Cleaned up \(originalCount - timestamps.count) old image timestamp entries")

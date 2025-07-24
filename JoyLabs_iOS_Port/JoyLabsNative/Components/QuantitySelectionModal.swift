@@ -7,7 +7,8 @@ struct EmbeddedQuantitySelectionModal: View {
     
     @Binding var isPresented: Bool
     @State private var currentQuantity: Int
-    
+    @State private var imageRefreshTrigger = UUID()
+
     let onSubmit: (Int) -> Void
     let onCancel: () -> Void
     let onQuantityChange: ((Int) -> Void)?
@@ -88,25 +89,47 @@ struct EmbeddedQuantitySelectionModal: View {
 
     private func itemThumbnailSection(geometry: GeometryProxy) -> some View {
         VStack(spacing: 12) {
-            // RESPONSIVE THUMBNAIL - 70% SCREEN WIDTH
-            RoundedRectangle(cornerRadius: 12)
-                .fill(
-                    LinearGradient(
-                        colors: [Color(.systemGray6), Color(.systemGray5)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
+            // RESPONSIVE THUMBNAIL WITH ACTUAL IMAGE - 70% SCREEN WIDTH
+            let imageSize = geometry.size.width * 0.7
+
+            if let imageURL = item.images?.first?.imageData?.url {
+                CachedImageView.catalogItem(
+                    imageURL: imageURL,
+                    imageId: item.images?.first?.id,
+                    size: imageSize
                 )
-                .frame(
-                    width: geometry.size.width * 0.7,
-                    height: geometry.size.width * 0.5
-                )
-                .overlay(
-                    Text(String(item.name?.prefix(2) ?? "??").uppercased())
-                        .font(.system(size: geometry.size.width * 0.08, weight: .bold, design: .rounded))
-                        .foregroundColor(.secondary)
-                )
+                .frame(width: imageSize, height: imageSize * 0.7) // Slightly rectangular
+                .clipShape(RoundedRectangle(cornerRadius: 12))
                 .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+                .id(imageRefreshTrigger) // Force refresh when trigger changes
+            } else {
+                // Fallback placeholder when no image
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color(.systemGray6), Color(.systemGray5)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(
+                        width: imageSize,
+                        height: imageSize * 0.7
+                    )
+                    .overlay(
+                        Text(String(item.name?.prefix(2) ?? "??").uppercased())
+                            .font(.system(size: geometry.size.width * 0.08, weight: .bold, design: .rounded))
+                            .foregroundColor(.secondary)
+                    )
+                    .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .imageUpdated)) { notification in
+            if let itemId = notification.userInfo?["itemId"] as? String,
+               itemId == item.id {
+                print("✅ [QuantityModal] Refreshing image for matching item: \(itemId)")
+                imageRefreshTrigger = UUID()
+            }
         }
     }
 

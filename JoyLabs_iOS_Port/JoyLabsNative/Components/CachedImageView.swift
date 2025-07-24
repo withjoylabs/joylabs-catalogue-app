@@ -66,12 +66,35 @@ struct CachedImageView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .forceImageRefresh)) { notification in
             // Force refresh if this image is affected
+            if let userInfo = notification.userInfo {
+                let affectedImageId = userInfo["newImageId"] as? String
+                let oldImageId = userInfo["oldImageId"] as? String
+                let currentImageId = imageId
+
+                // Refresh if the new image ID matches, OR if the old image ID matches (for replacements)
+                if (affectedImageId != nil && affectedImageId == currentImageId) ||
+                   (oldImageId != nil && !oldImageId!.isEmpty && oldImageId == currentImageId) {
+                    loadedImage = nil
+                    loadImageIfNeeded()
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .imageUpdated)) { notification in
+            // Also refresh on imageUpdated notifications - this handles item-level updates
             if let userInfo = notification.userInfo,
-               let affectedImageId = userInfo["newImageId"] as? String,
-               let currentImageId = imageId,
-               affectedImageId == currentImageId {
-                loadedImage = nil
-                loadImageIfNeeded()
+               let action = userInfo["action"] as? String,
+               action == "uploaded",
+               let newImageId = userInfo["imageId"] as? String {
+
+                // Check if this notification is for the current image
+                if let currentImageId = imageId, currentImageId == newImageId {
+                    print("🔄 [CachedImageView] Refreshing for uploaded image: \(newImageId)")
+                    // Force refresh for this specific image
+                    loadedImage = nil
+                    loadImageIfNeeded()
+                } else {
+                    print("🔄 [CachedImageView] Ignoring notification for different image: \(newImageId) vs current: \(imageId ?? "nil")")
+                }
             }
         }
     }
@@ -86,19 +109,29 @@ struct CachedImageView: View {
         Task {
             var image: UIImage?
 
+            // UNIFIED IMAGE LOADING SYSTEM - ALL PATHS USE SAME LOGIC
             if imageURL.hasPrefix("cache://") {
-                // Already cached, load directly
+                // Already cached, load directly from cache
                 image = await imageCache.loadImage(from: imageURL)
             } else if imageURL.hasPrefix("https://") {
-                // AWS URL - use intelligent freshness checking
+                // AWS URL - ALWAYS use the unified cache system
                 let resolvedImageId = imageId ?? extractImageId(from: imageURL)
 
-                // Use freshness manager for intelligent caching
-                image = await ImageFreshnessManager.shared.loadImageWithFreshnessCheck(
-                    imageId: resolvedImageId,
-                    awsUrl: imageURL,
-                    imageCacheService: imageCache
-                )
+                // Try to get cache key first (for consistency with upload system)
+                do {
+                    if let cacheKey = try imageCache.getLocalCacheKey(for: resolvedImageId) {
+                        // Use cache:// format for consistency
+                        let cacheURL = "cache://\(cacheKey)"
+                        image = await imageCache.loadImage(from: cacheURL)
+                    }
+                } catch {
+                    // Fallback to freshness manager if no cache key found
+                    image = await ImageFreshnessManager.shared.loadImageWithFreshnessCheck(
+                        imageId: resolvedImageId,
+                        awsUrl: imageURL,
+                        imageCacheService: imageCache
+                    )
+                }
             } else {
                 // Fallback to cache service
                 image = await imageCache.loadImage(from: imageURL)

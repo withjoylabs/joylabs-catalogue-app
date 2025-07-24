@@ -506,17 +506,11 @@ struct ReorderItemCard: View {
             )
         }
         .onReceive(NotificationCenter.default.publisher(for: .imageUpdated)) { notification in
-            if let itemId = notification.userInfo?["itemId"] as? String {
-                print("🔄 [Reorder] Received imageUpdated notification for item: \(itemId), current item.itemId: \(item.itemId)")
-                if itemId == item.itemId {  // Compare against Square catalog ID, not reorder UUID
-                    print("✅ [Reorder] Refreshing image for matching item: \(itemId)")
-                    // Refresh the image display for this specific item
-                    refreshTrigger = UUID()
-                } else {
-                    print("❌ [Reorder] Item ID mismatch: notification=\(itemId), item.itemId=\(item.itemId)")
-                }
-            } else {
-                print("⚠️ [Reorder] Received imageUpdated notification but no itemId in userInfo")
+            if let itemId = notification.userInfo?["itemId"] as? String,
+               itemId == item.itemId {  // Only process if it matches this specific item
+                print("✅ [Reorder] Refreshing image for matching item: \(itemId)")
+                // Refresh the image display for this specific item
+                refreshTrigger = UUID()
             }
         }
     }

@@ -6,6 +6,7 @@ struct ItemImageSection: View {
     @ObservedObject var viewModel: ItemDetailsViewModel
     @State private var showingImagePicker = false
     @State private var isRemoving = false
+    @State private var imageRefreshTrigger = UUID()
 
     private let logger = Logger(subsystem: "com.joylabs.native", category: "ItemImageSection")
 
@@ -30,6 +31,7 @@ struct ItemImageSection: View {
                             RoundedRectangle(cornerRadius: 12)
                                 .stroke(Color.gray.opacity(0.3), lineWidth: 1)
                         )
+                        .id(imageRefreshTrigger) // Force refresh when trigger changes
                     } else {
                         ImagePlaceholder()
                     }
@@ -92,15 +94,8 @@ struct ItemImageSection: View {
                     viewModel.itemData.imageId = result.squareImageId
                     showingImagePicker = false
 
-                    // Trigger UI refresh across all views
-                    let itemId = viewModel.itemData.id ?? ""
-                    print("📢 Posting imageUpdated notification for item: \(itemId)")
-                    NotificationCenter.default.post(name: .imageUpdated, object: nil, userInfo: [
-                        "itemId": itemId,
-                        "imageId": result.squareImageId,
-                        "imageURL": result.localCacheUrl,
-                        "action": "uploaded"
-                    ])
+                    // DO NOT post notification here - SquareImageService already posts it
+                    // This was causing duplicate notifications and redundant processing
                 }
             )
         }
@@ -121,6 +116,8 @@ struct ItemImageSection: View {
                         print("✅ [ItemModal] Updating image ID to: \(newImageId)")
                         viewModel.itemData.imageId = newImageId
                         viewModel.itemData.imageURL = newImageURL
+                        // Force image refresh by updating trigger
+                        imageRefreshTrigger = UUID()
                     }
                 } else if action == "deleted" {
                     print("✅ [ItemModal] Clearing image ID")

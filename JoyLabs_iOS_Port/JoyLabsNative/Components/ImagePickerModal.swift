@@ -64,7 +64,6 @@ struct ImagePickerModal: View {
     @Environment(\.dismiss) private var dismiss
 
     private let logger = Logger(subsystem: "com.joylabs.native", category: "ImagePickerModal")
-    private let squareImageService = SquareImageService.create()
 
     // Responsive grid configuration
     private var columns: [GridItem] {
@@ -88,8 +87,11 @@ struct ImagePickerModal: View {
                 // Bottom Half - Photo Library Grid
                 photoLibraryGridSection
             }
-            .navigationTitle(context.title)
+            .padding(0) // Remove any default padding
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .navigationTitle("Photo Upload")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationBarBackButtonHidden(true)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
@@ -98,14 +100,22 @@ struct ImagePickerModal: View {
                     .foregroundColor(.red)
                 }
 
-                if selectedImage != nil {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Button("Upload") {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: {
+                        if !isUploading && selectedImage != nil {
                             handleUpload()
                         }
-                        .disabled(isUploading || croppedImage == nil)
-                        .foregroundColor(.blue)
+                    }) {
+                        if isUploading {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                        } else {
+                            Text("Upload")
+                                .foregroundColor(selectedImage != nil ? .blue : .gray)
+                        }
                     }
+                    .disabled(isUploading || selectedImage == nil)
+                    .frame(width: 60, height: 30)
                 }
             }
         }
@@ -126,7 +136,7 @@ struct ImagePickerModal: View {
     
     // MARK: - Crop Preview Section
     private var cropPreviewSection: some View {
-        VStack {
+        VStack(spacing: 0) {
             if let image = selectedImage {
                 // Inline crop view - use id to force recreation when image changes
                 InlineCropView(
@@ -136,7 +146,13 @@ struct ImagePickerModal: View {
                     }
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.black) // Black background to see the actual crop area
+                .clipped() // Ensure no overflow
                 .id(image.hashValue) // Force recreation when image changes
+                .onAppear {
+                    // Set initial cropped image to the full image
+                    self.croppedImage = image
+                }
             } else {
                 Rectangle()
                     .fill(Color(.systemGray6))
@@ -153,7 +169,8 @@ struct ImagePickerModal: View {
                     )
             }
         }
-        .frame(maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(0) // Ensure no padding
     }
     
     // MARK: - Photo Library Section
@@ -272,6 +289,11 @@ struct ImagePickerModal: View {
                 self.photoAssets = assets
                 self.isLoadingPhotos = false
                 self.loadThumbnails()
+
+                // Auto-select the first photo for preview
+                if let firstAsset = assets.first {
+                    self.selectPhoto(firstAsset.asset)
+                }
             }
         }
     }
@@ -359,6 +381,15 @@ struct ImagePickerModal: View {
         picker.sourceType = .camera
         picker.allowsEditing = false
 
+        // Configure camera settings to avoid device issues
+        picker.cameraDevice = .rear
+        picker.cameraCaptureMode = .photo
+
+        // Disable problematic camera features that cause device errors
+        if picker.responds(to: #selector(setter: UIImagePickerController.cameraFlashMode)) {
+            picker.cameraFlashMode = .auto
+        }
+
         if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
            let window = windowScene.windows.first,
            let rootViewController = window.rootViewController {
@@ -386,17 +417,24 @@ struct ImagePickerModal: View {
 
     
     private func handleUpload() {
-        guard let image = croppedImage else { return }
+        // Always use the cropped image if available, otherwise fallback to selected image
+        guard let image = croppedImage ?? selectedImage else {
+            uploadError = "No image selected"
+            showingErrorAlert = true
+            return
+        }
 
         Task {
             do {
                 isUploading = true
 
-                // Convert image to data
-                guard let imageData = image.jpegData(compressionQuality: 0.8) else {
+                // Convert image to data with high quality to preserve crop precision
+                guard let imageData = image.jpegData(compressionQuality: 0.9) else {
                     throw NSError(domain: "ImageError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to convert image to data"])
                 }
 
+                // Create service only when needed to avoid accounts error
+                let squareImageService = SquareImageService.create()
                 let result = try await squareImageService.uploadImage(
                     imageData: imageData,
                     fileName: "joylabs_image_\(Int(Date().timeIntervalSince1970))_\(Int.random(in: 1000...9999)).jpg",
@@ -523,9 +561,36 @@ struct CropViewControllerWrapper: UIViewControllerRepresentable {
         }
 
         func cropViewController(_ cropViewController: CropViewController, didCropToImage image: UIImage, withRect cropRect: CGRect, angle: Int) {
-            cropViewController.dismiss(animated: true) {
-                self.onCropComplete(image)
+            // CRITICAL: Verify the cropped image is actually 1:1
+            let aspectRatio = image.size.width / image.size.height
+            print("🔍 CROP DEBUG: Cropped image size: \(image.size), aspect ratio: \(aspectRatio)")
+
+            // Force 1:1 if not already square (safety check)
+            let finalImage: UIImage
+            if abs(aspectRatio - 1.0) > 0.01 { // Allow small tolerance
+                print("⚠️ CROP WARNING: Image not square, forcing 1:1 crop")
+                finalImage = forceSquareCrop(image: image)
+            } else {
+                finalImage = image
             }
+
+            cropViewController.dismiss(animated: true) {
+                self.onCropComplete(finalImage)
+            }
+        }
+
+        private func forceSquareCrop(image: UIImage) -> UIImage {
+            let size = min(image.size.width, image.size.height)
+            let x = (image.size.width - size) / 2
+            let y = (image.size.height - size) / 2
+
+            let cropRect = CGRect(x: x, y: y, width: size, height: size)
+
+            guard let cgImage = image.cgImage?.cropping(to: cropRect) else {
+                return image
+            }
+
+            return UIImage(cgImage: cgImage, scale: image.scale, orientation: image.imageOrientation)
         }
 
         func cropViewController(_ cropViewController: CropViewController, didFinishCancelled cancelled: Bool) {
@@ -544,24 +609,90 @@ struct InlineCropView: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> CropViewController {
         let cropViewController = CropViewController(image: image)
         cropViewController.delegate = context.coordinator
+        // FORCE 1:1 aspect ratio - no exceptions
         cropViewController.aspectRatioPreset = .presetSquare
         cropViewController.aspectRatioLockEnabled = true
         cropViewController.resetAspectRatioEnabled = false
         cropViewController.aspectRatioPickerButtonHidden = true
+
+        // FORCE custom aspect ratio to ensure 1:1
+        cropViewController.customAspectRatio = CGSize(width: 1, height: 1)
+        cropViewController.aspectRatioLockDimensionSwapEnabled = false
         cropViewController.rotateButtonsHidden = true
         cropViewController.rotateClockwiseButtonHidden = true
 
-        // Hide navigation bar and all buttons for inline display
+        // Hide navigation bar completely for inline display
         cropViewController.hidesNavigationBar = true
         cropViewController.doneButtonHidden = true
         cropViewController.cancelButtonHidden = true
         cropViewController.resetButtonHidden = true
 
+        // CRITICAL: Respect the navigation header space (88pt on iPhone 16 Pro Max)
+        let headerHeight: CGFloat = 88
+        let screenWidth = UIScreen.main.bounds.width
+        let availableHeight = UIScreen.main.bounds.height - headerHeight
+        let cropSize = min(screenWidth, availableHeight) // Use smaller dimension for square
+
+        // Set crop view to respect header boundaries
+        let cropView = cropViewController.cropView
+        cropView.cropRegionInsets = UIEdgeInsets.zero
+
+        // Set backgrounds to black to see actual boundaries
+        cropViewController.view.backgroundColor = .black
+        cropView.backgroundColor = .black
+
+        // CRITICAL: Position crop view BELOW the header, not overlapping it
+        cropViewController.view.frame = CGRect(
+            x: 0,
+            y: headerHeight, // Start BELOW the header
+            width: screenWidth,
+            height: cropSize
+        )
+        cropViewController.view.clipsToBounds = true
+
+        // Set crop view to fill the available space (minus header)
+        cropView.frame = CGRect(x: 0, y: 0, width: screenWidth, height: cropSize)
+        cropView.translatesAutoresizingMaskIntoConstraints = true
+
+        // Override layout margins
+        cropViewController.view.layoutMargins = UIEdgeInsets.zero
+        cropView.layoutMargins = UIEdgeInsets.zero
+
+        // Force layout after a brief delay to override TOCropViewController's internal layout
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            // Ensure crop view stays in bounds
+            cropView.frame = CGRect(x: 0, y: 0, width: screenWidth, height: cropSize)
+
+            // Force all subviews to respect the container bounds
+            for subview in cropView.subviews {
+                if !subview.isKind(of: UIImageView.self) {
+                    subview.frame = CGRect(x: 0, y: 0, width: screenWidth, height: cropSize)
+                    subview.translatesAutoresizingMaskIntoConstraints = true
+                    subview.layoutMargins = UIEdgeInsets.zero
+                }
+            }
+
+            // Force immediate layout update
+            cropViewController.view.setNeedsLayout()
+            cropViewController.view.layoutIfNeeded()
+            cropView.setNeedsLayout()
+            cropView.layoutIfNeeded()
+        }
+
+
+
         return cropViewController
     }
 
     func updateUIViewController(_ uiViewController: CropViewController, context: Context) {
-        // No updates needed - using .id() to force recreation when image changes
+        // Continuously enforce no padding/margins
+        uiViewController.view.backgroundColor = .clear
+        uiViewController.view.frame = CGRect(x: 0, y: 0, width: UIScreen.main.bounds.width, height: UIScreen.main.bounds.width)
+        uiViewController.view.clipsToBounds = true
+
+        let cropView = uiViewController.cropView
+        cropView.cropRegionInsets = UIEdgeInsets.zero
+        cropView.backgroundColor = .clear
     }
 
     func makeCoordinator() -> Coordinator {
@@ -576,8 +707,10 @@ struct InlineCropView: UIViewControllerRepresentable {
         }
 
         func cropViewController(_ cropViewController: CropViewController, didCropToImage image: UIImage, withRect cropRect: CGRect, angle: Int) {
-            // Don't dismiss in inline mode, just call the completion
-            self.onCropComplete(image)
+            // Call completion immediately when crop changes
+            DispatchQueue.main.async {
+                self.onCropComplete(image)
+            }
         }
 
         func cropViewController(_ cropViewController: CropViewController, didFinishCancelled cancelled: Bool) {
@@ -594,6 +727,17 @@ struct CameraPickerView: UIViewControllerRepresentable {
         let picker = UIImagePickerController()
         picker.sourceType = .camera
         picker.delegate = context.coordinator
+        picker.allowsEditing = false
+
+        // Configure camera settings to avoid device issues
+        picker.cameraDevice = .rear
+        picker.cameraCaptureMode = .photo
+
+        // Disable problematic camera features that cause device errors
+        if picker.responds(to: #selector(setter: UIImagePickerController.cameraFlashMode)) {
+            picker.cameraFlashMode = .auto
+        }
+
         return picker
     }
 
