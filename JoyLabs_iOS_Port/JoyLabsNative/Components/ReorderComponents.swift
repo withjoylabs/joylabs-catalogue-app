@@ -255,7 +255,6 @@ struct ReorderItemCard: View {
     @State private var dragOffset: CGFloat = 0
     @State private var isDragging = false
     @State private var showingItemDetails = false
-    @State private var refreshTrigger = UUID()
 
     private let deleteThreshold: CGFloat = -120
     private let receivedThreshold: CGFloat = 120
@@ -345,12 +344,12 @@ struct ReorderItemCard: View {
 
                 // Thumbnail image - exact same size as scan page (50px) - tappable for enlargement, long-press for update
                 Button(action: onImageTap) {
-                    CachedImageView.catalogItem(
+                    UnifiedImageView.thumbnail(
                         imageURL: item.imageUrl,
                         imageId: item.imageId,
+                        itemId: item.itemId,
                         size: 50
                     )
-                    .id(refreshTrigger) // Force refresh when trigger changes
                 }
                 .buttonStyle(PlainButtonStyle())
                 .onLongPressGesture {
@@ -505,14 +504,7 @@ struct ReorderItemCard: View {
                 }
             )
         }
-        .onReceive(NotificationCenter.default.publisher(for: .imageUpdated)) { notification in
-            if let itemId = notification.userInfo?["itemId"] as? String,
-               itemId == item.itemId {  // Only process if it matches this specific item
-                print("✅ [Reorder] Refreshing image for matching item: \(itemId)")
-                // Refresh the image display for this specific item
-                refreshTrigger = UUID()
-            }
-        }
+
     }
 
     private func toggleStatus() {
@@ -606,10 +598,12 @@ struct ReorderPhotoCard: View {
         VStack(spacing: 8) {
             // Image (tappable for enlargement, long-press for update)
             Button(action: onImageTap) {
-                CachedImageView.catalogItem(
+                UnifiedImageView(
                     imageURL: item.imageUrl,
                     imageId: item.imageId,
-                    size: imageSize
+                    itemId: item.itemId,
+                    size: imageSize,
+                    contentMode: .fill
                 )
                 .frame(width: imageSize, height: imageSize)
                 .background(Color(.systemGray6))

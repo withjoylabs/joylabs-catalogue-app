@@ -6,7 +6,6 @@ struct ItemImageSection: View {
     @ObservedObject var viewModel: ItemDetailsViewModel
     @State private var showingImagePicker = false
     @State private var isRemoving = false
-    @State private var imageRefreshTrigger = UUID()
 
     private let logger = Logger(subsystem: "com.joylabs.native", category: "ItemImageSection")
 
@@ -15,15 +14,16 @@ struct ItemImageSection: View {
             HStack {
                 Spacer()
                 
-                // Image Display/Placeholder using cached image system
+                // Image Display/Placeholder using unified image system
                 Button(action: {
                     showingImagePicker = true
                 }) {
                     if let imageURL = viewModel.itemData.imageURL, !imageURL.isEmpty {
-                        // Use the same cached image system as search results
-                        CachedImageView.catalogItem(
+                        // Use unified image system
+                        UnifiedImageView.large(
                             imageURL: imageURL,
                             imageId: viewModel.itemData.imageId,
+                            itemId: viewModel.itemData.id ?? "",
                             size: 200
                         )
                         .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -31,7 +31,6 @@ struct ItemImageSection: View {
                             RoundedRectangle(cornerRadius: 12)
                                 .stroke(Color.gray.opacity(0.3), lineWidth: 1)
                         )
-                        .id(imageRefreshTrigger) // Force refresh when trigger changes
                     } else {
                         ImagePlaceholder()
                     }
@@ -79,7 +78,7 @@ struct ItemImageSection: View {
         .background(Color(.systemGray6))
         .cornerRadius(12)
         .sheet(isPresented: $showingImagePicker) {
-            ImagePickerModal(
+            UnifiedImagePickerModal(
                 context: .itemDetails(itemId: viewModel.itemData.id),
                 onDismiss: {
                     showingImagePicker = false
@@ -94,38 +93,11 @@ struct ItemImageSection: View {
                     viewModel.itemData.imageId = result.squareImageId
                     showingImagePicker = false
 
-                    // DO NOT post notification here - SquareImageService already posts it
-                    // This was causing duplicate notifications and redundant processing
+                    // UnifiedImageService handles all notifications automatically
                 }
             )
         }
-        .onReceive(NotificationCenter.default.publisher(for: .imageUpdated)) { notification in
-            guard let userInfo = notification.userInfo,
-                  let notificationItemId = userInfo["itemId"] as? String,
-                  let currentItemId = viewModel.itemData.id,
-                  notificationItemId == currentItemId else {
-                return
-            }
 
-            print("🔄 [ItemModal] Received imageUpdated notification for item: \(notificationItemId)")
-
-            if let action = userInfo["action"] as? String {
-                if action == "uploaded" {
-                    if let newImageId = userInfo["imageId"] as? String,
-                       let newImageURL = userInfo["imageURL"] as? String {
-                        print("✅ [ItemModal] Updating image ID to: \(newImageId)")
-                        viewModel.itemData.imageId = newImageId
-                        viewModel.itemData.imageURL = newImageURL
-                        // Force image refresh by updating trigger
-                        imageRefreshTrigger = UUID()
-                    }
-                } else if action == "deleted" {
-                    print("✅ [ItemModal] Clearing image ID")
-                    viewModel.itemData.imageId = nil
-                    viewModel.itemData.imageURL = nil
-                }
-            }
-        }
     }
 
     // MARK: - Private Methods

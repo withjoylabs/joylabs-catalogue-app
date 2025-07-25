@@ -620,14 +620,16 @@ class ItemDetailsViewModel: ObservableObject {
             // PERFORMANCE OPTIMIZATION: Load pre-resolved tax and modifier names from database
             await loadPreResolvedNames(for: &itemDetails)
 
-            // Images - use the EXACT same logic as search results
-            let images = populateImageData(for: itemDetails.id ?? "")
-            if let firstImage = images?.first {
-                itemDetails.imageURL = firstImage.imageData?.url
-                itemDetails.imageId = firstImage.id
-                logger.info("Loaded image for item modal: \(firstImage.id ?? "no-id") -> \(firstImage.imageData?.url ?? "no-url")")
-            } else {
-                logger.info("No images found for item: \(itemDetails.id ?? "no-id")")
+            // Images - use unified image service
+            if let itemId = itemDetails.id {
+                let primaryImageURL = getPrimaryImageURL(for: itemId)
+                if let imageURL = primaryImageURL {
+                    itemDetails.imageURL = imageURL
+                    itemDetails.imageId = "primary" // Will be updated when we get the actual image ID
+                    logger.info("Loaded image for item modal using unified service: \(imageURL)")
+                } else {
+                    logger.info("No images found for item using unified service: \(itemId)")
+                }
             }
         }
 
@@ -695,73 +697,28 @@ class ItemDetailsViewModel: ObservableObject {
         }
     }
 
-    // MARK: - Delete Item (OLD IMPLEMENTATION REMOVED - NOW USING CRUD SERVICE)
+    // MARK: - Unified Image Integration
 
-    /// Populate image data for an item - RESPECTING ORDER FROM ITEM'S IMAGE_IDS ARRAY
-    private func populateImageData(for itemId: String) -> [CatalogImage]? {
+    /// Get primary image URL using DIRECT image mapping lookup
+    private func getPrimaryImageURL(for itemId: String) -> String? {
+        logger.info("🔍 [MODAL] Getting primary image URL for item: \(itemId)")
+
         do {
-            // First, get the item's image_ids array to respect the order
-            guard let db = databaseManager.getConnection() else {
-                logger.error("No database connection for image data")
-                return nil
-            }
-
-            let selectQuery = """
-                SELECT data_json FROM catalog_items
-                WHERE id = ? AND is_deleted = 0
-            """
-
-            let statement = try db.prepare(selectQuery)
-            var imageIdsOrder: [String] = []
-
-            for row in try statement.run([itemId]) {
-                let dataJsonString = row[0] as? String ?? "{}"
-                let dataJsonData = dataJsonString.data(using: String.Encoding.utf8) ?? Data()
-
-                if let currentData = try JSONSerialization.jsonObject(with: dataJsonData) as? [String: Any],
-                   let imageIds = currentData["image_ids"] as? [String] {
-                    imageIdsOrder = imageIds
-                    break
-                }
-            }
-
-            guard !imageIdsOrder.isEmpty else {
-                return nil
-            }
-
-            // Get image mappings for this item
+            // DIRECTLY get image mappings for this item - NO JSON PARSING!
             let imageMappings = try imageURLManager.getImageMappings(for: itemId, objectType: "ITEM")
+            logger.info("🔍 [MODAL] Found \(imageMappings.count) image mappings for item: \(itemId)")
 
-            guard !imageMappings.isEmpty else {
+            // Get the first mapping (primary image)
+            if let primaryMapping = imageMappings.first {
+                logger.info("🔍 [MODAL] ✅ Found primary image mapping: \(primaryMapping.squareImageId) -> \(primaryMapping.originalAwsUrl)")
+                return primaryMapping.originalAwsUrl
+            } else {
+                logger.error("🔍 [MODAL] ❌ No image mappings found for item: \(itemId)")
                 return nil
             }
 
-            // Create a dictionary for fast lookup
-            let mappingDict = Dictionary(uniqueKeysWithValues: imageMappings.map { ($0.squareImageId, $0) })
-
-            // Order the images according to the item's image_ids array
-            let orderedCatalogImages: [CatalogImage] = imageIdsOrder.compactMap { imageId in
-                guard let mapping = mappingDict[imageId] else { return nil }
-
-                return CatalogImage(
-                    id: mapping.squareImageId,
-                    type: "IMAGE",
-                    updatedAt: ISO8601DateFormatter().string(from: mapping.lastAccessedAt),
-                    version: nil,
-                    isDeleted: false,
-                    presentAtAllLocations: true,
-                    imageData: ImageData(
-                        name: nil,
-                        url: mapping.originalAwsUrl, // Use original AWS URL for Swift to download
-                        caption: nil,
-                        photoStudioOrderId: nil
-                    )
-                )
-            }
-
-            return orderedCatalogImages.isEmpty ? nil : orderedCatalogImages
         } catch {
-            logger.error("Failed to populate image data for item \(itemId): \(error)")
+            logger.error("🔍 [MODAL] ❌ Failed to get primary image URL for item \(itemId): \(error)")
             return nil
         }
     }

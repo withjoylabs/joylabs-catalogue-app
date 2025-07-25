@@ -263,7 +263,7 @@ actor SquareHTTPClient {
 
         let encoder = JSONEncoder()
         encoder.outputFormatting = .prettyPrinted
-        var bodyData = try encoder.encode(requestBody)
+        let bodyData = try encoder.encode(requestBody)
 
         // Log the request body for debugging
         if let bodyString = String(data: bodyData, encoding: .utf8) {

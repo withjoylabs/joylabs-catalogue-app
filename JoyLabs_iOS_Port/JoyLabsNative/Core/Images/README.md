@@ -40,11 +40,20 @@ This directory contains a comprehensive, production-ready image caching system t
 
 ### Basic Image Loading
 ```swift
-// Using CachedImageView (SwiftUI)
-CachedImageView.catalogItem(imageURL: "https://aws.url/image.jpg")
+// Using UnifiedImageView (SwiftUI) - RECOMMENDED
+UnifiedImageView.catalogItem(
+    imageURL: "https://aws.url/image.jpg",
+    imageId: "square_image_id",
+    itemId: "item_id",
+    size: 100
+)
 
 // Direct service usage
-let image = await ImageCacheService.shared.loadImage(from: imageURL)
+let image = await UnifiedImageService.shared.loadImage(
+    imageURL: imageURL,
+    imageId: imageId,
+    itemId: itemId
+)
 ```
 
 ### Progressive Loading
@@ -102,14 +111,14 @@ try await parallelImageProcessor.processCatalogObjectImages(objects) { processed
 ```
 
 ### UI Integration
-CachedImageView automatically uses progressive loading:
+UnifiedImageView automatically handles all image operations:
 
 ```swift
-CachedImageView(
+UnifiedImageView.thumbnail(
     imageURL: "https://aws.url/image.jpg",
-    placeholder: "photo",
-    width: 60,
-    height: 60
+    imageId: "square_image_id",
+    itemId: "item_id",
+    size: 60
 )
 ```
 

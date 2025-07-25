@@ -38,8 +38,17 @@ class ImageFreshnessManager {
         var timestamps = getImageTimestamps() ?? [:]
         timestamps[imageId] = Date()
         setImageTimestamps(timestamps)
-        
+
         logger.info("Marked image as fresh: \(imageId)")
+    }
+
+    /// Mark an image as stale (for cleanup purposes)
+    func markImageAsStale(imageId: String) {
+        var timestamps = getImageTimestamps() ?? [:]
+        timestamps.removeValue(forKey: imageId)
+        setImageTimestamps(timestamps)
+
+        logger.info("Marked image as stale: \(imageId)")
     }
     
     /// Invalidate a specific image cache entry

@@ -3,6 +3,13 @@ import UIKit
 import OSLog
 import SQLite
 
+// MARK: - Square Image Service Result Types
+struct SquareImageUploadResult {
+    let squareImageId: String
+    let awsUrl: String
+    let localCacheUrl: String
+}
+
 /// Service for uploading images to Square API and integrating with local caching system
 @MainActor
 class SquareImageService: ObservableObject {
@@ -24,7 +31,7 @@ class SquareImageService: ObservableObject {
         imageData: Data,
         fileName: String,
         itemId: String?
-    ) async throws -> ImagePickerResult {
+    ) async throws -> SquareImageUploadResult {
         logger.info("Starting image upload to Square: \(fileName)")
         
         // Step 1: Upload to Square API
@@ -75,7 +82,7 @@ class SquareImageService: ObservableObject {
             )
         }
 
-        return ImagePickerResult(
+        return SquareImageUploadResult(
             squareImageId: squareImageId,
             awsUrl: awsUrl,
             localCacheUrl: localCacheUrl
@@ -206,7 +213,7 @@ class SquareImageService: ObservableObject {
         imageId: String,
         imageData: Data,
         fileName: String
-    ) async throws -> ImagePickerResult {
+    ) async throws -> SquareImageUploadResult {
         logger.info("Updating existing image in Square: \(imageId)")
         
         // For updates, we need to use the PUT endpoint
@@ -251,7 +258,7 @@ extension SquareImageService {
         _ image: UIImage,
         fileName: String,
         itemId: String?
-    ) async throws -> ImagePickerResult {
+    ) async throws -> SquareImageUploadResult {
         // Convert UIImage to JPEG data with high quality
         guard let imageData = image.jpegData(compressionQuality: 0.9) else {
             throw SquareAPIError.upsertFailed("Failed to convert UIImage to JPEG data")

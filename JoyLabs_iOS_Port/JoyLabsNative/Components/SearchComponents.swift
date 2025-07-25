@@ -81,18 +81,22 @@ struct ScanResultCard: View {
     let result: SearchResultItem
     @State private var showingItemDetails = false
     @State private var showingImagePicker = false
-    @State private var refreshTrigger = UUID()
 
     var body: some View {
-        HStack(spacing: 12) {
-            // Thumbnail image (left side) - using cached image system with real Square image ID
+        // DEBUG: Log image data for search results
+        let imageURL = result.images?.first?.imageData?.url
+        let imageId = result.images?.first?.id
+        let _ = print("🔍 [UI] Search result for \(result.id): imageURL=\(imageURL ?? "nil"), imageId=\(imageId ?? "nil"), images count=\(result.images?.count ?? 0)")
+
+        return HStack(spacing: 12) {
+            // Thumbnail image (left side) - using unified image system
             // Long press to update image
-            CachedImageView.catalogItem(
-                imageURL: result.images?.first?.imageData?.url,
-                imageId: result.images?.first?.id,
+            UnifiedImageView.thumbnail(
+                imageURL: imageURL,
+                imageId: imageId,
+                itemId: result.id,
                 size: 50
             )
-            .id(refreshTrigger) // Force refresh when trigger changes
             .onLongPressGesture {
                 showingImagePicker = true
             }
@@ -205,7 +209,7 @@ struct ScanResultCard: View {
             )
         }
         .sheet(isPresented: $showingImagePicker) {
-            ImagePickerModal(
+            UnifiedImagePickerModal(
                 context: .scanViewLongPress(
                     itemId: result.id,
                     imageId: result.images?.first?.id
@@ -214,19 +218,10 @@ struct ScanResultCard: View {
                     showingImagePicker = false
                 },
                 onImageUploaded: { uploadResult in
-                    // Refresh the image display
-                    refreshTrigger = UUID()
+                    // UnifiedImageService handles all refresh notifications
                     showingImagePicker = false
                 }
             )
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .imageUpdated)) { notification in
-            if let itemId = notification.userInfo?["itemId"] as? String,
-               itemId == result.id {  // Only process if it matches this specific item
-                print("✅ [Search] Refreshing image for matching item: \(itemId)")
-                // Refresh the image display for this specific item
-                refreshTrigger = UUID()
-            }
         }
     }
 

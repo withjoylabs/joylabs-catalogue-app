@@ -7,7 +7,7 @@ struct EmbeddedQuantitySelectionModal: View {
     
     @Binding var isPresented: Bool
     @State private var currentQuantity: Int
-    @State private var imageRefreshTrigger = UUID()
+
 
     let onSubmit: (Int) -> Void
     let onCancel: () -> Void
@@ -93,15 +93,16 @@ struct EmbeddedQuantitySelectionModal: View {
             let imageSize = geometry.size.width * 0.7
 
             if let imageURL = item.images?.first?.imageData?.url {
-                CachedImageView.catalogItem(
+                UnifiedImageView.large(
                     imageURL: imageURL,
                     imageId: item.images?.first?.id,
+                    itemId: item.id,
                     size: imageSize
                 )
                 .frame(width: imageSize, height: imageSize * 0.7) // Slightly rectangular
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
-                .id(imageRefreshTrigger) // Force refresh when trigger changes
+
             } else {
                 // Fallback placeholder when no image
                 RoundedRectangle(cornerRadius: 12)
@@ -124,13 +125,7 @@ struct EmbeddedQuantitySelectionModal: View {
                     .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .imageUpdated)) { notification in
-            if let itemId = notification.userInfo?["itemId"] as? String,
-               itemId == item.id {
-                print("✅ [QuantityModal] Refreshing image for matching item: \(itemId)")
-                imageRefreshTrigger = UUID()
-            }
-        }
+
     }
 
     private var itemDetailsSection: some View {

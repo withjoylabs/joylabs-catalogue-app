@@ -438,7 +438,7 @@ struct ReordersView: View {
         // Image Picker Modal for updating item images
         .sheet(isPresented: $showingImagePicker) {
             if let item = selectedItemForImageUpdate {
-                ImagePickerModal(
+                UnifiedImagePickerModal(
                     context: .reordersViewLongPress(
                         itemId: item.itemId,
                         imageId: item.imageId
@@ -448,7 +448,7 @@ struct ReordersView: View {
                         selectedItemForImageUpdate = nil
                     },
                     onImageUploaded: { result in
-                        // TODO: Update the reorder item with new image
+                        // UnifiedImageService handles all refresh notifications
                         showingImagePicker = false
                         selectedItemForImageUpdate = nil
                     }
@@ -1069,6 +1069,26 @@ struct ReorderItemsContent: View {
                     },
                     onQuantityTap: {
                         // Convert ReorderItem to SearchResultItem and show modal
+                        // CRITICAL: Populate images array with unified image data
+                        var images: [CatalogImage] = []
+                        if let imageUrl = item.imageUrl, let imageId = item.imageId {
+                            let catalogImage = CatalogImage(
+                                id: imageId,
+                                type: "IMAGE",
+                                updatedAt: ISO8601DateFormatter().string(from: Date()),
+                                version: nil,
+                                isDeleted: false,
+                                presentAtAllLocations: true,
+                                imageData: ImageData(
+                                    name: nil,
+                                    url: imageUrl,
+                                    caption: nil,
+                                    photoStudioOrderId: nil
+                                )
+                            )
+                            images = [catalogImage]
+                        }
+
                         let searchItem = SearchResultItem(
                             id: item.itemId,
                             name: item.name,
@@ -1077,7 +1097,7 @@ struct ReorderItemsContent: View {
                             barcode: item.barcode,
                             categoryId: nil,
                             categoryName: item.categoryName,
-                            images: [],
+                            images: images, // ✅ PROPERLY POPULATED!
                             matchType: "reorder",
                             matchContext: item.name,
                             isFromCaseUpc: false,

@@ -649,8 +649,8 @@ class SearchManager: ObservableObject {
             // Check if item has taxes
             let hasTax = checkItemHasTaxById(itemId: itemId)
 
-            // Populate image data
-            let images = populateImageData(for: itemId)
+            // Get primary image URL using unified approach
+            let images = getPrimaryImageForSearchResult(itemId: itemId)
 
             return SearchResultItem(
                 id: itemId,
@@ -681,64 +681,45 @@ class SearchManager: ObservableObject {
         }
     }
 
-    // MARK: - Image Data Population
+    // MARK: - Unified Image Integration
 
-    /// Populate image data for a search result item (respects image_ids order)
-    private func populateImageData(for itemId: String) -> [CatalogImage]? {
+    /// Get primary image for search result using unified approach
+    private func getPrimaryImageForSearchResult(itemId: String) -> [CatalogImage]? {
+        logger.info("🔍 [SEARCH] Getting primary image for item: \(itemId)")
+
         do {
-            // Get database connection
-            guard let db = databaseManager.getConnection() else {
-                return nil
-            }
-
-            // CRITICAL: Get the item's image_ids array to respect the order
-            let query = "SELECT image_ids FROM items WHERE id = ?"
-            let statement = try db.prepare(query)
-
-            var imageIdsOrder: [String] = []
-            for row in try statement.run(itemId) {
-                if let imageIdsJson = row[0] as? String,
-                   let imageIdsData = imageIdsJson.data(using: .utf8),
-                   let imageIds = try? JSONSerialization.jsonObject(with: imageIdsData) as? [String] {
-                    imageIdsOrder = imageIds
-                    break
-                }
-            }
-
-            guard !imageIdsOrder.isEmpty else {
-                return nil
-            }
-
-            // Get image mappings for this item
+            // DIRECTLY get image mappings for this item - NO JSON PARSING!
             let imageMappings = try imageURLManager.getImageMappings(for: itemId, objectType: "ITEM")
+            logger.info("🔍 [SEARCH] Found \(imageMappings.count) image mappings for item: \(itemId)")
 
-            // Create a dictionary for fast lookup
-            let mappingDict = Dictionary(uniqueKeysWithValues: imageMappings.map { ($0.squareImageId, $0) })
+            // Get the first mapping (primary image)
+            if let primaryMapping = imageMappings.first {
+                logger.info("🔍 [SEARCH] ✅ Found primary image mapping: \(primaryMapping.squareImageId) -> \(primaryMapping.originalAwsUrl)")
 
-            // Order the images according to the item's image_ids array (PRIMARY FIRST)
-            let orderedCatalogImages: [CatalogImage] = imageIdsOrder.compactMap { imageId in
-                guard let mapping = mappingDict[imageId] else { return nil }
-
-                return CatalogImage(
-                    id: mapping.squareImageId,
+                let catalogImage = CatalogImage(
+                    id: primaryMapping.squareImageId,
                     type: "IMAGE",
-                    updatedAt: ISO8601DateFormatter().string(from: mapping.lastAccessedAt),
+                    updatedAt: ISO8601DateFormatter().string(from: primaryMapping.lastAccessedAt),
                     version: nil,
                     isDeleted: false,
                     presentAtAllLocations: true,
                     imageData: ImageData(
                         name: nil,
-                        url: mapping.originalAwsUrl, // Use original AWS URL for Swift to download
+                        url: primaryMapping.originalAwsUrl,
                         caption: nil,
                         photoStudioOrderId: nil
                     )
                 )
+
+                logger.info("🔍 [SEARCH] ✅ Successfully created CatalogImage for item \(itemId)")
+                return [catalogImage]
+            } else {
+                logger.error("🔍 [SEARCH] ❌ No image mappings found for item: \(itemId)")
+                return nil
             }
 
-            return orderedCatalogImages.isEmpty ? nil : orderedCatalogImages
-
         } catch {
-            logger.error("📷 Failed to get images for item \(itemId): \(error)")
+            logger.error("🔍 [SEARCH] ❌ Failed to get primary image for search result \(itemId): \(error)")
             return nil
         }
     }
@@ -770,8 +751,8 @@ class SearchManager: ObservableObject {
             // Check if item has taxes by parsing the dataJson
             let hasTax = checkItemHasTax(dataJson: dataJson)
 
-            // Populate image data
-            let images = populateImageData(for: itemId)
+            // Get primary image URL using unified approach
+            let images = getPrimaryImageForSearchResult(itemId: itemId)
 
             return SearchResultItem(
                 id: itemId,
@@ -836,8 +817,8 @@ class SearchManager: ObservableObject {
             // This requires a separate query since the variation JOIN doesn't include dataJson
             let hasTax = checkItemHasTaxById(itemId: itemId)
 
-            // Populate image data
-            let images = populateImageData(for: itemId)
+            // Get primary image URL using unified approach
+            let images = getPrimaryImageForSearchResult(itemId: itemId)
 
             return SearchResultItem(
                 id: itemId,

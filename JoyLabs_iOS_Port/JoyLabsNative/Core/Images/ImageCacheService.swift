@@ -682,6 +682,18 @@ class ImageCacheService: ObservableObject {
         return try imageURLManager.getLocalCacheKey(for: squareImageId)
     }
 
+    /// Remove image from memory cache by image ID
+    func removeFromMemoryCache(imageId: String) {
+        do {
+            if let cacheKey = try imageURLManager.getLocalCacheKey(for: imageId) {
+                memoryCache.removeObject(forKey: cacheKey as NSString)
+                logger.debug("🗑️ Removed image from memory cache: \(imageId)")
+            }
+        } catch {
+            logger.error("❌ Failed to remove image from memory cache: \(error)")
+        }
+    }
+
     /// Invalidate a specific image by Square image ID
     func invalidateImageById(squareImageId: String) async {
         do {
