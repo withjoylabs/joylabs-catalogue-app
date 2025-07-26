@@ -1,6 +1,7 @@
 import SwiftUI
 import Combine
 import os.log
+import SQLite
 
 // MARK: - Item Details Data
 /// Complete data model for item details that captures all Square catalog fields
@@ -622,13 +623,13 @@ class ItemDetailsViewModel: ObservableObject {
 
             // Images - use unified image service
             if let itemId = itemDetails.id {
-                let primaryImageURL = getPrimaryImageURL(for: itemId)
-                if let imageURL = primaryImageURL {
-                    itemDetails.imageURL = imageURL
-                    itemDetails.imageId = "primary" // Will be updated when we get the actual image ID
-                    logger.info("Loaded image for item modal using unified service: \(imageURL)")
+                let primaryImageInfo = getPrimaryImageInfo(for: itemId)
+                if let imageInfo = primaryImageInfo {
+                    itemDetails.imageURL = imageInfo.imageURL
+                    itemDetails.imageId = imageInfo.imageId // Use actual Square Image ID
+                    logger.info("Loaded image for item modal: \(imageInfo.imageURL) (ID: \(imageInfo.imageId))")
                 } else {
-                    logger.info("No images found for item using unified service: \(itemId)")
+                    logger.info("No images found for item: \(itemId)")
                 }
             }
         }
@@ -698,6 +699,53 @@ class ItemDetailsViewModel: ObservableObject {
     }
 
     // MARK: - Unified Image Integration
+
+    /// Get primary image info by reading database image_ids array in correct order
+    private func getPrimaryImageInfo(for itemId: String) -> (imageURL: String, imageId: String)? {
+        logger.info("🔍 [MODAL] Getting primary image info for item: \(itemId)")
+
+        do {
+            guard let db = databaseManager.getConnection() else {
+                logger.error("🔍 [MODAL] ❌ Database not connected")
+                return nil
+            }
+            
+            // Get item's image_ids array from database
+            let selectQuery = """
+                SELECT data_json FROM catalog_items
+                WHERE id = ? AND is_deleted = 0
+            """
+            
+            let statement = try db.prepare(selectQuery)
+            for row in try statement.run([itemId]) {
+                let dataJsonString = row[0] as? String ?? "{}"
+                let dataJsonData = dataJsonString.data(using: String.Encoding.utf8) ?? Data()
+                
+                if let currentData = try JSONSerialization.jsonObject(with: dataJsonData) as? [String: Any],
+                   let imageIds = currentData["image_ids"] as? [String],
+                   let primaryImageId = imageIds.first {
+                    
+                    logger.info("🔍 [MODAL] Found primary image ID from database: \(primaryImageId)")
+                    
+                    // Get image mapping for this specific image ID
+                    let imageMappings = try imageURLManager.getImageMappings(for: itemId, objectType: "ITEM")
+                    if let mapping = imageMappings.first(where: { $0.squareImageId == primaryImageId }) {
+                        logger.info("🔍 [MODAL] ✅ Found mapping for primary image: \(primaryImageId) -> \(mapping.originalAwsUrl)")
+                        return (imageURL: mapping.originalAwsUrl, imageId: primaryImageId)
+                    } else {
+                        logger.error("🔍 [MODAL] ❌ No mapping found for primary image ID: \(primaryImageId)")
+                    }
+                } else {
+                    logger.error("🔍 [MODAL] ❌ No image_ids found in database for item: \(itemId)")
+                }
+            }
+            
+        } catch {
+            logger.error("🔍 [MODAL] ❌ Failed to get primary image info for item \(itemId): \(error)")
+        }
+        
+        return nil
+    }
 
     /// Get primary image URL using DIRECT image mapping lookup
     private func getPrimaryImageURL(for itemId: String) -> String? {

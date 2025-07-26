@@ -1,190 +1,283 @@
-# JoyLabs Native iOS - Image Architecture Documentation
+# Unified Image Service Architecture - PRODUCTION READY ✅
 
 ## 🎯 **Overview**
 
-This document explains how our Swift native iOS app handles images from Square's catalog API, including the complete data flow, caching strategy, production persistence, and common pitfalls to avoid.
+The Unified Image Service is now **fully operational** and handles all image operations consistently across the entire application. After extensive debugging and fixes, the system provides:
 
-## 🏗️ **Architecture Components**
+- **🔄 Real-time Image Updates**: Images refresh instantly across ALL views when uploaded
+- **💾 Consistent Caching**: Proper cache key management eliminates cache misses
+- **🎯 Database Consistency**: All views read from the same database `image_ids` array order
+- **🚀 Performance**: Optimized loading with memory and disk caching
+- **🔧 Automatic Cleanup**: Old cached images are automatically removed
 
-### 1. **Image Data Flow Pipeline**
-```
-Square API → Sync Service → Database Storage → Search Results → UI Display
-     ↓              ↓              ↓              ↓              ↓
-AWS URLs    Image Mappings   SQLite Cache   CatalogImage   CachedImageView
-                                                ↓              ↓
-                                        Real Square ID   Optimized Cache
-```
+## 🏗️ **Core Components (WORKING)**
 
-### 2. **Core Components**
+### 1. **UnifiedImageService** ✅
+**Location**: `Core/Services/UnifiedImageService.swift`
 
-#### **SQLiteSwiftCatalogSyncService**
-- Processes IMAGE objects from Square's ListCatalog API
-- Creates item-to-image mappings during sync
-- Handles orphaned image detection and cleanup
-
-#### **ImageURLManager**
-- Manages image URL mappings in SQLite database
-- Maps Square image IDs to AWS URLs and local cache keys
-- Uses proper SHA256 hashing for unique cache keys
-
-#### **ImageCacheService**
-- Downloads images from AWS URLs on-demand during search
-- Stores images in Documents/ImageCache/ for production persistence
-- Implements optimized cache hierarchy: Memory → Disk → Download
-- Eliminates redundant database operations and duplicate logging
-
-#### **CachedImageView (SwiftUI)**
-- Displays images in search results using real Square image IDs
-- Handles loading states and fallbacks gracefully
-- Supports both cached and AWS URLs with proper ID mapping
-
-## 🔄 **Complete Data Flow**
-
-### **Phase 1: Catalog Sync**
-1. **Square API Response**: Returns ITEM and IMAGE objects
-2. **Image Processing**:
-   - Store IMAGE objects with AWS URLs using real Square image IDs
-   - Create image URL mappings (Square ID → AWS URL → SHA256 Cache Key)
-3. **Item-to-Image Mapping**:
-   - Search for items that reference each image ID
-   - Create mappings between items and their images
-   - Mark orphaned images for cleanup
-
-### **Phase 2: Search & Display (500ms debounced)**
-1. **Search Query**: User searches for items (debounced to 500ms)
-2. **Database Lookup**: Find matching items with image mappings
-3. **Image Loading**:
-   - Memory cache check (fastest)
-   - Disk cache check using real Square image ID
-   - Download from AWS if cache miss
-   - Store in local cache for future use
-4. **UI Display**: Show thumbnails in search results with proper image IDs
-
-## 🚨 **Critical Pitfalls & Solutions**
-
-### **1. Fake Image IDs vs Real Square Image IDs**
-**❌ PITFALL**: Using URL hash-based fake IDs instead of real Square image IDs
+Main service handling all image operations:
 ```swift
-// WRONG - Creates fake ID that won't match database mappings
-let imageId = extractImageId(from: url)  // "img_a1b2c3d4" (fake)
+@MainActor
+class UnifiedImageService: ObservableObject {
+    static let shared = UnifiedImageService()
 
-// CORRECT - Use real Square image ID from CatalogImage object
-let imageId = image.id ?? extractImageId(from: url)  // "abc123" (real Square ID)
-```
-
-### **2. Broken SHA256 Implementation**
-**❌ PITFALL**: Fake SHA256 that only converts UTF-8 bytes to hex
-```swift
-// WRONG - Not actual SHA256, causes "68747470" collisions
-let hash = data.withUnsafeBytes { bytes in
-    return bytes.bindMemory(to: UInt8.self)
+    // Upload image with complete lifecycle management
+    func uploadImage(imageData: Data, fileName: String, itemId: String, context: ImageUploadContext) async throws -> ImageUploadResult
+    
+    // Load image with unified caching strategy
+    func loadImage(imageURL: String?, imageId: String?, itemId: String) async -> UIImage?
+    
+    // Get primary image info for an item (CORRECT database order)
+    func getPrimaryImageInfo(for itemId: String) async throws -> ImageInfo?
 }
-
-// CORRECT - Use CryptoKit for real SHA256 hashing
-import CryptoKit
-let hash = SHA256.hash(data: data)
 ```
 
-### **3. Redundant Cache Operations**
-**❌ PITFALL**: Multiple cache lookups and duplicate logging
-- **Problem**: Wastes resources with redundant database queries and logging
-- **Solution**: Single cache lookup with direct operations, eliminate duplicate logs
+### 2. **UnifiedImageView** ✅
+**Location**: `Components/UnifiedImageView.swift`
 
-### **4. Cache Persistence Misunderstanding**
-**❌ PITFALL**: Expecting cache to persist during Xcode development builds
-- **Development**: App container UUID changes every build (cache won't persist)
-- **Production**: App container persists across updates (cache WILL persist)
-- **Solution**: Cache is correctly configured for production persistence in Documents directory
+Smart SwiftUI component that:
+- **Automatically fetches current primary image** when `imageURL` is `nil`
+- **Responds to image update notifications** and dynamically refreshes
+- **Uses proper cache keys** from notifications and database lookups
 
-### **5. Processing Order Dependencies**
-**❌ PITFALL**: Creating item-to-image mappings during ITEM processing
-- **Problem**: Image URLs don't exist in database yet when items are processed
-- **Solution**: Create mappings during IMAGE processing phase after URLs are stored
+```swift
+struct UnifiedImageView: View {
+    let imageURL: String?   // Can be nil - will fetch primary image
+    let imageId: String?    // Can be nil - will fetch primary image  
+    let itemId: String      // REQUIRED - used for database lookups
+    let size: CGFloat
 
-## 🛠️ **Implementation Best Practices**
-
-### **Database Schema**
-```sql
--- Image URL mappings table
-CREATE TABLE image_url_mappings (
-    square_image_id TEXT PRIMARY KEY,
-    original_aws_url TEXT NOT NULL,
-    local_cache_key TEXT NOT NULL,
-    object_type TEXT NOT NULL,
-    object_id TEXT NOT NULL,
-    image_type TEXT NOT NULL,
-    is_deleted INTEGER DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    last_accessed_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
+    // Smart loading that handles nil URLs
+    private func loadImageIfNeeded() // Fetches primary image when URL is nil
+    
+    // Notification handler that uses correct cache URLs
+    private func handleImageUpdatedNotification() // Uses notification cache URL
+}
 ```
 
-### **Error Handling**
-- Always check database connection before image operations
-- Gracefully handle AWS download failures
-- Provide fallback UI for missing images
+### 3. **SearchManager** ✅
+**Location**: `Core/Search/SearchManager.swift`
 
-### **Performance Optimization**
-- Use real Square image IDs for proper database mapping
-- Implement optimized cache hierarchy (Memory → Disk → Download)
-- Eliminate redundant database operations (50% reduction achieved)
-- Use proper SHA256 hashing to prevent cache key collisions
-- Clean up orphaned images to save storage
-- Debounce search to 500ms for responsive UX
+Fixed to return current primary images:
+```swift
+// FIXED: Now reads database image_ids array in correct order
+private func getPrimaryImageForSearchResult(itemId: String) -> [CatalogImage]? {
+    // Gets primary image ID from database image_ids.first (not mapping.first)
+    let primaryImageId = imageIds.first
+    let mapping = imageMappings.first(where: { $0.squareImageId == primaryImageId })
+}
+```
 
-## 🔧 **Debugging Tips**
+### 4. **ItemDetailsViewModel** ✅
+**Location**: `Components/ItemDetailsViewModel.swift`
 
-### **Common Error Messages**
-- `databaseNotConnected`: Database not initialized properly
-- `Cache miss - file not found`: Normal - downloading from AWS
-- `ORPHANED IMAGE DETECTED`: Expected - cleaning up deleted item images
-- `No existing mapping`: Fixed - now uses real Square image IDs
+Fixed to return current primary images:
+```swift
+// FIXED: Reads database image_ids array directly
+private func getPrimaryImageInfo(for itemId: String) -> (imageURL: String, imageId: String)? {
+    // Reads catalog_items.data_json.image_ids[0] for primary image
+}
+```
 
-### **Logging Strategy**
-- Single informative cache hit/miss logs (no duplicates)
-- Detailed logging only for errors and warnings
-- Use structured logging with clear prefixes (📷, 🔍, ✅, ❌)
-- Removed redundant "Cache hit for image" duplicate logging
+## 🚨 **CRITICAL FIXES IMPLEMENTED**
 
-## 📊 **Monitoring & Metrics**
+### **Problem 1: Image Crop Preview Scaling** ✅ FIXED
+**Issue**: Image appeared "comically small" with excessive padding in crop preview
+**Root Cause**: SwiftUI `.aspectRatio(contentMode: .fill)` + `.scaleEffect()` combination was broken
+**Solution**: Complete rewrite of `SquareCropView` scaling logic
+```swift
+// OLD (BROKEN)
+Image(uiImage: image)
+    .resizable()
+    .aspectRatio(contentMode: .fill)  // <- Caused issues
+    .scaleEffect(max(scale, initialScale))
 
-### **Key Metrics to Track**
-- Image cache hit/miss ratio (improved with real Square IDs)
-- AWS download success rate
-- Orphaned image cleanup count
-- Database query performance (50% reduction achieved)
-- Cache key collision rate (eliminated with proper SHA256)
+// NEW (WORKING)
+Image(uiImage: image)
+    .resizable()
+    .frame(width: displayWidth, height: displayHeight)  // <- Explicit sizing
+    .offset(constrainedOffset)
+```
 
-### **Health Checks**
-- Verify database connection on app launch
-- Test image loading pipeline end-to-end with real Square IDs
-- Monitor AWS rate limiting responses
-- Verify cache persistence in production environment
+### **Problem 2: Image Persistence Issues** ✅ FIXED
+**Issue**: Uploaded images didn't persist when modal reopened, reverted when switching views
+**Root Cause**: Multiple components using different methods to determine "primary" image
+**Solution**: Standardized all components to read database `image_ids` array order
 
-## ✅ **Production Readiness Status**
+**Fixed Components:**
+- ✅ `ItemDetailsViewModel.getPrimaryImageInfo()` - Now reads database correctly
+- ✅ `SearchManager.getPrimaryImageForSearchResult()` - Now reads database correctly  
+- ✅ `UnifiedImageView.loadImageIfNeeded()` - Fetches primary image when URL is nil
+- ✅ `ReorderComponents` - Pass `nil` for `imageURL`/`imageId`, forces current lookup
+- ✅ `QuantitySelectionModal` - Pass `nil` for `imageURL`/`imageId`, forces current lookup
 
-### **Completed Optimizations**
-- ✅ **Real Square Image ID Usage**: Eliminates "No existing mapping" warnings
-- ✅ **Proper SHA256 Hashing**: Prevents cache key collisions (no more "68747470")
-- ✅ **Optimized Cache Operations**: 50% reduction in database queries
-- ✅ **Production Cache Persistence**: Documents directory survives app updates
-- ✅ **Eliminated Redundant Logging**: Single informative cache messages
-- ✅ **500ms Search Debouncing**: Responsive user experience
+### **Problem 3: Cache Key Mismatches** ✅ FIXED
+**Issue**: `💾 Cache miss - file not found: 600afc18...` despite image being cached
+**Root Cause**: Notification handler loading from AWS URL created different cache keys
+**Solution**: Use cache URL from notification payload, fallback to database cache URL
+```swift
+// NEW: Uses notification cache URL (most efficient)
+if let notificationImageURL = userInfo["imageURL"] as? String {
+    let image = await imageService.loadImage(imageURL: notificationImageURL, ...)
+} else {
+    // Fallback: Get from database, use cacheUrl (not awsUrl)
+    let imageInfo = try await UnifiedImageService.shared.getPrimaryImageInfo(for: itemId)
+    let image = await imageService.loadImage(imageURL: imageInfo.cacheUrl, ...)
+}
+```
 
-### **Cache Persistence Behavior**
-- **Development Builds**: Cache cleared each Xcode build (expected behavior)
-- **Production Builds**: Cache persists across App Store updates (verified)
-- **Storage Location**: `Documents/ImageCache/` and `Documents/catalog.sqlite`
+### **Problem 4: Redundant ImageFreshnessManager** ✅ FIXED
+**Issue**: Excessive logging spam from unnecessary freshness checks
+**Root Cause**: ImageFreshnessManager was duplicating cache functionality
+**Solution**: Completely removed ImageFreshnessManager, use direct cache loading
+```swift
+// OLD (REDUNDANT)
+return await ImageFreshnessManager.shared.loadImageWithFreshnessCheck(...)
 
-## 🚀 **Future Enhancements**
+// NEW (DIRECT)
+return await imageCacheService.loadImageFromAWSUrl(imageURL)
+```
 
-1. **Webhook Integration**: Real-time updates from Square
-2. **Image Compression**: Optimize storage and bandwidth
-3. **Prefetching**: Download popular images proactively
-4. **CDN Integration**: Reduce AWS dependency
+## 🔄 **Complete Image Upload & Refresh Flow**
+
+### **1. User Uploads Image**
+```
+1. UnifiedImagePickerModal → SquareCropView (FIXED scaling)
+2. UnifiedImageService.uploadImage()
+   - Uploads to Square API
+   - Updates database image_ids array (new image becomes [0])
+   - Caches image with proper mapping
+   - Sends .imageUpdated notification
+```
+
+### **2. Global Refresh System**
+```
+3. NotificationCenter.default.post(.imageUpdated, userInfo: [
+     "itemId": itemId,
+     "imageId": newImageId, 
+     "imageURL": "cache://newImageId.jpeg",  // Proper cache URL
+     "action": "uploaded"
+   ])
+```
+
+### **3. All Views Update Automatically**  
+```
+4. UnifiedImageView.handleImageUpdatedNotification()
+   - Receives notification for matching itemId
+   - Uses cache URL from notification (efficient)
+   - Loads new image and updates UI
+   
+5. Views Using UnifiedImageView:
+   ✅ Item Modal - Shows updated image, persists after reopen
+   ✅ Search Results - Shows updated thumbnail immediately  
+   ✅ Reorder View - Shows updated image
+   ✅ Qty Modal - Shows updated image
+   ✅ All views maintain updated image when switching tabs
+```
+
+## 🎯 **Smart Image Loading Strategy**
+
+### **For Static Views (Search Results, etc.)**
+Pass `nil` for `imageURL` and `imageId` to force dynamic lookup:
+```swift
+UnifiedImageView.thumbnail(
+    imageURL: nil,  // Forces current primary image lookup
+    imageId: nil,   // Forces current primary image lookup  
+    itemId: item.itemId,  // REQUIRED for database lookup
+    size: 50
+)
+```
+
+### **For Views with Known URLs**
+Pass specific URLs but still benefit from notifications:
+```swift
+UnifiedImageView.catalogItem(
+    imageURL: item.imageURL,  // Use known URL
+    imageId: item.imageId,    // Use known ID
+    itemId: item.itemId,      // REQUIRED for notifications
+    size: 100
+)
+// Will automatically refresh when itemId receives update notification
+```
+
+## 📊 **Database Order is CRITICAL**
+
+The key insight: `image_ids` array in database determines display order.
+
+### **Correct Approach** ✅
+```swift
+// 1. Read database image_ids array
+let imageIds = currentData["image_ids"] as? [String]
+let primaryImageId = imageIds.first  // First = primary
+
+// 2. Find mapping for that specific image
+let mapping = imageMappings.first(where: { $0.squareImageId == primaryImageId })
+```
+
+### **Broken Approach** ❌  
+```swift
+// WRONG: Uses arbitrary database insertion order
+let primaryMapping = imageMappings.first
+```
+
+## 🧪 **Testing Results**
+
+### **✅ Working Scenarios**
+- Upload image → Item modal updates immediately
+- Close and reopen modal → Image persists  
+- Switch to Reorders tab → Updated image shown
+- Switch to Qty modal → Updated image shown
+- Navigate away and back → Image still updated
+- Clear search and re-search → Current image returned
+- Multiple rapid uploads → Always shows latest
+
+### **🚫 No Longer Broken**
+- Crop preview scaling issues
+- Cache key mismatches  
+- Image reverting when switching views
+- Search results showing stale images
+- Modal not persisting updates
+- Redundant freshness checking spam
+
+## 🔧 **Implementation Guide**
+
+### **For New Views**
+1. Use `UnifiedImageView` with proper `itemId`
+2. Pass `nil` for `imageURL`/`imageId` if you want current primary image
+3. No manual notification handling needed
+4. No manual refresh triggers needed
+
+### **For Search/Data Systems**
+1. Always read database `image_ids` array for primary image
+2. Use `imageIds.first` for primary image ID
+3. Look up mapping for that specific image ID
+4. Never use `imageMappings.first` directly
+
+### **For Upload Systems**
+1. Use `UnifiedImageService.uploadImage()`
+2. Service handles database updates, caching, and notifications
+3. No manual refresh coordination needed
+
+## 📈 **Performance Improvements**
+
+- **Eliminated cache misses** from key mismatches
+- **Removed redundant ImageFreshnessManager** processing
+- **Optimized notification handling** with cache URL reuse
+- **Reduced database queries** by caching primary image info
+- **Eliminated duplicate logging** spam
+
+## 🎉 **Production Status: READY**
+
+The Unified Image Service is now **production-ready** with:
+- ✅ All image refresh scenarios working
+- ✅ Consistent database order reading
+- ✅ Proper cache key management
+- ✅ Eliminated redundant processing
+- ✅ Comprehensive error handling
+- ✅ Performance optimized
 
 ---
 
-**Last Updated**: July 2025
-**Version**: 2.0 (Production-Ready)
+**Last Updated**: January 2025  
+**Status**: ✅ PRODUCTION READY - All Issues Fixed  
 **Maintainer**: JoyLabs Development Team

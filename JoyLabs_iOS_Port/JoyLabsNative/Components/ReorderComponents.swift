@@ -345,8 +345,8 @@ struct ReorderItemCard: View {
                 // Thumbnail image - exact same size as scan page (50px) - tappable for enlargement, long-press for update
                 Button(action: onImageTap) {
                     UnifiedImageView.thumbnail(
-                        imageURL: item.imageUrl,
-                        imageId: item.imageId,
+                        imageURL: nil, // Always fetch current primary image
+                        imageId: nil,  // Always fetch current primary image
                         itemId: item.itemId,
                         size: 50
                     )
@@ -599,8 +599,8 @@ struct ReorderPhotoCard: View {
             // Image (tappable for enlargement, long-press for update)
             Button(action: onImageTap) {
                 UnifiedImageView(
-                    imageURL: item.imageUrl,
-                    imageId: item.imageId,
+                    imageURL: nil, // Always fetch current primary image
+                    imageId: nil,  // Always fetch current primary image
                     itemId: item.itemId,
                     size: imageSize,
                     contentMode: .fill

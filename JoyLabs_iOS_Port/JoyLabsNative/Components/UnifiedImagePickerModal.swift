@@ -2,18 +2,18 @@ import SwiftUI
 import PhotosUI
 import Photos
 import OSLog
-import CropViewController
 import UIKit
 
-/// Unified Image Picker Modal - Single modal for all image upload scenarios
-/// Integrates TOCropViewController for consistent cropping experience
+/// Unified Image Picker Modal - Instagram-style image picker with 1:1 crop preview
+/// Features: Header, 1:1 square crop preview, iOS photo library grid
 struct UnifiedImagePickerModal: View {
     let context: ImageUploadContext
     let onDismiss: () -> Void
     let onImageUploaded: (ImageUploadResult) -> Void
-    
+
     @State private var selectedImage: UIImage?
     @State private var croppedImage: UIImage?
+    @State private var cropRect: CGRect = .zero
     @State private var isUploading = false
     @State private var uploadError: String?
     @State private var showingErrorAlert = false
@@ -21,39 +21,35 @@ struct UnifiedImagePickerModal: View {
     @State private var isLoadingPhotos = false
     @State private var authorizationStatus: PHAuthorizationStatus = .notDetermined
     @State private var showingCamera = false
-    
+
     @StateObject private var imageService = UnifiedImageService.shared
     @Environment(\.dismiss) private var dismiss
-    
+
     private let logger = Logger(subsystem: "com.joylabs.native", category: "UnifiedImagePickerModal")
-    
-    // Responsive grid configuration
+
+    // 4-column grid for photo library
     private var columns: [GridItem] {
-        Array(repeating: GridItem(.flexible(), spacing: 1), count: 4)
+        Array(repeating: GridItem(.flexible(), spacing: 0), count: 4)
     }
-    
+
     private var thumbnailSize: CGFloat {
-        (UIScreen.main.bounds.width - 3) / 4 // 3 for spacing between 4 items
+        UIScreen.main.bounds.width / 4
     }
     
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                // Top Half - Square 1:1 Crop Preview
+                // 1:1 Square Crop Preview (Top)
                 cropPreviewSection
-                
+
                 // Divider
                 Divider()
-                    .background(Color(.separator))
-                
-                // Bottom Half - Photo Library Grid
-                photoLibraryGridSection
+
+                // iOS Photo Library Grid (Bottom)
+                photoLibrarySection
             }
-            .padding(0)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .navigationTitle(context.title)
+            .navigationTitle("Select Photo")
             .navigationBarTitleDisplayMode(.inline)
-            .navigationBarBackButtonHidden(true)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
@@ -61,7 +57,7 @@ struct UnifiedImagePickerModal: View {
                     }
                     .foregroundColor(.red)
                 }
-                
+
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Upload") {
                         handleUpload()
@@ -79,118 +75,66 @@ struct UnifiedImagePickerModal: View {
         } message: {
             Text(uploadError ?? "Unknown error occurred")
         }
-        .sheet(isPresented: $showingCamera) {
-            CameraView { image in
-                selectedImage = image
-                showingCamera = false
-                presentCropViewController(with: image)
-            }
-        }
     }
     
     // MARK: - UI Sections
     
     private var cropPreviewSection: some View {
-        VStack(spacing: 16) {
-            // Camera button
-            Button(action: {
-                showingCamera = true
-            }) {
-                HStack(spacing: 8) {
-                    Image(systemName: "camera")
-                        .font(.title2)
-                    Text("Take Photo")
-                        .font(.headline)
-                }
-                .foregroundColor(.blue)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 12)
-                .background(Color(.systemGray6))
-                .cornerRadius(8)
-            }
-            .padding(.top, 20)
-            
-            // Crop preview area
-            ZStack {
-                Rectangle()
-                    .fill(Color(.systemGray6))
-                    .frame(height: 250)
-                
-                if let croppedImage = croppedImage {
-                    Image(uiImage: croppedImage)
-                        .resizable()
-                        .aspectRatio(1, contentMode: .fit)
-                        .frame(maxHeight: 240)
-                        .cornerRadius(8)
-                } else if let selectedImage = selectedImage {
-                    Image(uiImage: selectedImage)
-                        .resizable()
-                        .aspectRatio(1, contentMode: .fit)
-                        .frame(maxHeight: 240)
-                        .cornerRadius(8)
-                        .overlay(
-                            Text("Tap to crop")
-                                .font(.caption)
-                                .foregroundColor(.white)
-                                .padding(8)
-                                .background(Color.black.opacity(0.7))
-                                .cornerRadius(4),
-                            alignment: .bottom
-                        )
-                        .onTapGesture {
-                            presentCropViewController(with: selectedImage)
-                        }
-                } else {
-                    VStack(spacing: 12) {
-                        Image(systemName: "photo")
-                            .font(.system(size: 40))
-                            .foregroundColor(.gray)
-                        Text("Select a photo to crop")
-                            .font(.headline)
-                            .foregroundColor(.secondary)
-                        Text("1:1 square crop will be applied")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+        // 1:1 Square Crop Preview - NO PADDING, edge to edge
+        ZStack {
+            Rectangle()
+                .fill(Color.black)
+                .aspectRatio(1, contentMode: .fit)
+
+            if let selectedImage = selectedImage {
+                SquareCropView(
+                    image: selectedImage,
+                    onCropChanged: { croppedImg, rect in
+                        self.croppedImage = croppedImg
+                        self.cropRect = rect
                     }
-                }
-                
-                if isUploading {
-                    Color.black.opacity(0.3)
-                    ProgressView("Uploading...")
-                        .foregroundColor(.white)
+                )
+                .aspectRatio(1, contentMode: .fit)
+            } else {
+                VStack(spacing: 12) {
+                    Image(systemName: "photo")
+                        .font(.system(size: 40))
+                        .foregroundColor(.gray)
+                    Text("Select a photo below")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                    Text("1:1 square crop")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
             }
-            .cornerRadius(12)
-            .padding(.horizontal, 20)
+
+            if isUploading {
+                Color.black.opacity(0.5)
+                ProgressView("Uploading...")
+                    .foregroundColor(.white)
+            }
         }
+        .frame(width: UIScreen.main.bounds.width, height: UIScreen.main.bounds.width) // Perfect square, edge to edge
     }
     
-    private var photoLibraryGridSection: some View {
+    private var photoLibrarySection: some View {
         VStack(spacing: 0) {
-            // Section header
-            HStack {
-                Text("Photo Library")
-                    .font(.headline)
-                    .padding(.leading, 20)
-                    .padding(.top, 16)
-                Spacer()
-            }
-            
             if authorizationStatus == .denied || authorizationStatus == .restricted {
                 // Permission denied state
                 VStack(spacing: 16) {
                     Image(systemName: "photo.on.rectangle.angled")
                         .font(.system(size: 50))
                         .foregroundColor(.gray)
-                    
+
                     Text("Photo Access Required")
                         .font(.headline)
-                    
+
                     Text("Please allow access to your photo library in Settings to select photos.")
                         .font(.body)
                         .multilineTextAlignment(.center)
                         .foregroundColor(.secondary)
-                    
+
                     Button("Open Settings") {
                         openSettings()
                     }
@@ -207,9 +151,9 @@ struct UnifiedImagePickerModal: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(.top, 40)
             } else {
-                // Photo grid
+                // Photo grid - 4 columns, no spacing
                 ScrollView {
-                    LazyVGrid(columns: columns, spacing: 1) {
+                    LazyVGrid(columns: columns, spacing: 0) {
                         ForEach(photoAssets) { photoAsset in
                             PhotoThumbnailView(
                                 photoAsset: photoAsset,
@@ -219,7 +163,6 @@ struct UnifiedImagePickerModal: View {
                             }
                         }
                     }
-                    .padding(.top, 16)
                 }
             }
         }
@@ -255,34 +198,36 @@ struct UnifiedImagePickerModal: View {
         Task {
             let fetchOptions = PHFetchOptions()
             fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-            fetchOptions.fetchLimit = 100 // Limit for performance
+            fetchOptions.fetchLimit = 50 // Reduced for better performance
 
             let assets = PHAsset.fetchAssets(with: .image, options: fetchOptions)
-            var photoAssets: [PhotoAsset] = []
-
             let imageManager = PHImageManager.default()
             let requestOptions = PHImageRequestOptions()
-            requestOptions.isSynchronous = false
-            requestOptions.deliveryMode = .fastFormat
+            requestOptions.isSynchronous = true // CRITICAL: Load synchronously to avoid loading icons
+            requestOptions.deliveryMode = .highQualityFormat // Higher quality for better thumbnails
+            requestOptions.resizeMode = .exact // Exact sizing for better quality
 
+            var photoAssets: [PhotoAsset] = []
+
+            // Load thumbnails synchronously to avoid loading icons
             for i in 0..<assets.count {
                 let asset = assets.object(at: i)
-                let photoAsset = PhotoAsset(asset: asset)
 
+                var thumbnail: UIImage?
                 imageManager.requestImage(
                     for: asset,
-                    targetSize: CGSize(width: thumbnailSize * 2, height: thumbnailSize * 2),
-                    contentMode: .aspectFit,
+                    targetSize: CGSize(width: thumbnailSize * 3, height: thumbnailSize * 3), // Higher resolution
+                    contentMode: .aspectFill,
                     options: requestOptions
                 ) { image, _ in
-                    DispatchQueue.main.async {
-                        if let index = photoAssets.firstIndex(where: { $0.id == photoAsset.id }) {
-                            photoAssets[index].thumbnail = image
-                        }
-                    }
+                    thumbnail = image
                 }
 
-                photoAssets.append(photoAsset)
+                // Only add assets that have successfully loaded thumbnails
+                if let thumbnail = thumbnail {
+                    let photoAsset = PhotoAsset(asset: asset, thumbnail: thumbnail)
+                    photoAssets.append(photoAsset)
+                }
             }
 
             await MainActor.run {
@@ -307,36 +252,10 @@ struct UnifiedImagePickerModal: View {
             DispatchQueue.main.async {
                 if let image = image {
                     selectedImage = image
-                    presentCropViewController(with: image)
+                    // The InstagramCropView will handle cropping automatically
                 }
             }
         }
-    }
-
-    private func presentCropViewController(with image: UIImage) {
-        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let rootViewController = windowScene.windows.first?.rootViewController else {
-            logger.error("Could not find root view controller for crop presentation")
-            return
-        }
-
-        let cropViewController = CropViewController(croppingStyle: .default, image: image)
-        cropViewController.delegate = CropViewControllerCoordinator { image in
-            croppedImage = image
-        }
-
-        // Configure for square 1:1 crop
-        cropViewController.aspectRatioPreset = .presetSquare
-        cropViewController.aspectRatioLockEnabled = true
-        cropViewController.resetAspectRatioEnabled = false
-        cropViewController.aspectRatioPickerButtonHidden = true
-
-        // Styling
-        cropViewController.title = "Crop Photo"
-        cropViewController.doneButtonTitle = "Done"
-        cropViewController.cancelButtonTitle = "Cancel"
-
-        rootViewController.present(cropViewController, animated: true)
     }
 
     private func handleUpload() {
@@ -365,6 +284,9 @@ struct UnifiedImagePickerModal: View {
 
                 await MainActor.run {
                     isUploading = false
+                    logger.info("✅ Image upload completed successfully: \(result.squareImageId)")
+                    logger.info("AWS URL: \(result.awsUrl)")
+                    logger.info("Local Cache URL: \(result.localCacheUrl)")
                     onImageUploaded(result)
                     onDismiss()
                 }
@@ -402,7 +324,7 @@ struct UnifiedImagePickerModal: View {
 struct PhotoAsset: Identifiable {
     let id = UUID()
     let asset: PHAsset
-    var thumbnail: UIImage?
+    let thumbnail: UIImage // Non-optional since we load synchronously
 }
 
 /// Photo Thumbnail View for grid
@@ -413,23 +335,11 @@ struct PhotoThumbnailView: View {
 
     var body: some View {
         Button(action: onTap) {
-            Group {
-                if let thumbnail = photoAsset.thumbnail {
-                    Image(uiImage: thumbnail)
-                        .resizable()
-                        .aspectRatio(1, contentMode: .fill)
-                } else {
-                    Rectangle()
-                        .fill(Color(.systemGray5))
-                        .overlay(
-                            ProgressView()
-                                .scaleEffect(0.8)
-                        )
-                }
-            }
-            .frame(width: thumbnailSize, height: thumbnailSize)
-            .clipped()
-            .cornerRadius(2)
+            Image(uiImage: photoAsset.thumbnail)
+                .resizable()
+                .aspectRatio(1, contentMode: .fill)
+                .frame(width: thumbnailSize, height: thumbnailSize)
+                .clipped()
         }
         .buttonStyle(PlainButtonStyle())
     }
@@ -472,20 +382,131 @@ struct CameraView: UIViewControllerRepresentable {
     }
 }
 
-/// Crop View Controller Coordinator
-class CropViewControllerCoordinator: NSObject, CropViewControllerDelegate {
-    let onCropCompleted: (UIImage) -> Void
+// MARK: - Square Crop View
 
-    init(onCropCompleted: @escaping (UIImage) -> Void) {
-        self.onCropCompleted = onCropCompleted
+/// Square crop view that ACTUALLY fills the container without padding
+struct SquareCropView: View {
+    let image: UIImage
+    let onCropChanged: (UIImage, CGRect) -> Void
+
+    @State private var scale: CGFloat = 1.0
+    @State private var offset: CGSize = .zero
+    @State private var lastScale: CGFloat = 1.0
+    @State private var lastOffset: CGSize = .zero
+
+    var body: some View {
+        GeometryReader { geometry in
+            let containerSize = min(geometry.size.width, geometry.size.height)
+            let imageSize = image.size
+            
+            // Calculate the scale needed to fill the square container
+            let fillScale = max(containerSize / imageSize.width, containerSize / imageSize.height)
+            let totalScale = scale * fillScale
+            
+            // Calculate actual display size
+            let displayWidth = imageSize.width * totalScale
+            let displayHeight = imageSize.height * totalScale
+            
+            ZStack {
+                // Black background
+                Rectangle()
+                    .fill(Color.black)
+                    .frame(width: containerSize, height: containerSize)
+                
+                // Image that fills the entire container
+                Image(uiImage: image)
+                    .resizable()
+                    .frame(width: displayWidth, height: displayHeight)
+                    .offset(constrainedOffset(containerSize: containerSize, displayWidth: displayWidth, displayHeight: displayHeight))
+                    .gesture(
+                        SimultaneousGesture(
+                            DragGesture()
+                                .onChanged { value in
+                                    offset = CGSize(
+                                        width: lastOffset.width + value.translation.width,
+                                        height: lastOffset.height + value.translation.height
+                                    )
+                                    updateCroppedImage(containerSize: containerSize, fillScale: fillScale)
+                                }
+                                .onEnded { _ in
+                                    lastOffset = offset
+                                },
+
+                            MagnificationGesture()
+                                .onChanged { value in
+                                    scale = max(1.0, lastScale * value)
+                                    updateCroppedImage(containerSize: containerSize, fillScale: fillScale)
+                                }
+                                .onEnded { _ in
+                                    lastScale = scale
+                                }
+                        )
+                    )
+
+                // Crop frame overlay
+                Rectangle()
+                    .stroke(Color.white, lineWidth: 2)
+                    .frame(width: containerSize, height: containerSize)
+                    .allowsHitTesting(false)
+            }
+            .frame(width: containerSize, height: containerSize)
+            .clipped()
+            .onAppear {
+                scale = 1.0
+                lastScale = 1.0
+                offset = .zero
+                lastOffset = .zero
+                updateCroppedImage(containerSize: containerSize, fillScale: fillScale)
+            }
+        }
     }
 
-    func cropViewController(_ cropViewController: CropViewController, didCropToImage image: UIImage, withRect cropRect: CGRect, angle: Int) {
-        onCropCompleted(image)
-        cropViewController.dismiss(animated: true)
+    private func constrainedOffset(containerSize: CGFloat, displayWidth: CGFloat, displayHeight: CGFloat) -> CGSize {
+        // Calculate max offset to prevent showing black areas
+        let maxOffsetX = max(0, (displayWidth - containerSize) / 2)
+        let maxOffsetY = max(0, (displayHeight - containerSize) / 2)
+        
+        return CGSize(
+            width: max(-maxOffsetX, min(maxOffsetX, offset.width)),
+            height: max(-maxOffsetY, min(maxOffsetY, offset.height))
+        )
     }
 
-    func cropViewController(_ cropViewController: CropViewController, didFinishCancelled cancelled: Bool) {
-        cropViewController.dismiss(animated: true)
+    private func updateCroppedImage(containerSize: CGFloat, fillScale: CGFloat) {
+        let totalScale = scale * fillScale
+        let displayWidth = image.size.width * totalScale
+        let displayHeight = image.size.height * totalScale
+        
+        let constrainedOffsetValue = constrainedOffset(containerSize: containerSize, displayWidth: displayWidth, displayHeight: displayHeight)
+        
+        // Calculate crop area in original image coordinates
+        let cropX = ((displayWidth - containerSize) / 2 - constrainedOffsetValue.width) / totalScale
+        let cropY = ((displayHeight - containerSize) / 2 - constrainedOffsetValue.height) / totalScale
+        
+        let cropRect = CGRect(
+            x: max(0, cropX),
+            y: max(0, cropY),
+            width: min(containerSize / totalScale, image.size.width - cropX),
+            height: min(containerSize / totalScale, image.size.height - cropY)
+        )
+        
+        if let croppedImage = cropImage(image: image, to: cropRect) {
+            onCropChanged(croppedImage, cropRect)
+        }
+    }
+
+    private func cropImage(image: UIImage, to rect: CGRect) -> UIImage? {
+        guard let cgImage = image.cgImage else { return nil }
+        
+        // Convert crop rect to pixel coordinates
+        let pixelRect = CGRect(
+            x: max(0, rect.origin.x * image.scale),
+            y: max(0, rect.origin.y * image.scale),
+            width: min(CGFloat(cgImage.width) - rect.origin.x * image.scale, rect.size.width * image.scale),
+            height: min(CGFloat(cgImage.height) - rect.origin.y * image.scale, rect.size.height * image.scale)
+        )
+        
+        guard let croppedCGImage = cgImage.cropping(to: pixelRect) else { return nil }
+        return UIImage(cgImage: croppedCGImage, scale: image.scale, orientation: image.imageOrientation)
     }
 }

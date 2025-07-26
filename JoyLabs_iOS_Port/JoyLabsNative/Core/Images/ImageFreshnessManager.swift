@@ -29,7 +29,7 @@ class ImageFreshnessManager {
         let age = Date().timeIntervalSince(lastCached)
         let isFresh = age < imageCacheMaxAge
         
-        logger.info("Image \(imageId) age: \(Int(age))s, fresh: \(isFresh)")
+        logger.debug("Image \(imageId) age: \(Int(age))s, fresh: \(isFresh)")
         return isFresh
     }
     
@@ -39,7 +39,7 @@ class ImageFreshnessManager {
         timestamps[imageId] = Date()
         setImageTimestamps(timestamps)
 
-        logger.info("Marked image as fresh: \(imageId)")
+        logger.debug("Marked image as fresh: \(imageId)")
     }
 
     /// Mark an image as stale (for cleanup purposes)
@@ -48,7 +48,7 @@ class ImageFreshnessManager {
         timestamps.removeValue(forKey: imageId)
         setImageTimestamps(timestamps)
 
-        logger.info("Marked image as stale: \(imageId)")
+        logger.debug("Marked image as stale: \(imageId)")
     }
     
     /// Invalidate a specific image cache entry
@@ -66,7 +66,7 @@ class ImageFreshnessManager {
         }
 
         setImageTimestamps(timestamps)
-        logger.info("Invalidated image cache: \(imageId)")
+        logger.debug("Invalidated image cache: \(imageId)")
     }
     
     /// Check if we should perform a global freshness check
@@ -127,7 +127,7 @@ extension ImageFreshnessManager {
         
         // If we have a fresh cache entry, use it
         if isImageFresh(imageId: imageId) {
-            logger.info("Using fresh cached image: \(imageId)")
+            logger.debug("Using fresh cached image: \(imageId)")
             if let cachedImage = await imageCacheService.loadImageOnDemand(imageId: imageId, awsUrl: awsUrl ?? "") {
                 return cachedImage
             }
@@ -135,7 +135,7 @@ extension ImageFreshnessManager {
 
         // Cache is stale or missing, download fresh image
         if let awsUrl = awsUrl {
-            logger.info("Downloading fresh image: \(imageId)")
+            logger.debug("Downloading fresh image: \(imageId)")
             if let freshImage = await imageCacheService.loadImageFromAWSUrl(awsUrl) {
                 markImageAsFresh(imageId: imageId)
                 return freshImage

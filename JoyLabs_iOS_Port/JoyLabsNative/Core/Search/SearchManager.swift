@@ -683,45 +683,68 @@ class SearchManager: ObservableObject {
 
     // MARK: - Unified Image Integration
 
-    /// Get primary image for search result using unified approach
+    /// Get primary image for search result using CORRECT database order
     private func getPrimaryImageForSearchResult(itemId: String) -> [CatalogImage]? {
         logger.info("🔍 [SEARCH] Getting primary image for item: \(itemId)")
 
         do {
-            // DIRECTLY get image mappings for this item - NO JSON PARSING!
-            let imageMappings = try imageURLManager.getImageMappings(for: itemId, objectType: "ITEM")
-            logger.info("🔍 [SEARCH] Found \(imageMappings.count) image mappings for item: \(itemId)")
-
-            // Get the first mapping (primary image)
-            if let primaryMapping = imageMappings.first {
-                logger.info("🔍 [SEARCH] ✅ Found primary image mapping: \(primaryMapping.squareImageId) -> \(primaryMapping.originalAwsUrl)")
-
-                let catalogImage = CatalogImage(
-                    id: primaryMapping.squareImageId,
-                    type: "IMAGE",
-                    updatedAt: ISO8601DateFormatter().string(from: primaryMapping.lastAccessedAt),
-                    version: nil,
-                    isDeleted: false,
-                    presentAtAllLocations: true,
-                    imageData: ImageData(
-                        name: nil,
-                        url: primaryMapping.originalAwsUrl,
-                        caption: nil,
-                        photoStudioOrderId: nil
-                    )
-                )
-
-                logger.info("🔍 [SEARCH] ✅ Successfully created CatalogImage for item \(itemId)")
-                return [catalogImage]
-            } else {
-                logger.error("🔍 [SEARCH] ❌ No image mappings found for item: \(itemId)")
+            guard let db = databaseManager.getConnection() else {
+                logger.error("🔍 [SEARCH] ❌ Database not connected")
                 return nil
             }
+            
+            // Get item's image_ids array from database (CORRECT approach)
+            let selectQuery = """
+                SELECT data_json FROM catalog_items
+                WHERE id = ? AND is_deleted = 0
+            """
+            
+            let statement = try db.prepare(selectQuery)
+            for row in try statement.run([itemId]) {
+                let dataJsonString = row[0] as? String ?? "{}"
+                let dataJsonData = dataJsonString.data(using: String.Encoding.utf8) ?? Data()
+                
+                if let currentData = try JSONSerialization.jsonObject(with: dataJsonData) as? [String: Any],
+                   let imageIds = currentData["image_ids"] as? [String],
+                   let primaryImageId = imageIds.first {
+                    
+                    logger.info("🔍 [SEARCH] Found primary image ID from database: \(primaryImageId)")
+                    
+                    // Get image mapping for this specific image ID
+                    let imageMappings = try imageURLManager.getImageMappings(for: itemId, objectType: "ITEM")
+                    if let mapping = imageMappings.first(where: { $0.squareImageId == primaryImageId }) {
+                        logger.info("🔍 [SEARCH] ✅ Found mapping for primary image: \(primaryImageId) -> \(mapping.originalAwsUrl)")
+                        
+                        let catalogImage = CatalogImage(
+                            id: primaryImageId,
+                            type: "IMAGE",
+                            updatedAt: ISO8601DateFormatter().string(from: mapping.lastAccessedAt),
+                            version: nil,
+                            isDeleted: false,
+                            presentAtAllLocations: true,
+                            imageData: ImageData(
+                                name: nil,
+                                url: mapping.originalAwsUrl,
+                                caption: nil,
+                                photoStudioOrderId: nil
+                            )
+                        )
 
+                        logger.info("🔍 [SEARCH] ✅ Successfully created CatalogImage for item \(itemId) with correct primary image")
+                        return [catalogImage]
+                    } else {
+                        logger.error("🔍 [SEARCH] ❌ No mapping found for primary image ID: \(primaryImageId)")
+                    }
+                } else {
+                    logger.error("🔍 [SEARCH] ❌ No image_ids found in database for item: \(itemId)")
+                }
+            }
+            
         } catch {
             logger.error("🔍 [SEARCH] ❌ Failed to get primary image for search result \(itemId): \(error)")
-            return nil
         }
+        
+        return nil
     }
 
     // MARK: - Result Creation and Ranking

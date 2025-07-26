@@ -92,38 +92,16 @@ struct EmbeddedQuantitySelectionModal: View {
             // RESPONSIVE THUMBNAIL WITH ACTUAL IMAGE - 70% SCREEN WIDTH
             let imageSize = geometry.size.width * 0.7
 
-            if let imageURL = item.images?.first?.imageData?.url {
-                UnifiedImageView.large(
-                    imageURL: imageURL,
-                    imageId: item.images?.first?.id,
-                    itemId: item.id,
-                    size: imageSize
-                )
+            // Always fetch current primary image instead of using stale item.images data
+            UnifiedImageView.large(
+                imageURL: nil, // Always fetch current primary image
+                imageId: nil,  // Always fetch current primary image
+                itemId: item.id,
+                size: imageSize
+            )
                 .frame(width: imageSize, height: imageSize * 0.7) // Slightly rectangular
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
-
-            } else {
-                // Fallback placeholder when no image
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(
-                        LinearGradient(
-                            colors: [Color(.systemGray6), Color(.systemGray5)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(
-                        width: imageSize,
-                        height: imageSize * 0.7
-                    )
-                    .overlay(
-                        Text(String(item.name?.prefix(2) ?? "??").uppercased())
-                            .font(.system(size: geometry.size.width * 0.08, weight: .bold, design: .rounded))
-                            .foregroundColor(.secondary)
-                    )
-                    .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
-            }
         }
 
     }

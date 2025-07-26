@@ -195,9 +195,10 @@ class SquareImageService: ObservableObject {
                     WHERE id = ?
                 """
 
-                try db.run(updateQuery, updatedDataJsonString, now, itemId)
+                try db.run(updateQuery, updatedDataJsonString, String(now), itemId)
 
                 logger.info("✅ Updated item with new primary image: \(itemId) -> \(squareImageId)")
+                logger.info("📊 Updated image_ids array: \(imageIds)")
                 return // Exit after processing the first (and only) row
             }
 
@@ -337,6 +338,7 @@ extension SquareImageService {
         await MainActor.run {
             let cacheURL = "cache://\(newImageId).jpeg"
 
+            logger.info("📡 Posting forceImageRefresh notification for item: \(itemId)")
             // Post forceImageRefresh for image-level updates
             NotificationCenter.default.post(name: .forceImageRefresh, object: nil, userInfo: [
                 "itemId": itemId,
@@ -344,6 +346,7 @@ extension SquareImageService {
                 "newImageId": newImageId
             ])
 
+            logger.info("📡 Posting imageUpdated notification for item: \(itemId)")
             // Also post imageUpdated for item-level updates
             NotificationCenter.default.post(name: .imageUpdated, object: nil, userInfo: [
                 "itemId": itemId,

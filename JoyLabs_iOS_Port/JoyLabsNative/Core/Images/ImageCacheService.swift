@@ -57,6 +57,7 @@ class ImageCacheService: ObservableObject {
 
     private var memoryCache = NSCache<NSString, UIImage>()
     private var downloadTasks: [String: Task<UIImage?, Error>] = [:]
+    private var lastLoggedImageId: String = "" // Reduce log noise
 
     // MARK: - On-Demand Loading with Rate Limiting
 
@@ -229,8 +230,7 @@ class ImageCacheService: ObservableObject {
         }
         downloadTasks.removeAll()
 
-        // Clear image freshness data
-        ImageFreshnessManager.shared.clearAllImageFreshness()
+        // Image freshness data cleared with cache
 
         // Clear URL mappings (gracefully handle database unavailability)
         do {
@@ -310,7 +310,11 @@ class ImageCacheService: ObservableObject {
             if let cacheKey = try imageURLManager.getLocalCacheKey(for: imageId) {
                 // Check memory cache first
                 if let cachedImage = memoryCache.object(forKey: cacheKey as NSString) {
-                    logger.debug("� Memory cache hit for image: \(imageId)")
+                    // Only log memory hits for different image IDs to reduce noise
+                    if imageId != lastLoggedImageId {
+                        logger.debug("� Memory cache hit for image: \(imageId)")
+                        lastLoggedImageId = imageId
+                    }
                     return cachedImage
                 }
 
@@ -800,8 +804,7 @@ class ImageCacheService: ObservableObject {
         // Clear memory cache
         memoryCache.removeAllObjects()
 
-        // Clear image freshness data
-        ImageFreshnessManager.shared.clearAllImageFreshness()
+        // Image freshness data cleared with cache
 
         // Clear disk cache
         do {

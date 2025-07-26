@@ -65,9 +65,6 @@ struct UnifiedImageView: View {
             loadedImage = nil
             loadImageIfNeeded()
         }
-        .onReceive(NotificationCenter.default.publisher(for: .forceImageRefresh)) { notification in
-            handleForceRefreshNotification(notification)
-        }
         .onReceive(NotificationCenter.default.publisher(for: .imageUpdated)) { notification in
             handleImageUpdatedNotification(notification)
         }
@@ -76,19 +73,42 @@ struct UnifiedImageView: View {
     // MARK: - Private Methods
     
     private func loadImageIfNeeded() {
-        guard let imageURL = imageURL, !imageURL.isEmpty else {
-            logger.debug("No image URL provided for item: \(itemId)")
-            return
-        }
-        
         isLoading = true
         
         Task {
-            let image = await imageService.loadImage(
-                imageURL: imageURL,
-                imageId: imageId,
-                itemId: itemId
-            )
+            var finalImageURL: String?
+            var finalImageId: String?
+            
+            if let imageURL = imageURL, !imageURL.isEmpty {
+                // Use provided URL
+                finalImageURL = imageURL
+                finalImageId = imageId
+            } else {
+                // Fetch current primary image info when no URL provided
+                logger.debug("🔄 No image URL provided, fetching primary image for item: \(itemId)")
+                do {
+                    if let imageInfo = try await UnifiedImageService.shared.getPrimaryImageInfo(for: itemId) {
+                        finalImageURL = imageInfo.cacheUrl
+                        finalImageId = imageInfo.imageId
+                        logger.debug("🔄 Using primary image: \(imageInfo.imageId) -> \(imageInfo.cacheUrl)")
+                    } else {
+                        logger.warning("⚠️ No primary image found for item: \(itemId)")
+                    }
+                } catch {
+                    logger.error("❌ Failed to get primary image info: \(error)")
+                }
+            }
+            
+            let image: UIImage?
+            if let finalURL = finalImageURL {
+                image = await imageService.loadImage(
+                    imageURL: finalURL,
+                    imageId: finalImageId,
+                    itemId: itemId
+                )
+            } else {
+                image = nil
+            }
             
             await MainActor.run {
                 self.loadedImage = image
@@ -97,39 +117,67 @@ struct UnifiedImageView: View {
         }
     }
     
-    private func handleForceRefreshNotification(_ notification: Notification) {
-        guard let userInfo = notification.userInfo else { return }
+    private func handleImageUpdatedNotification(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let notificationItemId = userInfo["itemId"] as? String else {
+            return
+        }
         
-        let affectedItemId = userInfo["itemId"] as? String
-        let affectedImageId = userInfo["newImageId"] as? String
+        // Check if this notification is for our item or our specific image
+        let affectedImageId = userInfo["imageId"] as? String
         let oldImageId = userInfo["oldImageId"] as? String
         let currentImageId = imageId
         
-        // Refresh if this notification is for our item or image
-        let shouldRefresh = (affectedItemId == itemId) ||
+        let shouldRefresh = (notificationItemId == itemId) ||
                            (affectedImageId != nil && affectedImageId == currentImageId) ||
                            (oldImageId != nil && !oldImageId!.isEmpty && oldImageId == currentImageId)
         
         if shouldRefresh {
-            logger.debug("🔄 Force refreshing image for item: \(itemId)")
+            logger.debug("🔄 Refreshing image for item: \(itemId) (reason: \(userInfo["action"] as? String ?? "unknown"))")
             refreshTrigger = UUID()
             loadedImage = nil
-            loadImageIfNeeded()
-        }
-    }
-    
-    private func handleImageUpdatedNotification(_ notification: Notification) {
-        guard let userInfo = notification.userInfo,
-              let notificationItemId = userInfo["itemId"] as? String,
-              notificationItemId == itemId else {
-            return
-        }
-        
-        if let action = userInfo["action"] as? String, action == "uploaded" {
-            logger.debug("🔄 Refreshing image for uploaded item: \(itemId)")
-            refreshTrigger = UUID()
-            loadedImage = nil
-            loadImageIfNeeded()
+            
+            // Use the cache URL from notification if available (most efficient)
+            if let notificationImageURL = userInfo["imageURL"] as? String, !notificationImageURL.isEmpty {
+                logger.debug("🔄 Using cache URL from notification: \(notificationImageURL)")
+                
+                Task {
+                    let freshImage = await imageService.loadImage(
+                        imageURL: notificationImageURL,
+                        imageId: affectedImageId,
+                        itemId: itemId
+                    )
+                    
+                    await MainActor.run {
+                        self.loadedImage = freshImage
+                    }
+                }
+            } else {
+                // Fallback: Re-fetch current primary image info
+                Task {
+                    do {
+                        if let imageInfo = try await UnifiedImageService.shared.getPrimaryImageInfo(for: itemId) {
+                            logger.debug("🔄 Using updated primary image info: \(imageInfo.cacheUrl)")
+                            
+                            let freshImage = await imageService.loadImage(
+                                imageURL: imageInfo.cacheUrl, // Use cache URL instead of AWS URL
+                                imageId: imageInfo.imageId,
+                                itemId: itemId
+                            )
+                            
+                            await MainActor.run {
+                                self.loadedImage = freshImage
+                            }
+                        } else {
+                            logger.warning("⚠️ No primary image found for item: \(itemId), falling back to original URL")
+                            loadImageIfNeeded() // Fallback to original logic
+                        }
+                    } catch {
+                        logger.error("❌ Failed to get updated primary image: \(error)")
+                        loadImageIfNeeded() // Fallback to original logic
+                    }
+                }
+            }
         }
     }
 }
