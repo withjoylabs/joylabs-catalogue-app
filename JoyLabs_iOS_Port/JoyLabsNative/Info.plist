@@ -55,7 +55,7 @@
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Permission needed to save photos</string>
 	<key>NSUserNotificationsUsageDescription</key>
-	<string>Allow notifications to receive real-time updates when your Square catalog changes</string>
+	<string>Allow notifications to keep your local catalog synchronized with Square in real-time. This ensures you always have the latest product information.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>UIApplicationSceneManifest</key>

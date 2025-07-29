@@ -16,11 +16,11 @@ public struct NotificationPermissionView: View {
                         .font(.system(size: 60))
                         .foregroundColor(.blue)
                     
-                    Text("Stay Updated")
+                    Text("Keep Catalog in Sync")
                         .font(.largeTitle)
                         .fontWeight(.bold)
                     
-                    Text("Get instant notifications when your Square catalog is updated")
+                    Text("Allow notifications to keep your local catalog synchronized with Square in real-time")
                         .font(.body)
                         .foregroundColor(Color.secondary)
                         .multilineTextAlignment(.center)
@@ -30,21 +30,21 @@ public struct NotificationPermissionView: View {
                 // Benefits
                 VStack(alignment: .leading, spacing: 16) {
                     BenefitRow(
-                        icon: "bolt.fill",
-                        title: "Real-time Updates",
-                        description: "Know immediately when items change"
+                        icon: "arrow.triangle.2.circlepath",
+                        title: "Auto Sync",
+                        description: "Catalog stays synchronized with Square automatically"
                     )
                     
                     BenefitRow(
                         icon: "battery.100",
-                        title: "Battery Efficient",
-                        description: "No background polling saves battery"
+                        title: "Battery Efficient", 
+                        description: "Silent background sync saves battery"
                     )
                     
                     BenefitRow(
-                        icon: "dollarsign.circle.fill",
-                        title: "Cost Effective",
-                        description: "Reduces server costs vs constant checking"
+                        icon: "checkmark.circle.fill",
+                        title: "Works Either Way",
+                        description: "App will sync when opened even if you decline"
                     )
                 }
                 .padding(.horizontal)

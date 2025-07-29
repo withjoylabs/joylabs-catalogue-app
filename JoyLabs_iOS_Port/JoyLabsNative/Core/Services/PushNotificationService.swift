@@ -47,9 +47,11 @@ public class PushNotificationService: NSObject, ObservableObject {
         // Request authorization
         await requestAuthorization()
         
-        // Register for remote notifications if authorized
-        if isAuthorized {
-            await registerForRemoteNotifications()
+        // Always register for remote notifications (silent notifications work even without permission)
+        await registerForRemoteNotifications()
+        
+        if !isAuthorized {
+            logger.info("ℹ️ Silent notifications will still work for background catalog sync even without permission")
         }
         
         isSetupComplete = true
@@ -202,10 +204,10 @@ extension PushNotificationService {
             isAuthorized = granted
             
             if granted {
-                logger.info("✅ Push notification authorization granted")
+                logger.info("✅ Push notification authorization granted - real-time catalog sync enabled")
             } else {
-                logger.warning("⚠️ Push notification authorization denied")
-                notificationError = "Push notifications not authorized"
+                logger.warning("⚠️ Push notification authorization denied - app will still sync when opened")
+                notificationError = "Push notifications not authorized - catalog will sync when app is opened"
             }
             
         } catch {
