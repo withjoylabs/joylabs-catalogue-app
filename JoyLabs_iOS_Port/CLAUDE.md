@@ -73,6 +73,8 @@ The codebase follows a **modular service-oriented architecture** with these key 
 - **Sync Coordinator**: `SQLiteSwiftSyncCoordinator` orchestrates catalog synchronization
 - **Real-time Status**: Live sync progress updates via Combine framework
 - **Pattern**: Service → API → Database with proper error propagation
+- **Incremental Sync**: `searchCatalog(beginTime:)` method connected to `SquareHTTPClient.searchCatalogObjects()` for timestamp-based incremental updates
+- **Dual Sync Types**: Full sync (`performSync`) and incremental sync (`performIncrementalSync`) for different scenarios
 
 ### Unified Image System
 - **Core Service**: `UnifiedImageService` (Core/Services/)
@@ -89,6 +91,8 @@ The codebase follows a **modular service-oriented architecture** with these key 
 - **Background Processing**: Handles notifications when app is backgrounded
 - **Silent Notifications**: Uses `content-available: 1` for background sync without user notification spam
 - **In-App Notification Center**: All sync results appear in app's notification center regardless of iOS notification settings
+- **Permission Independence**: Silent notifications work for background sync even if user denies notification permission
+- **Three Notification Triggers**: Background (AppDelegate), Foreground (UNUserNotificationCenterDelegate), and Tap (UI only, no processing)
 - **UI Integration**: Real-time catalog update notifications
 
 ### Search Architecture
@@ -96,6 +100,13 @@ The codebase follows a **modular service-oriented architecture** with these key 
 - **Strategy**: Fuzzy search with tokenized ranking
 - **Performance**: Pre-processed category names for ultra-fast search without JOINs
 - **Caching**: Multi-level cache system for search results
+
+### Webhook Processing Flow
+- **Trigger**: Square catalog changes → AWS webhook → Silent push notification → iOS app
+- **Processing Chain**: `handleNotification()` → `triggerCatalogSync()` → `performIncrementalSync()` → Database update
+- **UI Updates**: Sync results always added to `WebhookNotificationService` for in-app notification center
+- **Background Sync**: Works when app is closed, backgrounded, or in foreground
+- **No Polling**: Eliminated battery-draining polling services in favor of efficient push notifications
 
 ## Critical Implementation Patterns
 
@@ -149,7 +160,9 @@ Task { @MainActor in
 1. **Field Configuration Manager**: Load saved settings
 2. **Database Manager**: Initialize SQLite connection and create tables
 3. **Image Cache Service**: Initialize with database-backed URL manager
-4. **Square OAuth**: Set up callback handling for "joylabs://square-callback"
+4. **Push Notification Setup**: Request permissions and register for remote notifications (always registers even if permission denied)
+5. **Square OAuth**: Set up callback handling for "joylabs://square-callback"
+6. **Incremental Catch-up Sync**: Perform silent incremental sync to get latest changes since last app use
 
 ### Factory Pattern
 Use `SquareAPIServiceFactory` to create properly configured service instances with shared dependencies.
@@ -221,7 +234,14 @@ Implement 500ms search debouncing for responsive UX without excessive API calls.
 Do not use these deprecated components:
 - `CachedImageView` → Use `UnifiedImageView`
 - `ImagePickerModal` → Use `UnifiedImagePickerModal`
+- `WebhookPollingService` → Removed in favor of push notifications
 - Manual refresh triggers → Unified system handles automatically
+
+### Critical Bug Patterns to Avoid
+- **Empty searchCatalog() implementations**: Always connect to actual HTTP client, never return hardcoded empty arrays
+- **Redundant notification processing**: Only process webhook notifications once (background OR foreground, not both)
+- **Notification tap triggers**: Tapping notifications should only show UI, not trigger additional sync operations
+- **Resilience wrappers on sync**: Remove resilience fallbacks that mask real sync errors with empty data
 
 ### Database Schema
 The SQLite schema exactly matches the React Native version for cross-platform compatibility. Key tables:
@@ -230,16 +250,65 @@ The SQLite schema exactly matches the React Native version for cross-platform co
 - `item_variations` (id, item_id, name, pricing_type, price_money, etc.)
 
 ### Notification System
-The app uses NotificationCenter for cross-component communication:
+The app uses multiple notification systems:
+
+**iOS NotificationCenter** for cross-component communication:
 - `.catalogSyncCompleted` - Triggers statistics refresh
 - `.forceImageRefresh` - Updates images across all views
 - `.imageUpdated` - Notifies of specific image changes
+
+**Push Notification Architecture**:
+- `UNUserNotificationCenter.current().delegate = PushNotificationService.shared` in AppDelegate
+- **Background notifications**: `application(_:didReceiveRemoteNotification:fetchCompletionHandler:)` in AppDelegate
+- **Foreground notifications**: `userNotificationCenter(_:willPresent:withCompletionHandler:)` in PushNotificationService
+- **Notification taps**: `userNotificationCenter(_:didReceive:withCompletionHandler:)` in PushNotificationService (UI only, no processing)
+
+**In-App Notification Center**:
+- `WebhookNotificationService.shared` manages in-app notification display
+- All sync results (silent and visible) appear here regardless of iOS notification permissions
 
 ### Memory Management
 - Use `@StateObject` for view-owned observable objects
 - Use `@ObservedObject` for passed-in observable objects
 - Store Combine cancellables properly to prevent memory leaks
 - Use `[weak self]` in closures to prevent retain cycles
+
+## Backend Integration Requirements
+
+### AWS Lambda Webhook Handler
+The backend `src/webhookHandlers.js` must send **silent push notifications** for catalog sync:
+
+```javascript
+// CORRECT - Silent notification (no user spam)
+const notification = new apn.Notification({
+  alert: '', // Empty alert = no visible notification banner
+  sound: '', // No sound
+  contentAvailable: 1, // Background notification triggers app processing
+  payload: {
+    data: {
+      type: 'catalog_updated',
+      eventId: eventId,
+      merchantId: merchantId,
+      updatedAt: catalogUpdatedAt || new Date().toISOString(),
+    },
+  },
+  topic: 'com.joylabs.native',
+});
+
+// WRONG - Visible notification (creates user spam)
+const notification = new apn.Notification({
+  alert: { title: 'Catalog Updated', body: 'Your Square catalog...' },
+  sound: 'default',
+  badge: 1,
+  // ...
+});
+```
+
+### APNs Environment Configuration
+- **Production builds**: Require PRODUCTION APNs environment
+- **Development builds**: Use DEVELOPMENT APNs environment
+- Backend uses `NODE_ENV` to determine APNs environment
+- Physical iPhone devices always require PRODUCTION APNs, even during development
 
 ## Code Philosophy
 - Always aim for professional, robust solution that properly handles asynchronous operations - exactly what any modern app would do!
