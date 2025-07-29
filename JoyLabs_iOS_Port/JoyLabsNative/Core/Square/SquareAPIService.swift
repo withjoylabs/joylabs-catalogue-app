@@ -559,8 +559,8 @@ class SquareAPIService: ObservableObject {
             throw NSError(domain: "SquareAPIService", code: -1, userInfo: [NSLocalizedDescriptionKey: "No access token"])
         }
 
-        // Temporarily return empty response until HTTP client is implemented
-        let response = SquareCatalogSearchResponse(objects: [], cursor: nil, relatedObjects: [])
+        // Use the HTTP client to perform the actual search
+        let response = try await httpClient.searchCatalogObjects(beginTime: beginTime)
         
         let objects = response.objects ?? []
         logger.info("Found \(objects.count) catalog objects")

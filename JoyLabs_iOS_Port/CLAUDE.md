@@ -87,6 +87,8 @@ The codebase follows a **modular service-oriented architecture** with these key 
 - **AWS Integration**: Real-time webhook notifications from AWS backend
 - **Multi-tenant**: Merchant-specific push token registration
 - **Background Processing**: Handles notifications when app is backgrounded
+- **Silent Notifications**: Uses `content-available: 1` for background sync without user notification spam
+- **In-App Notification Center**: All sync results appear in app's notification center regardless of iOS notification settings
 - **UI Integration**: Real-time catalog update notifications
 
 ### Search Architecture
@@ -238,3 +240,6 @@ The app uses NotificationCenter for cross-component communication:
 - Use `@ObservedObject` for passed-in observable objects
 - Store Combine cancellables properly to prevent memory leaks
 - Use `[weak self]` in closures to prevent retain cycles
+
+## Code Philosophy
+- Always aim for professional, robust solution that properly handles asynchronous operations - exactly what any modern app would do!

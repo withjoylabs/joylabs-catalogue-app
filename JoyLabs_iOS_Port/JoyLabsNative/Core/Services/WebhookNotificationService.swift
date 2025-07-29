@@ -85,15 +85,13 @@ extension WebhookNotificationService {
     
     /// Setup observers for webhook-related notifications
     private func setupWebhookObservers() {
-        // Observe webhook status changes
+        // Observe webhook status changes (but don't create confusing UI notifications)
         WebhookManager.shared.$isActive
             .receive(on: DispatchQueue.main)
             .sink { [weak self] isActive in
                 self?.isWebhookActive = isActive
-                self?.addSystemNotification(
-                    isActive ? "Webhook system started" : "Webhook system stopped",
-                    type: .system
-                )
+                // Only log status changes, don't create user-visible notifications
+                print("🔔 Webhook system \(isActive ? "started" : "stopped")")
             }
             .store(in: &cancellables)
         

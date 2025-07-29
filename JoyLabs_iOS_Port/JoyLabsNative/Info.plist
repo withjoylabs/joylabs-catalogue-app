@@ -56,6 +56,8 @@
 	<string>Permission needed to save photos</string>
 	<key>NSUserNotificationsUsageDescription</key>
 	<string>Allow notifications to receive real-time updates when your Square catalog changes</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -65,7 +67,6 @@
 	<true/>
 	<key>UIBackgroundModes</key>
 	<array>
-		<string>background-app-refresh</string>
 		<string>remote-notification</string>
 	</array>
 	<key>UILaunchScreen</key>

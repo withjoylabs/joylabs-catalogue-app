@@ -11,6 +11,13 @@ struct JoyLabsNativeApp: App {
     init() {
         // Initialize shared database manager on app startup
         initializeSharedServices()
+        
+        // CRITICAL: Request push notification permissions IMMEDIATELY at app startup
+        Task { @MainActor in
+            await PushNotificationService.shared.setupPushNotifications()
+            let logger = Logger(subsystem: "com.joylabs.native", category: "App")
+            logger.info("🔔 Push notification permissions requested at app startup")
+        }
     }
 
     var body: some Scene {
@@ -31,7 +38,8 @@ struct JoyLabsNativeApp: App {
             await MainActor.run {
                 // Initialize field configuration manager to load saved settings
                 let _ = FieldConfigurationManager.shared
-                self.logger.info("✅ Field configuration manager initialized")
+                let logger = Logger(subsystem: "com.joylabs.native", category: "App")
+                logger.info("✅ Field configuration manager initialized")
             }
         }
 
@@ -50,13 +58,14 @@ struct JoyLabsNativeApp: App {
                         try databaseManager.connect()
                         try await databaseManager.createTablesAsync()
                         await MainActor.run {
-                            self.logger.info("✅ Shared database and image cache initialized successfully on app startup")
+                            let logger = Logger(subsystem: "com.joylabs.native", category: "App")
+                            logger.info("✅ Shared database and image cache initialized successfully on app startup")
                             
                             // Initialize webhook system with push notifications
                             Task {
                                 WebhookManager.shared.startWebhookProcessing()
                                 await PushNotificationService.shared.setupPushNotifications()
-                                self.logger.info("🔔 Webhook system with push notifications initialized")
+                                logger.info("🔔 Webhook system with push notifications initialized")
                                 
                                 // Perform catch-up sync on app launch in case we missed any webhook notifications
                                 await performAppLaunchCatchUpSync()
@@ -64,7 +73,8 @@ struct JoyLabsNativeApp: App {
                         }
                     } catch {
                         await MainActor.run {
-                            self.logger.error("❌ Failed to initialize shared services on app startup: \(error)")
+                            let logger = Logger(subsystem: "com.joylabs.native", category: "App")
+                            logger.error("❌ Failed to initialize shared services on app startup: \(error)")
                         }
                     }
                 }
@@ -116,10 +126,8 @@ struct JoyLabsNativeApp: App {
             
             logger.info("✅ App launch incremental catch-up sync completed successfully - \(itemsUpdated) items updated")
             
-            // Create user-visible notification about sync results
-            if itemsUpdated > 0 {
-                await createUserNotificationForSync(itemsUpdated: itemsUpdated, reason: "app launch")
-            }
+            // Always create in-app notification about sync results (silent - no iOS notification banner)
+            await createInAppNotificationForSync(itemsUpdated: itemsUpdated, reason: "app launch")
             
             // Post notification to update UI with detailed sync results
             NotificationCenter.default.post(
@@ -174,25 +182,19 @@ struct JoyLabsNativeApp: App {
     }
     
     /// Creates a user-visible notification about sync results
-    private func createUserNotificationForSync(itemsUpdated: Int, reason: String) async {
-        // Check user preferences before creating notifications
-        let notificationSettings = NotificationSettingsService.shared
-        
-        guard notificationSettings.isEnabled(for: .appLaunchSync) else {
-            logger.info("⏭️ App launch sync notifications disabled by user")
-            return
-        }
-        
-        let title = "Catalog Updated"
+    private func createInAppNotificationForSync(itemsUpdated: Int, reason: String) async {
+        let title = "Catalog Synchronized"
         let message: String
         
-        if itemsUpdated == 1 {
-            message = "1 item was updated during \(reason) sync"
+        if itemsUpdated == 0 {
+            message = "Catalog is up to date - no changes found on \(reason)"
+        } else if itemsUpdated == 1 {
+            message = "1 item synchronized on \(reason)"
         } else {
-            message = "\(itemsUpdated) items were updated during \(reason) sync"
+            message = "\(itemsUpdated) items synchronized on \(reason)"
         }
         
-        // Add to WebhookNotificationService so it appears in the webhook notifications view
+        // Always add to in-app notification center (silent - no iOS notification banner)
         await MainActor.run {
             WebhookNotificationService.shared.addWebhookNotification(
                 title: title,
@@ -202,26 +204,7 @@ struct JoyLabsNativeApp: App {
             )
         }
         
-        logger.info("📱 Added sync notification to UI: \(message)")
-        
-        // Also create a system notification for when app is in background (if enabled)
-        if notificationSettings.isEnabled(for: .systemBadge) {
-            let content = UNMutableNotificationContent()
-            content.title = title
-            content.body = message
-            content.sound = .default
-            
-            // Create unique identifier for this notification
-            let identifier = "sync-\(reason)-\(Date().timeIntervalSince1970)"
-            let request = UNNotificationRequest(identifier: identifier, content: content, trigger: nil)
-            
-            do {
-                try await UNUserNotificationCenter.current().add(request)
-                logger.info("📱 Added system notification for sync results")
-            } catch {
-                logger.error("Failed to create system notification: \(error)")
-            }
-        }
+        logger.info("🤫 Added silent sync notification to in-app center: \(message)")
     }
 
     private func handleIncomingURL(_ url: URL) {
