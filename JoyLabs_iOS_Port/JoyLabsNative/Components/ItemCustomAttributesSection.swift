@@ -17,7 +17,7 @@ struct ItemCustomAttributesSection: View {
                         .foregroundColor(.blue)
                     Text("Add custom data fields to store additional item information")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
                 .padding(.vertical, 4)
                 
@@ -109,7 +109,7 @@ struct CustomAttributeRow: View {
                         Button("Cancel") {
                             isEditing = false
                         }
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                         
                         Spacer()
                         
@@ -126,7 +126,7 @@ struct CustomAttributeRow: View {
                     if value.isEmpty {
                         Text("No value set")
                             .font(.body)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.secondary)
                             .italic()
                     } else {
                         Text(value)
@@ -219,7 +219,7 @@ struct AddCustomAttributeSheet: View {
                 Section {
                     Text("Custom attributes allow you to store additional information about your items that isn't covered by standard fields.")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
             }
             .navigationTitle("Add Custom Attribute")
@@ -250,7 +250,7 @@ struct AddCustomAttributeSheet: View {
                 attributeValue = "false"
             }
         }
-        .onChange(of: selectedType) { newType in
+        .onChange(of: selectedType) { _, newType in
             // Reset value when type changes
             switch newType {
             case .text:

@@ -135,14 +135,14 @@ struct EmbeddedQuantitySelectionModal: View {
                 if let barcode = item.barcode, !barcode.isEmpty {
                     Text(barcode)
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
 
                 // SKU
                 if let sku = item.sku, !sku.isEmpty {
                     Text("SKU: \(sku)")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
 
                 // PRICE

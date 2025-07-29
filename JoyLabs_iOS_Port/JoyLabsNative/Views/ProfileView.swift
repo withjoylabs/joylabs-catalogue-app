@@ -55,7 +55,7 @@ struct ProfileView: View {
 
                             Text(userEmail)
                                 .font(.subheadline)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(Color.secondary)
                         }
                     }
                     .padding(.vertical, 10)
@@ -106,7 +106,7 @@ struct ProfileView: View {
 
                                     Text(formatLastSyncTime())
                                         .font(.subheadline)
-                                        .foregroundColor(.secondary)
+                                        .foregroundColor(Color.secondary)
                                 }
 
                                 Spacer()
@@ -119,7 +119,7 @@ struct ProfileView: View {
                                     } else {
                                         Image(systemName: "chevron.right")
                                             .font(.caption)
-                                            .foregroundColor(.secondary)
+                                            .foregroundColor(Color.secondary)
                                     }
                                 }
                             }
@@ -147,7 +147,12 @@ struct ProfileView: View {
 
                             SettingsRow(icon: "barcode", title: "Scanner Settings", subtitle: "Configure barcode scanner")
                             SettingsRow(icon: "printer", title: "Label Preferences", subtitle: "Default label settings")
-                            SettingsRow(icon: "bell", title: "Notifications", subtitle: "Manage alerts and updates")
+                            
+                            NavigationLink(destination: NotificationSettingsView()) {
+                                SettingsRowContent(icon: "bell", title: "Notifications", subtitle: "Manage alerts and updates")
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                            
                             SettingsRow(icon: "icloud", title: "Data & Storage", subtitle: "Manage local data")
                         }
                     }
@@ -184,7 +189,7 @@ struct ProfileView: View {
 
                         Text("Version 1.0.0 (Build 1)")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.secondary)
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 20)
@@ -284,7 +289,7 @@ struct IntegrationCard: View {
 
                     Text(subtitle)
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
 
                 Spacer()
@@ -301,7 +306,7 @@ struct IntegrationCard: View {
 
                         Image(systemName: "chevron.right")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.secondary)
                     }
                 }
             }
@@ -336,14 +341,14 @@ struct SettingsRowContent: View {
 
                 Text(subtitle)
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
             }
 
             Spacer()
 
             Image(systemName: "chevron.right")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(Color.secondary)
         }
         .padding(16)
         .background(Color(.systemBackground))
@@ -395,7 +400,7 @@ struct SimpleSquareConnectionSheet: View {
                                 .fontWeight(.medium)
                             Text("Merchant ID: \(merchant.id)")
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(Color.secondary)
                         }
                     }
                 }
@@ -435,7 +440,7 @@ struct SimpleSquareConnectionSheet: View {
             Button("Cancel") {
                 onDismiss()
             }
-            .foregroundColor(.secondary)
+            .foregroundColor(Color.secondary)
         }
         .padding()
     }

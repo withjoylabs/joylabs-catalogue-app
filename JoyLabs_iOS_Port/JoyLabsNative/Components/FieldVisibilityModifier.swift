@@ -161,7 +161,7 @@ struct ConfigurableToggle: View {
                     if let description = description {
                         Text(description)
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.secondary)
                     }
                 }
                 

@@ -311,6 +311,16 @@ extension SquareOAuthService {
     func validateConfiguration() -> Bool {
         return SquareConfiguration.validateConfiguration()
     }
+    
+    /// Get current merchant ID for webhook polling
+    func getCurrentMerchantId() async -> String? {
+        do {
+            let tokenData = try await tokenService.getCurrentTokenData()
+            return tokenData.merchantId
+        } catch {
+            return nil
+        }
+    }
 }
 
 // MARK: - Deep Link Handler

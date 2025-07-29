@@ -100,7 +100,7 @@ struct ImageEnlargementView: View {
                                     
                                     Text(notes)
                                         .font(.body)
-                                        .foregroundColor(.secondary)
+                                        .foregroundColor(Color.secondary)
                                         .padding()
                                         .background(Color(.systemGray6))
                                         .cornerRadius(8)
@@ -136,7 +136,7 @@ struct DetailItem: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(Color.secondary)
                 .fontWeight(.medium)
             
             Text(value)

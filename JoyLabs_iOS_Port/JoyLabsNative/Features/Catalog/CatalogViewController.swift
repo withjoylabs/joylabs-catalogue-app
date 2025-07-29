@@ -201,7 +201,7 @@ struct SearchBar: View {
     var body: some View {
         HStack {
             Image(systemName: "magnifyingglass")
-                .foregroundColor(.secondary)
+                .foregroundColor(Color.secondary)
             
             TextField(placeholder, text: $text)
                 .textFieldStyle(PlainTextFieldStyle())
@@ -214,7 +214,7 @@ struct SearchBar: View {
                     text = ""
                 }) {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
             }
         }
@@ -311,7 +311,7 @@ struct CatalogItemRow: View {
                         .fill(Color(.systemGray5))
                         .overlay(
                             Image(systemName: "photo")
-                                .foregroundColor(.secondary)
+                                .foregroundColor(Color.secondary)
                         )
                 }
                 .frame(width: 60, height: 60)
@@ -328,7 +328,7 @@ struct CatalogItemRow: View {
                     if let categoryName = item.categoryName {
                         Text(categoryName)
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.secondary)
                     }
                     
                     HStack {
@@ -342,7 +342,7 @@ struct CatalogItemRow: View {
                         if let sku = item.sku {
                             Text("SKU: \(sku)")
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(Color.secondary)
                         }
                         
                         Spacer()
@@ -353,7 +353,7 @@ struct CatalogItemRow: View {
                 
                 Image(systemName: "chevron.right")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
             }
             .padding(.vertical, 4)
         }
@@ -366,7 +366,7 @@ struct CatalogEmptyView: View {
         VStack(spacing: 16) {
             Image(systemName: "tray")
                 .font(.system(size: 48))
-                .foregroundColor(.secondary)
+                .foregroundColor(Color.secondary)
             
             Text("No Items Found")
                 .font(.headline)
@@ -374,7 +374,7 @@ struct CatalogEmptyView: View {
             
             Text("Try adjusting your search or filters")
                 .font(.subheadline)
-                .foregroundColor(.secondary)
+                .foregroundColor(Color.secondary)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

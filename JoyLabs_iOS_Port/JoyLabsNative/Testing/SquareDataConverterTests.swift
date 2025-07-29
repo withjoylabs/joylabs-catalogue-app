@@ -40,7 +40,7 @@ struct SquareDataConverterTests: View {
                                 if !result.message.isEmpty {
                                     Text(result.message)
                                         .font(.caption)
-                                        .foregroundColor(.secondary)
+                                        .foregroundColor(Color.secondary)
                                 }
                             }
                             

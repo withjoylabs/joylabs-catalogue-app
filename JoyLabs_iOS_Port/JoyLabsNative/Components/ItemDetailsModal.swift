@@ -359,7 +359,7 @@ struct CreateFromSearchHeader: View {
                 
                 Text("Pre-filled \(queryType.displayName): \(query)")
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
             }
             
             Spacer()

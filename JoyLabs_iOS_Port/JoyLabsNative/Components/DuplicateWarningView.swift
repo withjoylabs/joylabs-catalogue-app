@@ -56,14 +56,14 @@ struct DuplicateWarningCard: View {
                         
                         Text(warning.message)
                             .font(.system(size: 12))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.secondary)
                     }
                     
                     Spacer()
                     
                     // Expand/collapse indicator
                     Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                         .font(.system(size: 12, weight: .medium))
                         .rotationEffect(.degrees(isExpanded ? 0 : 0))
                         .animation(.easeInOut(duration: 0.2), value: isExpanded)
@@ -108,7 +108,7 @@ struct DuplicateItemRow: View {
         HStack(spacing: 8) {
             // Item icon
             Image(systemName: "cube.box")
-                .foregroundColor(.secondary)
+                .foregroundColor(Color.secondary)
                 .font(.system(size: 12))
                 .frame(width: 16)
             
@@ -125,12 +125,12 @@ struct DuplicateItemRow: View {
                     if !item.variationName.isEmpty {
                         Text(item.variationName)
                             .font(.system(size: 11))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.secondary)
                     }
                     
                     Text("•")
                         .font(.system(size: 11))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                     
                     Text("\(warningType.rawValue.uppercased()): \(item.matchingValue)")
                         .font(.system(size: 11, weight: .medium))
@@ -199,7 +199,7 @@ struct DuplicateDetectionLoadingView: View {
             
             Text("Checking for duplicates...")
                 .font(.system(size: 12))
-                .foregroundColor(.secondary)
+                .foregroundColor(Color.secondary)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)

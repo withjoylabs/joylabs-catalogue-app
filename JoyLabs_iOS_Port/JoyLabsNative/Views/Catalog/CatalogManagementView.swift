@@ -26,7 +26,7 @@ struct SyncConfirmationModal: View {
 
                 Text("This will clear all existing catalog data and perform a full sync. This action cannot be undone.")
                     .font(.body)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
             }
@@ -73,7 +73,7 @@ struct StopSyncConfirmationModal: View {
 
                 Text("Are you sure you want to stop the catalog sync? Progress will be lost.")
                     .font(.body)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
             }
@@ -119,7 +119,7 @@ struct SyncSuccessModal: View {
 
                 Text("Catalog has been successfully synced.")
                     .font(.body)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
                     .multilineTextAlignment(.center)
             }
 
@@ -313,7 +313,7 @@ struct CatalogManagementView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Last Sync")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
 
                 Text(formatLastSyncTime())
                     .font(.subheadline)
@@ -349,7 +349,7 @@ struct CatalogManagementView: View {
             if syncCoordinator.syncState == .syncing {
                 Text(syncCoordinator.catalogSyncService.syncProgress.currentObjectType)
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
             }
         }
     }
@@ -422,14 +422,14 @@ struct CatalogManagementView: View {
                         .scaleEffect(0.8)
                     Text("Loading locations...")
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
             } else if locationsService.locations.isEmpty {
                 Text("No locations found")
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
                     .frame(maxWidth: .infinity)
                     .padding()
             } else {
@@ -524,7 +524,7 @@ struct CatalogManagementView: View {
                     Spacer()
                     Image(systemName: "chevron.right")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
                 .padding(16)
                 .background(Color(.systemGray6))
@@ -549,7 +549,7 @@ struct CatalogManagementView: View {
                     Spacer()
                     Image(systemName: "chevron.right")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
                 .padding(16)
                 .background(Color(.systemGray6))
@@ -764,7 +764,7 @@ struct StatCard: View {
             Text(title)
                 .font(.caption)
                 .fontWeight(.medium)
-                .foregroundColor(.secondary)
+                .foregroundColor(Color.secondary)
         }
         .frame(maxWidth: .infinity)
         .padding(16)
@@ -791,7 +791,7 @@ struct LocationCard: View {
                     if !location.formattedAddress.isEmpty {
                         Text(location.formattedAddress)
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.secondary)
                     }
                 }
 
@@ -812,10 +812,10 @@ struct LocationCard: View {
             if let currency = location.currency {
                 HStack {
                     Image(systemName: "dollarsign.circle")
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                     Text("Currency: \(currency)")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
             }
         }
@@ -849,14 +849,14 @@ struct CatalogObjectRow: View {
 
                 Text("\(count) \(getCountLabel())")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
             }
 
             Spacer()
 
             Image(systemName: "chevron.right")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(Color.secondary)
         }
         .padding(16)
         .background(Color(.systemGray6))
@@ -892,7 +892,7 @@ struct CategoriesListView: View {
             // Search bar
             HStack {
                 Image(systemName: "magnifyingglass")
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
 
                 TextField("Search categories...", text: $searchText)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
@@ -907,7 +907,7 @@ struct CategoriesListView: View {
                 VStack(spacing: 16) {
                     Image(systemName: "folder.fill")
                         .font(.system(size: 48))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
 
                     Text("No Categories")
                         .font(.headline)
@@ -915,7 +915,7 @@ struct CategoriesListView: View {
 
                     Text("No categories found in the catalog.")
                         .font(.body)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
                 }
@@ -985,12 +985,12 @@ struct CategoryRowView: View {
                 } else {
                     Text("Active Category")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
 
                 Text("Updated: \(formatDate(category.updatedAt))")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
             }
 
             Spacer()
@@ -998,7 +998,7 @@ struct CategoryRowView: View {
             VStack(alignment: .trailing, spacing: 4) {
                 Text("v\(category.version)")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
                     .background(Color.gray.opacity(0.2))
@@ -1108,7 +1108,7 @@ struct TaxesListView: View {
             // Search bar
             HStack {
                 Image(systemName: "magnifyingglass")
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
 
                 TextField("Search taxes...", text: $searchText)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
@@ -1123,7 +1123,7 @@ struct TaxesListView: View {
                 VStack(spacing: 16) {
                     Image(systemName: "percent")
                         .font(.system(size: 48))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
 
                     Text("No Taxes")
                         .font(.headline)
@@ -1131,7 +1131,7 @@ struct TaxesListView: View {
 
                     Text("No tax configurations found.")
                         .font(.body)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
                 }
@@ -1193,18 +1193,18 @@ struct TaxRowView: View {
                 if let percentage = tax.percentage {
                     Text("\(percentage)% tax rate")
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
 
                 if let calculationPhase = tax.calculationPhase {
                     Text("Phase: \(calculationPhase)")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
 
                 Text("Updated: \(formatDate(tax.updatedAt))")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
             }
 
             Spacer()
@@ -1212,7 +1212,7 @@ struct TaxRowView: View {
             VStack(alignment: .trailing, spacing: 4) {
                 Text("v\(tax.version)")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
                     .background(Color.gray.opacity(0.2))
@@ -1346,7 +1346,7 @@ struct ModifiersListView: View {
             // Search bar
             HStack {
                 Image(systemName: "magnifyingglass")
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
 
                 TextField("Search modifiers...", text: $searchText)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
@@ -1361,7 +1361,7 @@ struct ModifiersListView: View {
                 VStack(spacing: 16) {
                     Image(systemName: "slider.horizontal.3")
                         .font(.system(size: 48))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
 
                     Text("No Modifiers")
                         .font(.headline)
@@ -1369,7 +1369,7 @@ struct ModifiersListView: View {
 
                     Text("No modifiers found in the catalog.")
                         .font(.body)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
                 }
@@ -1432,7 +1432,7 @@ struct ModifierRowView: View {
                     let price = Double(priceAmount) / 100.0 // Convert cents to dollars
                     Text("\(currency) \(price, specifier: "%.2f")")
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
 
                 if modifier.onByDefault == true {
@@ -1443,7 +1443,7 @@ struct ModifierRowView: View {
 
                 Text("Updated: \(formatDate(modifier.updatedAt))")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
             }
 
             Spacer()
@@ -1451,7 +1451,7 @@ struct ModifierRowView: View {
             VStack(alignment: .trailing, spacing: 4) {
                 Text("v\(modifier.version)")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
                     .background(Color.gray.opacity(0.2))

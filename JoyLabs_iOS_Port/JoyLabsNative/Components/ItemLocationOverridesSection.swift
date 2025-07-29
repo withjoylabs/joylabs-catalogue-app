@@ -17,7 +17,7 @@ struct ItemLocationOverridesSection: View {
                         .foregroundColor(.blue)
                     Text("Set different prices or inventory settings for specific locations")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
                 .padding(.vertical, 4)
                 
@@ -88,7 +88,7 @@ struct LocationOverrideCard: View {
                     
                     Text("Location Override")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
                 
                 Spacer()
@@ -113,7 +113,7 @@ struct LocationOverrideCard: View {
                         
                         HStack {
                             Text("$")
-                                .foregroundColor(.secondary)
+                                .foregroundColor(Color.secondary)
                             
                             TextField("0.00", value: Binding(
                                 get: { priceMoney.displayAmount },

@@ -352,11 +352,11 @@ struct SearchResultsView: View {
                     if let totalCount = searchManager.totalResultsCount {
                         Text("\(totalCount) items")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.secondary)
                     } else {
                         Text("\(searchManager.searchResults.count) items")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.secondary)
                     }
                 }
             }
@@ -383,7 +383,7 @@ struct SearchingView: View {
             Spacer()
             ProgressView("Searching...")
                 .font(.subheadline)
-                .foregroundColor(.secondary)
+                .foregroundColor(Color.secondary)
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -407,7 +407,7 @@ struct SearchErrorView: View {
 
                 Text(error)
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
                     .multilineTextAlignment(.center)
             }
             Spacer()
@@ -427,7 +427,7 @@ struct NoResultsView: View {
 
             Image(systemName: "exclamationmark.magnifyingglass")
                 .font(.system(size: 60))
-                .foregroundColor(.secondary)
+                .foregroundColor(Color.secondary)
 
             VStack(spacing: 8) {
                 Text("No results found")
@@ -436,7 +436,7 @@ struct NoResultsView: View {
 
                 Text("Try a different search term")
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
                     .multilineTextAlignment(.center)
             }
 
@@ -497,7 +497,7 @@ struct CreateItemButtons: View {
                                 .foregroundColor(.blue)
                             Text("Pre-fill SKU: \(searchQuery)")
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(Color.secondary)
                         }
 
                         Spacer()
@@ -520,7 +520,7 @@ struct CreateItemButtons: View {
                                 .foregroundColor(.green)
                             Text("Pre-fill UPC: \(searchQuery)")
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(Color.secondary)
                         }
 
                         Spacer()
@@ -561,7 +561,7 @@ struct SearchResultsList: View {
                     Spacer()
                     ProgressView("Loading more...")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                     Spacer()
                 }
                 .listRowSeparator(.hidden)

@@ -102,10 +102,10 @@ struct UnifiedImagePickerModal: View {
                         .foregroundColor(.gray)
                     Text("Select a photo below")
                         .font(.headline)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                     Text("1:1 square crop")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
             }
 
@@ -133,7 +133,7 @@ struct UnifiedImagePickerModal: View {
                     Text("Please allow access to your photo library in Settings to select photos.")
                         .font(.body)
                         .multilineTextAlignment(.center)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
 
                     Button("Open Settings") {
                         openSettings()

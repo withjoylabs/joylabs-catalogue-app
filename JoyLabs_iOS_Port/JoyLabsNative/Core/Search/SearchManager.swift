@@ -63,9 +63,13 @@ class SearchManager: ObservableObject {
     // MARK: - Database Initialization
     private func initializeDatabaseConnection() async {
         do {
-            // Connect to database
-            try databaseManager.connect()
-            logger.info("✅ Search manager connected to database")
+            // Use existing connection or connect if not already connected
+            if databaseManager.getConnection() == nil {
+                try databaseManager.connect()
+                logger.info("✅ Search manager connected to database")
+            } else {
+                logger.info("✅ Search manager using existing database connection")
+            }
 
             // Create tables asynchronously
             try await databaseManager.createTablesAsync()

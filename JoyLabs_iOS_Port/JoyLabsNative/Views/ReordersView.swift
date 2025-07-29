@@ -1046,7 +1046,7 @@ struct ReorderItemsContent: View {
             Spacer()
             Text("\(itemCount) items")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(Color.secondary)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -1201,7 +1201,7 @@ struct SuccessNotificationView: View {
             // Dismiss button
             Button(action: onDismiss) {
                 Image(systemName: "xmark.circle.fill")
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
                     .font(.caption2)
             }
         }

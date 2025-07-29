@@ -156,7 +156,7 @@ struct TestRunnerView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Overall Status")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
                 
                 HStack(spacing: 8) {
                     Circle()
@@ -174,7 +174,7 @@ struct TestRunnerView: View {
             VStack(alignment: .trailing, spacing: 4) {
                 Text("Results")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
                 
                 Text("\(passedTestsCount)/\(totalTestsCount)")
                     .font(.subheadline)
@@ -184,7 +184,7 @@ struct TestRunnerView: View {
             VStack(alignment: .trailing, spacing: 4) {
                 Text("Duration")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
                 
                 Text(testDurationText)
                     .font(.subheadline)
@@ -217,7 +217,7 @@ struct TestRunnerView: View {
         VStack(spacing: 16) {
             Image(systemName: "testtube.2")
                 .font(.system(size: 48))
-                .foregroundColor(.secondary)
+                .foregroundColor(Color.secondary)
             
             Text("No Test Results")
                 .font(.title3)
@@ -225,7 +225,7 @@ struct TestRunnerView: View {
             
             Text("Run tests to see results here")
                 .font(.subheadline)
-                .foregroundColor(.secondary)
+                .foregroundColor(Color.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemBackground))
@@ -327,7 +327,7 @@ struct TestResultRow: View {
                     
                     Text(result.description)
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                         .lineLimit(2)
                 }
                 
@@ -336,7 +336,7 @@ struct TestResultRow: View {
                 VStack(alignment: .trailing, spacing: 4) {
                     Text(String(format: "%.2fs", result.duration))
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                     
                     if result.status == .failed, let error = result.error {
                         Image(systemName: "exclamationmark.triangle.fill")
@@ -446,7 +446,7 @@ struct TestDetailView: View {
         HStack {
             Text(title)
                 .font(.subheadline)
-                .foregroundColor(.secondary)
+                .foregroundColor(Color.secondary)
             Spacer()
             Text(value)
                 .font(.subheadline)

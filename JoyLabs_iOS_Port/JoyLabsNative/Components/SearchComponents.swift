@@ -29,7 +29,7 @@ struct SearchTextField: View {
     var body: some View {
         HStack {
             Image(systemName: "magnifyingglass")
-                .foregroundColor(.secondary)
+                .foregroundColor(Color.secondary)
 
             TextField("Search products, SKUs, barcodes...", text: $searchText)
                 .textInputAutocapitalization(.never)
@@ -49,7 +49,7 @@ struct SearchTextField: View {
                     isSearchFieldFocused = true
                 }) {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                         .font(.system(size: 16))
                 }
                 .buttonStyle(PlainButtonStyle())
@@ -116,7 +116,7 @@ struct ScanResultCard: View {
                     if let categoryName = result.categoryName, !categoryName.isEmpty {
                         Text(categoryName)
                             .font(.system(size: 11, weight: .regular))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.secondary)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
                             .background(Color(.systemGray5))
@@ -136,7 +136,7 @@ struct ScanResultCard: View {
                     if let barcode = result.barcode, !barcode.isEmpty {
                         Text(barcode)
                             .font(.system(size: 11))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.secondary)
                     }
 
                     // Bullet point separator (only if both UPC and SKU are present)
@@ -144,14 +144,14 @@ struct ScanResultCard: View {
                        let sku = result.sku, !sku.isEmpty {
                         Text("•")
                             .font(.system(size: 11))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.secondary)
                     }
 
                     // SKU
                     if let sku = result.sku, !sku.isEmpty {
                         Text(sku)
                             .font(.system(size: 11))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.secondary)
                     }
 
                     Spacer()
@@ -171,7 +171,7 @@ struct ScanResultCard: View {
                     if result.hasTax {
                         Text("+tax")
                             .font(.system(size: 10))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.secondary)
                     }
                 }
             }
@@ -245,13 +245,13 @@ struct ProductInfoView: View {
             if let sku = result.sku {
                 Text("SKU: \(sku)")
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
             }
 
             if let barcode = result.barcode {
                 Text("UPC: \(barcode)")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
             }
         }
     }
@@ -328,7 +328,7 @@ struct SearchBarWithClear: View {
     var body: some View {
         HStack {
             Image(systemName: "magnifyingglass")
-                .foregroundColor(.secondary)
+                .foregroundColor(Color.secondary)
 
             TextField(placeholder, text: $searchText)
                 .textInputAutocapitalization(.never)
@@ -345,7 +345,7 @@ struct SearchBarWithClear: View {
                     searchText = ""
                 }) {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
             }
         }

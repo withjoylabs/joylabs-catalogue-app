@@ -73,7 +73,7 @@ struct ItemSettingsView: View {
                             .font(.headline)
                         Text("Customize which fields appear in item forms and set default values for Square API")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.secondary)
                     }
                 }
                 
@@ -124,14 +124,14 @@ struct ItemSettingsView: View {
                             .font(.headline)
                         Text("Control which fields appear in item forms")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.secondary)
                     }
 
                     Spacer()
 
                     Text("\(enabledFieldsCount) enabled")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
             }
         }
@@ -151,7 +151,7 @@ struct ItemSettingsView: View {
                             .font(.headline)
                         Text("Configure default values sent to Square API")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.secondary)
                     }
 
                     Spacer()
@@ -174,13 +174,13 @@ struct ItemSettingsView: View {
                             .font(.headline)
                         Text("Configuration follows Square API specifications")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.secondary)
                     }
                 }
                 
                 Text("• Item name is required for all items\n• At least one variation is always required (cannot be disabled)\n• Pricing type must be FIXED_PRICING or VARIABLE_PRICING\n• Tax settings and modifier lists are optional\n• SKU and UPC are optional but recommended")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
                     .padding(.leading, 32)
             }
             .padding(.vertical, 4)
@@ -260,7 +260,7 @@ struct PresetCard: View {
                     
                     Text(preset.description)
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                         .multilineTextAlignment(.leading)
                 }
                 
@@ -271,7 +271,7 @@ struct PresetCard: View {
                         .foregroundColor(.blue)
                 } else {
                     Image(systemName: "circle")
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
             }
             .padding(.vertical, 8)
@@ -510,7 +510,7 @@ struct DefaultValuesDetailView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Default values are automatically applied when creating new items to ensure Square API compliance.")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                     
                     Text("Required Fields:")
                         .font(.caption)
@@ -518,7 +518,7 @@ struct DefaultValuesDetailView: View {
                     
                     Text("• Item name: User input required\n• At least one variation: Auto-created with default values\n• Pricing type: FIXED_PRICING (default)")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
                 .padding(.vertical, 4)
             }
@@ -528,28 +528,28 @@ struct DefaultValuesDetailView: View {
                     Text("Product Type")
                     Spacer()
                     Text("REGULAR")
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
                 
                 HStack {
                     Text("Available Online")
                     Spacer()
                     Text("true")
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
                 
                 HStack {
                     Text("Available for Pickup")
                     Spacer()
                     Text("true")
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
                 
                 HStack {
                     Text("Present at All Locations")
                     Spacer()
                     Text("true")
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
             }
             
@@ -558,28 +558,28 @@ struct DefaultValuesDetailView: View {
                     Text("Pricing Type")
                     Spacer()
                     Text("FIXED_PRICING")
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
                 
                 HStack {
                     Text("Track Inventory")
                     Spacer()
                     Text("false")
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
                 
                 HStack {
                     Text("Sellable")
                     Spacer()
                     Text("true")
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
                 
                 HStack {
                     Text("Stockable")
                     Spacer()
                     Text("true")
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
             }
             
@@ -591,7 +591,7 @@ struct DefaultValuesDetailView: View {
                     
                     Text("• Items must have a name and at least one variation\n• Pricing type must be FIXED_PRICING or VARIABLE_PRICING\n• Boolean fields default to appropriate values\n• Optional fields are omitted if not specified")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
                 .padding(.vertical, 4)
             }

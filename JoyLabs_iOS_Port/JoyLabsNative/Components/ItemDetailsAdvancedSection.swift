@@ -201,7 +201,7 @@ struct ServiceSettings: View {
                             TextField("Duration in minutes", text: $durationMinutes)
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
                                 .keyboardType(.numberPad)
-                                .onChange(of: durationMinutes) { newValue in
+                                .onChange(of: durationMinutes) { _, newValue in
                                     if let minutes = Int(newValue) {
                                         serviceDuration = minutes * 60 * 1000 // Convert to milliseconds
                                     } else {
@@ -228,7 +228,7 @@ struct ServiceSettings: View {
                                 HStack {
                                     if teamMemberIds.isEmpty {
                                         Text("Select team members")
-                                            .foregroundColor(.secondary)
+                                            .foregroundColor(Color.secondary)
                                     } else {
                                         Text("\(teamMemberIds.count) member(s) assigned")
                                             .foregroundColor(.primary)
@@ -237,7 +237,7 @@ struct ServiceSettings: View {
                                     Spacer()
                                     
                                     Image(systemName: "chevron.right")
-                                        .foregroundColor(.secondary)
+                                        .foregroundColor(Color.secondary)
                                         .font(.caption)
                                 }
                                 .padding()
@@ -289,7 +289,7 @@ struct ToggleRow: View {
                 
                 Text(description)
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
             }
             
             Spacer()

@@ -280,7 +280,7 @@ struct PriceField: View {
 
                 if isDisabled {
                     Text("Variable")
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 8)
@@ -290,7 +290,7 @@ struct PriceField: View {
                     TextField("0.00", text: $priceText)
                         .keyboardType(.decimalPad)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .onChange(of: priceText) { newValue in
+                        .onChange(of: priceText) { _, newValue in
                             updatePriceFromText(newValue)
                         }
                 }

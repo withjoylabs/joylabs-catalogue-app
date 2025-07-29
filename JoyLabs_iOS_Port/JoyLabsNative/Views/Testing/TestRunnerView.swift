@@ -143,7 +143,7 @@ struct TestRunnerView: View {
                             .scaleEffect(0.8)
                         Text("Running tests...")
                             .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.secondary)
                         Spacer()
                     }
                 }
@@ -234,14 +234,14 @@ struct TestRunnerView: View {
                     .fontWeight(.medium)
                 Text(description)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
             }
             
             Spacer()
             
             Image(systemName: "chevron.right")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(Color.secondary)
         }
         .padding(.vertical, 4)
     }
@@ -273,7 +273,7 @@ struct TestRunnerView: View {
                 .foregroundColor(.blue)
             Text(title)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(Color.secondary)
         }
         .frame(maxWidth: .infinity)
     }
@@ -350,15 +350,15 @@ struct TestRunnerView: View {
                 VStack(spacing: 12) {
                     Image(systemName: "list.bullet.clipboard")
                         .font(.system(size: 48))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                     
                     Text("No test results yet")
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                     
                     Text("Run the test suite to see results")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
                 .padding(40)
             } else {
@@ -387,7 +387,7 @@ struct TestRunnerView: View {
                 
                 Text(result.description)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
             }
             
             Spacer()
@@ -494,7 +494,7 @@ struct TestRunnerView: View {
                     .fontWeight(.medium)
                 Text(tests)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
             }
             
             Spacer()

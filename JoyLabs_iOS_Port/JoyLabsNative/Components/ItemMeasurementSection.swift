@@ -112,7 +112,7 @@ struct MeasurementUnitSettings: View {
                             
                             Text("Selected: \(selectedUnit.name) (\(selectedUnit.abbreviation))")
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(Color.secondary)
                             
                             Spacer()
                         }
@@ -124,11 +124,11 @@ struct MeasurementUnitSettings: View {
                     Text("Measurement Unit Guide:")
                         .font(.caption)
                         .fontWeight(.medium)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                     
                     Text("• Used for inventory tracking and pricing\n• Helps customers understand quantity\n• Required for some integrations\n• Can be changed later if needed")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
             }
         }
@@ -174,11 +174,11 @@ struct SellableStockableSettings: View {
                     Text("Property Guide:")
                         .font(.caption)
                         .fontWeight(.medium)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                     
                     Text("• Sellable: Controls if item appears in sales channels\n• Stockable: Controls if item can be tracked in inventory\n• Both can be enabled independently")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
             }
         }
@@ -247,11 +247,11 @@ struct UserDataSettings: View {
                         Text("Custom Data Guide:")
                             .font(.caption)
                             .fontWeight(.medium)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.secondary)
                         
                         Text("• Store additional item metadata as JSON\n• Useful for integrations and custom fields\n• Must be valid JSON format\n• Example: {\"color\": \"red\", \"size\": \"large\"}")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.secondary)
                     }
                 }
             }

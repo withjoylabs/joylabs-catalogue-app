@@ -63,7 +63,7 @@ struct ItemAvailabilitySection: View {
                         Text("Availability Schedule")
                             .font(.subheadline)
                             .fontWeight(.medium)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.secondary)
                         
                         HStack {
                             Text("Start Date")
@@ -78,7 +78,7 @@ struct ItemAvailabilitySection: View {
                             } else {
                                 Text("Not Set")
                                     .font(.body)
-                                    .foregroundColor(.secondary)
+                                    .foregroundColor(Color.secondary)
                             }
                         }
                         
@@ -95,7 +95,7 @@ struct ItemAvailabilitySection: View {
                             } else {
                                 Text("Not Set")
                                     .font(.body)
-                                    .foregroundColor(.secondary)
+                                    .foregroundColor(Color.secondary)
                             }
                         }
                     }

@@ -227,7 +227,7 @@ struct HIDScannerIntegratedSearchField: View {
     var body: some View {
         HStack {
             Image(systemName: "magnifyingglass")
-                .foregroundColor(.secondary)
+                .foregroundColor(Color.secondary)
 
             TextField(placeholder, text: $searchText)
                 .textInputAutocapitalization(.never)
@@ -252,7 +252,7 @@ struct HIDScannerIntegratedSearchField: View {
                     isSearchFieldFocused = true
                 }) {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                         .font(.system(size: 16))
                 }
                 .buttonStyle(PlainButtonStyle())

@@ -85,7 +85,7 @@ struct QuickActionCard: View {
                 
                 Text(subtitle)
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
                     .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity)
@@ -136,11 +136,11 @@ struct RecentLabelCard: View {
                 
                 Text(label.template)
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
                 
                 Text(formatDate(label.createdDate))
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
             }
             
             Spacer()
@@ -217,7 +217,7 @@ struct LabelTemplateCard: View {
                 
                 Text(template.size)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
                 
                 Text(template.category)
                     .font(.caption2)
@@ -251,7 +251,7 @@ struct TemplateSelectionSheet: View {
                                 .font(.headline)
                             Text(template.size)
                                 .font(.subheadline)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(Color.secondary)
                         }
                         
                         Spacer()

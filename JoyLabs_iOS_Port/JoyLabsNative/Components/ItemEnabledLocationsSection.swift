@@ -37,7 +37,7 @@ struct ItemEnabledLocationsSection: View {
                         Text("Select Specific Locations")
                             .font(.subheadline)
                             .fontWeight(.medium)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.secondary)
                         
                         if viewModel.availableLocations.isEmpty {
                             HStack {
@@ -45,7 +45,7 @@ struct ItemEnabledLocationsSection: View {
                                     .foregroundColor(.orange)
                                 Text("No locations available. Connect to Square to sync locations.")
                                     .font(.caption)
-                                    .foregroundColor(.secondary)
+                                    .foregroundColor(Color.secondary)
                             }
                             .padding(.vertical, 8)
                         } else {
@@ -78,11 +78,11 @@ struct ItemEnabledLocationsSection: View {
                         if viewModel.itemData.enabledAtAllLocations {
                             Text("Enabled at all locations")
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(Color.secondary)
                         } else {
                             Text("Enabled at \(viewModel.itemData.enabledLocationIds.count) location(s)")
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(Color.secondary)
                         }
                         
                         Spacer()
@@ -112,7 +112,7 @@ struct LocationToggleRow: View {
                 if !location.address.isEmpty {
                     Text(location.address)
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                         .lineLimit(1)
                 }
             }

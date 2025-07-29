@@ -200,6 +200,112 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
         try await syncTask!.value
     }
 
+    /// Perform incremental sync - only fetches and processes changes since last sync
+    func performIncrementalSync() async throws {
+        guard !isSyncInProgress else {
+            throw SyncError.syncInProgress
+        }
+        
+        // Ensure database is connected
+        try databaseManager.connect()
+        
+        isSyncInProgress = true
+        isCancellationRequested = false
+        syncState = .syncing
+        errorMessage = nil
+
+        // Store the sync task for cancellation with background task management
+        syncTask = Task {
+            defer {
+                Task { @MainActor in
+                    self.isSyncInProgress = false
+                    self.syncTask = nil
+                }
+            }
+
+            do {
+                logger.info("Starting INCREMENTAL catalog sync - only fetching changes since last sync")
+
+                // Initialize progress tracking - RESET TO ZERO
+                await MainActor.run {
+                    var progress = SyncProgress()
+                    progress.startTime = Date()
+                    progress.syncedObjects = 0
+                    progress.syncedItems = 0
+                    progress.currentObjectType = "INCREMENTAL"
+                    progress.currentObjectName = "Starting incremental sync..."
+                    syncProgress = progress
+                }
+
+                // Start UI update timer (every 1 second)
+                await MainActor.run { startProgressUpdateTimer() }
+
+                // Fetch only changed catalog data from Square API with progress tracking
+                let catalogChanges = try await fetchIncrementalCatalogWithProgress()
+
+                if catalogChanges.isEmpty {
+                    logger.info("✅ No catalog changes found since last sync")
+                    
+                    // Update sync completion with no changes
+                    await MainActor.run {
+                        syncState = .completed
+                        lastSyncTime = Date()
+                        var progress = syncProgress
+                        progress.syncedObjects = 0
+                        progress.syncedItems = 0
+                        progress.currentObjectType = "COMPLETED"
+                        progress.currentObjectName = "No changes found - catalog is up to date"
+                        syncProgress = progress
+                        stopProgressUpdateTimer()
+                    }
+                } else {
+                    // Process and insert only the changed data with progress tracking
+                    try await processCatalogDataWithProgress(catalogChanges)
+                    logger.info("✅ Incremental catalog data processed successfully")
+
+                    // Stop progress timer
+                    await MainActor.run { stopProgressUpdateTimer() }
+
+                    // Update sync completion
+                    await MainActor.run {
+                        syncState = .completed
+                        lastSyncTime = Date()
+                        var progress = syncProgress
+                        progress.syncedObjects = catalogChanges.count
+                        progress.currentObjectType = "COMPLETED"
+                        progress.currentObjectName = "Incremental sync completed - \(catalogChanges.count) changes processed"
+                        syncProgress = progress
+                    }
+
+                    logger.info("🎉 Incremental catalog sync completed successfully!")
+                    logger.info("📊 Incremental sync stats: \(catalogChanges.count) changed objects processed")
+
+                    // Log summary of object types processed
+                    let objectTypeCounts = Dictionary(grouping: catalogChanges) { $0.type }
+                        .mapValues { $0.count }
+                    logger.info("📋 Changed object types: \(objectTypeCounts)")
+                }
+
+                // Notify completion for statistics refresh
+                await MainActor.run {
+                    NotificationCenter.default.post(name: .catalogSyncCompleted, object: nil)
+                }
+
+            } catch {
+                logger.error("❌ Incremental catalog sync failed: \(error)")
+                await MainActor.run {
+                    syncState = .failed
+                    errorMessage = error.localizedDescription
+                    stopProgressUpdateTimer()
+                }
+                throw error
+            }
+        }
+
+        // Wait for the task to complete
+        try await syncTask!.value
+    }
+
     // MARK: - Progress Tracking
 
     private func startProgressUpdateTimer() {
@@ -249,6 +355,34 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
         }
 
         return catalogObjects
+    }
+
+    /// Fetch only incremental catalog changes from Square API with progress tracking
+    private func fetchIncrementalCatalogWithProgress() async throws -> [CatalogObject] {
+        await MainActor.run {
+            var progress = syncProgress
+            progress.currentObjectType = "INCREMENTAL"
+            progress.currentObjectName = "Fetching catalog changes from Square API..."
+            syncProgress = progress
+        }
+
+        logger.info("🌐 Fetching INCREMENTAL catalog data from Square API...")
+
+        // Use the incremental Square API service to fetch only changes since last sync
+        let catalogChanges = try await squareAPIService.syncCatalogChanges()
+
+        logger.info("✅ Fetched \(catalogChanges.count) changed objects from Square API (incremental)")
+
+        // Don't set the final counts here - let processing update them incrementally
+        let itemCount = catalogChanges.filter { $0.type == "ITEM" }.count
+        await MainActor.run {
+            var progress = syncProgress
+            progress.currentObjectType = "READY"
+            progress.currentObjectName = "Ready to process \(catalogChanges.count) changed objects (\(itemCount) items)"
+            syncProgress = progress
+        }
+
+        return catalogChanges
     }
     
     private func processCatalogDataWithProgress(_ objects: [CatalogObject]) async throws {

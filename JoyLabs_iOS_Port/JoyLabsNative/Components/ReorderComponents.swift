@@ -79,7 +79,7 @@ struct StatItem: View {
                 .foregroundColor(.primary)
             Text(title)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(Color.secondary)
         }
     }
 }
@@ -218,7 +218,7 @@ struct ReordersEmptyState: View {
 
             Image(systemName: "list.bullet.clipboard")
                 .font(.system(size: 60))
-                .foregroundColor(.secondary)
+                .foregroundColor(Color.secondary)
 
             VStack(spacing: 8) {
                 Text("No Reorder Items")
@@ -228,7 +228,7 @@ struct ReordersEmptyState: View {
 
                 Text("Add items to your reorder list by scanning products or swipe right on a search result in the Scan page.")
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 40)
             }
@@ -371,7 +371,7 @@ struct ReorderItemCard: View {
                         if let categoryName = item.categoryName, !categoryName.isEmpty {
                             Text(categoryName)
                                 .font(.system(size: 11, weight: .regular))
-                                .foregroundColor(.secondary)
+                                .foregroundColor(Color.secondary)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
                                 .background(Color(.systemGray5))
@@ -382,7 +382,7 @@ struct ReorderItemCard: View {
                         if let barcode = item.barcode, !barcode.isEmpty {
                             Text(barcode)
                                 .font(.system(size: 11))
-                                .foregroundColor(.secondary)
+                                .foregroundColor(Color.secondary)
                         }
 
                         // Bullet point separator (only if both UPC and SKU are present)
@@ -390,14 +390,14 @@ struct ReorderItemCard: View {
                            let sku = item.sku, !sku.isEmpty {
                             Text("•")
                                 .font(.system(size: 11))
-                                .foregroundColor(.secondary)
+                                .foregroundColor(Color.secondary)
                         }
 
                         // SKU - exact same as scan page
                         if let sku = item.sku, !sku.isEmpty {
                             Text(sku)
                                 .font(.system(size: 11))
-                                .foregroundColor(.secondary)
+                                .foregroundColor(Color.secondary)
                         }
 
                         Spacer()
@@ -416,7 +416,7 @@ struct ReorderItemCard: View {
 
                             Text("qty")
                                 .font(.system(size: 10))
-                                .foregroundColor(.secondary)
+                                .foregroundColor(Color.secondary)
                         }
                     }
                     .buttonStyle(PlainButtonStyle())
@@ -429,7 +429,7 @@ struct ReorderItemCard: View {
 
                         Text("qty")
                             .font(.system(size: 10))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.secondary)
                     }
                 }
             }
@@ -629,7 +629,7 @@ struct ReorderPhotoCard: View {
                         if let category = item.categoryName {
                             Text(category)
                                 .font(.caption2)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(Color.secondary)
                                 .lineLimit(1)
                         }
 
@@ -662,7 +662,7 @@ struct ReorderPhotoCard: View {
                         // Quantity
                         Text("Qty: \(item.quantity)")
                             .font(.caption2)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.secondary)
                     }
                 }
                 .padding(.horizontal, 4)

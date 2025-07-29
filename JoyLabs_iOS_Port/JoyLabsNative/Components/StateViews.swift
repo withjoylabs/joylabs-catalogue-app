@@ -8,7 +8,7 @@ struct EmptySearchState: View {
 
             Image(systemName: "magnifyingglass.circle")
                 .font(.system(size: 80))
-                .foregroundColor(.secondary)
+                .foregroundColor(Color.secondary)
 
             VStack(spacing: 8) {
                 Text("Search for products")
@@ -18,7 +18,7 @@ struct EmptySearchState: View {
 
                 Text("Enter a product name, SKU, or scan a barcode to get started")
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 40)
             }
@@ -39,11 +39,11 @@ struct DatabaseInitializingView: View {
 
             Text("Initializing Database...")
                 .font(.headline)
-                .foregroundColor(.secondary)
+                .foregroundColor(Color.secondary)
 
             Text("Setting up search functionality")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(Color.secondary)
 
             Spacer()
         }
@@ -62,7 +62,7 @@ struct LoadingStateView: View {
             
             Text(message)
                 .font(.subheadline)
-                .foregroundColor(.secondary)
+                .foregroundColor(Color.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -97,7 +97,7 @@ struct ErrorStateView: View {
 
                 Text(message)
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 40)
             }
@@ -136,7 +136,7 @@ struct EmptyStateView: View {
 
             Image(systemName: systemImage)
                 .font(.system(size: 60))
-                .foregroundColor(.secondary)
+                .foregroundColor(Color.secondary)
 
             VStack(spacing: 8) {
                 Text(title)
@@ -145,7 +145,7 @@ struct EmptyStateView: View {
 
                 Text(message)
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 40)
             }

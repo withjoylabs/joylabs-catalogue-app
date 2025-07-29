@@ -17,7 +17,7 @@ struct ItemDeleteSection: View {
                         
                         Text("Deleting this item will permanently remove it from your catalog and all locations.")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.secondary)
                             .multilineTextAlignment(.leading)
                         
                         Spacer()

@@ -12,6 +12,25 @@ open JoyLabsNative.xcodeproj
 # Or use the convenient script
 ./open_project.sh
 ```
+### Adding files into xcode Project:
+Use ruby gem xcodeproj to add files into the project.
+Here is sample code. IMPORTANT: Use absolute paths.
+
+require 'xcodeproj'
+
+project_path = 'MyApp.xcodeproj'
+file_path = 'Sources/NewFile.swift'
+
+project = Xcodeproj::Project.open(project_path)
+target = project.targets.first
+
+group = project.main_group['Sources'] || project.main_group.new_group('Sources')
+file_ref = group.new_file(file_path)
+
+target.add_file_references([file_ref])
+project.save
+
+* After verifying that the files have been included and the build is successfully compiling, clean up the ruby file.
 
 ### Testing
 ```bash
@@ -61,7 +80,14 @@ The codebase follows a **modular service-oriented architecture** with these key 
 - **Upload Modal**: `UnifiedImagePickerModal` (Components/)
 - **Cache Strategy**: AWS URL-based cache keys with automatic cleanup
 - **Real-time Updates**: Images refresh instantly across all views when uploaded
-- **Integration**: TOCropViewController for Instagram-style 1:1 cropping
+- **Native Integration**: Built-in iOS image picker and editing capabilities
+
+### Push Notification System
+- **Core Service**: `PushNotificationService` (Core/Services/)
+- **AWS Integration**: Real-time webhook notifications from AWS backend
+- **Multi-tenant**: Merchant-specific push token registration
+- **Background Processing**: Handles notifications when app is backgrounded
+- **UI Integration**: Real-time catalog update notifications
 
 ### Search Architecture
 - **Main Service**: `SearchManager` (Core/Search/)

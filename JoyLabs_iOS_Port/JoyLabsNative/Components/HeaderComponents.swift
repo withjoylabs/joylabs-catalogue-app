@@ -44,7 +44,7 @@ struct ConnectionStatusView: View {
 
             Text(isConnected ? "Connected" : "Offline")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(Color.secondary)
         }
     }
 }
@@ -59,7 +59,7 @@ struct ScanHistoryIconButton: View {
             ZStack {
                 Image(systemName: "clock.arrow.circlepath")
                     .font(.title3)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
 
                 // Badge for count
                 if count > 0 {
@@ -79,11 +79,33 @@ struct ScanHistoryIconButton: View {
 
 // MARK: - Notification Button
 struct NotificationButton: View {
+    @ObservedObject private var webhookNotificationService = WebhookNotificationService.shared
+    @State private var showingWebhookNotifications = false
+    
     var body: some View {
-        Button(action: {}) {
-            Image(systemName: "bell")
-                .font(.title3)
-                .foregroundColor(.secondary)
+        Button(action: {
+            showingWebhookNotifications = true
+        }) {
+            ZStack {
+                Image(systemName: webhookNotificationService.hasUnreadNotifications ? "bell.fill" : "bell")
+                    .font(.title3)
+                    .foregroundColor(webhookNotificationService.hasUnreadNotifications ? .blue : .secondary)
+                
+                // Badge for unread webhook notifications
+                if webhookNotificationService.unreadCount > 0 {
+                    Text("\(webhookNotificationService.unreadCount > 99 ? "99+" : "\(webhookNotificationService.unreadCount)")")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, webhookNotificationService.unreadCount > 9 ? 4 : 6)
+                        .padding(.vertical, 2)
+                        .background(Color.red)
+                        .clipShape(Capsule())
+                        .offset(x: 8, y: -8)
+                }
+            }
+        }
+        .sheet(isPresented: $showingWebhookNotifications) {
+            WebhookNotificationsView()
         }
     }
 }
@@ -106,7 +128,7 @@ struct ScanHistoryButton: View {
 
                 Image(systemName: "chevron.right")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)

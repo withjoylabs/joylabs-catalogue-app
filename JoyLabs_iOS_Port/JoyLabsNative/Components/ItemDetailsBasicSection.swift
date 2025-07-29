@@ -141,7 +141,7 @@ struct ItemAbbreviationField: View {
                 
                 Text("Optional")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
             }
             
             TextField("Short name for receipts", text: $abbreviation)
@@ -150,7 +150,7 @@ struct ItemAbbreviationField: View {
             
             Text("Used on receipts and POS displays when space is limited")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(Color.secondary)
         }
     }
 }
@@ -177,7 +177,7 @@ struct ProductTypeSelector: View {
             // Show description based on selected type
             Text(productTypeDescription)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(Color.secondary)
         }
     }
     

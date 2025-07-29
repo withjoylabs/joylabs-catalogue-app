@@ -1,7 +1,6 @@
 import SwiftUI
 import Foundation
 import OSLog
-import CropViewController
 
 /// Unified Image Service - Single source of truth for all image operations
 /// Handles upload, caching, database mapping, and real-time UI refresh

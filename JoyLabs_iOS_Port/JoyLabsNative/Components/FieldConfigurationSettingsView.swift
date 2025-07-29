@@ -61,7 +61,7 @@ struct FieldConfigurationSettingsView: View {
                             .font(.headline)
                         Text(preset.description)
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.secondary)
                     }
                     .tag(preset)
                 }
@@ -315,7 +315,7 @@ struct FieldToggleRow: View {
                         .font(.body)
                     Text(description)
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
                 
                 Spacer()
@@ -328,7 +328,7 @@ struct FieldToggleRow: View {
                 HStack {
                     Text("Required")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                     
                     Spacer()
                     

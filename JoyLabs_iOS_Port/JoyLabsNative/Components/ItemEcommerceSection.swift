@@ -107,11 +107,11 @@ struct OnlineVisibilitySettings: View {
                     Text("Visibility Guide:")
                         .font(.caption)
                         .fontWeight(.medium)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                     
                     Text("• Public: Visible to all customers\n• Private: Only visible to staff\n• Visible: Indexed by search engines\n• Hidden: Not indexed but accessible via direct link")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
             }
         }
@@ -193,11 +193,11 @@ struct SEOSettings: View {
                     Text("SEO Tips:")
                         .font(.caption)
                         .fontWeight(.medium)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                     
                     Text("• Keep titles under 60 characters\n• Keep descriptions under 160 characters\n• Use relevant keywords naturally\n• Make titles and descriptions unique")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
             }
         }
@@ -234,7 +234,7 @@ struct SalesChannelsSettings: View {
                 if channels.isEmpty {
                     Text("No sales channels selected")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                         .italic()
                         .padding(.vertical, 4)
                 } else {

@@ -4,7 +4,7 @@ import OSLog
 
 /// TokenService - Handles secure token storage and management
 /// Ports the sophisticated token management from React Native
-class TokenService {
+public class TokenService {
     // MARK: - Private Properties
     private let keychain = KeychainHelper()
     private let logger = Logger(subsystem: "com.joylabs.native", category: "TokenService")
@@ -57,7 +57,7 @@ class TokenService {
         logger.info("Authentication data stored successfully")
     }
     
-    func getTokenInfo() async -> TokenInfo {
+    public func getTokenInfo() async -> TokenInfo {
         let accessToken = try? keychain.retrieve(forKey: Keys.accessToken)
         let refreshToken = try? keychain.retrieve(forKey: Keys.refreshToken)
         let merchantId = try? keychain.retrieve(forKey: Keys.merchantId)
@@ -121,7 +121,7 @@ class TokenService {
 
     // MARK: - Token Data Management
 
-    func getCurrentTokenData() async throws -> TokenData {
+    public func getCurrentTokenData() async throws -> TokenData {
         let accessToken = try? keychain.retrieve(forKey: Keys.accessToken)
         let refreshToken = try? keychain.retrieve(forKey: Keys.refreshToken)
         let merchantId = try? keychain.retrieve(forKey: Keys.merchantId)
@@ -252,30 +252,30 @@ class TokenService {
 }
 
 // MARK: - Supporting Types
-struct TokenInfo {
-    let accessToken: String?
-    let refreshToken: String?
-    let merchantId: String?
-    let businessName: String?
-    let expiresAt: String?
-    let status: TokenStatus
+public struct TokenInfo {
+    public let accessToken: String?
+    public let refreshToken: String?
+    public let merchantId: String?
+    public let businessName: String?
+    public let expiresAt: String?
+    public let status: TokenStatus
 }
 
-enum TokenStatus {
+public enum TokenStatus {
     case valid
     case expired
     case missing
     case unknown
 }
 
-struct TokenData {
-    let accessToken: String?
-    let refreshToken: String?
-    let merchantId: String?
-    let businessName: String?
-    let expiresAt: Date?
+public struct TokenData {
+    public let accessToken: String?
+    public let refreshToken: String?
+    public let merchantId: String?
+    public let businessName: String?
+    public let expiresAt: Date?
 
-    init(accessToken: String?, refreshToken: String? = nil, merchantId: String? = nil, businessName: String? = nil, expiresAt: Date? = nil) {
+    public init(accessToken: String?, refreshToken: String? = nil, merchantId: String? = nil, businessName: String? = nil, expiresAt: Date? = nil) {
         self.accessToken = accessToken
         self.refreshToken = refreshToken
         self.merchantId = merchantId

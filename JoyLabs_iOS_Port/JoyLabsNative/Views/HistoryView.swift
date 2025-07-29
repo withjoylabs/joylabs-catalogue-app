@@ -101,7 +101,7 @@ struct HistoryItemCard: View {
                 .cornerRadius(6)
                 .overlay(
                     Image(systemName: "photo")
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                         .font(.system(size: 16))
                 )
             
@@ -126,7 +126,7 @@ struct HistoryItemCard: View {
                     if let barcode = item.barcode, !barcode.isEmpty {
                         Text(barcode)
                             .font(.system(size: 11))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.secondary)
                     }
 
                     // Bullet point separator (only if both UPC and SKU are present)
@@ -134,13 +134,13 @@ struct HistoryItemCard: View {
                        let sku = item.sku, !sku.isEmpty {
                         Text("•")
                             .font(.system(size: 11))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.secondary)
                     }
 
                     if let sku = item.sku, !sku.isEmpty {
                         Text(sku)
                             .font(.system(size: 11))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.secondary)
                     }
                     
                     Spacer()
@@ -150,7 +150,7 @@ struct HistoryItemCard: View {
                 if let scanTime = ISO8601DateFormatter().date(from: item.scanTime) {
                     Text(formatScanTime(scanTime))
                         .font(.system(size: 10))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
             }
             
@@ -195,7 +195,7 @@ struct LoadingHistoryView: View {
             Spacer()
             ProgressView("Loading history...")
                 .font(.subheadline)
-                .foregroundColor(.secondary)
+                .foregroundColor(Color.secondary)
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -210,7 +210,7 @@ struct EmptyHistoryView: View {
             
             Image(systemName: "clock.arrow.circlepath")
                 .font(.system(size: 60))
-                .foregroundColor(.secondary)
+                .foregroundColor(Color.secondary)
             
             VStack(spacing: 8) {
                 Text("No History Yet")
@@ -219,7 +219,7 @@ struct EmptyHistoryView: View {
                 
                 Text("Items you scan or modify will appear here")
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
                     .multilineTextAlignment(.center)
             }
             

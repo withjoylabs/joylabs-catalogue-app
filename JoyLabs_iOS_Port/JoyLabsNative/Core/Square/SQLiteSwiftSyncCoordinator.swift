@@ -212,6 +212,55 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
         await performManualSync()
     }
 
+    /// Perform incremental sync - only fetches and processes changes since last sync
+    func performIncrementalSync() async {
+        logger.info("Incremental sync triggered")
+
+        guard syncState != .syncing else {
+            logger.warning("Sync already in progress, ignoring incremental trigger")
+            return
+        }
+
+        syncState = .syncing
+
+        // Run sync in detached task so it can't be interrupted by navigation
+        Task.detached { [weak self] in
+            guard let self = self else { return }
+
+            do {
+                try await self.catalogSyncService.performIncrementalSync()
+
+                await MainActor.run { [weak self] in
+                    guard let self = self else { return }
+                    let result = SyncResult(
+                        syncType: .incremental,
+                        duration: 0, // TODO: Track actual duration
+                        totalProcessed: self.catalogSyncService.syncProgress.syncedObjects,
+                        itemsProcessed: self.catalogSyncService.syncProgress.syncedItems,
+                        inserted: 0, // TODO: Track actual inserts vs updates
+                        updated: self.catalogSyncService.syncProgress.syncedObjects,
+                        deleted: 0,
+                        errors: [],
+                        timestamp: Date()
+                    )
+
+                    self.lastSyncResult = result
+                    self.saveLastSyncResult(result)
+                    self.syncState = .idle
+                    self.logger.info("Incremental sync completed: \(result.summary)")
+                }
+
+            } catch {
+                await MainActor.run { [weak self] in
+                    guard let self = self else { return }
+                    self.logger.error("Incremental sync failed: \(error)")
+                    self.error = error
+                    self.syncState = .idle
+                }
+            }
+        }
+    }
+
     // Background sync methods removed - no automatic syncing
     
     // MARK: - Factory Method

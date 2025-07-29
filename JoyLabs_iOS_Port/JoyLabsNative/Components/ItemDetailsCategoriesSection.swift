@@ -117,7 +117,7 @@ struct ReportingCategorySelector: View {
             // Description
             Text("Primary category for reporting and analytics")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(Color.secondary)
 
             // Dropdown Button
             Button(action: {
@@ -130,7 +130,7 @@ struct ReportingCategorySelector: View {
                     Spacer()
 
                     Image(systemName: showingDropdown ? "chevron.up" : "chevron.down")
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                         .font(.caption)
                 }
                 .padding()
@@ -144,7 +144,7 @@ struct ReportingCategorySelector: View {
                     // Search Field
                     HStack {
                         Image(systemName: "magnifyingglass")
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.secondary)
                         TextField("Search categories...", text: $searchText)
                             .textFieldStyle(PlainTextFieldStyle())
                     }
@@ -213,7 +213,7 @@ struct RecentCategoriesScroll: View {
             Text("Recent Categories")
                 .font(.caption)
                 .fontWeight(.medium)
-                .foregroundColor(.secondary)
+                .foregroundColor(Color.secondary)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
@@ -276,7 +276,7 @@ struct AdditionalCategoriesSelector: View {
 
                 Text("Optional")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
             }
 
             // Dropdown Button
@@ -286,7 +286,7 @@ struct AdditionalCategoriesSelector: View {
                 HStack {
                     if categoryIds.isEmpty {
                         Text("Add categories")
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.secondary)
                     } else {
                         Text("\(categoryIds.count) categories selected")
                             .foregroundColor(.primary)
@@ -295,7 +295,7 @@ struct AdditionalCategoriesSelector: View {
                     Spacer()
 
                     Image(systemName: showingDropdown ? "chevron.up" : "chevron.down")
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                         .font(.caption)
                 }
                 .padding()
@@ -309,7 +309,7 @@ struct AdditionalCategoriesSelector: View {
                     // Search Field
                     HStack {
                         Image(systemName: "magnifyingglass")
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.secondary)
                             .font(.caption)
                         TextField("Search categories...", text: $searchText)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
@@ -405,7 +405,7 @@ struct CategoryChip: View {
             Button(action: onRemove) {
                 Image(systemName: "xmark")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
             }
         }
         .padding(.horizontal, 8)
@@ -463,7 +463,7 @@ struct TaxSelector: View {
                 } else {
                     Text("Optional")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
             }
 
@@ -497,7 +497,7 @@ struct TaxSelector: View {
                                 if let percentage = tax.percentage {
                                     Text("\(percentage)%")
                                         .font(.caption)
-                                        .foregroundColor(.secondary)
+                                        .foregroundColor(Color.secondary)
                                 }
                             }
 
@@ -511,7 +511,7 @@ struct TaxSelector: View {
             if viewModel.availableTaxes.isEmpty {
                 Text("No taxes available")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
                     .padding(.vertical, 8)
             }
         }
@@ -566,7 +566,7 @@ struct ModifierListSelector: View {
                 } else {
                     Text("Optional")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.secondary)
                 }
             }
 
@@ -600,7 +600,7 @@ struct ModifierListSelector: View {
                                 if let selectionType = modifierList.selectionType {
                                     Text(selectionType.capitalized)
                                         .font(.caption)
-                                        .foregroundColor(.secondary)
+                                        .foregroundColor(Color.secondary)
                                 }
                             }
 
@@ -614,12 +614,12 @@ struct ModifierListSelector: View {
             if viewModel.availableModifierLists.isEmpty {
                 Text("No modifier lists available")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
                     .padding(.vertical, 8)
             } else {
                 Text("Add-ons and customizations for this item")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.secondary)
                     .padding(.top, 4)
             }
         }
