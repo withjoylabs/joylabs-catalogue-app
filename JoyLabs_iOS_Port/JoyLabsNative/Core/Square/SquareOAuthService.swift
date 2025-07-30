@@ -214,7 +214,7 @@ class SquareOAuthService: NSObject, ObservableObject {
                 refreshToken: tokenResponse.refreshToken,
                 merchantId: tokenResponse.merchantId ?? "",
                 businessName: tokenResponse.businessName,
-                expiresAt: tokenResponse.expiresIn.map { Date(timeIntervalSinceNow: TimeInterval($0)) }
+                expiresIn: tokenResponse.expiresIn
             )
             logger.info("Tokens stored successfully in keychain")
         } catch {
@@ -259,7 +259,7 @@ class SquareOAuthService: NSObject, ObservableObject {
                 refreshToken: refreshToken,
                 merchantId: merchantId ?? "",
                 businessName: businessName,
-                expiresAt: nil
+                expiresIn: nil
             )
             logger.info("Tokens stored successfully in keychain")
         } catch {

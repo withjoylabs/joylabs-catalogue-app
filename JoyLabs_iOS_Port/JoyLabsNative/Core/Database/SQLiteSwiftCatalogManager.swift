@@ -157,6 +157,12 @@ class SQLiteSwiftCatalogManager {
     // MARK: - Database Connection
 
     func connect() throws {
+        // IDEMPOTENT: Don't reconnect if already connected
+        if db != nil {
+            logger.debug("Database already connected, skipping duplicate connection")
+            return
+        }
+        
         do {
             db = try Connection(dbPath)
 

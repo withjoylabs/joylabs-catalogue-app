@@ -71,9 +71,8 @@ class SearchManager: ObservableObject {
                 logger.info("✅ Search manager using existing database connection")
             }
 
-            // Create tables asynchronously
-            try await databaseManager.createTablesAsync()
-            logger.info("✅ Database tables initialized")
+            // Tables are already created during app startup - no need to recreate
+            logger.debug("✅ Database tables already initialized during app startup")
 
             // Update on main thread without blocking
             Task { @MainActor in
