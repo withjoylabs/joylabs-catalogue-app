@@ -56,7 +56,8 @@ struct ContentView: View {
                 // Empty placeholder to create space for FAB
                 Color.clear
                     .tabItem {
-                        Image(systemName: "")
+                        Image(systemName: "circle")
+                            .opacity(0) // Make invisible but valid
                         Text("")
                     }
 
