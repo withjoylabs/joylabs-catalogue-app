@@ -21,6 +21,13 @@ public class PushNotificationService: NSObject, ObservableObject {
     // MARK: - Private Properties
     private var isSetupComplete = false
     
+    // MARK: - Deduplication Properties
+    private var processedEventIds = Set<String>()
+    private var recentLocalOperations: [String: Date] = [:]
+    private let eventIdCleanupInterval: TimeInterval = 3600 // 1 hour
+    private let localOperationWindow: TimeInterval = 30 // 30 seconds
+    private var lastEventCleanup = Date()
+    
     // MARK: - Dependencies
     private let logger = Logger(subsystem: "com.joylabs.native", category: "PushNotificationService")
     private let webhookNotificationService = WebhookNotificationService.shared
@@ -85,9 +92,25 @@ public class PushNotificationService: NSObject, ObservableObject {
         
         let eventId = data["eventId"] as? String ?? "unknown"
         let merchantId = data["merchantId"] as? String ?? "unknown"
-        let _ = data["updatedAt"] as? String ?? ""
+        let updatedAt = data["updatedAt"] as? String ?? ""
+        
+        // DEDUPLICATION: Check if we've already processed this event
+        if await isDuplicateEvent(eventId: eventId) {
+            logger.info("🔄 Skipping duplicate webhook event: \(eventId)")
+            return
+        }
+        
+        // DEDUPLICATION: Check if this is for a recent local operation
+        if await isRecentLocalOperation(updatedAt: updatedAt) {
+            logger.info("🔄 Skipping webhook for recent local operation (Event: \(eventId))")
+            await markEventAsProcessed(eventId: eventId) // Still mark as processed to prevent retries
+            return
+        }
         
         logger.info("🔄 Processing catalog update notification for merchant \(merchantId) (Event: \(eventId))")
+        
+        // Mark event as being processed to prevent duplicates
+        await markEventAsProcessed(eventId: eventId)
         
         // Trigger image cache refresh
         await triggerImageCacheRefresh()
@@ -372,6 +395,91 @@ extension PushNotificationService {
         } catch {
             logger.error("Failed to get merchant ID: \(error)")
             return nil
+        }
+    }
+    
+    // MARK: - Deduplication Methods
+    
+    /// Check if this event has already been processed
+    private func isDuplicateEvent(eventId: String) async -> Bool {
+        // Clean up old events periodically
+        await cleanupOldEvents()
+        
+        return processedEventIds.contains(eventId)
+    }
+    
+    /// Mark an event as processed to prevent duplicate processing
+    private func markEventAsProcessed(eventId: String) async {
+        processedEventIds.insert(eventId)
+        logger.debug("🔖 Marked event as processed: \(eventId)")
+    }
+    
+    /// Check if this webhook corresponds to a recent local operation
+    private func isRecentLocalOperation(updatedAt: String) async -> Bool {
+        guard !updatedAt.isEmpty else { return false }
+        
+        // Parse the Square webhook timestamp (ISO 8601)
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        
+        guard let webhookTime = formatter.date(from: updatedAt) else {
+            logger.warning("⚠️ Failed to parse webhook timestamp: \(updatedAt)")
+            return false
+        }
+        
+        // Clean up old local operations
+        cleanupOldLocalOperations()
+        
+        // Check if any recent local operation falls within the time window
+        for (_, localOpTime) in recentLocalOperations {
+            let timeDifference = abs(webhookTime.timeIntervalSince(localOpTime))
+            if timeDifference <= localOperationWindow {
+                logger.debug("🔍 Found recent local operation within \(timeDifference)s of webhook")
+                return true
+            }
+        }
+        
+        return false
+    }
+    
+    /// Record a local operation to prevent processing webhooks for our own changes
+    func recordLocalOperation(itemId: String) {
+        let operationTime = Date()
+        recentLocalOperations[itemId] = operationTime
+        logger.debug("📝 Recorded local operation for item: \(itemId) at \(operationTime)")
+        
+        // Clean up old operations to prevent memory growth
+        cleanupOldLocalOperations()
+    }
+    
+    /// Clean up old processed event IDs to prevent memory growth
+    private func cleanupOldEvents() async {
+        let now = Date()
+        
+        // Only clean up if it's been more than an hour since last cleanup
+        guard now.timeIntervalSince(lastEventCleanup) > eventIdCleanupInterval else { return }
+        
+        // For now, we'll keep a simple approach and clear all after cleanup interval
+        // In production, you might want to implement a more sophisticated LRU cache
+        let eventCount = processedEventIds.count
+        if eventCount > 1000 { // Arbitrary limit to prevent excessive memory usage
+            processedEventIds.removeAll()
+            logger.info("🧹 Cleared \(eventCount) processed event IDs to prevent memory growth")
+        }
+        
+        lastEventCleanup = now
+    }
+    
+    /// Clean up old local operations to prevent memory growth
+    private func cleanupOldLocalOperations() {
+        let cutoffTime = Date().addingTimeInterval(-localOperationWindow * 2) // Keep records for 2x the window
+        
+        let oldCount = recentLocalOperations.count
+        recentLocalOperations = recentLocalOperations.filter { $0.value > cutoffTime }
+        let cleanedCount = oldCount - recentLocalOperations.count
+        
+        if cleanedCount > 0 {
+            logger.debug("🧹 Cleaned up \(cleanedCount) old local operation records")
         }
     }
 }

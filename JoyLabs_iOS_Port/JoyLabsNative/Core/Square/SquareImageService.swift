@@ -56,6 +56,12 @@ class SquareImageService: ObservableObject {
 
         let squareImageId = imageObject.id
         
+        // DEDUPLICATION: Record this local operation to prevent processing webhooks for our own changes
+        PushNotificationService.shared.recordLocalOperation(itemId: squareImageId)
+        if let itemId = itemId {
+            PushNotificationService.shared.recordLocalOperation(itemId: itemId)
+        }
+        
         logger.info("Successfully uploaded image to Square: \(squareImageId)")
 
         // Step 2: Cache image with mapping (same as sync process)

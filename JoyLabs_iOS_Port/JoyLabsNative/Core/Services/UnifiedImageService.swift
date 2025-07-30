@@ -371,6 +371,10 @@ extension UnifiedImageService {
 
         let squareImageId = imageObject.id
         
+        // DEDUPLICATION: Record this local operation to prevent processing webhooks for our own changes
+        PushNotificationService.shared.recordLocalOperation(itemId: squareImageId)
+        PushNotificationService.shared.recordLocalOperation(itemId: itemId)
+        
         logger.info("✅ Successfully uploaded image to Square: \(squareImageId)")
         logger.info("📍 AWS URL: \(awsUrl)")
 

@@ -424,6 +424,9 @@ class SquareAPIService: ObservableObject {
         try await SquareAPIServiceFactory.createDatabaseManager().saveCatalogVersion(catalogVersion)
         logger.info("📅 Updated catalog version after upsert: \(catalogVersion)")
 
+        // DEDUPLICATION: Record this local operation to prevent processing webhooks for our own changes
+        PushNotificationService.shared.recordLocalOperation(itemId: upsertedObject.id)
+
         logger.info("Successfully upserted catalog object: \(upsertedObject.id) (version: \(upsertedObject.safeVersion))")
         return upsertedObject
     }
@@ -455,6 +458,9 @@ class SquareAPIService: ObservableObject {
         try await SquareAPIServiceFactory.createDatabaseManager().saveCatalogVersion(catalogVersion)
         logger.info("📅 Updated catalog version after upsert with mappings: \(catalogVersion)")
 
+        // DEDUPLICATION: Record this local operation to prevent processing webhooks for our own changes
+        PushNotificationService.shared.recordLocalOperation(itemId: upsertedObject.id)
+
         logger.info("Successfully upserted catalog object: \(upsertedObject.id) (version: \(upsertedObject.safeVersion))")
 
         if let mappings = response.idMappings, !mappings.isEmpty {
@@ -482,6 +488,9 @@ class SquareAPIService: ObservableObject {
         let catalogVersion = Date()
         try await SquareAPIServiceFactory.createDatabaseManager().saveCatalogVersion(catalogVersion)
         logger.info("📅 Updated catalog version after delete: \(catalogVersion)")
+
+        // DEDUPLICATION: Record this local operation to prevent processing webhooks for our own changes
+        PushNotificationService.shared.recordLocalOperation(itemId: objectId)
 
         logger.info("Successfully deleted catalog object: \(objectId) at \(deletedObject.deletedAt ?? "unknown time")")
         return deletedObject
