@@ -47,7 +47,7 @@ class SearchManager: ObservableObject {
             self.databaseManager = SQLiteSwiftCatalogManager()
         }
 
-        // Initialize image URL manager
+        // Initialize image URL manager (can't use factory here due to MainActor isolation)
         self.imageURLManager = ImageURLManager(databaseManager: self.databaseManager)
 
         setupSearchDebouncing()
@@ -707,9 +707,20 @@ class SearchManager: ObservableObject {
                 let dataJsonString = row[0] as? String ?? "{}"
                 let dataJsonData = dataJsonString.data(using: String.Encoding.utf8) ?? Data()
                 
-                if let currentData = try JSONSerialization.jsonObject(with: dataJsonData) as? [String: Any],
-                   let imageIds = currentData["image_ids"] as? [String],
-                   let primaryImageId = imageIds.first {
+                if let currentData = try JSONSerialization.jsonObject(with: dataJsonData) as? [String: Any] {
+                    var imageIds: [String]? = nil
+                    
+                    // Try nested under item_data first (current format)
+                    if let itemData = currentData["item_data"] as? [String: Any] {
+                        imageIds = itemData["image_ids"] as? [String]
+                    }
+                    
+                    // Fallback to root level (legacy format)
+                    if imageIds == nil {
+                        imageIds = currentData["image_ids"] as? [String]
+                    }
+                    
+                    if let imageIdArray = imageIds, let primaryImageId = imageIdArray.first {
                     
                     logger.info("🔍 [SEARCH] Found primary image ID from database: \(primaryImageId)")
                     
@@ -735,11 +746,12 @@ class SearchManager: ObservableObject {
 
                         logger.info("🔍 [SEARCH] ✅ Successfully created CatalogImage for item \(itemId) with correct primary image")
                         return [catalogImage]
+                        } else {
+                            logger.error("🔍 [SEARCH] ❌ No mapping found for primary image ID: \(primaryImageId)")
+                        }
                     } else {
-                        logger.error("🔍 [SEARCH] ❌ No mapping found for primary image ID: \(primaryImageId)")
+                        logger.error("🔍 [SEARCH] ❌ No image_ids found in database for item: \(itemId)")
                     }
-                } else {
-                    logger.error("🔍 [SEARCH] ❌ No image_ids found in database for item: \(itemId)")
                 }
             }
             

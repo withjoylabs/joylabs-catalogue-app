@@ -24,7 +24,7 @@ class UnifiedImageService: ObservableObject {
     private init() {
         self.imageCacheService = ImageCacheService.shared
         self.databaseManager = SquareAPIServiceFactory.createDatabaseManager()
-        self.imageURLManager = ImageURLManager(databaseManager: databaseManager)
+        self.imageURLManager = SquareAPIServiceFactory.createImageURLManager()
         self.httpClient = SquareAPIServiceFactory.createHTTPClient()
 
         logger.info("[UnifiedImage] UnifiedImageService initialized")
@@ -135,19 +135,34 @@ class UnifiedImageService: ObservableObject {
             let dataJsonString = row[0] as? String ?? "{}"
             let dataJsonData = dataJsonString.data(using: String.Encoding.utf8) ?? Data()
             
-            if let currentData = try JSONSerialization.jsonObject(with: dataJsonData) as? [String: Any],
-               let imageIds = currentData["image_ids"] as? [String],
-               let primaryImageId = imageIds.first {
+            // First try direct image_ids (older format)
+            var imageIds: [String]? = nil
+            
+            if let currentData = try JSONSerialization.jsonObject(with: dataJsonData) as? [String: Any] {
+                // Try nested under item_data first (current format)
+                if let itemData = currentData["item_data"] as? [String: Any] {
+                    imageIds = itemData["image_ids"] as? [String]
+                }
                 
-                // Get image mapping
-                let imageMappings = try imageURLManager.getImageMappings(for: itemId, objectType: "ITEM")
-                if let mapping = imageMappings.first(where: { $0.squareImageId == primaryImageId }) {
-                    return ImageInfo(
-                        imageId: primaryImageId,
-                        awsUrl: mapping.originalAwsUrl,
-                        cacheUrl: "cache://\(mapping.localCacheKey)",
-                        itemId: itemId
-                    )
+                // Fallback to root level (legacy format)
+                if imageIds == nil {
+                    imageIds = currentData["image_ids"] as? [String]
+                }
+                
+                if let imageIdArray = imageIds, let primaryImageId = imageIdArray.first {
+                    // Get image mapping
+                    let imageMappings = try imageURLManager.getImageMappings(for: itemId, objectType: "ITEM")
+                    if let mapping = imageMappings.first(where: { $0.squareImageId == primaryImageId }) {
+                        logger.debug("✅ Found image mapping for item \(itemId): \(primaryImageId) -> \(mapping.localCacheKey)")
+                        return ImageInfo(
+                            imageId: primaryImageId,
+                            awsUrl: mapping.originalAwsUrl,
+                            cacheUrl: "cache://\(mapping.localCacheKey)",
+                            itemId: itemId
+                        )
+                    } else {
+                        logger.warning("⚠️ No image mapping found for item \(itemId) with image \(primaryImageId)")
+                    }
                 }
             }
         }

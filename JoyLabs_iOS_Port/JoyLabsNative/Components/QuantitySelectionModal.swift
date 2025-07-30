@@ -92,10 +92,10 @@ struct EmbeddedQuantitySelectionModal: View {
             // RESPONSIVE THUMBNAIL WITH ACTUAL IMAGE - 70% SCREEN WIDTH
             let imageSize = geometry.size.width * 0.7
 
-            // Always fetch current primary image instead of using stale item.images data
+            // Use image data from SearchResultItem if available
             UnifiedImageView.large(
-                imageURL: nil, // Always fetch current primary image
-                imageId: nil,  // Always fetch current primary image
+                imageURL: item.images?.first?.imageData?.url,
+                imageId: item.images?.first?.id,
                 itemId: item.id,
                 size: imageSize
             )

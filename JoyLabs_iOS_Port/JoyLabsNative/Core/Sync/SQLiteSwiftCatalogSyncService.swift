@@ -631,7 +631,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
 
         // Store the URL mapping for on-demand loading (don't download yet)
         do {
-            let imageURLManager = ImageURLManager(databaseManager: databaseManager)
+            let imageURLManager = SquareAPIServiceFactory.createImageURLManager()
             let _ = try imageURLManager.storeImageMapping(
                 squareImageId: object.id,
                 awsUrl: awsUrl,
@@ -681,25 +681,34 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
                 logger.debug("🔍 ITEM JSON: \(dataJsonString.prefix(200))...")
 
                 // Parse the JSON to verify this image ID is actually in the imageIds array
-                // Note: We now store the full CatalogObject, so imageIds is in item_data.image_ids (UNDERSCORE!)
-                if let catalogObject = try? JSONSerialization.jsonObject(with: dataJsonData) as? [String: Any],
-                   let itemData = catalogObject["item_data"] as? [String: Any] {
-                    if let imageIds = itemData["image_ids"] as? [String] {
-                        if imageIds.contains(imageId) {
-                            // Determine if this is the primary image (first in array)
-                            let imageType = imageIds.first == imageId ? "PRIMARY" : "SECONDARY"
+                if let catalogObject = try? JSONSerialization.jsonObject(with: dataJsonData) as? [String: Any] {
+                    var imageIds: [String]? = nil
+                    
+                    // Try nested under item_data first (current format with underscores)
+                    if let itemData = catalogObject["item_data"] as? [String: Any] {
+                        imageIds = itemData["image_ids"] as? [String]
+                    }
+                    
+                    // Fallback to root level (legacy format or direct storage)
+                    if imageIds == nil {
+                        imageIds = catalogObject["image_ids"] as? [String]
+                    }
+                    
+                    if let imageIdArray = imageIds, imageIdArray.contains(imageId) {
+                        // Determine if this is the primary image (first in array)
+                        let imageType = imageIdArray.first == imageId ? "PRIMARY" : "SECONDARY"
 
-                            // Create the item-to-image mapping
-                            let _ = try imageURLManager.storeImageMapping(
-                                squareImageId: imageId,
-                                awsUrl: awsUrl,
-                                objectType: "ITEM",
-                                objectId: itemId,
-                                imageType: imageType
-                            )
+                        // Create the item-to-image mapping
+                        let _ = try imageURLManager.storeImageMapping(
+                            squareImageId: imageId,
+                            awsUrl: awsUrl,
+                            objectType: "ITEM",
+                            objectId: itemId,
+                            imageType: imageType
+                        )
 
-                            mappingsCreated += 1
-                        }
+                        mappingsCreated += 1
+                        logger.debug("✅ Created image mapping for item \(itemId): \(imageId) -> \(awsUrl)")
                     }
                 }
             }
@@ -724,7 +733,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
 
                     // Mark the orphaned image mapping as deleted to free up space
                     do {
-                        let imageURLManager = ImageURLManager(databaseManager: databaseManager)
+                        let imageURLManager = SquareAPIServiceFactory.createImageURLManager()
                         try imageURLManager.markImageAsDeleted(squareImageId: imageId)
                     } catch {
                         logger.error("❌ Failed to mark orphaned image mapping as deleted: \(error)")
@@ -753,7 +762,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
             return
         }
 
-        let imageURLManager = ImageURLManager(databaseManager: databaseManager)
+        let imageURLManager = SquareAPIServiceFactory.createImageURLManager()
         var mappingsCreated = 0
 
         for (index, imageId) in imageIds.enumerated() {

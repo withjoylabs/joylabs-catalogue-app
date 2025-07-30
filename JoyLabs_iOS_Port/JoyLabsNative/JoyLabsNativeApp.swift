@@ -49,6 +49,8 @@ struct JoyLabsNativeApp: App {
         let _ = SquareAPIServiceFactory.createHTTPClient()
         let _ = SquareAPIServiceFactory.createService() // SquareAPIService
         let _ = SquareAPIServiceFactory.createSyncCoordinator()
+        let _ = SquareAPIServiceFactory.createImageURLManager() // Pre-init for modals
+        let _ = SquareAPIServiceFactory.createCRUDService() // Pre-init for modals
         
         // Pre-initialize singleton services to prevent creation during Phase 2
         let _ = PushNotificationService.shared

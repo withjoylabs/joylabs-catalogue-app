@@ -721,22 +721,33 @@ class ItemDetailsViewModel: ObservableObject {
                 let dataJsonString = row[0] as? String ?? "{}"
                 let dataJsonData = dataJsonString.data(using: String.Encoding.utf8) ?? Data()
                 
-                if let currentData = try JSONSerialization.jsonObject(with: dataJsonData) as? [String: Any],
-                   let imageIds = currentData["image_ids"] as? [String],
-                   let primaryImageId = imageIds.first {
+                if let currentData = try JSONSerialization.jsonObject(with: dataJsonData) as? [String: Any] {
+                    var imageIds: [String]? = nil
                     
-                    logger.info("🔍 [MODAL] Found primary image ID from database: \(primaryImageId)")
-                    
-                    // Get image mapping for this specific image ID
-                    let imageMappings = try imageURLManager.getImageMappings(for: itemId, objectType: "ITEM")
-                    if let mapping = imageMappings.first(where: { $0.squareImageId == primaryImageId }) {
-                        logger.info("🔍 [MODAL] ✅ Found mapping for primary image: \(primaryImageId) -> \(mapping.originalAwsUrl)")
-                        return (imageURL: mapping.originalAwsUrl, imageId: primaryImageId)
-                    } else {
-                        logger.error("🔍 [MODAL] ❌ No mapping found for primary image ID: \(primaryImageId)")
+                    // Try nested under item_data first (current format)
+                    if let itemData = currentData["item_data"] as? [String: Any] {
+                        imageIds = itemData["image_ids"] as? [String]
                     }
-                } else {
-                    logger.error("🔍 [MODAL] ❌ No image_ids found in database for item: \(itemId)")
+                    
+                    // Fallback to root level (legacy format)
+                    if imageIds == nil {
+                        imageIds = currentData["image_ids"] as? [String]
+                    }
+                    
+                    if let imageIdArray = imageIds, let primaryImageId = imageIdArray.first {
+                        logger.info("🔍 [MODAL] Found primary image ID from database: \(primaryImageId)")
+                        
+                        // Get image mapping for this specific image ID
+                        let imageMappings = try imageURLManager.getImageMappings(for: itemId, objectType: "ITEM")
+                        if let mapping = imageMappings.first(where: { $0.squareImageId == primaryImageId }) {
+                            logger.info("🔍 [MODAL] ✅ Found mapping for primary image: \(primaryImageId) -> \(mapping.originalAwsUrl)")
+                            return (imageURL: mapping.originalAwsUrl, imageId: primaryImageId)
+                        } else {
+                            logger.error("🔍 [MODAL] ❌ No mapping found for primary image ID: \(primaryImageId)")
+                        }
+                    } else {
+                        logger.error("🔍 [MODAL] ❌ No image_ids found in database for item: \(itemId)")
+                    }
                 }
             }
             
