@@ -215,7 +215,8 @@ actor SquareHTTPClient {
         
         // CRITICAL FIX: Always specify object types, even with begin_time
         // This filters out extraneous objects and focuses on what we need
-        searchRequest["object_types"] = ["ITEM", "CATEGORY", "TAX", "DISCOUNT", "MODIFIER_LIST", "IMAGE"]
+        // IMPORTANT: Must match SquareConfiguration.catalogObjectTypes exactly for consistent sync
+        searchRequest["object_types"] = ["ITEM", "CATEGORY", "ITEM_VARIATION", "MODIFIER", "MODIFIER_LIST", "TAX", "DISCOUNT", "IMAGE"]
         
         // Add limit - Square API allows up to 1000 objects per page
         searchRequest["limit"] = 1000  // Maximum page size for efficiency

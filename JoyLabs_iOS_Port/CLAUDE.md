@@ -130,6 +130,15 @@ The codebase follows a **modular service-oriented architecture** with these key 
 - **No Polling**: Eliminated battery-draining polling services in favor of efficient push notifications
 - **Catch-up Sync**: App launch performs incremental sync to handle missed notifications
 
+### Webhook CRUD Operations (Critical Fix 2025-01-30)
+- **Complete Object Type Coverage**: Incremental sync now fetches ALL 8 catalog object types that full sync processes
+- **Object Types Synced**: `ITEM`, `CATEGORY`, `ITEM_VARIATION`, `MODIFIER`, `MODIFIER_LIST`, `TAX`, `DISCOUNT`, `IMAGE`
+- **Database CRUD**: All object types use `insert(or: .replace,` for proper upsert operations
+- **Price Updates**: ITEM_VARIATION objects are now properly fetched and updated during incremental sync
+- **Real-time UI**: Search results and item details refresh immediately after webhook-triggered updates
+- **Processing Priority**: Objects processed in dependency order (categories → taxes → modifiers → items → variations → images)
+- **Consistent Configuration**: Both full sync and incremental sync use identical object type lists
+
 ## Critical Implementation Patterns
 
 ### SwiftUI Reactivity with Nested @Published Objects
@@ -370,6 +379,8 @@ ItemDetailsModal(
 )
 ```
 
+**Real-time Updates**: ItemDetailsModal automatically refreshes data when catalog sync completes (webhook-triggered updates). Uses `.onReceive(NotificationCenter.default.publisher(for: .catalogSyncCompleted))` to reload item data without losing user changes.
+
 ## Error Handling Patterns
 
 ### Fail Fast for Critical Operations
@@ -424,6 +435,8 @@ Do not use these deprecated components:
 - **Empty searchCatalog() implementations**: Always connect to actual HTTP client, never return hardcoded empty arrays
 - **Resilience wrappers on sync**: Remove resilience fallbacks that mask real sync errors with empty data
 - **Multiple database connections**: Only connect once in Phase 1, all subsequent calls should be idempotent
+- **Incomplete object types in incremental sync**: Always ensure incremental sync object types match full sync configuration exactly
+- **Missing ITEM_VARIATION in webhooks**: Price changes require ITEM_VARIATION objects - verify all child object types are included
 
 #### **Notification Issues**:
 - **Redundant notification processing**: Only process webhook notifications once (background OR foreground, not both)
@@ -440,6 +453,21 @@ The SQLite schema exactly matches the React Native version for cross-platform co
 - `categories` (id, updated_at, version, is_deleted, name, data_json)
 - `catalog_items` (id, updated_at, version, is_deleted, name, description, category_id, etc.)
 - `item_variations` (id, item_id, name, pricing_type, price_money, etc.)
+
+### Catalog Object Type Configuration
+**CRITICAL**: Both full sync and incremental sync must use identical object type lists:
+
+**Full Sync** (`SquareConfiguration.catalogObjectTypes`):
+```
+"ITEM,CATEGORY,ITEM_VARIATION,MODIFIER,MODIFIER_LIST,TAX,DISCOUNT,IMAGE"
+```
+
+**Incremental Sync** (`SquareHTTPClient.searchCatalogObjects`):
+```swift
+searchRequest["object_types"] = ["ITEM", "CATEGORY", "ITEM_VARIATION", "MODIFIER", "MODIFIER_LIST", "TAX", "DISCOUNT", "IMAGE"]
+```
+
+**Database CRUD Support**: All 8 object types have complete insert/update handlers in `SQLiteSwiftCatalogManager.insertCatalogObject()` using `insert(or: .replace,` for proper upsert operations.
 
 ### Notification System
 The app uses multiple notification systems:

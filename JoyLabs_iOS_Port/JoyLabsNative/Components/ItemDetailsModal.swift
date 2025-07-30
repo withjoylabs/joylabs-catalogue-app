@@ -126,6 +126,15 @@ struct ItemDetailsModal: View {
         .onAppear {
             setupForContext()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .catalogSyncCompleted)) { _ in
+            // Refresh item data when catalog sync completes (for webhook updates)
+            if case .editExisting(let itemId) = context {
+                logger.info("Catalog sync completed - refreshing item data for \(itemId)")
+                Task {
+                    await viewModel.refreshItemData(itemId: itemId)
+                }
+            }
+        }
         .confirmationDialog(
             "Discard Changes?",
             isPresented: $showingCancelConfirmation,

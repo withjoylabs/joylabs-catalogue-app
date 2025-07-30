@@ -520,6 +520,41 @@ class ItemDetailsViewModel: ObservableObject {
         }
     }
 
+    /// Refresh item data from database (called when catalog sync completes)
+    func refreshItemData(itemId: String) async {
+        logger.info("Refreshing item data for \(itemId) after catalog sync")
+        
+        // Only refresh if we're currently editing this item and haven't made changes
+        guard case .editExisting(let currentItemId) = context,
+              currentItemId == itemId,
+              !hasUnsavedChanges else {
+            logger.info("Skipping refresh - either different item, unsaved changes, or not in edit mode")
+            return
+        }
+        
+        // Use the shared database manager to reload the item
+        let catalogManager = SquareAPIServiceFactory.createDatabaseManager()
+        
+        do {
+            if let catalogObject = try catalogManager.fetchItemById(itemId) {
+                // Transform and update the item data
+                let refreshedData = await transformCatalogObjectToItemDetails(catalogObject)
+                
+                await MainActor.run {
+                    self.itemData = refreshedData
+                    // Update original data to reflect the refreshed state
+                    self.originalItemData = refreshedData
+                }
+                
+                logger.info("Successfully refreshed item data for \(itemId)")
+            } else {
+                logger.warning("Item \(itemId) not found during refresh")
+            }
+        } catch {
+            logger.error("Failed to refresh item data for \(itemId): \(error)")
+        }
+    }
+
     // MARK: - Data Transformation
 
     /// Transform a CatalogObject from database to ItemDetailsData for UI
