@@ -128,9 +128,14 @@ public class TokenService {
         let businessName = try? keychain.retrieve(forKey: Keys.businessName)
 
         var expiresAt: Date?
-        if let expiryString = try? keychain.retrieve(forKey: Keys.tokenExpiry),
-           let expiryTimestamp = Double(expiryString) {
-            expiresAt = Date(timeIntervalSince1970: expiryTimestamp)
+        if let expiryString = try? keychain.retrieve(forKey: Keys.tokenExpiry) {
+            // Try to parse as ISO8601 first (current format)
+            expiresAt = ISO8601DateFormatter().date(from: expiryString)
+            
+            // If that fails, try as Unix timestamp (legacy format)
+            if expiresAt == nil, let expiryTimestamp = Double(expiryString) {
+                expiresAt = Date(timeIntervalSince1970: expiryTimestamp)
+            }
         }
 
         return TokenData(

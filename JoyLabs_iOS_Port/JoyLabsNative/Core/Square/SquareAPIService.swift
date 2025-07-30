@@ -175,10 +175,26 @@ class SquareAPIService: ObservableObject {
         logger.debug("Checking cached authentication")
 
         do {
-            _ = try await tokenService.getCurrentTokenData()
-            authenticationState = .authenticated
-            isAuthenticated = true
-            logger.debug("Found valid cached authentication")
+            let tokenData = try await tokenService.getCurrentTokenData()
+            
+            // Check if we actually have a valid access token
+            if let accessToken = tokenData.accessToken, !accessToken.isEmpty {
+                // Also check if token is expired
+                let isExpired = await tokenService.isTokenExpired(tokenData)
+                if !isExpired {
+                    authenticationState = .authenticated
+                    isAuthenticated = true
+                    logger.debug("Found valid cached authentication")
+                } else {
+                    logger.debug("Cached token is expired")
+                    authenticationState = .unauthenticated
+                    isAuthenticated = false
+                }
+            } else {
+                logger.debug("No access token found in cached authentication")
+                authenticationState = .unauthenticated
+                isAuthenticated = false
+            }
         } catch {
             logger.error("Error checking cached authentication: \(error.localizedDescription)")
             authenticationState = .unauthenticated
