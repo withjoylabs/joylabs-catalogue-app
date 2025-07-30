@@ -51,6 +51,9 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
 
     private func validateSyncResultCache(_ cachedResult: SyncResult) async {
         do {
+            // RACE CONDITION FIX: Ensure database connection is established before accessing
+            try catalogSyncService.sharedDatabaseManager.connect()
+            
             // Get actual database counts
             let actualItemCount = try await catalogSyncService.sharedDatabaseManager.getItemCount()
 

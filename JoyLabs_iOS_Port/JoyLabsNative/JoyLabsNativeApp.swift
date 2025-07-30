@@ -116,6 +116,8 @@ struct JoyLabsNativeApp: App {
             let syncCoordinator = SquareAPIServiceFactory.createSyncCoordinator()
             
             // Count items before sync to calculate changes using existing getItemCount method
+            // RACE CONDITION FIX: Ensure database connection is established before accessing
+            try databaseManager.connect()
             let itemCountBefore = try await databaseManager.getItemCount()
             
             // This should be incremental sync, not full resync
@@ -123,6 +125,8 @@ struct JoyLabsNativeApp: App {
             await syncCoordinator.performIncrementalSync()
             
             // Count items after sync to see what changed
+            // Database connection should already be established, but ensure it's connected
+            try databaseManager.connect()
             let itemCountAfter = try await databaseManager.getItemCount()
             let itemsUpdated = abs(itemCountAfter - itemCountBefore)
             

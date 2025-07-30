@@ -296,6 +296,8 @@ extension PushNotificationService {
         do {
             // Get database manager to count items before sync using existing getItemCount method
             let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
+            // RACE CONDITION FIX: Ensure database connection is established before accessing
+            try databaseManager.connect()
             let itemCountBefore = try await databaseManager.getItemCount()
             
             // Get the sync coordinator from the factory
@@ -317,6 +319,8 @@ extension PushNotificationService {
             }
             
             // Count items after sync to see what changed
+            // Database connection should already be established, but ensure it's connected
+            try databaseManager.connect()
             let itemCountAfter = try await databaseManager.getItemCount()
             let itemsUpdated = Int(abs(Int32(itemCountAfter - itemCountBefore)))
             
