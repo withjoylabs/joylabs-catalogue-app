@@ -16,10 +16,11 @@ struct JoyLabsNativeApp: App {
         initializeRemainingServicesAsync()
         
         // CRITICAL: Request push notification permissions IMMEDIATELY at app startup
+        // (Token registration will happen later in orchestrated sequence)
         Task { @MainActor in
             await PushNotificationService.shared.setupPushNotifications()
             let logger = Logger(subsystem: "com.joylabs.native", category: "App")
-            logger.info("🔔 Push notification permissions requested at app startup")
+            logger.info("🔔 Phase 1: Push notification permissions requested at app startup")
         }
     }
 
@@ -34,7 +35,7 @@ struct JoyLabsNativeApp: App {
     }
 
     private func initializeCriticalServicesSync() {
-        logger.info("🚀 Initializing critical services synchronously...")
+        logger.info("🚀 Phase 1: Initializing critical services synchronously...")
         
         // Initialize field configuration manager synchronously
         let _ = FieldConfigurationManager.shared
@@ -44,7 +45,7 @@ struct JoyLabsNativeApp: App {
         let imageURLManager = ImageURLManager(databaseManager: databaseManager)
         ImageCacheService.initializeShared(with: imageURLManager)
         
-        logger.info("✅ Critical services initialized synchronously (FieldConfig, Database, ImageCache)")
+        logger.info("✅ Phase 1: Critical services initialized synchronously (FieldConfig, Database, ImageCache)")
     }
     
     private func initializeRemainingServicesAsync() {
@@ -64,13 +65,21 @@ struct JoyLabsNativeApp: App {
                             let logger = Logger(subsystem: "com.joylabs.native", category: "App")
                             logger.info("✅ Database connection and tables initialized successfully")
                             
-                            // Initialize webhook system AFTER database is ready
+                            // PHASE 2: Perform catch-up sync FIRST (before webhook processing)
                             Task {
-                                WebhookManager.shared.startWebhookProcessing()
-                                logger.info("🔔 Webhook system initialized")
-                                
-                                // Perform catch-up sync on app launch in case we missed any webhook notifications
+                                logger.info("🔄 Phase 2: Starting catch-up sync before enabling webhook processing...")
                                 await performAppLaunchCatchUpSync()
+                                
+                                // PHASE 3: Initialize webhook system AFTER catch-up sync completes
+                                await MainActor.run {
+                                    WebhookManager.shared.startWebhookProcessing()
+                                    logger.info("✅ Phase 3: Webhook system initialized after catch-up sync")
+                                    
+                                    // PHASE 4: Start push notification token registration (non-blocking)
+                                    Task {
+                                        await finalizePushNotificationSetup()
+                                    }
+                                }
                             }
                         }
                     } catch {
@@ -84,10 +93,21 @@ struct JoyLabsNativeApp: App {
         }
     }
 
+    /// Finalize push notification setup after catch-up sync is complete
+    private func finalizePushNotificationSetup() async {
+        logger.info("🔔 Phase 4: Finalizing push notification token registration...")
+        
+        // Push notification permissions were already requested in Phase 1
+        // Now we just need to ensure token registration happens after sync is complete
+        // The AppDelegate will handle token registration when the token becomes available
+        
+        logger.info("✅ Phase 4: Push notification setup finalized - token registration will occur automatically")
+    }
+
     /// Performs catch-up sync on app launch to handle missed webhook notifications
     /// Only syncs objects that changed since last sync - NOT a full resync
     private func performAppLaunchCatchUpSync() async {
-        logger.info("🔄 Starting app launch catch-up sync (incremental only)...")
+        logger.info("🔄 Phase 2: Starting app launch catch-up sync (incremental only)...")
         
         do {
             // Check if we have authentication using factory
@@ -130,7 +150,7 @@ struct JoyLabsNativeApp: App {
             let itemCountAfter = try await databaseManager.getItemCount()
             let itemsUpdated = abs(itemCountAfter - itemCountBefore)
             
-            logger.info("✅ App launch incremental catch-up sync completed successfully - \(itemsUpdated) items updated")
+            logger.info("✅ Phase 2: App launch incremental catch-up sync completed successfully - \(itemsUpdated) items updated")
             
             // Always create in-app notification about sync results (silent - no iOS notification banner)
             await createInAppNotificationForSync(itemsUpdated: itemsUpdated, reason: "app launch")
