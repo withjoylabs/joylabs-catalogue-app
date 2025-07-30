@@ -43,6 +43,11 @@ class SquareImageService: ObservableObject {
             idempotencyKey: idempotencyKey
         )
         
+        // CRITICAL: Update catalog version after successful image upload
+        let catalogVersion = Date()
+        try await databaseManager.saveCatalogVersion(catalogVersion)
+        logger.info("📅 Updated catalog version after image upload: \(catalogVersion)")
+        
         guard let imageObject = response.image,
               let imageData = imageObject.imageData,
               let awsUrl = imageData.url else {

@@ -418,6 +418,12 @@ class SquareAPIService: ObservableObject {
             throw SquareAPIError.upsertFailed("No object returned from upsert operation")
         }
 
+        // CRITICAL: Update catalog version after successful local CRUD operation
+        // Since Square API doesn't return catalog_version, we set it to current time
+        let catalogVersion = Date()
+        try await SquareAPIServiceFactory.createDatabaseManager().saveCatalogVersion(catalogVersion)
+        logger.info("📅 Updated catalog version after upsert: \(catalogVersion)")
+
         logger.info("Successfully upserted catalog object: \(upsertedObject.id) (version: \(upsertedObject.safeVersion))")
         return upsertedObject
     }
@@ -444,6 +450,11 @@ class SquareAPIService: ObservableObject {
             throw SquareAPIError.upsertFailed("No object returned from upsert operation")
         }
 
+        // CRITICAL: Update catalog version after successful local CRUD operation
+        let catalogVersion = Date()
+        try await SquareAPIServiceFactory.createDatabaseManager().saveCatalogVersion(catalogVersion)
+        logger.info("📅 Updated catalog version after upsert with mappings: \(catalogVersion)")
+
         logger.info("Successfully upserted catalog object: \(upsertedObject.id) (version: \(upsertedObject.safeVersion))")
 
         if let mappings = response.idMappings, !mappings.isEmpty {
@@ -466,6 +477,11 @@ class SquareAPIService: ObservableObject {
         guard let deletedObject = response.deletedObject else {
             throw SquareAPIError.deleteFailed("No deleted object information returned")
         }
+
+        // CRITICAL: Update catalog version after successful local CRUD operation
+        let catalogVersion = Date()
+        try await SquareAPIServiceFactory.createDatabaseManager().saveCatalogVersion(catalogVersion)
+        logger.info("📅 Updated catalog version after delete: \(catalogVersion)")
 
         logger.info("Successfully deleted catalog object: \(objectId) at \(deletedObject.deletedAt ?? "unknown time")")
         return deletedObject
