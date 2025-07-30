@@ -37,7 +37,7 @@ class SquareAPIServiceFactory {
             return cachedService
         }
 
-        logger.info("Creating NEW SquareAPIService instance")
+        logger.debug("Creating NEW SquareAPIService instance")
         let service = SquareAPIService()
         cachedSquareAPIService = service
         return service
@@ -54,7 +54,7 @@ class SquareAPIServiceFactory {
             return cachedManager
         }
 
-        logger.info("Creating NEW SQLiteSwiftCatalogManager instance")
+        logger.debug("Creating NEW SQLiteSwiftCatalogManager instance")
         let manager = SQLiteSwiftCatalogManager()
         cachedDatabaseManager = manager
         return manager
@@ -71,7 +71,7 @@ class SquareAPIServiceFactory {
             return cachedCoordinator
         }
 
-        logger.info("Creating NEW SQLiteSwiftSyncCoordinator instance")
+        logger.debug("Creating NEW SQLiteSwiftSyncCoordinator instance")
         let squareService = getOrCreateSquareAPIService()
         let coordinator = SQLiteSwiftSyncCoordinator(squareAPIService: squareService)
         cachedSyncCoordinator = coordinator
@@ -89,7 +89,7 @@ class SquareAPIServiceFactory {
             return cachedService
         }
 
-        logger.info("Creating NEW SQLiteSwiftCatalogSyncService instance")
+        logger.debug("Creating NEW SQLiteSwiftCatalogSyncService instance")
         let squareService = getOrCreateSquareAPIService()
         let service = SQLiteSwiftCatalogSyncService(squareAPIService: squareService)
         cachedCatalogSyncService = service
@@ -107,7 +107,7 @@ class SquareAPIServiceFactory {
             return cachedService
         }
 
-        logger.info("Creating NEW TokenService instance")
+        logger.debug("Creating NEW TokenService instance")
         let service = TokenService()
         cachedTokenService = service
         return service
@@ -123,7 +123,7 @@ class SquareAPIServiceFactory {
             return cachedManager
         }
 
-        logger.info("Creating NEW ImageURLManager instance")
+        logger.debug("Creating NEW ImageURLManager instance")
         let databaseManager = getOrCreateDatabaseManager()
         let manager = ImageURLManager(databaseManager: databaseManager)
         cachedImageURLManager = manager
@@ -141,7 +141,7 @@ class SquareAPIServiceFactory {
             return cachedService
         }
 
-        logger.info("Creating NEW SquareCRUDService instance")
+        logger.debug("Creating NEW SquareCRUDService instance")
         let squareAPIService = getOrCreateSquareAPIService()
         let databaseManager = getOrCreateDatabaseManager()
         let dataConverter = SquareDataConverter(databaseManager: databaseManager)
