@@ -9,8 +9,11 @@ struct JoyLabsNativeApp: App {
     private let logger = Logger(subsystem: "com.joylabs.native", category: "App")
 
     init() {
-        // Initialize shared database manager on app startup
-        initializeSharedServices()
+        // Initialize critical services SYNCHRONOUSLY first to prevent race conditions
+        initializeCriticalServicesSync()
+        
+        // Then initialize remaining services asynchronously
+        initializeRemainingServicesAsync()
         
         // CRITICAL: Request push notification permissions IMMEDIATELY at app startup
         Task { @MainActor in
@@ -30,42 +33,41 @@ struct JoyLabsNativeApp: App {
         }
     }
 
-    private func initializeSharedServices() {
-        logger.info("🚀 Initializing shared services on app startup...")
-
-        // Initialize field configuration manager early to ensure settings persist
+    private func initializeCriticalServicesSync() {
+        logger.info("🚀 Initializing critical services synchronously...")
+        
+        // Initialize field configuration manager synchronously
+        let _ = FieldConfigurationManager.shared
+        
+        // Initialize database manager and image cache service synchronously to prevent race conditions
+        let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
+        let imageURLManager = ImageURLManager(databaseManager: databaseManager)
+        ImageCacheService.initializeShared(with: imageURLManager)
+        
+        logger.info("✅ Critical services initialized synchronously (FieldConfig, Database, ImageCache)")
+    }
+    
+    private func initializeRemainingServicesAsync() {
+        logger.info("🚀 Initializing remaining services asynchronously...")
+        
+        // Initialize database connection and tables asynchronously using EXISTING database manager
         Task.detached(priority: .high) {
             await MainActor.run {
-                // Initialize field configuration manager to load saved settings
-                let _ = FieldConfigurationManager.shared
-                let logger = Logger(subsystem: "com.joylabs.native", category: "App")
-                logger.info("✅ Field configuration manager initialized")
-            }
-        }
-
-        // Initialize the shared database manager early
-        // This ensures database is ready before any views try to use it
-        Task.detached(priority: .high) {
-            await MainActor.run {
+                // Reuse the already created database manager from critical services
                 let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
-
-                // Initialize ImageCacheService.shared with the shared database manager
-                let imageURLManager = ImageURLManager(databaseManager: databaseManager)
-                ImageCacheService.initializeShared(with: imageURLManager)
-
+                
                 Task {
                     do {
                         try databaseManager.connect()
                         try await databaseManager.createTablesAsync()
                         await MainActor.run {
                             let logger = Logger(subsystem: "com.joylabs.native", category: "App")
-                            logger.info("✅ Shared database and image cache initialized successfully on app startup")
+                            logger.info("✅ Database connection and tables initialized successfully")
                             
-                            // Initialize webhook system with push notifications
+                            // Initialize webhook system AFTER database is ready
                             Task {
                                 WebhookManager.shared.startWebhookProcessing()
-                                await PushNotificationService.shared.setupPushNotifications()
-                                logger.info("🔔 Webhook system with push notifications initialized")
+                                logger.info("🔔 Webhook system initialized")
                                 
                                 // Perform catch-up sync on app launch in case we missed any webhook notifications
                                 await performAppLaunchCatchUpSync()
@@ -74,7 +76,7 @@ struct JoyLabsNativeApp: App {
                     } catch {
                         await MainActor.run {
                             let logger = Logger(subsystem: "com.joylabs.native", category: "App")
-                            logger.error("❌ Failed to initialize shared services on app startup: \(error)")
+                            logger.error("❌ Failed to initialize database connection: \(error)")
                         }
                     }
                 }

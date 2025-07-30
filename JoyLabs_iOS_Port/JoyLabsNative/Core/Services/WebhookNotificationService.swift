@@ -87,10 +87,11 @@ extension WebhookNotificationService {
     private func setupWebhookObservers() {
         // Observe webhook status changes (but don't create confusing UI notifications)
         WebhookManager.shared.$isActive
+            .dropFirst() // Skip initial false value to avoid "stopped" message on startup
             .receive(on: DispatchQueue.main)
             .sink { [weak self] isActive in
                 self?.isWebhookActive = isActive
-                // Only log status changes, don't create user-visible notifications
+                // Only log actual state changes, not initial states
                 print("🔔 Webhook system \(isActive ? "started" : "stopped")")
             }
             .store(in: &cancellables)
