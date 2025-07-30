@@ -202,21 +202,27 @@ actor SquareHTTPClient {
     func searchCatalogObjects(beginTime: String? = nil) async throws -> CatalogResponse {
         logger.debug("Searching catalog objects with beginTime: \(beginTime ?? "none") - DIRECT Square API")
 
-        var queryItems = [URLQueryItem]()
-
+        // Square API search requires POST with JSON body, not GET with query params
+        var searchRequest: [String: Any] = [:]
+        
         if let beginTime = beginTime {
-            queryItems.append(URLQueryItem(name: "begin_time", value: beginTime))
+            searchRequest["begin_time"] = beginTime
+        }
+        
+        // Add query to return all object types if no specific filter
+        if searchRequest.isEmpty {
+            searchRequest["object_types"] = ["ITEM", "CATEGORY", "TAX", "DISCOUNT", "MODIFIER_LIST", "IMAGE"]
         }
 
-        let endpoint = buildEndpointWithQuery(
-            base: "/v2/catalog/search",  // Direct Square API endpoint
-            queryItems: queryItems
-        )
-
+        let endpoint = "/v2/catalog/search"
+        
+        // Convert dictionary to JSON Data
+        let bodyData = try JSONSerialization.data(withJSONObject: searchRequest)
+        
         return try await makeSquareAPIRequest(
             endpoint: endpoint,
-            method: .GET,
-            body: nil,
+            method: .POST,  // Square API requires POST for search
+            body: bodyData,
             responseType: CatalogResponse.self
         )
     }
