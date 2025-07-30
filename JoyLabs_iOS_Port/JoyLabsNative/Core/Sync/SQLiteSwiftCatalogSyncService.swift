@@ -239,6 +239,16 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
 
                 // Start UI update timer (every 1 second)
                 await MainActor.run { startProgressUpdateTimer() }
+                
+                // CRITICAL FIX: Set the last sync date in SquareAPIService from database
+                let latestUpdatedAt = try await databaseManager.getLatestUpdatedAt()
+                if let lastSync = latestUpdatedAt {
+                    logger.info("📅 Setting last sync date in SquareAPIService: \(lastSync)")
+                    squareAPIService.lastSyncDate = lastSync
+                } else {
+                    logger.info("📅 No previous sync date found - will perform full sync")
+                    squareAPIService.lastSyncDate = nil
+                }
 
                 // Fetch only changed catalog data from Square API with progress tracking
                 let catalogChanges = try await fetchIncrementalCatalogWithProgress()

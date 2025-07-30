@@ -640,6 +640,40 @@ class SQLiteSwiftCatalogManager {
 
         return modifierNames.isEmpty ? nil : modifierNames.joined(separator: ", ")
     }
+    
+    /// Get the latest updated_at timestamp from all catalog tables for incremental sync
+    func getLatestUpdatedAt() async throws -> Date? {
+        guard let db = db else {
+            throw SQLiteSwiftError.noConnection
+        }
+        
+        var latestDate: Date?
+        
+        // Check all catalog tables for the latest updated_at
+        let tables = ["catalog_items", "categories", "item_variations", "taxes", "discounts", "modifiers", "modifier_lists", "images"]
+        
+        for tableName in tables {
+            let sql = "SELECT MAX(updated_at) FROM \(tableName) WHERE is_deleted = 0"
+            let statement = try db.prepare(sql)
+            
+            for row in try statement.run() {
+                if let updatedAtString = row[0] as? String {
+                    // Parse ISO 8601 date string
+                    let formatter = ISO8601DateFormatter()
+                    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                    
+                    if let date = formatter.date(from: updatedAtString) {
+                        if latestDate == nil || date > latestDate! {
+                            latestDate = date
+                        }
+                    }
+                }
+            }
+        }
+        
+        logger.info("📅 Latest updated_at timestamp in database: \(latestDate?.description ?? "none")")
+        return latestDate
+    }
 
 }
 

@@ -209,15 +209,19 @@ actor SquareHTTPClient {
             searchRequest["begin_time"] = beginTime
         }
         
-        // Add query to return all object types if no specific filter
-        if searchRequest.isEmpty {
-            searchRequest["object_types"] = ["ITEM", "CATEGORY", "TAX", "DISCOUNT", "MODIFIER_LIST", "IMAGE"]
-        }
+        // CRITICAL FIX: Always specify object types, even with begin_time
+        // This filters out extraneous objects and focuses on what we need
+        searchRequest["object_types"] = ["ITEM", "CATEGORY", "TAX", "DISCOUNT", "MODIFIER_LIST", "IMAGE"]
+        
+        // Optional: Add limit to reduce the number of objects returned
+        searchRequest["limit"] = 100  // Default page size
 
         let endpoint = "/v2/catalog/search"
         
         // Convert dictionary to JSON Data
         let bodyData = try JSONSerialization.data(withJSONObject: searchRequest)
+        
+        logger.debug("Search request body: \(searchRequest)")
         
         return try await makeSquareAPIRequest(
             endpoint: endpoint,
