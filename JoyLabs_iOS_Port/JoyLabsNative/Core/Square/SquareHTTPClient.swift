@@ -431,7 +431,12 @@ actor SquareHTTPClient {
             throw SquareAPIError.invalidURL
         }
 
-        logger.debug("Making Square API request: \(method.rawValue) \(url.absoluteString)")
+        // Reduce logging verbosity during full sync - only log endpoint, not full URL
+        if url.absoluteString.contains("/v2/catalog/list") {
+            logger.debug("Square API: GET catalog/list (page)")
+        } else {
+            logger.debug("Making Square API request: \(method.rawValue) \(url.absoluteString)")
+        }
         
         // Create request
         var request = URLRequest(url: url)
@@ -448,9 +453,11 @@ actor SquareHTTPClient {
             request.httpBody = body
         }
         
-        logger.debug("Making Square API request: \(method.rawValue) \(endpoint)")
-        logger.debug("Request headers: \(request.allHTTPHeaderFields ?? [:])")
-        logger.debug("Request timeout: \(request.timeoutInterval)s")
+        // Reduce debug noise during full sync - skip headers and timeout logging for catalog requests
+        if !url.absoluteString.contains("/v2/catalog/list") {
+            logger.debug("Request headers: \(request.allHTTPHeaderFields ?? [:])")
+            logger.debug("Request timeout: \(request.timeoutInterval)s")
+        }
 
         // Perform request
         let (data, response) = try await session.data(for: request)

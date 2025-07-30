@@ -428,8 +428,6 @@ class SquareAPIService: ObservableObject {
                 queryItems: queryItems
             )
 
-            logger.debug("Making Square API request: GET \(endpoint)")
-
             let response = try await httpClient.makeSquareAPIRequest(
                 endpoint: endpoint,
                 method: .GET,
