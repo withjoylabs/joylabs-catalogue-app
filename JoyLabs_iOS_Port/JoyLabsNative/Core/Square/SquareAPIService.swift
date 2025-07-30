@@ -65,7 +65,7 @@ class SquareAPIService: ObservableObject {
     init() {
         self.resilienceService = BasicResilienceService()
         self.tokenService = SquareAPIServiceFactory.createTokenService()
-        self.httpClient = SquareHTTPClient(tokenService: self.tokenService, resilienceService: BasicResilienceService())
+        self.httpClient = SquareAPIServiceFactory.createHTTPClient()
         self.oauthService = SquareOAuthService(httpClient: self.httpClient, tokenService: self.tokenService)
 
         logger.info("SquareAPIService initialized with resilience integration")

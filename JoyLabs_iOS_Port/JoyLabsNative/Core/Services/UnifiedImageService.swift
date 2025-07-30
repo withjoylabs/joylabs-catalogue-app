@@ -25,8 +25,7 @@ class UnifiedImageService: ObservableObject {
         self.imageCacheService = ImageCacheService.shared
         self.databaseManager = SquareAPIServiceFactory.createDatabaseManager()
         self.imageURLManager = ImageURLManager(databaseManager: databaseManager)
-        let tokenService = SquareAPIServiceFactory.createTokenService()
-        self.httpClient = SquareHTTPClient(tokenService: tokenService, resilienceService: BasicResilienceService())
+        self.httpClient = SquareAPIServiceFactory.createHTTPClient()
 
         logger.info("🖼️ UnifiedImageService initialized")
     }

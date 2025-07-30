@@ -16,6 +16,7 @@ class SquareAPIServiceFactory {
     private var cachedSyncCoordinator: SQLiteSwiftSyncCoordinator?
     private var cachedCatalogSyncService: SQLiteSwiftCatalogSyncService?
     private var cachedTokenService: TokenService?
+    private var cachedHTTPClient: SquareHTTPClient?
     private var cachedImageURLManager: ImageURLManager?
     private var cachedCRUDService: SquareCRUDService?
 
@@ -113,6 +114,24 @@ class SquareAPIServiceFactory {
         return service
     }
 
+    /// Get or create the HTTP client instance
+    static func createHTTPClient() -> SquareHTTPClient {
+        return shared.getOrCreateHTTPClient()
+    }
+
+    private func getOrCreateHTTPClient() -> SquareHTTPClient {
+        if let cachedClient = cachedHTTPClient {
+            logger.debug("Returning cached SquareHTTPClient instance")
+            return cachedClient
+        }
+
+        logger.debug("Creating NEW SquareHTTPClient instance")
+        let tokenService = getOrCreateTokenService()
+        let client = SquareHTTPClient(tokenService: tokenService, resilienceService: BasicResilienceService())
+        cachedHTTPClient = client
+        return client
+    }
+
     /// Get or create the image URL manager instance
     static func createImageURLManager() -> ImageURLManager {
         return shared.getOrCreateImageURLManager()
@@ -163,6 +182,7 @@ class SquareAPIServiceFactory {
         shared.cachedSyncCoordinator = nil
         shared.cachedCatalogSyncService = nil
         shared.cachedTokenService = nil
+        shared.cachedHTTPClient = nil
         shared.cachedImageURLManager = nil
         shared.cachedCRUDService = nil
     }
@@ -175,6 +195,7 @@ class SquareAPIServiceFactory {
             "SQLiteSwiftSyncCoordinator": shared.cachedSyncCoordinator != nil,
             "SQLiteSwiftCatalogSyncService": shared.cachedCatalogSyncService != nil,
             "TokenService": shared.cachedTokenService != nil,
+            "SquareHTTPClient": shared.cachedHTTPClient != nil,
             "ImageURLManager": shared.cachedImageURLManager != nil,
             "SquareCRUDService": shared.cachedCRUDService != nil
         ]

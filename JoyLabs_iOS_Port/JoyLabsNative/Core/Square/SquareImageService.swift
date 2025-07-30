@@ -374,8 +374,7 @@ extension SquareImageService {
     
     /// Create SquareImageService with default dependencies
     static func create() -> SquareImageService {
-        let tokenService = SquareAPIServiceFactory.createTokenService()
-        let httpClient = SquareHTTPClient(tokenService: tokenService, resilienceService: BasicResilienceService())
+        let httpClient = SquareAPIServiceFactory.createHTTPClient()
         let imageCacheService = ImageCacheService.shared
         let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
         return SquareImageService(httpClient: httpClient, imageCacheService: imageCacheService, databaseManager: databaseManager)
