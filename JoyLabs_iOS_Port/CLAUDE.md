@@ -176,26 +176,169 @@ Task { @MainActor in
 }
 ```
 
-## Service Initialization
+## Service Initialization Architecture
 
-### App Startup Sequence (Fixed Race Conditions)
-**Critical Services (Synchronous)**:
-1. **Field Configuration Manager**: Load saved settings
-2. **Database Manager**: Initialize SQLite connection via `SquareAPIServiceFactory.createDatabaseManager()`
-3. **Image Cache Service**: Initialize with database-backed URL manager
-4. **Push Notification Setup**: Request permissions and register for remote notifications (always registers even if permission denied)
+### Optimized 4-Phase Startup Sequence (Eliminates Duplicate Processes)
 
-**Remaining Services (Asynchronous)**:
-5. **Database Tables**: Create tables asynchronously after connection established
-6. **Webhook System**: Initialize `WebhookManager` after database is ready
-7. **Square OAuth**: Set up callback handling for "joylabs://square-callback"
-8. **Incremental Catch-up Sync**: Perform silent incremental sync to get latest changes since last app use (only if > 1 minute since last sync)
+Our startup orchestration was completely redesigned to eliminate duplicate processes, race conditions, and cascade service creation. All services are now properly sequenced and cached.
+
+#### **Phase 1: Critical Services (Synchronous - `initializeCriticalServicesSync()`)**
+**Location**: `JoyLabsNativeApp.swift` init method - runs synchronously before any async operations
+
+```swift
+// 1. Field Configuration
+let _ = FieldConfigurationManager.shared
+
+// 2. Database (SINGLE connection for entire app)
+let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
+try databaseManager.connect() // Connects immediately, only once
+
+// 3. Image Cache System
+let imageURLManager = ImageURLManager(databaseManager: databaseManager)
+ImageCacheService.initializeShared(with: imageURLManager)
+
+// 4. ALL Square Services (prevents cascade creation during sync)
+let _ = SquareAPIServiceFactory.createTokenService()        // OAuth tokens
+let _ = SquareAPIServiceFactory.createHTTPClient()          // HTTP client
+let _ = SquareAPIServiceFactory.createService()             // SquareAPIService
+let _ = SquareAPIServiceFactory.createSyncCoordinator()     // Sync coordinator
+
+// 5. ALL Singleton Services (prevents creation during operations)
+let _ = PushNotificationService.shared          // Push notifications
+let _ = UnifiedImageService.shared              // Image processing
+let _ = WebhookService.shared                   // Webhook handling
+let _ = WebhookManager.shared                   // Webhook coordination
+let _ = WebhookNotificationService.shared       // In-app notifications
+let _ = NotificationSettingsService.shared      // Notification preferences
+```
+
+**Phase 1 Result**: ALL services are pre-initialized and cached. No "Creating NEW" messages should appear after this phase.
+
+#### **Phase 2: Catch-up Sync (`initializeRemainingServicesAsync()`)**
+**Location**: Async task launched after Phase 1 completes
+
+```swift
+// Uses ONLY cached services from Phase 1
+await performAppLaunchCatchUpSync()
+```
+
+**Phase 2 Result**: All factory calls return "Returning cached" instances. Zero service creation overhead.
+
+#### **Phase 3: Webhook System Activation**
+```swift
+WebhookManager.shared.startWebhookProcessing()
+```
+
+#### **Phase 4: Push Notification Finalization**
+```swift
+appDelegate.notifyCatchUpSyncComplete() // Enables token registration
+```
+
+### Service Initialization Guidelines
+
+#### **When Creating New Services**:
+
+1. **Singleton Services**: Add to Phase 1 pre-initialization list
+   ```swift
+   // Add new singleton to Phase 1
+   let _ = YourNewService.shared
+   ```
+
+2. **Factory-Managed Services**: Add to `SquareAPIServiceFactory`
+   ```swift
+   // Add factory method and caching
+   private var cachedYourService: YourService?
+   static func createYourService() -> YourService {
+       return shared.getOrCreateYourService()
+   }
+   ```
+
+3. **Database-Dependent Services**: Initialize after database connection in Phase 1
+
+4. **Sync-Dependent Services**: Initialize in Phase 2 or later
+
+#### **Service Dependency Chain**:
+```
+Phase 1: Database → ImageCache → Square Services → Singletons
+Phase 2: Cached Services → Sync Operations
+Phase 3: Webhook System (uses cached services)
+Phase 4: Push Token Registration
+```
 
 ### Factory Pattern Requirements
-- **ALWAYS** use `SquareAPIServiceFactory` to create service instances - prevents duplicate instances
-- **Database connections**: Made idempotent to prevent race conditions (`connect()` checks if already connected)
-- **Service reuse**: Factory returns same instance for database manager, HTTP client, token service, etc.
-- **Thread safety**: All factory methods are thread-safe and prevent duplicate initialization
+- **MANDATORY**: Use `SquareAPIServiceFactory` for ALL Square-related services
+- **Database Access**: Always use factory's cached database manager
+- **Service Reuse**: Factory ensures single instance per service type
+- **Thread Safety**: All factory methods are `@MainActor` and thread-safe
+- **Idempotent Connections**: Database `connect()` method checks existing connection
+- **Memory Optimization**: Cached instances prevent duplicate service creation
+
+### Critical Performance Rules
+
+#### **✅ DO - Proper Service Access**:
+```swift
+// Use factory for cached services
+let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
+let syncCoordinator = SquareAPIServiceFactory.createSyncCoordinator()
+
+// Access singletons directly (already initialized in Phase 1)
+PushNotificationService.shared.someMethod()
+WebhookManager.shared.startProcessing()
+```
+
+#### **❌ DON'T - Direct Service Creation**:
+```swift
+// NEVER create services directly - bypasses cache
+let database = SQLiteSwiftCatalogManager()          // Creates duplicate!
+let coordinator = SQLiteSwiftSyncCoordinator(...)   // Creates cascade!
+
+// NEVER access singletons in property initialization
+class SomeService {
+    private let webhook = WebhookManager.shared      // Can cause cascade creation
+}
+```
+
+### Service Access During Operations
+
+#### **During Sync Operations**:
+- All `SquareAPIServiceFactory.create*()` calls return cached instances
+- Console shows: `[Factory] Returning cached XYZ instance`
+- Zero initialization overhead
+
+#### **During UI Operations**:
+- Singleton services are already initialized
+- No lazy loading delays
+- Instant service availability
+
+### Logging and Debugging
+
+#### **Startup Sequence Logs**:
+```
+[App] Phase 1: Initializing critical services synchronously...
+[Factory] Creating NEW SQLiteSwiftCatalogManager instance     ← ONLY "NEW" logs
+[Factory] Creating NEW TokenService instance
+[Factory] Creating NEW SquareHTTPClient instance
+[Factory] Creating NEW SquareAPIService instance
+[Factory] Creating NEW SQLiteSwiftSyncCoordinator instance
+[PushNotification] PushNotificationService initialized
+[WebhookManager] WebhookManager initialized
+[App] Phase 1: Critical services initialized synchronously
+
+[App] Phase 2: Starting catch-up sync...
+[Factory] Returning cached TokenService instance               ← All "cached" logs
+[Factory] Returning cached SQLiteSwiftSyncCoordinator instance
+[App] Phase 3: Webhook system initialized
+[App] Phase 4: Push notification setup finalized
+```
+
+#### **Service Labels**:
+All services use consistent `[ServiceName]` logging format:
+- `[Database]` - Database operations
+- `[Factory]` - Service factory operations  
+- `[PushNotification]` - Push notification system
+- `[WebhookManager]` - Webhook processing
+- `[CatalogSync]` - Sync operations
+- `[App]` - App lifecycle events
 
 ## Component Usage Guidelines
 
@@ -269,13 +412,28 @@ Do not use these deprecated components:
 - Direct service instantiation → Use `SquareAPIServiceFactory` instead
 
 ### Critical Bug Patterns to Avoid
+
+#### **Startup & Service Creation Issues**:
+- **Direct service creation**: Never instantiate services directly - always use `SquareAPIServiceFactory` 
+- **Singleton access in properties**: Never access `.shared` singletons during class property initialization
+- **Duplicate service instances**: Always check factory pattern is used consistently to prevent memory leaks and race conditions
+- **Database access without connection**: Always call `databaseManager.connect()` before database operations (though Phase 1 handles this)
+- **Creating services during sync**: All services should be pre-initialized in Phase 1, not created on-demand
+
+#### **Sync & API Issues**:
 - **Empty searchCatalog() implementations**: Always connect to actual HTTP client, never return hardcoded empty arrays
+- **Resilience wrappers on sync**: Remove resilience fallbacks that mask real sync errors with empty data
+- **Multiple database connections**: Only connect once in Phase 1, all subsequent calls should be idempotent
+
+#### **Notification Issues**:
 - **Redundant notification processing**: Only process webhook notifications once (background OR foreground, not both)
 - **Notification tap triggers**: Tapping notifications should only show UI, not trigger additional sync operations
-- **Resilience wrappers on sync**: Remove resilience fallbacks that mask real sync errors with empty data
-- **Direct service creation**: Never instantiate services directly - always use `SquareAPIServiceFactory` 
-- **Database access without connection**: Always call `databaseManager.connect()` before database operations
-- **Duplicate service instances**: Check factory pattern is used consistently to prevent memory leaks and race conditions
+- **Emoji logs in production**: Use proper `[Service]` prefixed logs instead of emoji characters
+
+#### **Performance Anti-Patterns**:
+- **Cascade service creation**: Pre-initialize all services in Phase 1 to prevent creation chains during operations
+- **Lazy singleton initialization**: Initialize all singletons early to avoid delays during user operations
+- **Duplicate observer configurations**: Ensure observers are set up only once during service initialization
 
 ### Database Schema
 The SQLite schema exactly matches the React Native version for cross-platform compatibility. Key tables:
@@ -351,7 +509,51 @@ const notification = new apn.Notification({
 
 ## Startup Optimization Lessons Learned
 
-### Fixed Race Conditions (2025-01-30)
+### Major Orchestration Overhaul (2025-01-30)
+
+#### **Eliminated Duplicate Processes**:
+- **Single Database Connection**: Was connecting 3 times, now connects once in Phase 1
+- **No Cascade Service Creation**: Pre-initialize all services to prevent creation chains during operations
+- **No Duplicate Observer Configurations**: Fixed WebhookNotificationService setting up observers multiple times
+- **Factory Pattern Enforcement**: All services now use cached instances during operations
+
+#### **4-Phase Startup Sequence**:
+- **Phase 1 (Synchronous)**: ALL critical services and singletons pre-initialized
+- **Phase 2 (Async)**: Catch-up sync using only cached services
+- **Phase 3**: Webhook system activation
+- **Phase 4**: Push notification token registration
+
+#### **Service Pre-Initialization Strategy**:
+```swift
+// ALL Square services pre-initialized in Phase 1
+let _ = SquareAPIServiceFactory.createTokenService()
+let _ = SquareAPIServiceFactory.createHTTPClient()
+let _ = SquareAPIServiceFactory.createService()
+let _ = SquareAPIServiceFactory.createSyncCoordinator()
+
+// ALL singleton services pre-initialized in Phase 1
+let _ = PushNotificationService.shared
+let _ = UnifiedImageService.shared
+let _ = WebhookManager.shared
+let _ = WebhookNotificationService.shared
+let _ = NotificationSettingsService.shared
+```
+
+#### **Logging Standardization**:
+- Replaced all emoji logs with proper `[Service]` prefixed logs
+- Fixed out-of-order phase logging
+- Consistent logging format across all services
+- Clear startup sequence progression
+
+#### **Performance Metrics**:
+- **Before**: Multiple "Creating NEW" messages during sync operations
+- **After**: Only "Returning cached" messages during sync operations
+- **Before**: Services initializing during Phase 2 sync
+- **After**: All services ready before sync begins
+- **Before**: Race conditions and duplicate database connections
+- **After**: Perfect sequential initialization with zero duplicates
+
+### Fixed Race Conditions (Previous Iterations)
 - **Database Connection Issues**: Made `connect()` method idempotent to prevent "database is locked" errors
 - **Service Initialization Order**: Split critical services (sync) vs remaining services (async) 
 - **Factory Pattern Enforcement**: Eliminated duplicate service instances that caused memory leaks
@@ -363,6 +565,8 @@ const notification = new apn.Notification({
 - Consolidated push notification setup to prevent duplicate permission requests  
 - Fixed missing system icons with proper placeholder symbols
 - Optimized webhook notification timing to prevent startup spam
+- Pre-initialized ALL services to eliminate lazy loading delays
+- Cached service instances to prevent creation overhead during operations
 
 ## Code Philosophy
 - Always aim for professional, robust solution that properly handles asynchronous operations - exactly what any modern app would do!
