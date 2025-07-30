@@ -90,8 +90,8 @@ struct JoyLabsNativeApp: App {
         logger.info("🔄 Starting app launch catch-up sync (incremental only)...")
         
         do {
-            // Check if we have authentication
-            let tokenService = TokenService()
+            // Check if we have authentication using factory
+            let tokenService = SquareAPIServiceFactory.createTokenService()
             guard let _ = try? await tokenService.getCurrentTokenData() else {
                 logger.info("⏭️ No authentication found, skipping catch-up sync")
                 return

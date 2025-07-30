@@ -365,7 +365,7 @@ extension PushNotificationService {
     
     /// Get merchant ID from authentication
     private func getMerchantId() async -> String? {
-        let tokenService = TokenService()
+        let tokenService = SquareAPIServiceFactory.createTokenService()
         do {
             let tokenData = try await tokenService.getCurrentTokenData()
             return tokenData.merchantId
