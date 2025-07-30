@@ -9,26 +9,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Open project in Xcode
 open JoyLabsNative.xcodeproj
 
-# Or use the convenient script
-./open_project.sh
+# IMPORTANT: Always use iPhone 16 iOS 18.5 simulator for builds
+xcodebuild -project JoyLabsNative.xcodeproj -scheme JoyLabsNative -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.5' build
 ```
-### Adding files into xcode Project:
+
+### Adding Files to Xcode Project
 Use ruby gem xcodeproj to add files into the project.
 Here is sample code. IMPORTANT: Use absolute paths.
 
+```ruby
 require 'xcodeproj'
 
-project_path = 'MyApp.xcodeproj'
-file_path = 'Sources/NewFile.swift'
+project_path = 'JoyLabsNative.xcodeproj'
+file_path = '/Users/path/to/JoyLabsNative/NewFile.swift'
 
 project = Xcodeproj::Project.open(project_path)
 target = project.targets.first
 
-group = project.main_group['Sources'] || project.main_group.new_group('Sources')
+# Add to appropriate group (JoyLabsNative for most files)
+group = project.main_group['JoyLabsNative'] || project.main_group.new_group('JoyLabsNative')
 file_ref = group.new_file(file_path)
 
 target.add_file_references([file_ref])
 project.save
+```
 
 * After verifying that the files have been included and the build is successfully compiling, clean up the ruby file.
 
@@ -36,9 +40,9 @@ project.save
 ```bash
 # Run tests in Xcode using Cmd+U
 # The app includes test files in JoyLabsNative/Testing/
-# - ImageCacheTests.swift
 # - SquareDataConverterTests.swift 
 # - SquareIntegrationTests.swift
+# - WebhookIntegrationTests.swift
 # - TestRunnerView.swift (in-app test runner)
 ```
 
@@ -69,12 +73,16 @@ The codebase follows a **modular service-oriented architecture** with these key 
 
 ### Square API Integration
 - **Main Service**: `SquareAPIService` (Core/Square/)
-- **OAuth Flow**: Complete OAuth implementation with callback handling
+- **Factory Pattern**: All services created via `SquareAPIServiceFactory` to ensure singleton pattern and prevent duplicate instances
+- **OAuth Flow**: Complete OAuth implementation with callback handling via `SquareOAuthService`
+- **Token Management**: `TokenService` handles OAuth token storage, refresh, and merchant ID extraction
+- **HTTP Client**: `SquareHTTPClient` manages all API requests with proper authentication headers
 - **Sync Coordinator**: `SQLiteSwiftSyncCoordinator` orchestrates catalog synchronization
 - **Real-time Status**: Live sync progress updates via Combine framework
 - **Pattern**: Service → API → Database with proper error propagation
 - **Incremental Sync**: `searchCatalog(beginTime:)` method connected to `SquareHTTPClient.searchCatalogObjects()` for timestamp-based incremental updates
 - **Dual Sync Types**: Full sync (`performSync`) and incremental sync (`performIncrementalSync`) for different scenarios
+- **Deduplication**: Local CRUD operations recorded in `PushNotificationService` to prevent processing webhooks for our own changes
 
 ### Unified Image System
 - **Core Service**: `UnifiedImageService` (Core/Services/)
@@ -86,14 +94,21 @@ The codebase follows a **modular service-oriented architecture** with these key 
 
 ### Push Notification System
 - **Core Service**: `PushNotificationService` (Core/Services/)
-- **AWS Integration**: Real-time webhook notifications from AWS backend
-- **Multi-tenant**: Merchant-specific push token registration
-- **Background Processing**: Handles notifications when app is backgrounded
+- **AWS Integration**: Real-time webhook notifications from AWS backend via `/webhooks/merchants/{merchantId}/push-token` endpoint  
+- **Multi-tenant**: Merchant-specific push token registration using authenticated merchant ID
+- **Background Processing**: Handles notifications when app is backgrounded via AppDelegate
 - **Silent Notifications**: Uses `content-available: 1` for background sync without user notification spam
-- **In-App Notification Center**: All sync results appear in app's notification center regardless of iOS notification settings
+- **In-App Notification Center**: All sync results appear in `WebhookNotificationService` regardless of iOS notification settings
 - **Permission Independence**: Silent notifications work for background sync even if user denies notification permission
-- **Three Notification Triggers**: Background (AppDelegate), Foreground (UNUserNotificationCenterDelegate), and Tap (UI only, no processing)
-- **UI Integration**: Real-time catalog update notifications
+- **Three Notification Triggers**: 
+  - Background: `AppDelegate.application(_:didReceiveRemoteNotification:fetchCompletionHandler:)`
+  - Foreground: `PushNotificationService.userNotificationCenter(_:willPresent:withCompletionHandler:)`  
+  - Tap: `PushNotificationService.userNotificationCenter(_:didReceive:withCompletionHandler:)` (UI only, no processing)
+- **Deduplication System**: 
+  - Event ID tracking to prevent duplicate webhook processing
+  - Recent local operation cache (30-second window) to ignore webhooks for user's own changes
+  - Memory management with periodic cleanup to prevent growth
+- **UI Integration**: Real-time catalog update notifications with item count and sync status
 
 ### Search Architecture
 - **Main Service**: `SearchManager` (Core/Search/)
@@ -101,12 +116,19 @@ The codebase follows a **modular service-oriented architecture** with these key 
 - **Performance**: Pre-processed category names for ultra-fast search without JOINs
 - **Caching**: Multi-level cache system for search results
 
-### Webhook Processing Flow
+### Webhook Processing Flow  
 - **Trigger**: Square catalog changes → AWS webhook → Silent push notification → iOS app
-- **Processing Chain**: `handleNotification()` → `triggerCatalogSync()` → `performIncrementalSync()` → Database update
+- **Processing Chain**: 
+  1. `handleNotification()` receives webhook data and validates event format
+  2. Deduplication checks (event ID + recent local operations)
+  3. `triggerCatalogSync()` performs incremental sync using `SquareAPIServiceFactory.createSyncCoordinator()`
+  4. Database updates via `SQLiteSwiftCatalogManager`
+  5. UI notifications via `WebhookNotificationService.addWebhookNotification()`
+- **Race Condition Prevention**: Database connections verified before sync operations
 - **UI Updates**: Sync results always added to `WebhookNotificationService` for in-app notification center
-- **Background Sync**: Works when app is closed, backgrounded, or in foreground
+- **Background Sync**: Works when app is closed, backgrounded, or in foreground  
 - **No Polling**: Eliminated battery-draining polling services in favor of efficient push notifications
+- **Catch-up Sync**: App launch performs incremental sync to handle missed notifications
 
 ## Critical Implementation Patterns
 
@@ -156,16 +178,24 @@ Task { @MainActor in
 
 ## Service Initialization
 
-### App Startup Sequence
+### App Startup Sequence (Fixed Race Conditions)
+**Critical Services (Synchronous)**:
 1. **Field Configuration Manager**: Load saved settings
-2. **Database Manager**: Initialize SQLite connection and create tables
+2. **Database Manager**: Initialize SQLite connection via `SquareAPIServiceFactory.createDatabaseManager()`
 3. **Image Cache Service**: Initialize with database-backed URL manager
 4. **Push Notification Setup**: Request permissions and register for remote notifications (always registers even if permission denied)
-5. **Square OAuth**: Set up callback handling for "joylabs://square-callback"
-6. **Incremental Catch-up Sync**: Perform silent incremental sync to get latest changes since last app use
 
-### Factory Pattern
-Use `SquareAPIServiceFactory` to create properly configured service instances with shared dependencies.
+**Remaining Services (Asynchronous)**:
+5. **Database Tables**: Create tables asynchronously after connection established
+6. **Webhook System**: Initialize `WebhookManager` after database is ready
+7. **Square OAuth**: Set up callback handling for "joylabs://square-callback"
+8. **Incremental Catch-up Sync**: Perform silent incremental sync to get latest changes since last app use (only if > 1 minute since last sync)
+
+### Factory Pattern Requirements
+- **ALWAYS** use `SquareAPIServiceFactory` to create service instances - prevents duplicate instances
+- **Database connections**: Made idempotent to prevent race conditions (`connect()` checks if already connected)
+- **Service reuse**: Factory returns same instance for database manager, HTTP client, token service, etc.
+- **Thread safety**: All factory methods are thread-safe and prevent duplicate initialization
 
 ## Component Usage Guidelines
 
@@ -236,12 +266,16 @@ Do not use these deprecated components:
 - `ImagePickerModal` → Use `UnifiedImagePickerModal`
 - `WebhookPollingService` → Removed in favor of push notifications
 - Manual refresh triggers → Unified system handles automatically
+- Direct service instantiation → Use `SquareAPIServiceFactory` instead
 
 ### Critical Bug Patterns to Avoid
 - **Empty searchCatalog() implementations**: Always connect to actual HTTP client, never return hardcoded empty arrays
 - **Redundant notification processing**: Only process webhook notifications once (background OR foreground, not both)
 - **Notification tap triggers**: Tapping notifications should only show UI, not trigger additional sync operations
 - **Resilience wrappers on sync**: Remove resilience fallbacks that mask real sync errors with empty data
+- **Direct service creation**: Never instantiate services directly - always use `SquareAPIServiceFactory` 
+- **Database access without connection**: Always call `databaseManager.connect()` before database operations
+- **Duplicate service instances**: Check factory pattern is used consistently to prevent memory leaks and race conditions
 
 ### Database Schema
 The SQLite schema exactly matches the React Native version for cross-platform compatibility. Key tables:
@@ -266,6 +300,11 @@ The app uses multiple notification systems:
 **In-App Notification Center**:
 - `WebhookNotificationService.shared` manages in-app notification display
 - All sync results (silent and visible) appear here regardless of iOS notification permissions
+- Includes detailed sync statistics (items updated, sync timing, event IDs)
+
+**Notification Settings**:
+- `NotificationSettingsService.shared` manages user preferences for different notification types
+- Badge count management integrated with system settings
 
 ### Memory Management
 - Use `@StateObject` for view-owned observable objects
@@ -310,5 +349,23 @@ const notification = new apn.Notification({
 - Backend uses `NODE_ENV` to determine APNs environment
 - Physical iPhone devices always require PRODUCTION APNs, even during development
 
+## Startup Optimization Lessons Learned
+
+### Fixed Race Conditions (2025-01-30)
+- **Database Connection Issues**: Made `connect()` method idempotent to prevent "database is locked" errors
+- **Service Initialization Order**: Split critical services (sync) vs remaining services (async) 
+- **Factory Pattern Enforcement**: Eliminated duplicate service instances that caused memory leaks
+- **Thread Safety**: Added proper database connection checks before sync operations
+- **Build Target**: Always use iPhone 16 iOS 18.5 simulator as specified in this file
+
+### Performance Optimizations Applied
+- Removed redundant table creation calls during app startup
+- Consolidated push notification setup to prevent duplicate permission requests  
+- Fixed missing system icons with proper placeholder symbols
+- Optimized webhook notification timing to prevent startup spam
+
 ## Code Philosophy
 - Always aim for professional, robust solution that properly handles asynchronous operations - exactly what any modern app would do!
+- Use factory pattern consistently to prevent duplicate service instances and race conditions
+- Implement proper error handling without silent fallbacks that mask real issues
+- Follow iOS best practices for background processing and push notifications
