@@ -15,7 +15,7 @@ class IntelligentBarcodeReceivingViewController: UIViewController {
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         becomeFirstResponder()
-        print("🎯 Intelligent dual-mode scanner became first responder")
+        // Scanner became first responder
     }
 
     override func viewWillDisappear(_ animated: Bool) {
@@ -205,6 +205,7 @@ struct ScanView: View {
     @State private var isConnected = true
     @State private var showingHistory = false
     @StateObject private var searchManager: SearchManager = {
+        // Use the shared database manager that's already connected in Phase 1
         let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
         return SearchManager(databaseManager: databaseManager)
     }()

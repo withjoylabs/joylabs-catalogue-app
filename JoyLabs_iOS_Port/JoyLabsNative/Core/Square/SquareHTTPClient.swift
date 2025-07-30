@@ -85,7 +85,7 @@ actor SquareHTTPClient {
         
         self.session = URLSession(configuration: config)
         
-        logger.info("SquareHTTPClient initialized with configuration")
+        logger.info("[HTTPClient] SquareHTTPClient initialized with configuration")
     }
     
     // MARK: - Public API Methods

@@ -30,13 +30,12 @@ public class PushNotificationService: NSObject, ObservableObject {
     
     // MARK: - Dependencies
     private let logger = Logger(subsystem: "com.joylabs.native", category: "PushNotificationService")
-    private let webhookNotificationService = WebhookNotificationService.shared
     private let baseURL = "https://gki8kva7e3.execute-api.us-west-1.amazonaws.com/production/api"
     
     // MARK: - Initialization
     private override init() {
         super.init()
-        logger.info("🔔 PushNotificationService initialized")
+        logger.info("[PushNotification] PushNotificationService initialized")
     }
     
     // MARK: - Public Interface
@@ -45,11 +44,11 @@ public class PushNotificationService: NSObject, ObservableObject {
     func setupPushNotifications() async {
         // Prevent duplicate setup calls
         guard !isSetupComplete else {
-            logger.debug("🔧 Push notifications already set up, skipping duplicate call")
+            logger.debug("[PushNotification] Push notifications already set up, skipping duplicate call")
             return
         }
         
-        logger.info("🔧 Setting up push notifications...")
+        logger.info("[PushNotification] Setting up push notifications...")
         
         // Request authorization
         await requestAuthorization()
@@ -58,25 +57,25 @@ public class PushNotificationService: NSObject, ObservableObject {
         await registerForRemoteNotifications()
         
         if !isAuthorized {
-            logger.info("ℹ️ Silent notifications will still work for background catalog sync even without permission")
+            logger.info("[PushNotification] Silent notifications will still work for background catalog sync even without permission")
         }
         
         isSetupComplete = true
-        logger.info("✅ Push notification setup completed")
+        logger.info("[PushNotification] Push notification setup completed")
     }
     
     /// Handle received push notification (both silent and visible)
     func handleNotification(_ userInfo: [AnyHashable: Any]) async {
-        logger.info("📥 Received push notification")
+        logger.info("[PushNotification] Received push notification")
         lastNotificationReceived = Date()
         
         // Check if this is a silent notification (content-available: 1)
         let isSilentNotification = (userInfo["aps"] as? [String: Any])?["content-available"] as? Int == 1
         
         if isSilentNotification {
-            logger.info("🤫 Processing silent push notification for background sync")
+            logger.info("[PushNotification] Processing silent push notification for background sync")
         } else {
-            logger.info("📱 Processing visible push notification")
+            logger.info("[PushNotification] Processing visible push notification")
         }
         
         // Extract webhook data from notification (matches Square webhook format)
@@ -86,7 +85,7 @@ public class PushNotificationService: NSObject, ObservableObject {
             logger.warning("⚠️ Received non-catalog push notification. Expected 'catalog_updated', got: \(userInfo)")
             
             // Log the full notification for debugging
-            logger.info("📋 Full notification payload: \(userInfo)")
+            logger.debug("[PushNotification] Full notification payload: \(userInfo)")
             return
         }
         
@@ -163,20 +162,20 @@ public class PushNotificationService: NSObject, ObservableObject {
             request.httpBody = try JSONSerialization.data(withJSONObject: tokenData)
             
             logger.info("🌐 Making HTTP PUT request to: \(url)")
-            logger.info("📋 Request headers: \(request.allHTTPHeaderFields ?? [:])")
-            logger.info("📄 Request body size: \(request.httpBody?.count ?? 0) bytes")
+            logger.debug("[PushNotification] Request headers: \(request.allHTTPHeaderFields ?? [:])")
+            logger.debug("[PushNotification] Request body size: \(request.httpBody?.count ?? 0) bytes")
             
             let (data, response) = try await URLSession.shared.data(for: request)
             
-            logger.info("📥 Response received - Data size: \(data.count) bytes")
+            logger.debug("[PushNotification] Response received - Data size: \(data.count) bytes")
             
             if let httpResponse = response as? HTTPURLResponse {
-                logger.info("📊 HTTP Response Status: \(httpResponse.statusCode)")
-                logger.info("📋 Response Headers: \(httpResponse.allHeaderFields)")
+                logger.debug("[PushNotification] HTTP Response Status: \(httpResponse.statusCode)")
+                logger.debug("[PushNotification] Response Headers: \(httpResponse.allHeaderFields)")
                 
                 // Log response body for debugging
                 if let responseBody = String(data: data, encoding: .utf8) {
-                    logger.info("📄 Response Body: \(responseBody)")
+                    logger.debug("[PushNotification] Response Body: \(responseBody)")
                 } else {
                     logger.warning("⚠️ Could not decode response body as UTF-8")
                 }
@@ -227,7 +226,7 @@ extension PushNotificationService {
             isAuthorized = granted
             
             if granted {
-                logger.info("✅ Push notification authorization granted - real-time catalog sync enabled")
+                logger.info("[PushNotification] Push notification authorization granted - real-time catalog sync enabled")
             } else {
                 logger.warning("⚠️ Push notification authorization denied - app will still sync when opened")
                 notificationError = "Push notifications not authorized - catalog will sync when app is opened"
@@ -244,7 +243,7 @@ extension PushNotificationService {
     private func registerForRemoteNotifications() async {
         await MainActor.run {
             UIApplication.shared.registerForRemoteNotifications()
-            logger.info("📱 Registered for remote notifications")
+            logger.info("[PushNotification] Registered for remote notifications")
         }
     }
     
@@ -263,7 +262,7 @@ extension PushNotificationService {
         
         // Add notification to WebhookNotificationService so it appears in UI
         await MainActor.run {
-            webhookNotificationService.addWebhookNotification(
+            WebhookNotificationService.shared.addWebhookNotification(
                 title: notification.title,
                 message: notification.message,
                 type: notification.type,
@@ -375,7 +374,7 @@ extension PushNotificationService {
         
         // Always add to in-app notification center (regardless of silent/visible)
         await MainActor.run {
-            webhookNotificationService.addWebhookNotification(
+            WebhookNotificationService.shared.addWebhookNotification(
                 title: title,
                 message: message,
                 type: .success,

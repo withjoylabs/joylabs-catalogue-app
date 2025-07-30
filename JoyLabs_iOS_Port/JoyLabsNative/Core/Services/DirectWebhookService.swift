@@ -19,7 +19,6 @@ class DirectWebhookService: ObservableObject {
     
     // MARK: - Dependencies
     private let webhookService = WebhookService.shared
-    private let webhookNotificationService = WebhookNotificationService.shared
     
     // MARK: - Published Properties
     @Published var isActive = false
@@ -246,7 +245,12 @@ extension DirectWebhookService {
                 timestamp: Date()
             )
             
-            webhookNotificationService.addPolledNotification(notification)
+            WebhookNotificationService.shared.addWebhookNotification(
+                title: notification.title,
+                message: notification.message,
+                type: notification.type,
+                eventType: notification.eventType
+            )
             
         } catch {
             logger.error("❌ Failed to create notification from webhook: \(error)")

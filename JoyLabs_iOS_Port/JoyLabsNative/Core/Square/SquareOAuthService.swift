@@ -32,7 +32,7 @@ class SquareOAuthService: NSObject, ObservableObject {
         self.httpClient = httpClient
         self.tokenService = tokenService
         super.init()
-        logger.info("SquareOAuthService initialized")
+        logger.info("[OAuth] SquareOAuthService initialized")
     }
     
     // MARK: - Public OAuth Methods
@@ -40,11 +40,11 @@ class SquareOAuthService: NSObject, ObservableObject {
     /// Start Square OAuth authorization flow
     func startAuthorization() async throws {
         guard !isAuthenticating else {
-            logger.warning("Authorization already in progress")
+            logger.warning("[OAuth] Authorization already in progress")
             return
         }
         
-        logger.info("Starting Square OAuth authorization flow")
+        logger.info("[OAuth] Starting Square OAuth authorization flow")
         isAuthenticating = true
         authenticationError = nil
         
@@ -68,7 +68,7 @@ class SquareOAuthService: NSObject, ObservableObject {
             try await startWebAuthenticationSession(authURL: authURL)
             
         } catch {
-            logger.error("Authorization failed: \(error.localizedDescription)")
+            logger.error("[OAuth] Authorization failed: \(error.localizedDescription)")
             isAuthenticating = false
             authenticationError = error
             throw error

@@ -59,8 +59,8 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
 
             // Check if cached result matches reality
             if cachedResult.totalProcessed > 0 && actualItemCount == 0 {
-                logger.warning("🚨 STALE CACHE DETECTED: Cached result shows \(cachedResult.totalProcessed) objects but database has 0 items")
-                logger.info("Clearing stale sync result cache")
+                logger.warning("[SyncCoordinator] STALE CACHE DETECTED: Cached result shows \(cachedResult.totalProcessed) objects but database has 0 items")
+                logger.info("[SyncCoordinator] Clearing stale sync result cache")
 
                 // Clear the stale cache
                 UserDefaults.standard.removeObject(forKey: "lastSyncResult")
@@ -69,21 +69,21 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
             } else {
                 // Cache appears valid
                 self.lastSyncResult = cachedResult
-                logger.info("Loaded previous sync result: \(cachedResult.totalProcessed) objects at \(cachedResult.timestamp)")
+                logger.info("[SyncCoordinator] Loaded previous sync result: \(cachedResult.totalProcessed) objects at \(cachedResult.timestamp)")
             }
 
         } catch {
-            logger.error("Failed to validate sync cache: \(error)")
+            logger.error("[SyncCoordinator] Failed to validate sync cache: \(error)")
             // Keep the cached result if we can't validate
             self.lastSyncResult = cachedResult
-            logger.info("Loaded previous sync result (unvalidated): \(cachedResult.totalProcessed) objects at \(cachedResult.timestamp)")
+            logger.info("[SyncCoordinator] Loaded previous sync result (unvalidated): \(cachedResult.totalProcessed) objects at \(cachedResult.timestamp)")
         }
     }
 
     private func saveLastSyncResult(_ result: SyncResult) {
         if let data = try? JSONEncoder().encode(result) {
             UserDefaults.standard.set(data, forKey: "lastSyncResult")
-            logger.info("Saved sync result: \(result.totalProcessed) objects")
+            logger.info("[SyncCoordinator] Saved sync result: \(result.totalProcessed) objects")
         }
     }
 
@@ -119,15 +119,15 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
     // MARK: - Public Methods
 
     func cancelSync() {
-        logger.info("🛑 Manual sync cancellation requested")
+        logger.info("[SyncCoordinator] Manual sync cancellation requested")
         catalogSyncService.cancelSync()
     }
 
     func performManualSync() async {
-        logger.info("Manual sync triggered")
+        logger.info("[SyncCoordinator] Manual sync triggered")
 
         guard syncState != .syncing else {
-            logger.warning("Sync already in progress, ignoring manual trigger")
+            logger.warning("[SyncCoordinator] Sync already in progress, ignoring manual trigger")
             return
         }
 
@@ -157,13 +157,13 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
                     self.lastSyncResult = result
                     self.saveLastSyncResult(result)
                     self.syncState = .idle
-                    self.logger.info("Manual sync completed: \(result.summary)")
+                    self.logger.info("[SyncCoordinator] Manual sync completed: \(result.summary)")
                 }
 
             } catch {
                 await MainActor.run { [weak self] in
                     guard let self = self else { return }
-                    self.logger.error("Manual sync failed: \(error)")
+                    self.logger.error("[SyncCoordinator] Manual sync failed: \(error)")
                     self.error = error
                     self.syncState = .idle
                 }
@@ -217,10 +217,10 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
 
     /// Perform incremental sync - only fetches and processes changes since last sync
     func performIncrementalSync() async {
-        logger.info("Incremental sync triggered")
+        logger.info("[SyncCoordinator] Incremental sync triggered")
 
         guard syncState != .syncing else {
-            logger.warning("Sync already in progress, ignoring incremental trigger")
+            logger.warning("[SyncCoordinator] Sync already in progress, ignoring incremental trigger")
             return
         }
 
@@ -250,13 +250,13 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
                     self.lastSyncResult = result
                     self.saveLastSyncResult(result)
                     self.syncState = .idle
-                    self.logger.info("Incremental sync completed: \(result.summary)")
+                    self.logger.info("[SyncCoordinator] Incremental sync completed: \(result.summary)")
                 }
 
             } catch {
                 await MainActor.run { [weak self] in
                     guard let self = self else { return }
-                    self.logger.error("Incremental sync failed: \(error)")
+                    self.logger.error("[SyncCoordinator] Incremental sync failed: \(error)")
                     self.error = error
                     self.syncState = .idle
                 }

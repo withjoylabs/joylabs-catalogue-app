@@ -23,7 +23,7 @@ class SquareAPIServiceFactory {
     private let logger = Logger(subsystem: "com.joylabs.native", category: "SquareAPIServiceFactory")
 
     private init() {
-        logger.info("SquareAPIServiceFactory initialized - SINGLE INSTANCE FACTORY")
+        logger.info("[Factory] SquareAPIServiceFactory initialized - SINGLE INSTANCE FACTORY")
     }
 
     /// Create or return cached SquareAPIService instance
@@ -34,11 +34,11 @@ class SquareAPIServiceFactory {
     /// Get or create the SquareAPIService instance
     private func getOrCreateSquareAPIService() -> SquareAPIService {
         if let cachedService = cachedSquareAPIService {
-            logger.debug("Returning cached SquareAPIService instance")
+            logger.debug("[Factory] Returning cached SquareAPIService instance")
             return cachedService
         }
 
-        logger.debug("Creating NEW SquareAPIService instance")
+        logger.debug("[Factory] Creating NEW SquareAPIService instance")
         let service = SquareAPIService()
         cachedSquareAPIService = service
         return service
@@ -55,7 +55,7 @@ class SquareAPIServiceFactory {
             return cachedManager
         }
 
-        logger.debug("Creating NEW SQLiteSwiftCatalogManager instance")
+        logger.debug("[Factory] Creating NEW SQLiteSwiftCatalogManager instance")
         let manager = SQLiteSwiftCatalogManager()
         cachedDatabaseManager = manager
         return manager
@@ -68,11 +68,11 @@ class SquareAPIServiceFactory {
 
     private func getOrCreateSyncCoordinator() -> SQLiteSwiftSyncCoordinator {
         if let cachedCoordinator = cachedSyncCoordinator {
-            logger.debug("Returning cached SQLiteSwiftSyncCoordinator instance")
+            logger.debug("[Factory] Returning cached SQLiteSwiftSyncCoordinator instance")
             return cachedCoordinator
         }
 
-        logger.debug("Creating NEW SQLiteSwiftSyncCoordinator instance")
+        logger.debug("[Factory] Creating NEW SQLiteSwiftSyncCoordinator instance")
         let squareService = getOrCreateSquareAPIService()
         let coordinator = SQLiteSwiftSyncCoordinator(squareAPIService: squareService)
         cachedSyncCoordinator = coordinator
@@ -86,11 +86,11 @@ class SquareAPIServiceFactory {
 
     private func getOrCreateCatalogSyncService() -> SQLiteSwiftCatalogSyncService {
         if let cachedService = cachedCatalogSyncService {
-            logger.debug("Returning cached SQLiteSwiftCatalogSyncService instance")
+            logger.debug("[Factory] Returning cached SQLiteSwiftCatalogSyncService instance")
             return cachedService
         }
 
-        logger.debug("Creating NEW SQLiteSwiftCatalogSyncService instance")
+        logger.debug("[Factory] Creating NEW SQLiteSwiftCatalogSyncService instance")
         let squareService = getOrCreateSquareAPIService()
         let service = SQLiteSwiftCatalogSyncService(squareAPIService: squareService)
         cachedCatalogSyncService = service
@@ -104,11 +104,11 @@ class SquareAPIServiceFactory {
 
     private func getOrCreateTokenService() -> TokenService {
         if let cachedService = cachedTokenService {
-            logger.debug("Returning cached TokenService instance")
+            logger.debug("[Factory] Returning cached TokenService instance")
             return cachedService
         }
 
-        logger.debug("Creating NEW TokenService instance")
+        logger.debug("[Factory] Creating NEW TokenService instance")
         let service = TokenService()
         cachedTokenService = service
         return service
@@ -121,11 +121,11 @@ class SquareAPIServiceFactory {
 
     private func getOrCreateHTTPClient() -> SquareHTTPClient {
         if let cachedClient = cachedHTTPClient {
-            logger.debug("Returning cached SquareHTTPClient instance")
+            logger.debug("[Factory] Returning cached SquareHTTPClient instance")
             return cachedClient
         }
 
-        logger.debug("Creating NEW SquareHTTPClient instance")
+        logger.debug("[Factory] Creating NEW SquareHTTPClient instance")
         let tokenService = getOrCreateTokenService()
         let client = SquareHTTPClient(tokenService: tokenService, resilienceService: BasicResilienceService())
         cachedHTTPClient = client
@@ -142,7 +142,7 @@ class SquareAPIServiceFactory {
             return cachedManager
         }
 
-        logger.debug("Creating NEW ImageURLManager instance")
+        logger.debug("[Factory] Creating NEW ImageURLManager instance")
         let databaseManager = getOrCreateDatabaseManager()
         let manager = ImageURLManager(databaseManager: databaseManager)
         cachedImageURLManager = manager
@@ -156,11 +156,11 @@ class SquareAPIServiceFactory {
 
     private func getOrCreateCRUDService() -> SquareCRUDService {
         if let cachedService = cachedCRUDService {
-            logger.debug("Returning cached SquareCRUDService instance")
+            logger.debug("[Factory] Returning cached SquareCRUDService instance")
             return cachedService
         }
 
-        logger.debug("Creating NEW SquareCRUDService instance")
+        logger.debug("[Factory] Creating NEW SquareCRUDService instance")
         let squareAPIService = getOrCreateSquareAPIService()
         let databaseManager = getOrCreateDatabaseManager()
         let dataConverter = SquareDataConverter(databaseManager: databaseManager)

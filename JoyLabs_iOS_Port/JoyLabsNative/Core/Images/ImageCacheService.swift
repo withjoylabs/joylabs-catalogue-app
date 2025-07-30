@@ -30,9 +30,9 @@ class ImageCacheService: ObservableObject {
     }
 
     static func initializeShared(with imageURLManager: ImageURLManager) {
-        staticLogger.info("🖼️ Initializing shared ImageCacheService with provided ImageURLManager")
+        staticLogger.info("[ImageCache] Initializing shared ImageCacheService with provided ImageURLManager")
         _shared = ImageCacheService(imageURLManager: imageURLManager)
-        staticLogger.info("✅ Shared ImageCacheService initialized successfully")
+        staticLogger.info("[ImageCache] Shared ImageCacheService initialized successfully")
     }
     
     // MARK: - Published Properties

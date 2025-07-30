@@ -43,35 +43,25 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
 
     init(squareAPIService: SquareAPIService) {
         self.squareAPIService = squareAPIService
+        // Use the shared database manager that's already connected in Phase 1
         self.databaseManager = SquareAPIServiceFactory.createDatabaseManager()
 
         // Use the shared ImageCacheService instance instead of creating a new one
         self.imageCacheService = ImageCacheService.shared
 
-        // Initialize database connection
-        Task {
-            await initializeDatabaseConnection()
-        }
+        // Database is already connected from Phase 1 - no need to reconnect
+        logger.debug("[CatalogSync] Using shared database manager (already connected)")
     }
 
 
-    // MARK: - Database Initialization
-
-    private func initializeDatabaseConnection() async {
-        do {
-            // Simply connect to SQLite.swift database
-            try databaseManager.connect()
-            logger.info("✅ Connected to SQLite.swift database")
-        } catch {
-            logger.error("❌ Database connection failed: \(error)")
-            errorMessage = "Database connection failed: \(error.localizedDescription)"
-        }
-    }
+    // MARK: - Database Access
+    // Database connection is managed by the shared factory in Phase 1
+    // No additional connection logic needed here
     
     // MARK: - Sync Operations
 
     func cancelSync() {
-        logger.info("🛑 Sync cancellation requested")
+        logger.info("[CatalogSync] Sync cancellation requested")
         isCancellationRequested = true
 
         // Cancel the background task
@@ -86,7 +76,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
             progress.currentObjectName = "Sync cancelled by user"
             self.syncProgress = progress
             self.stopProgressUpdateTimer()
-            self.logger.info("✅ Sync cancellation completed")
+            self.logger.info("[CatalogSync] Sync cancellation completed")
         }
     }
 
@@ -248,10 +238,10 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
                 // CRITICAL FIX: Set the last sync date in SquareAPIService from stored catalog version
                 let catalogVersion = try await databaseManager.getCatalogVersion()
                 if let lastSync = catalogVersion {
-                    logger.info("📅 Setting last sync date from catalog version: \(lastSync)")
+                    logger.info("[CatalogSync] Setting last sync date from catalog version: \(lastSync)")
                     squareAPIService.lastSyncDate = lastSync
                 } else {
-                    logger.info("📅 No catalog version found - will perform full sync")
+                    logger.info("[CatalogSync] No catalog version found - will perform full sync")
                     squareAPIService.lastSyncDate = nil
                 }
 
@@ -259,7 +249,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
                 let catalogChanges = try await fetchIncrementalCatalogWithProgress()
 
                 if catalogChanges.isEmpty {
-                    logger.info("✅ No catalog changes found since last sync")
+                    logger.info("[CatalogSync] No catalog changes found since last sync")
                     
                     // Update sync completion with no changes
                     await MainActor.run {
@@ -358,12 +348,12 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
             syncProgress = progress
         }
 
-        logger.info("🌐 Fetching catalog data from Square API...")
+        logger.info("[CatalogSync] Fetching catalog data from Square API...")
 
         // Use the actual Square API service to fetch catalog data
         let catalogObjects = try await squareAPIService.fetchCatalog()
 
-        logger.info("✅ Fetched \(catalogObjects.count) objects from Square API")
+        logger.info("[CatalogSync] Fetched \(catalogObjects.count) objects from Square API")
 
         // Don't set the final counts here - let processing update them incrementally
         let itemCount = catalogObjects.filter { $0.type == "ITEM" }.count
@@ -386,12 +376,12 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
             syncProgress = progress
         }
 
-        logger.info("🌐 Fetching INCREMENTAL catalog data from Square API...")
+        logger.info("[CatalogSync] Fetching INCREMENTAL catalog data from Square API...")
 
         // Use the incremental Square API service to fetch only changes since last sync
         let catalogChanges = try await squareAPIService.syncCatalogChanges()
 
-        logger.info("✅ Fetched \(catalogChanges.count) changed objects from Square API (incremental)")
+        logger.info("[CatalogSync] Fetched \(catalogChanges.count) changed objects from Square API (incremental)")
 
         // Don't set the final counts here - let processing update them incrementally
         let itemCount = catalogChanges.filter { $0.type == "ITEM" }.count

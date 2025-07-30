@@ -40,7 +40,7 @@ class SearchManager: ObservableObject {
             if manager.getConnection() != nil {
                 // Database already connected, mark as ready
                 self.isDatabaseReady = true
-                logger.info("✅ SearchManager using pre-connected shared database")
+                logger.debug("[Search] SearchManager using pre-connected shared database")
             }
         } else {
             // Create database manager asynchronously to avoid main actor issues
@@ -66,20 +66,20 @@ class SearchManager: ObservableObject {
             // Use existing connection or connect if not already connected
             if databaseManager.getConnection() == nil {
                 try databaseManager.connect()
-                logger.info("✅ Search manager connected to database")
+                logger.debug("[Search] Search manager connected to database")
             } else {
-                logger.info("✅ Search manager using existing database connection")
+                logger.debug("[Search] Search manager using existing database connection")
             }
 
             // Tables are already created during app startup - no need to recreate
-            logger.debug("✅ Database tables already initialized during app startup")
+            logger.debug("[Search] Database tables already initialized during app startup")
 
             // Update on main thread without blocking
             Task { @MainActor in
                 isDatabaseReady = true
             }
         } catch {
-            logger.error("❌ Search manager database connection failed: \(error)")
+            logger.error("[Search] Search manager database connection failed: \(error)")
             // Update on main thread without blocking
             Task { @MainActor in
                 searchError = "Database connection failed: \(error.localizedDescription)"
@@ -157,7 +157,7 @@ class SearchManager: ObservableObject {
             currentSearchTerm = trimmedTerm
         }
 
-        logger.info("🔍 Performing search for: '\(trimmedTerm)' (offset: \(self.currentOffset), loadMore: \(loadMore))")
+        logger.info("[Search] Performing search for: '\(trimmedTerm)' (offset: \(self.currentOffset), loadMore: \(loadMore))")
 
         do {
             // 1. Get total count first (only for initial search)
@@ -184,7 +184,7 @@ class SearchManager: ObservableObject {
             var caseUpcResults: [SearchResultItem] = []
             if currentOffset == 0 && trimmedTerm.allSatisfy(\.isNumber) && filters.barcode {
                 caseUpcResults = try await searchCaseUpcItems(searchTerm: trimmedTerm)
-                logger.debug("📦 Case UPC search returned \(caseUpcResults.count) results")
+                logger.debug("[Search] Case UPC search returned \(caseUpcResults.count) results")
             }
 
             // 4. Combine and deduplicate results
@@ -195,7 +195,7 @@ class SearchManager: ObservableObject {
 
             // Check for mismatch between total count and actual results
             if currentOffset == 0 && self.totalResultsCount != nil && self.totalResultsCount! > 0 && newResults.isEmpty {
-                logger.error("🚨 SEARCH MISMATCH: Total count shows \(self.totalResultsCount!) but combined results are empty for '\(trimmedTerm)'")
+                logger.error("[Search] SEARCH MISMATCH: Total count shows \(self.totalResultsCount!) but combined results are empty for '\(trimmedTerm)'")
             }
 
             Task { @MainActor in
@@ -220,11 +220,11 @@ class SearchManager: ObservableObject {
             }
 
             let totalCount = newResults.count
-            logger.info("✅ Search completed: \(newResults.count) new results, \(totalCount) total")
+            logger.info("[Search] Search completed: \(newResults.count) new results, \(totalCount) total")
             return newResults
 
         } catch {
-            logger.error("❌ Search failed: \(error)")
+            logger.error("[Search] Search failed: \(error)")
 
             Task { @MainActor in
                 searchError = error.localizedDescription

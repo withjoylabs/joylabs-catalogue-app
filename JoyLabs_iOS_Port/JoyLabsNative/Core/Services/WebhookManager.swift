@@ -34,7 +34,7 @@ class WebhookManager: ObservableObject {
         self.imageCacheService = ImageCacheService.shared
         
         setupWebhookObservers()
-        logger.info("🔗 WebhookManager initialized and ready")
+        logger.info("[WebhookManager] WebhookManager initialized and ready")
     }
     
     // MARK: - Public Interface
@@ -42,7 +42,7 @@ class WebhookManager: ObservableObject {
     /// Start webhook processing
     func startWebhookProcessing() {
         isActive = true
-        logger.info("🚀 Webhook processing started")
+        logger.info("[WebhookManager] Webhook processing started")
     }
     
     /// Stop webhook processing
@@ -164,6 +164,7 @@ extension WebhookManager {
     
     /// Setup observers for webhook-related notifications
     private func setupWebhookObservers() {
+        logger.info("[WebhookManager] Webhook observers configured")
         // Observe image refresh notifications to update stats
         NotificationCenter.default.publisher(for: .forceImageRefresh)
             .receive(on: DispatchQueue.main)
@@ -180,7 +181,6 @@ extension WebhookManager {
             }
             .store(in: &cancellables)
         
-        logger.debug("🔗 Webhook observers configured")
     }
     
     /// Handle image refresh notifications triggered by webhooks

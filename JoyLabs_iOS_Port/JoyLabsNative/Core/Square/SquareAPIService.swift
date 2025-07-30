@@ -527,7 +527,7 @@ class SquareAPIService: ObservableObject {
             
         } while cursor != nil
         
-        logger.info("✅ Fetched \(allObjects.count) total changed objects across \(pageCount) pages")
+        logger.info("[SquareAPI] Fetched \(allObjects.count) total changed objects across \(pageCount) pages")
         
         if !allObjects.isEmpty {
             lastSyncDate = Date()

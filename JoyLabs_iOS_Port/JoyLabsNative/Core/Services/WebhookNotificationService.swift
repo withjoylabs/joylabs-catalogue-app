@@ -25,7 +25,7 @@ class WebhookNotificationService: ObservableObject {
     // MARK: - Initialization
     private init() {
         setupWebhookObservers()
-        logger.info("🔔 WebhookNotificationService initialized")
+        logger.info("[WebhookNotification] WebhookNotificationService initialized")
     }
     
     // MARK: - Public Interface
@@ -41,7 +41,7 @@ class WebhookNotificationService: ObservableObject {
             webhookNotifications[index].isRead = true
         }
         unreadCount = 0
-        logger.debug("📖 All webhook notifications marked as read")
+        logger.debug("[WebhookNotification] All webhook notifications marked as read")
     }
     
     /// Mark specific notification as read
@@ -58,7 +58,7 @@ class WebhookNotificationService: ObservableObject {
     func clearAllNotifications() {
         webhookNotifications.removeAll()
         unreadCount = 0
-        logger.info("🗑️ All webhook notifications cleared")
+        logger.info("[WebhookNotification] All webhook notifications cleared")
     }
     
     /// Get recent webhook activity for display
@@ -92,7 +92,7 @@ extension WebhookNotificationService {
             .sink { [weak self] isActive in
                 self?.isWebhookActive = isActive
                 // Only log actual state changes, not initial states
-                print("🔔 Webhook system \(isActive ? "started" : "stopped")")
+                self?.logger.debug("[WebhookNotification] Webhook system \(isActive ? "started" : "stopped")")
             }
             .store(in: &cancellables)
         
@@ -121,7 +121,7 @@ extension WebhookNotificationService {
             }
             .store(in: &cancellables)
         
-        logger.debug("🔗 Webhook notification observers configured")
+        logger.debug("[WebhookNotification] Webhook notification observers configured")
     }
     
     /// Handle processed webhook events
@@ -237,7 +237,7 @@ extension WebhookNotificationService {
             webhookNotifications.removeLast()
         }
         
-        logger.debug("🔔 Added webhook notification: \(notification.title)")
+        logger.debug("[WebhookNotification] Added webhook notification: \(notification.title)")
     }
 }
 

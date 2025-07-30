@@ -10,10 +10,14 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     // Background download completion handler
     var backgroundDownloadCompletionHandler: (() -> Void)?
     
+    // Push token registration delay mechanism
+    private var pendingPushToken: String?
+    private var isCatchUpSyncComplete = false
+    
     // MARK: - Application Lifecycle
     
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        logger.info("🚀 Application did finish launching")
+        logger.info("[AppDelegate] Application did finish launching")
         
         // Set up push notification delegate
         UNUserNotificationCenter.current().delegate = PushNotificationService.shared
@@ -22,9 +26,9 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         
         // Configure background app refresh
         if application.backgroundRefreshStatus == .available {
-            logger.info("📱 Background app refresh is available")
+            logger.info("[AppDelegate] Background app refresh is available")
         } else {
-            logger.warning("⚠️ Background app refresh is not available")
+            logger.warning("[AppDelegate] Background app refresh is not available")
         }
         
         return true
@@ -33,12 +37,12 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     // MARK: - Background URL Session Handling
     
     func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String, completionHandler: @escaping () -> Void) {
-        logger.info("🌐 Handling events for background URL session: \(identifier)")
+        logger.info("[AppDelegate] Handling events for background URL session: \(identifier)")
         
         // Store completion handler for background downloads
         if identifier == "com.joylabs.native.image-downloads" {
             backgroundDownloadCompletionHandler = completionHandler
-            logger.info("📥 Stored background download completion handler")
+            logger.info("[AppDelegate] Stored background download completion handler")
         } else {
             // Call completion handler immediately for unknown sessions
             completionHandler()
@@ -48,28 +52,28 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     // MARK: - Background Task Management
     
     func applicationDidEnterBackground(_ application: UIApplication) {
-        logger.info("📱 Application entered background")
+        logger.info("[AppDelegate] Application entered background")
         
         // Background tasks will be managed by individual services
         // This is just for logging and monitoring
     }
     
     func applicationWillEnterForeground(_ application: UIApplication) {
-        logger.info("📱 Application will enter foreground")
+        logger.info("[AppDelegate] Application will enter foreground")
         
         // Refresh any stale data or resume paused operations
         NotificationCenter.default.post(name: .applicationWillEnterForeground, object: nil)
     }
     
     func applicationDidBecomeActive(_ application: UIApplication) {
-        logger.info("📱 Application became active")
+        logger.info("[AppDelegate] Application became active")
         
         // Resume normal operations
         NotificationCenter.default.post(name: .applicationDidBecomeActive, object: nil)
     }
     
     func applicationWillResignActive(_ application: UIApplication) {
-        logger.info("📱 Application will resign active")
+        logger.info("[AppDelegate] Application will resign active")
         
         // Prepare for background or inactive state
         NotificationCenter.default.post(name: .applicationWillResignActive, object: nil)
@@ -82,15 +86,21 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication,
         didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
     ) {
-        logger.info("✅ Successfully registered for remote notifications")
+        logger.info("[AppDelegate] Successfully registered for remote notifications")
         
         // Convert token to string
         let tokenString = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
-        logger.debug("📱 Push token: \(tokenString.prefix(10))...")
+        logger.debug("[AppDelegate] Push token: \(tokenString.prefix(10))...")
         
-        // Send token to backend
-        Task { @MainActor in
-            await PushNotificationService.shared.sendTokenToBackend(tokenString)
+        // Store token and register only after catch-up sync completes
+        pendingPushToken = tokenString
+        
+        if isCatchUpSyncComplete {
+            Task { @MainActor in
+                await PushNotificationService.shared.sendTokenToBackend(tokenString)
+            }
+        } else {
+            logger.info("[AppDelegate] Push token received but waiting for catch-up sync to complete")
         }
     }
     
@@ -99,7 +109,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication,
         didFailToRegisterForRemoteNotificationsWithError error: Error
     ) {
-        logger.error("❌ Failed to register for remote notifications: \(error)")
+        logger.error("[AppDelegate] Failed to register for remote notifications: \(error)")
         
         Task { @MainActor in
             PushNotificationService.shared.notificationError = error.localizedDescription
@@ -112,7 +122,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         didReceiveRemoteNotification userInfo: [AnyHashable: Any],
         fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
     ) {
-        logger.info("📥 Received background push notification")
+        logger.info("[AppDelegate] Received background push notification")
         
         // Process the notification
         Task {
@@ -122,6 +132,22 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             await MainActor.run {
                 completionHandler(.newData)
             }
+        }
+    }
+    
+    // MARK: - Push Token Registration Control
+    
+    /// Signal that catch-up sync is complete and register any pending push token
+    func notifyCatchUpSyncComplete() {
+        logger.info("[AppDelegate] Catch-up sync completed - enabling push token registration")
+        isCatchUpSyncComplete = true
+        
+        if let token = pendingPushToken {
+            logger.info("[AppDelegate] Registering pending push token after catch-up sync")
+            Task { @MainActor in
+                await PushNotificationService.shared.sendTokenToBackend(token)
+            }
+            pendingPushToken = nil
         }
     }
 }

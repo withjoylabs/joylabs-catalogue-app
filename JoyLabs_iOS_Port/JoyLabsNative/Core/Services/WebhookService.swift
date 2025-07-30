@@ -32,9 +32,9 @@ class WebhookService: ObservableObject {
         self.unifiedImageService = UnifiedImageService.shared
         self.databaseManager = SquareAPIServiceFactory.createDatabaseManager()
         
-        logger.info("🔗 WebhookService initialized")
-        logger.info("📍 Webhook endpoint: \(self.webhookEndpoint)")
-        logger.info("🆔 Subscription ID: \(self.subscriptionId)")
+        logger.info("[Webhook] WebhookService initialized")
+        logger.info("[Webhook] Webhook endpoint: \(self.webhookEndpoint)")
+        logger.info("[Webhook] Subscription ID: \(self.subscriptionId)")
     }
     
     // MARK: - Public Interface

@@ -27,21 +27,21 @@ class FieldConfigurationManager: ObservableObject {
     private init() {
         self.currentConfiguration = ItemFieldConfiguration.defaultConfiguration()
         loadConfiguration()
-        logger.info("FieldConfigurationManager initialized with persistence support")
+        logger.info("[FieldConfig] FieldConfigurationManager initialized with persistence support")
     }
     
     // MARK: - Public Methods
     
     /// Load configuration from persistent storage
     func loadConfiguration() {
-        logger.info("Loading field configuration from UserDefaults")
+        logger.info("[FieldConfig] Loading field configuration from UserDefaults")
         isLoading = true
         defer { isLoading = false }
         
         // Check if we need to migrate configuration
         let savedVersion = userDefaults.integer(forKey: configurationVersionKey)
         if savedVersion < self.currentVersion {
-            logger.info("Configuration version mismatch. Migrating from \(savedVersion) to \(self.currentVersion)")
+            logger.info("[FieldConfig] Configuration version mismatch. Migrating from \(savedVersion) to \(self.currentVersion)")
             migrateConfiguration(from: savedVersion)
             return
         }
@@ -52,8 +52,8 @@ class FieldConfigurationManager: ObservableObject {
                 let decoder = JSONDecoder()
                 let savedConfig = try decoder.decode(ItemFieldConfiguration.self, from: configData)
                 currentConfiguration = savedConfig
-                logger.info("Successfully loaded saved field configuration from UserDefaults")
-                logger.debug("Loaded config - Categories enabled: \(savedConfig.classificationFields.categoryEnabled), Tax enabled: \(savedConfig.pricingFields.taxEnabled)")
+                logger.info("[FieldConfig] Successfully loaded saved field configuration from UserDefaults")
+                logger.info("[FieldConfig] Loaded config - Categories enabled: \(savedConfig.classificationFields.categoryEnabled), Tax enabled: \(savedConfig.pricingFields.taxEnabled)")
             } catch {
                 logger.error("Failed to decode field configuration: \(error.localizedDescription)")
                 // Fall back to default configuration
@@ -61,7 +61,7 @@ class FieldConfigurationManager: ObservableObject {
                 saveConfiguration() // Save the default to fix corruption
             }
         } else {
-            logger.info("No saved configuration found, creating and saving default configuration")
+            logger.info("[FieldConfig] No saved configuration found, creating and saving default configuration")
             currentConfiguration = ItemFieldConfiguration.defaultConfiguration()
             saveConfiguration() // Save the default for future use
         }
@@ -71,7 +71,7 @@ class FieldConfigurationManager: ObservableObject {
     
     /// Save current configuration to persistent storage
     func saveConfiguration() {
-        logger.info("Saving field configuration to UserDefaults")
+        logger.info("[FieldConfig] Saving field configuration to UserDefaults")
 
         do {
             let encoder = JSONEncoder()

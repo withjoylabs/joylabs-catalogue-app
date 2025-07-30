@@ -27,7 +27,7 @@ class UnifiedImageService: ObservableObject {
         self.imageURLManager = ImageURLManager(databaseManager: databaseManager)
         self.httpClient = SquareAPIServiceFactory.createHTTPClient()
 
-        logger.info("🖼️ UnifiedImageService initialized")
+        logger.info("[UnifiedImage] UnifiedImageService initialized")
     }
     
     // MARK: - Public Interface

@@ -14,14 +14,6 @@ struct JoyLabsNativeApp: App {
         
         // Then initialize remaining services asynchronously
         initializeRemainingServicesAsync()
-        
-        // CRITICAL: Request push notification permissions IMMEDIATELY at app startup
-        // (Token registration will happen later in orchestrated sequence)
-        Task { @MainActor in
-            await PushNotificationService.shared.setupPushNotifications()
-            let logger = Logger(subsystem: "com.joylabs.native", category: "App")
-            logger.info("🔔 Phase 1: Push notification permissions requested at app startup")
-        }
     }
 
     var body: some Scene {
@@ -35,57 +27,68 @@ struct JoyLabsNativeApp: App {
     }
 
     private func initializeCriticalServicesSync() {
-        logger.info("🚀 Phase 1: Initializing critical services synchronously...")
+        logger.info("[App] Phase 1: Initializing critical services synchronously...")
         
         // Initialize field configuration manager synchronously
         let _ = FieldConfigurationManager.shared
         
-        // Initialize database manager and image cache service synchronously to prevent race conditions
+        // Initialize database manager and connect immediately to prevent multiple connections
         let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
+        do {
+            try databaseManager.connect()
+            logger.info("[App] Phase 1: Database connected successfully")
+        } catch {
+            logger.error("[App] Phase 1: Database connection failed: \(error)")
+        }
+        
         let imageURLManager = ImageURLManager(databaseManager: databaseManager)
         ImageCacheService.initializeShared(with: imageURLManager)
         
-        logger.info("✅ Phase 1: Critical services initialized synchronously (FieldConfig, Database, ImageCache)")
+        // Pre-initialize ALL Square services to prevent cascade creation during sync
+        let _ = SquareAPIServiceFactory.createTokenService()
+        let _ = SquareAPIServiceFactory.createHTTPClient()
+        let _ = SquareAPIServiceFactory.createService() // SquareAPIService
+        let _ = SquareAPIServiceFactory.createSyncCoordinator()
+        
+        // Pre-initialize singleton services to prevent creation during Phase 2
+        let _ = PushNotificationService.shared
+        let _ = UnifiedImageService.shared
+        let _ = WebhookService.shared
+        let _ = WebhookManager.shared
+        let _ = WebhookNotificationService.shared
+        let _ = NotificationSettingsService.shared
+        
+        logger.info("[App] Phase 1: Critical services initialized synchronously (FieldConfig, Database, ImageCache, All Square services, Singleton services)")
+        
+        // Request push notification permissions immediately after Phase 1 completes
+        logger.info("[App] Phase 1: Requesting push notification permissions...")
+        Task { @MainActor in
+            await PushNotificationService.shared.setupPushNotifications()
+            // Note: Completion will be logged by PushNotificationService itself
+        }
     }
     
     private func initializeRemainingServicesAsync() {
-        logger.info("🚀 Initializing remaining services asynchronously...")
+        logger.info("[App] Phase 2: Starting catch-up sync and service initialization...")
         
-        // Initialize database connection and tables asynchronously using EXISTING database manager
         Task.detached(priority: .high) {
             await MainActor.run {
-                // Reuse the already created database manager from critical services
-                let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
-                
                 Task {
-                    do {
-                        try databaseManager.connect()
-                        try await databaseManager.createTablesAsync()
-                        await MainActor.run {
-                            let logger = Logger(subsystem: "com.joylabs.native", category: "App")
-                            logger.info("✅ Database connection and tables initialized successfully")
-                            
-                            // PHASE 2: Perform catch-up sync FIRST (before webhook processing)
-                            Task {
-                                logger.info("🔄 Phase 2: Starting catch-up sync before enabling webhook processing...")
-                                await performAppLaunchCatchUpSync()
-                                
-                                // PHASE 3: Initialize webhook system AFTER catch-up sync completes
-                                await MainActor.run {
-                                    WebhookManager.shared.startWebhookProcessing()
-                                    logger.info("✅ Phase 3: Webhook system initialized after catch-up sync")
-                                    
-                                    // PHASE 4: Start push notification token registration (non-blocking)
-                                    Task {
-                                        await finalizePushNotificationSetup()
-                                    }
-                                }
-                            }
+                    logger.info("[App] Phase 2: Starting catch-up sync before enabling webhook processing...")
+                    await performAppLaunchCatchUpSync()
+                    
+                    // PHASE 3: Initialize webhook system AFTER catch-up sync completes
+                    await MainActor.run {
+                        WebhookManager.shared.startWebhookProcessing()
+                        logger.info("[App] Phase 3: Webhook system initialized after catch-up sync")
+                        
+                        // PHASE 4: Enable push token registration now that catch-up sync is complete
+                        if let appDelegate = UIApplication.shared.delegate as? AppDelegate {
+                            appDelegate.notifyCatchUpSyncComplete()
                         }
-                    } catch {
-                        await MainActor.run {
-                            let logger = Logger(subsystem: "com.joylabs.native", category: "App")
-                            logger.error("❌ Failed to initialize database connection: \(error)")
+                        
+                        Task {
+                            await finalizePushNotificationSetup()
                         }
                     }
                 }
@@ -95,29 +98,29 @@ struct JoyLabsNativeApp: App {
 
     /// Finalize push notification setup after catch-up sync is complete
     private func finalizePushNotificationSetup() async {
-        logger.info("🔔 Phase 4: Finalizing push notification token registration...")
+        logger.info("[App] Phase 4: Finalizing push notification token registration...")
         
         // Push notification permissions were already requested in Phase 1
         // Now we just need to ensure token registration happens after sync is complete
         // The AppDelegate will handle token registration when the token becomes available
         
-        logger.info("✅ Phase 4: Push notification setup finalized - token registration will occur automatically")
+        logger.info("[App] Phase 4: Push notification setup finalized - token registration will occur automatically")
     }
 
     /// Performs catch-up sync on app launch to handle missed webhook notifications
     /// Only syncs objects that changed since last sync - NOT a full resync
     private func performAppLaunchCatchUpSync() async {
-        logger.info("🔄 Phase 2: Starting app launch catch-up sync (incremental only)...")
+        logger.info("[App] Phase 2: Starting app launch catch-up sync (incremental only)...")
         
         do {
             // Check if we have authentication using factory
             let tokenService = SquareAPIServiceFactory.createTokenService()
             guard let _ = try? await tokenService.getCurrentTokenData() else {
-                logger.info("⏭️ No authentication found, skipping catch-up sync")
+                logger.info("[App] No authentication found, skipping catch-up sync")
                 return
             }
             
-            // Get the database manager to check last sync timestamp
+            // Get the database manager (already connected in Phase 1)
             let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
             
             // Check when we last synced successfully
@@ -126,18 +129,17 @@ struct JoyLabsNativeApp: App {
             
             // Only perform catch-up if it's been more than 1 minute since last sync
             if let lastSync = lastSyncTime, now.timeIntervalSince(lastSync) < 60 {
-                logger.info("⏭️ Recent sync found (\(Int(now.timeIntervalSince(lastSync)))s ago), skipping catch-up")
+                logger.info("[App] Recent sync found (\(Int(now.timeIntervalSince(lastSync)))s ago), skipping catch-up")
                 return
             }
             
-            logger.info("🚀 Performing incremental catch-up sync since \(lastSyncTime?.description ?? "initial sync")...")
+            logger.info("[App] Performing incremental catch-up sync since \(lastSyncTime?.description ?? "initial sync")...")
             
             // Get sync coordinator and perform INCREMENTAL sync only
             let syncCoordinator = SquareAPIServiceFactory.createSyncCoordinator()
             
             // Count items before sync to calculate changes using existing getItemCount method
-            // RACE CONDITION FIX: Ensure database connection is established before accessing
-            try databaseManager.connect()
+            // Database is already connected from Phase 1
             let itemCountBefore = try await databaseManager.getItemCount()
             
             // This should be incremental sync, not full resync
@@ -145,12 +147,11 @@ struct JoyLabsNativeApp: App {
             await syncCoordinator.performIncrementalSync()
             
             // Count items after sync to see what changed
-            // Database connection should already be established, but ensure it's connected
-            try databaseManager.connect()
+            // Database is already connected from Phase 1
             let itemCountAfter = try await databaseManager.getItemCount()
             let itemsUpdated = abs(itemCountAfter - itemCountBefore)
             
-            logger.info("✅ Phase 2: App launch incremental catch-up sync completed successfully - \(itemsUpdated) items updated")
+            logger.info("[App] Phase 2: App launch incremental catch-up sync completed successfully - \(itemsUpdated) items updated")
             
             // Always create in-app notification about sync results (silent - no iOS notification banner)
             await createInAppNotificationForSync(itemsUpdated: itemsUpdated, reason: "app launch")
@@ -178,7 +179,7 @@ struct JoyLabsNativeApp: App {
             }
             
         } catch {
-            logger.error("❌ App launch catch-up sync failed: \(error)")
+            logger.error("[App] App launch catch-up sync failed: \(error)")
             
             // Post notification about sync failure
             NotificationCenter.default.post(
@@ -226,7 +227,7 @@ struct JoyLabsNativeApp: App {
             )
         }
         
-        logger.info("🤫 Added silent sync notification to in-app center: \(message)")
+        logger.info("[App] Added silent sync notification to in-app center: \(message)")
     }
 
     private func handleIncomingURL(_ url: URL) {

@@ -151,7 +151,7 @@ class SQLiteSwiftCatalogManager {
     init() {
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
         self.dbPath = documentsPath.appendingPathComponent("catalog.sqlite").path
-        logger.info("SQLiteSwift database path: \(self.dbPath)")
+        logger.info("[Database] SQLiteSwift database path: \(self.dbPath)")
     }
     
     // MARK: - Database Connection
@@ -159,7 +159,7 @@ class SQLiteSwiftCatalogManager {
     func connect() throws {
         // IDEMPOTENT: Don't reconnect if already connected
         if db != nil {
-            logger.debug("Database already connected, skipping duplicate connection")
+            // Database already connected - no logging needed to avoid spam
             return
         }
         
@@ -173,7 +173,7 @@ class SQLiteSwiftCatalogManager {
             try db?.execute("PRAGMA foreign_keys = ON")
             try db?.execute("PRAGMA busy_timeout = 30000")
 
-            logger.info("SQLiteSwift database connected successfully")
+            logger.info("[Database] SQLiteSwift database connected successfully")
 
         } catch {
             logger.error("Failed to connect to SQLiteSwift database: \(error)")
@@ -297,7 +297,7 @@ class SQLiteSwiftCatalogManager {
     func createTablesAsync() async throws {
         guard let db = db else { throw SQLiteSwiftError.noConnection }
 
-        logger.info("Ensuring catalog database tables exist...")
+        logger.info("[Database] Ensuring catalog database tables exist...")
 
         // Create image URL mapping table first (only if not already created)
         let imageURLManager = ImageURLManager(databaseManager: self)
@@ -306,7 +306,7 @@ class SQLiteSwiftCatalogManager {
         // Use table creator component
         try tableCreator.createTables(in: db)
 
-        logger.info("Catalog database tables verified/created successfully")
+        logger.info("[Database] Catalog database tables verified/created successfully")
     }
 
     // MARK: - Data Operations
@@ -461,7 +461,7 @@ class SQLiteSwiftCatalogManager {
                 )
                 try db.run(insert)
 
-                logger.debug("✅ Stored IMAGE object: \(object.id) with URL: \(imageUrl ?? "nil")")
+                logger.debug("[Database] Stored IMAGE object: \(object.id) with URL: \(imageUrl ?? "nil")")
             } else {
                 logger.warning("⚠️ IMAGE object \(object.id) missing imageData - skipping")
             }
@@ -677,7 +677,7 @@ class SQLiteSwiftCatalogManager {
             }
         }
         
-        logger.info("📅 Latest updated_at timestamp in database: \(latestDate?.description ?? "none")")
+        logger.info("[Database] Latest updated_at timestamp in database: \(latestDate?.description ?? "none")")
         return latestDate
     }
     
@@ -699,7 +699,7 @@ class SQLiteSwiftCatalogManager {
         )
         
         try db.run(insert)
-        logger.info("✅ Saved catalog version: \(updatedAtString)")
+        logger.info("[Database] Saved catalog version: \(updatedAtString)")
     }
     
     /// Get the stored catalog version timestamp
@@ -718,12 +718,12 @@ class SQLiteSwiftCatalogManager {
             formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
             
             if let date = formatter.date(from: versionString) {
-                logger.info("📅 Retrieved catalog version: \(versionString)")
+                logger.info("[Database] Retrieved catalog version: \(versionString)")
                 return date
             }
         }
         
-        logger.info("📅 No catalog version found in database")
+        logger.info("[Database] No catalog version found in database")
         return nil
     }
 

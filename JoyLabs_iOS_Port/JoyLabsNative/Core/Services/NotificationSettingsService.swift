@@ -34,7 +34,7 @@ public class NotificationSettingsService: ObservableObject {
     // MARK: - Initialization
     private init() {
         loadSettings()
-        logger.info("🔔 NotificationSettingsService initialized")
+        logger.info("[NotificationSettings] NotificationSettingsService initialized")
     }
     
     // MARK: - Public Methods
@@ -48,7 +48,7 @@ public class NotificationSettingsService: ObservableObject {
         imageUpdateNotifications = userDefaults.bool(forKey: Keys.imageUpdateNotifications, defaultValue: true)
         syncErrorNotifications = userDefaults.bool(forKey: Keys.syncErrorNotifications, defaultValue: true)
         
-        logger.info("📱 Notification settings loaded")
+        logger.info("[NotificationSettings] Notification settings loaded")
     }
     
     /// Save settings to UserDefaults
@@ -60,7 +60,7 @@ public class NotificationSettingsService: ObservableObject {
         userDefaults.set(imageUpdateNotifications, forKey: Keys.imageUpdateNotifications)
         userDefaults.set(syncErrorNotifications, forKey: Keys.syncErrorNotifications)
         
-        logger.info("💾 Notification settings saved")
+        logger.info("[NotificationSettings] Notification settings saved")
     }
     
     /// Check if a specific notification type is enabled
@@ -110,7 +110,7 @@ public class NotificationSettingsService: ObservableObject {
         syncErrorNotifications = true
         saveSettings()
         
-        logger.info("🔄 Notification settings reset to defaults")
+        logger.info("[NotificationSettings] Notification settings reset to defaults")
     }
 }
 
