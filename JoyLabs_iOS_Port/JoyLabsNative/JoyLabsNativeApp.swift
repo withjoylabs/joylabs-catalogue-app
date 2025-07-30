@@ -171,8 +171,8 @@ struct JoyLabsNativeApp: App {
     /// Gets the last successful sync timestamp from database
     private func getLastSuccessfulSyncTime(databaseManager: SQLiteSwiftCatalogManager) async -> Date? {
         do {
-            // Get the actual latest updated_at timestamp from the database
-            return try await databaseManager.getLatestUpdatedAt()
+            // Get the stored catalog version timestamp from the database
+            return try await databaseManager.getCatalogVersion()
         } catch {
             logger.error("Failed to get last sync time: \(error)")
             return nil

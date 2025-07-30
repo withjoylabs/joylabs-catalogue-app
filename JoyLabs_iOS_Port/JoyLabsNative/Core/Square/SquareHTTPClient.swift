@@ -198,9 +198,9 @@ actor SquareHTTPClient {
         )
     }
     
-    /// Search catalog objects with timestamp filter (DIRECT API CALL)
-    func searchCatalogObjects(beginTime: String? = nil) async throws -> CatalogResponse {
-        logger.debug("Searching catalog objects with beginTime: \(beginTime ?? "none") - DIRECT Square API")
+    /// Search catalog objects with timestamp filter and cursor pagination (DIRECT API CALL)
+    func searchCatalogObjects(beginTime: String? = nil, cursor: String? = nil) async throws -> CatalogResponse {
+        logger.debug("Searching catalog objects with beginTime: \(beginTime ?? "none"), cursor: \(cursor ?? "none") - DIRECT Square API")
 
         // Square API search requires POST with JSON body, not GET with query params
         var searchRequest: [String: Any] = [:]
@@ -209,12 +209,16 @@ actor SquareHTTPClient {
             searchRequest["begin_time"] = beginTime
         }
         
+        if let cursor = cursor {
+            searchRequest["cursor"] = cursor
+        }
+        
         // CRITICAL FIX: Always specify object types, even with begin_time
         // This filters out extraneous objects and focuses on what we need
         searchRequest["object_types"] = ["ITEM", "CATEGORY", "TAX", "DISCOUNT", "MODIFIER_LIST", "IMAGE"]
         
-        // Optional: Add limit to reduce the number of objects returned
-        searchRequest["limit"] = 100  // Default page size
+        // Add limit - Square API allows up to 1000 objects per page
+        searchRequest["limit"] = 1000  // Maximum page size for efficiency
 
         let endpoint = "/v2/catalog/search"
         

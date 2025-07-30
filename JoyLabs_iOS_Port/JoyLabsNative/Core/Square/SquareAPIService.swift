@@ -568,18 +568,44 @@ class SquareAPIService: ObservableObject {
         return objects
     }
     
-    /// Sync catalog changes since last sync
+    /// Sync catalog changes since last sync with cursor pagination support
     func syncCatalogChanges() async throws -> [CatalogObject] {
         logger.info("Syncing catalog changes since last sync")
         
         let beginTime = lastSyncDate?.iso8601String
-        let objects = try await searchCatalog(beginTime: beginTime)
+        var allObjects: [CatalogObject] = []
+        var cursor: String?
+        var pageCount = 0
         
-        if !objects.isEmpty {
+        // Handle cursor pagination for catalogs with >1000 changed objects
+        repeat {
+            logger.info("Fetching page \(pageCount + 1) of catalog changes...")
+            
+            let response = try await httpClient.searchCatalogObjects(beginTime: beginTime, cursor: cursor)
+            
+            if let objects = response.objects {
+                allObjects.append(contentsOf: objects)
+                logger.info("Page \(pageCount + 1): fetched \(objects.count) objects, total: \(allObjects.count)")
+            }
+            
+            cursor = response.cursor
+            pageCount += 1
+            
+            // Safety check to prevent infinite loops
+            if pageCount > 100 {
+                logger.error("Too many pages (>100) in catalog sync - possible API issue")
+                break
+            }
+            
+        } while cursor != nil
+        
+        logger.info("✅ Fetched \(allObjects.count) total changed objects across \(pageCount) pages")
+        
+        if !allObjects.isEmpty {
             lastSyncDate = Date()
         }
         
-        return objects
+        return allObjects
     }
     
     // MARK: - Merchant Information

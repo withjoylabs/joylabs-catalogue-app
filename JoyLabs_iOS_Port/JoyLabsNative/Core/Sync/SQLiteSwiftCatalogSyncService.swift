@@ -171,6 +171,11 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
                     progress.currentObjectName = "Sync completed successfully!"
                     syncProgress = progress
                 }
+                
+                // CRITICAL: Save the catalog version timestamp after successful sync
+                let syncCompletedAt = Date()
+                try await databaseManager.saveCatalogVersion(syncCompletedAt)
+                logger.info("📅 Saved catalog version after full sync: \(syncCompletedAt)")
 
                 logger.info("🎉 Catalog sync completed successfully!")
                 logger.info("📊 Final sync stats: \(catalogData.count) total objects processed")
@@ -240,13 +245,13 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
                 // Start UI update timer (every 1 second)
                 await MainActor.run { startProgressUpdateTimer() }
                 
-                // CRITICAL FIX: Set the last sync date in SquareAPIService from database
-                let latestUpdatedAt = try await databaseManager.getLatestUpdatedAt()
-                if let lastSync = latestUpdatedAt {
-                    logger.info("📅 Setting last sync date in SquareAPIService: \(lastSync)")
+                // CRITICAL FIX: Set the last sync date in SquareAPIService from stored catalog version
+                let catalogVersion = try await databaseManager.getCatalogVersion()
+                if let lastSync = catalogVersion {
+                    logger.info("📅 Setting last sync date from catalog version: \(lastSync)")
                     squareAPIService.lastSyncDate = lastSync
                 } else {
-                    logger.info("📅 No previous sync date found - will perform full sync")
+                    logger.info("📅 No catalog version found - will perform full sync")
                     squareAPIService.lastSyncDate = nil
                 }
 
@@ -286,6 +291,11 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
                         progress.currentObjectName = "Incremental sync completed - \(catalogChanges.count) changes processed"
                         syncProgress = progress
                     }
+                    
+                    // CRITICAL: Save the catalog version timestamp after successful incremental sync
+                    let syncCompletedAt = Date()
+                    try await databaseManager.saveCatalogVersion(syncCompletedAt)
+                    logger.info("📅 Saved catalog version after incremental sync: \(syncCompletedAt)")
 
                     logger.info("🎉 Incremental catalog sync completed successfully!")
                     logger.info("📊 Incremental sync stats: \(catalogChanges.count) changed objects processed")

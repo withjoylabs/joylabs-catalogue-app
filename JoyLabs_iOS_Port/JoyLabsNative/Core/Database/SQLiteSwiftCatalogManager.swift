@@ -674,6 +674,52 @@ class SQLiteSwiftCatalogManager {
         logger.info("📅 Latest updated_at timestamp in database: \(latestDate?.description ?? "none")")
         return latestDate
     }
+    
+    /// Save the catalog version timestamp from Square's webhook or API response
+    func saveCatalogVersion(_ updatedAt: Date) async throws {
+        guard let db = db else {
+            throw SQLiteSwiftError.noConnection
+        }
+        
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let updatedAtString = formatter.string(from: updatedAt)
+        
+        // Insert or update the catalog_version in sync_status table
+        let insert = CatalogTableDefinitions.syncStatus.insert(or: .replace,
+            CatalogTableDefinitions.syncKey <- "catalog_version",
+            CatalogTableDefinitions.syncValue <- updatedAtString,
+            CatalogTableDefinitions.syncUpdatedAt <- updatedAtString
+        )
+        
+        try db.run(insert)
+        logger.info("✅ Saved catalog version: \(updatedAtString)")
+    }
+    
+    /// Get the stored catalog version timestamp
+    func getCatalogVersion() async throws -> Date? {
+        guard let db = db else {
+            throw SQLiteSwiftError.noConnection
+        }
+        
+        let query = CatalogTableDefinitions.syncStatus
+            .select(CatalogTableDefinitions.syncValue)
+            .filter(CatalogTableDefinitions.syncKey == "catalog_version")
+        
+        if let row = try db.pluck(query) {
+            let versionString = try row.get(CatalogTableDefinitions.syncValue)
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            
+            if let date = formatter.date(from: versionString) {
+                logger.info("📅 Retrieved catalog version: \(versionString)")
+                return date
+            }
+        }
+        
+        logger.info("📅 No catalog version found in database")
+        return nil
+    }
 
 }
 
