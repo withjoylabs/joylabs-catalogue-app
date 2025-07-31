@@ -105,7 +105,7 @@ struct NotificationButton: View {
             }
         }
         .sheet(isPresented: $showingWebhookNotifications) {
-            WebhookNotificationsView()
+            NotificationsView()
         }
     }
 }

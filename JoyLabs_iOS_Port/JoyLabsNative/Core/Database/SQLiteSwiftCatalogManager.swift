@@ -371,7 +371,8 @@ class SQLiteSwiftCatalogManager {
         case "ITEM":
             if let itemData = object.itemData {
                 // Debug: Log what category data we have for this item
-                logger.debug("🔍 Processing item \(object.id): reportingCategory=\(itemData.reportingCategory?.id ?? "nil"), categoryId=\(itemData.categoryId ?? "nil"), categories=\(itemData.categories?.map { $0.id } ?? [])")
+                // Reduced logging noise - only log at trace level
+                logger.trace("[Database] Processing item \(object.id)")
 
                 // Extract both category types during sync for fast retrieval
                 let reportingCategoryName = extractReportingCategoryName(from: itemData, in: db)
@@ -382,7 +383,7 @@ class SQLiteSwiftCatalogManager {
                 let modifierNames = extractModifierNames(from: itemData, in: db)
 
                 // Debug: Log what names we resolved
-                logger.debug("🔍 Item \(object.id) resolved names: reporting='\(reportingCategoryName ?? "nil")', primary='\(primaryCategoryName ?? "nil")', taxes='\(taxNames ?? "nil")', modifiers='\(modifierNames ?? "nil")'")
+                logger.trace("[Database] Item \(object.id) resolved all names")
 
                 // SAFE INSERT: Try with new columns first, fallback to old structure if needed
                 do {
@@ -401,7 +402,7 @@ class SQLiteSwiftCatalogManager {
                         CatalogTableDefinitions.itemDataJson <- encodeJSON(object)  // Store FULL CatalogObject, not just itemData
                     )
                     try db.run(insert)
-                    logger.debug("🔍 Successfully inserted item \(object.id) with version: \(object.safeVersion)")
+                    logger.trace("[Database] Inserted item \(object.id)")
                 } catch {
                     // FALLBACK: If new columns don't exist, insert without them
                     logger.warning("Failed to insert with new columns, falling back to old structure: \(error)")
@@ -517,7 +518,7 @@ class SQLiteSwiftCatalogManager {
             return nil
         }
 
-        logger.debug("🔍 Looking up reporting category ID: \(reportingCategory.id)")
+        logger.trace("[Database] Looking up reporting category: \(reportingCategory.id)")
 
         // Look up the reporting category name from the categories table
         do {
@@ -527,7 +528,7 @@ class SQLiteSwiftCatalogManager {
 
             if let row = try db.pluck(query) {
                 let categoryName = try row.get(CatalogTableDefinitions.categoryName)
-                logger.debug("🔍 Found reporting category name: '\(categoryName ?? "nil")' for ID: \(reportingCategory.id)")
+                logger.trace("[Database] Found reporting category: '\(categoryName ?? "nil")'")
                 return categoryName
             } else {
                 logger.warning("🔍 No category found in database for reporting category ID: \(reportingCategory.id)")
@@ -554,7 +555,7 @@ class SQLiteSwiftCatalogManager {
 
         // Get the first category from the categories array (primary category)
         let primaryCategory = categories.first!
-        logger.debug("🔍 Looking up primary category ID: \(primaryCategory.id) from categories array")
+        logger.trace("[Database] Looking up primary category: \(primaryCategory.id)")
         return getCategoryNameById(categoryId: primaryCategory.id, in: db)
     }
 
@@ -567,7 +568,7 @@ class SQLiteSwiftCatalogManager {
 
             if let row = try db.pluck(query) {
                 let categoryName = try row.get(CatalogTableDefinitions.categoryName)
-                logger.debug("🔍 Found category name: '\(categoryName ?? "nil")' for ID: \(categoryId)")
+                logger.trace("[Database] Found category: '\(categoryName ?? "nil")'")
                 return categoryName
             } else {
                 logger.warning("🔍 No category found in database for ID: \(categoryId)")
@@ -587,7 +588,7 @@ class SQLiteSwiftCatalogManager {
             return nil
         }
 
-        logger.debug("🔍 Looking up tax names for IDs: \(taxIds)")
+        logger.trace("[Database] Looking up \(taxIds.count) tax names")
 
         var taxNames: [String] = []
 
@@ -600,7 +601,7 @@ class SQLiteSwiftCatalogManager {
                 if let row = try db.pluck(query) {
                     if let taxName = try row.get(CatalogTableDefinitions.taxName) {
                         taxNames.append(taxName)
-                        logger.debug("🔍 Found tax name: '\(taxName)' for ID: \(taxId)")
+                        logger.trace("[Database] Found tax: '\(taxName)'")
                     }
                 } else {
                     logger.warning("🔍 No tax found in database for ID: \(taxId)")
@@ -699,7 +700,7 @@ class SQLiteSwiftCatalogManager {
         )
         
         try db.run(insert)
-        logger.info("[Database] Saved catalog version: \(updatedAtString)")
+        logger.trace("[Database] Saved catalog version: \(updatedAtString)")
     }
     
     /// Get the stored catalog version timestamp
@@ -718,7 +719,7 @@ class SQLiteSwiftCatalogManager {
             formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
             
             if let date = formatter.date(from: versionString) {
-                logger.info("[Database] Retrieved catalog version: \(versionString)")
+                logger.trace("[Database] Retrieved catalog version: \(versionString)")
                 return date
             }
         }

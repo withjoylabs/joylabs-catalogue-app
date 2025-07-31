@@ -498,7 +498,7 @@ class SquareAPIService: ObservableObject {
     
     /// Sync catalog changes since last sync with cursor pagination support
     func syncCatalogChanges() async throws -> [CatalogObject] {
-        logger.info("Syncing catalog changes since last sync")
+        logger.debug("[SquareAPI] Syncing changes")
         
         let beginTime = lastSyncDate?.iso8601String
         var allObjects: [CatalogObject] = []
@@ -507,13 +507,13 @@ class SquareAPIService: ObservableObject {
         
         // Handle cursor pagination for catalogs with >1000 changed objects
         repeat {
-            logger.info("Fetching page \(pageCount + 1) of catalog changes...")
+            logger.trace("[SquareAPI] Page \(pageCount + 1)")
             
             let response = try await httpClient.searchCatalogObjects(beginTime: beginTime, cursor: cursor)
             
             if let objects = response.objects {
                 allObjects.append(contentsOf: objects)
-                logger.info("Page \(pageCount + 1): fetched \(objects.count) objects, total: \(allObjects.count)")
+                logger.trace("[SquareAPI] Page \(pageCount + 1): \(objects.count) objects")
             }
             
             cursor = response.cursor

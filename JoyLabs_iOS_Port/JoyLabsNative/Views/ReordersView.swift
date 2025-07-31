@@ -374,6 +374,14 @@ struct ReordersView: View {
                 loadReorderData()
                 // Auto-focus removed - user can manually tap to focus
             }
+            .onReceive(NotificationCenter.default.publisher(for: .catalogSyncCompleted)) { _ in
+                // Refresh search results when catalog sync completes (for webhook updates)
+                if !scannerSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    print("🔄 Catalog sync completed - refreshing reorders search results for: '\(scannerSearchText)'")
+                    let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
+                    searchManager.performSearchWithDebounce(searchTerm: scannerSearchText, filters: filters)
+                }
+            }
             // TODO: Add ImageEnlargementView when file is properly included in Xcode project
             // .sheet(isPresented: $showingImageEnlargement) {
             //     if let item = selectedItemForEnlargement {

@@ -28,7 +28,6 @@
 		6EA41FDD40E6B3236E5DC902 /* FloatingActionButtons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3773602C0EF0A589CED63975 /* FloatingActionButtons.swift */; };
 		6F5DE98B1CAA89726CC9FF2D /* NotificationSettingsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94D98163B152C53C35F66FD4 /* NotificationSettingsService.swift */; };
 		6F9B9FED8EDDFBCBCEC2BA97 /* ImageFreshnessManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA281BF2766E6CEF9B965256 /* ImageFreshnessManager.swift */; };
-		76FF23E9EFDD826CD3868C41 /* WebhookNotificationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A4BB13F97CCB937B3D5BADC /* WebhookNotificationsView.swift */; };
 		9189A53F265287C2C25FF411 /* ItemDetailsBasicSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5A87F50DC4826C17C46DD0 /* ItemDetailsBasicSection.swift */; };
 		92151EA89C79EBB198799E77 /* ItemImageSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2D5FAE44721EA24C8E50126 /* ItemImageSection.swift */; };
 		99246C9B894AF2AE6D86F627 /* SquareCRUDService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35AB2C1793F03C8E7C4FDE80 /* SquareCRUDService.swift */; };
@@ -81,6 +80,7 @@
 		DA39CFBD36DCA1D81A5F2AB6 /* ItemCustomAttributesSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 109D8EF3405D7C8718DCDF2B /* ItemCustomAttributesSection.swift */; };
 		DE9B0804171D8F8469343090 /* SquareImageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECE3FAA42B58C68978179AFA /* SquareImageService.swift */; };
 		E0A4C587E31A4D97E9D4D827 /* ItemDetailsCategoriesSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36FF7B27B9EC548A6363CA3B /* ItemDetailsCategoriesSection.swift */; };
+		E9A6D95E709090B8AEE36C79 /* NotificationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 522EA5712FAC74516DFC29CF /* NotificationsView.swift */; };
 		EAF11475F8FA6178769828DA /* ItemEnabledLocationsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E05265C6905F14EE507527F2 /* ItemEnabledLocationsSection.swift */; };
 		EC171299759ECF8E220EFBF3 /* UnifiedImageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22E8CC9E9A79DD2F323D290B /* UnifiedImageService.swift */; };
 		ECF91328F9AC5D2B917E3F1B /* WebhookNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6ECE051541206A85FCA7DCFC /* WebhookNotificationService.swift */; };
@@ -110,8 +110,8 @@
 		463F35C3BE9ED261FEE0206F /* ComprehensiveItemModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ComprehensiveItemModels.swift; path = Components/ComprehensiveItemModels.swift; sourceTree = "<group>"; };
 		49800521F9B080A23DC72541 /* NotificationExtensions.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NotificationExtensions.swift; path = Core/Notifications/NotificationExtensions.swift; sourceTree = "<group>"; };
 		4AFAF5D9F92448678D1A1EE2 /* ItemEcommerceSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemEcommerceSection.swift; path = Components/ItemEcommerceSection.swift; sourceTree = "<group>"; };
+		522EA5712FAC74516DFC29CF /* NotificationsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NotificationsView.swift; path = Views/NotificationsView.swift; sourceTree = "<group>"; };
 		5A12C207F099F0E3A82B8ADA /* PushNotificationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PushNotificationService.swift; path = JoyLabsNative/Core/Services/PushNotificationService.swift; sourceTree = "<group>"; };
-		5A4BB13F97CCB937B3D5BADC /* WebhookNotificationsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WebhookNotificationsView.swift; path = Views/WebhookNotificationsView.swift; sourceTree = "<group>"; };
 		5E3FB7296AC28F9B8969A75D /* PushNotificationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PushNotificationService.swift; path = JoyLabsNative/Core/Services/PushNotificationService.swift; sourceTree = "<group>"; };
 		65695EAA6350279F084BF63B /* ItemDetailsPricingSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsPricingSection.swift; path = Components/ItemDetailsPricingSection.swift; sourceTree = "<group>"; };
 		68CAE024F232AEDA149CF627 /* ItemDeleteSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDeleteSection.swift; path = Components/ItemDeleteSection.swift; sourceTree = "<group>"; };
@@ -225,8 +225,8 @@
 				D0AB509709FDC88A502F7199 /* Components */,
 				9DC776666D9E1A98076720A2 /* ItemSettingsView.swift */,
 				AAE05EF10A6EA150787A9443 /* Testing */,
-				5A4BB13F97CCB937B3D5BADC /* WebhookNotificationsView.swift */,
 				FFC3BC89DCE156954A61833A /* NotificationPermissionView.swift */,
+				522EA5712FAC74516DFC29CF /* NotificationsView.swift */,
 			);
 			name = Views;
 			sourceTree = "<group>";
@@ -573,7 +573,6 @@
 				45740EBFB0E2D2CA4CCEC956 /* WebhookSignatureValidator.swift in Sources */,
 				9F1D75B816578F431F48DA54 /* WebhookManager.swift in Sources */,
 				ECF91328F9AC5D2B917E3F1B /* WebhookNotificationService.swift in Sources */,
-				76FF23E9EFDD826CD3868C41 /* WebhookNotificationsView.swift in Sources */,
 				5FB7F70AD13E95F7FDC8BD50 /* WebhookIntegrationTests.swift in Sources */,
 				C798D416ABF659B88BDA1C8E /* PushNotificationService.swift in Sources */,
 				AA5102A379E2429BBA60C844 /* NotificationPermissionView.swift in Sources */,
@@ -581,6 +580,7 @@
 				6F5DE98B1CAA89726CC9FF2D /* NotificationSettingsService.swift in Sources */,
 				135161F2D6150929CEF0A9D1 /* NotificationSettingsView.swift in Sources */,
 				4017A953F9FBBE7E588A972C /* TokenService.swift in Sources */,
+				E9A6D95E709090B8AEE36C79 /* NotificationsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

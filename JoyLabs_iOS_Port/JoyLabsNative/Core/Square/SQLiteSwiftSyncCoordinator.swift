@@ -83,7 +83,7 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
     private func saveLastSyncResult(_ result: SyncResult) {
         if let data = try? JSONEncoder().encode(result) {
             UserDefaults.standard.set(data, forKey: "lastSyncResult")
-            logger.info("[SyncCoordinator] Saved sync result: \(result.totalProcessed) objects")
+            logger.debug("[SyncCoordinator] Saved sync result: \(result.totalProcessed) objects")
         }
     }
 
@@ -217,7 +217,7 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
 
     /// Perform incremental sync - only fetches and processes changes since last sync
     func performIncrementalSync() async {
-        logger.info("[SyncCoordinator] Incremental sync triggered")
+        logger.debug("[SyncCoordinator] Starting incremental sync")
 
         guard syncState != .syncing else {
             logger.warning("[SyncCoordinator] Sync already in progress, ignoring incremental trigger")
@@ -250,7 +250,7 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
                     self.lastSyncResult = result
                     self.saveLastSyncResult(result)
                     self.syncState = .idle
-                    self.logger.info("[SyncCoordinator] Incremental sync completed: \(result.summary)")
+                    self.logger.debug("[SyncCoordinator] Incremental sync completed: \(result.summary)")
                 }
 
             } catch {

@@ -219,7 +219,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
             }
 
             do {
-                logger.info("Starting INCREMENTAL catalog sync - only fetching changes since last sync")
+                logger.debug("[CatalogSync] Starting incremental sync")
 
                 // Initialize progress tracking - RESET TO ZERO
                 await MainActor.run {
@@ -238,7 +238,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
                 // CRITICAL FIX: Set the last sync date in SquareAPIService from stored catalog version
                 let catalogVersion = try await databaseManager.getCatalogVersion()
                 if let lastSync = catalogVersion {
-                    logger.info("[CatalogSync] Setting last sync date from catalog version: \(lastSync)")
+                    logger.debug("[CatalogSync] Last sync: \(lastSync)")
                     squareAPIService.lastSyncDate = lastSync
                 } else {
                     logger.info("[CatalogSync] No catalog version found - will perform full sync")
@@ -249,7 +249,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
                 let catalogChanges = try await fetchIncrementalCatalogWithProgress()
 
                 if catalogChanges.isEmpty {
-                    logger.info("[CatalogSync] No catalog changes found since last sync")
+                    logger.info("[CatalogSync] No changes found")
                     
                     // Update sync completion with no changes
                     await MainActor.run {
@@ -266,7 +266,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
                 } else {
                     // Process and insert only the changed data with progress tracking
                     try await processCatalogDataWithProgress(catalogChanges)
-                    logger.info("✅ Incremental catalog data processed successfully")
+                    logger.info("[CatalogSync] Processed \\(catalogChanges.count) changes")
 
                     // Stop progress timer
                     await MainActor.run { stopProgressUpdateTimer() }
@@ -285,15 +285,14 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
                     // CRITICAL: Save the catalog version timestamp after successful incremental sync
                     let syncCompletedAt = Date()
                     try await databaseManager.saveCatalogVersion(syncCompletedAt)
-                    logger.info("📅 Saved catalog version after incremental sync: \(syncCompletedAt)")
+                    logger.trace("[CatalogSync] Saved catalog version: \(syncCompletedAt)")
 
-                    logger.info("🎉 Incremental catalog sync completed successfully!")
-                    logger.info("📊 Incremental sync stats: \(catalogChanges.count) changed objects processed")
-
-                    // Log summary of object types processed
+                    logger.debug("[CatalogSync] Incremental sync completed successfully")
+                    
+                    // Log summary at debug level to reduce noise
                     let objectTypeCounts = Dictionary(grouping: catalogChanges) { $0.type }
                         .mapValues { $0.count }
-                    logger.info("📋 Changed object types: \(objectTypeCounts)")
+                    logger.debug("[CatalogSync] Object types: \(objectTypeCounts)")
                 }
 
                 // Notify completion for statistics refresh
@@ -376,12 +375,12 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
             syncProgress = progress
         }
 
-        logger.info("[CatalogSync] Fetching INCREMENTAL catalog data from Square API...")
+        logger.debug("[CatalogSync] Fetching incremental data")
 
         // Use the incremental Square API service to fetch only changes since last sync
         let catalogChanges = try await squareAPIService.syncCatalogChanges()
 
-        logger.info("[CatalogSync] Fetched \(catalogChanges.count) changed objects from Square API (incremental)")
+        logger.debug("[CatalogSync] Fetched \(catalogChanges.count) changes")
 
         // Don't set the final counts here - let processing update them incrementally
         let itemCount = catalogChanges.filter { $0.type == "ITEM" }.count
@@ -396,7 +395,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
     }
     
     private func processCatalogDataWithProgress(_ objects: [CatalogObject]) async throws {
-        logger.info("🔄 Starting to process \(objects.count) objects into database...")
+        logger.debug("[CatalogSync] Processing \(objects.count) objects")
 
         // RESET PROGRESS TO ZERO AT START OF PROCESSING
         syncProgress.syncedObjects = 0
@@ -412,7 +411,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
             return priority1 < priority2
         }
 
-        logger.info("📋 Sorted objects by type priority: Categories first, then Items")
+        logger.debug("[CatalogSync] Sorted objects by type priority")
 
         // First, insert all catalog objects to database (fast operation)
         var processedItems = 0
@@ -463,10 +462,8 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
             }
         }
 
-        logger.info("✅ FINAL PROGRESS: \(processedItems) items, \(objects.count) objects processed")
-
-        logger.info("✅ Processed all \(sortedObjects.count) catalog objects")
-        logger.info("📷 Image URL mappings and item-to-image mappings created during processing for on-demand downloading")
+        logger.debug("[CatalogSync] Completed: \(processedItems) items, \(objects.count) objects")
+        logger.debug("[CatalogSync] Image mappings created for on-demand loading")
     }
 
     /// Get processing priority for object types (lower number = higher priority)

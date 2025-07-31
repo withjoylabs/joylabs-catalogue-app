@@ -66,17 +66,12 @@ public class PushNotificationService: NSObject, ObservableObject {
     
     /// Handle received push notification (both silent and visible)
     func handleNotification(_ userInfo: [AnyHashable: Any]) async {
-        logger.info("[PushNotification] Received push notification")
         lastNotificationReceived = Date()
         
         // Check if this is a silent notification (content-available: 1)
         let isSilentNotification = (userInfo["aps"] as? [String: Any])?["content-available"] as? Int == 1
         
-        if isSilentNotification {
-            logger.info("[PushNotification] Processing silent push notification for background sync")
-        } else {
-            logger.info("[PushNotification] Processing visible push notification")
-        }
+        logger.debug("[PushNotification] Processing \(isSilentNotification ? "silent" : "visible") notification")
         
         // Extract webhook data from notification (matches Square webhook format)
         guard let data = userInfo["data"] as? [String: Any],
@@ -106,7 +101,7 @@ public class PushNotificationService: NSObject, ObservableObject {
             return
         }
         
-        logger.info("🔄 Processing catalog update notification for merchant \(merchantId) (Event: \(eventId))")
+        logger.info("[PushNotification] Webhook \(eventId) - processing catalog update")
         
         // Mark event as being processed to prevent duplicates
         await markEventAsProcessed(eventId: eventId)
@@ -247,31 +242,14 @@ extension PushNotificationService {
         }
     }
     
-    /// Create notification for catalog update
+    /// Create notification for catalog update (REMOVED - consolidating notifications)
     private func createNotificationForCatalogUpdate(
         eventId: String,
         merchantId: String
     ) async {
-        let notification = WebhookNotification(
-            title: "Catalog Updated",
-            message: "Your Square catalog has been updated",
-            type: .success,
-            eventType: "catalog.version.updated",
-            timestamp: Date()
-        )
-        
-        // Add notification to WebhookNotificationService so it appears in UI
-        await MainActor.run {
-            WebhookNotificationService.shared.addWebhookNotification(
-                title: notification.title,
-                message: notification.message,
-                type: notification.type,
-                eventType: notification.eventType
-            )
-        }
-        
-        logger.info("📝 Catalog update notification: \(notification.title) - \(notification.message)")
-        logger.info("🔔 Added catalog update notification to UI")
+        // REMOVED: This was creating duplicate notifications
+        // The final sync result notification is created in createInAppNotificationForWebhookSync
+        logger.debug("[PushNotification] Webhook received - sync will create final notification")
     }
     
     /// Trigger image cache refresh
@@ -285,12 +263,12 @@ extension PushNotificationService {
             ]
         )
         
-        logger.info("🖼️ Triggered image cache refresh via push notification")
+        logger.debug("[PushNotification] Triggered image cache refresh")
     }
     
     /// Trigger catalog sync to get latest changes from Square
     private func triggerCatalogSync(eventId: String, merchantId: String, isSilent: Bool) async {
-        logger.info("🚀 Starting catalog sync for webhook event \(eventId)")
+        logger.info("[PushNotification] Starting catalog sync for webhook \(eventId)")
         
         do {
             // Get database manager to count items before sync using existing getItemCount method
@@ -323,7 +301,7 @@ extension PushNotificationService {
             let itemCountAfter = try await databaseManager.getItemCount()
             let itemsUpdated = Int(abs(Int32(itemCountAfter - itemCountBefore)))
             
-            logger.info("✅ Catalog sync completed successfully for webhook event \(eventId) - \(itemsUpdated) items updated")
+            logger.info("[PushNotification] Webhook sync complete: \(itemsUpdated) items updated")
             
             // Create in-app notification about sync results (always show in app notification center)
             await createInAppNotificationForWebhookSync(itemsUpdated: itemsUpdated, eventId: eventId, isSilent: isSilent)
@@ -361,15 +339,18 @@ extension PushNotificationService {
     
     /// Creates an in-app notification about webhook sync results (always shows in app notification center)
     private func createInAppNotificationForWebhookSync(itemsUpdated: Int, eventId: String, isSilent: Bool) async {
-        let title = "Catalog Synchronized"
+        let title: String
         let message: String
         
         if itemsUpdated == 0 {
-            message = "Catalog is up to date - no changes found"
+            title = "Catalog Sync"
+            message = "No changes found - catalog is up to date"
         } else if itemsUpdated == 1 {
-            message = "1 item synchronized from Square"
+            title = "Catalog Updated"
+            message = "1 item updated from Square"
         } else {
-            message = "\(itemsUpdated) items synchronized from Square"
+            title = "Catalog Updated"  
+            message = "\(itemsUpdated) items updated from Square"
         }
         
         // Always add to in-app notification center (regardless of silent/visible)
@@ -378,15 +359,11 @@ extension PushNotificationService {
                 title: title,
                 message: message,
                 type: .success,
-                eventType: "catalog.version.updated"
+                eventType: "webhook.catalog.sync"
             )
         }
         
-        if isSilent {
-            logger.info("🤫 Added silent sync notification to in-app center: \(message)")
-        } else {
-            logger.info("📱 Added webhook sync notification to in-app center: \(message)")
-        }
+        logger.info("[PushNotification] Webhook sync complete: \(message)")
     }
     
     /// Get merchant ID from authentication
@@ -414,7 +391,7 @@ extension PushNotificationService {
     /// Mark an event as processed to prevent duplicate processing
     private func markEventAsProcessed(eventId: String) async {
         processedEventIds.insert(eventId)
-        logger.debug("🔖 Marked event as processed: \(eventId)")
+        logger.trace("[PushNotification] Marked event as processed: \(eventId)")
     }
     
     /// Check if this webhook corresponds to a recent local operation

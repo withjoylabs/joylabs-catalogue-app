@@ -265,6 +265,14 @@ struct ScanView: View {
             // Text field can be manually focused for keyboard input
             // HID scanner works globally without focus requirement
         }
+        .onReceive(NotificationCenter.default.publisher(for: .catalogSyncCompleted)) { _ in
+            // Refresh search results when catalog sync completes (for webhook updates)
+            if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                print("🔄 Catalog sync completed - refreshing search results for: '\(searchText)'")
+                let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
+                searchManager.performSearchWithDebounce(searchTerm: searchText, filters: filters)
+            }
+        }
         .onChange(of: searchText) { oldValue, newValue in
             // CRITICAL FIX: Handle extremely fast HID scanner input
             // Cancel previous timer

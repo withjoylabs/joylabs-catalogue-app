@@ -24,6 +24,7 @@ class WebhookNotificationService: ObservableObject {
     
     // MARK: - Initialization
     private init() {
+        loadPersistedNotifications()
         setupWebhookObservers()
         logger.info("[WebhookNotification] WebhookNotificationService initialized")
     }
@@ -41,6 +42,7 @@ class WebhookNotificationService: ObservableObject {
             webhookNotifications[index].isRead = true
         }
         unreadCount = 0
+        saveNotificationsToPersistence()
         logger.debug("[WebhookNotification] All webhook notifications marked as read")
     }
     
@@ -50,6 +52,7 @@ class WebhookNotificationService: ObservableObject {
             if !webhookNotifications[index].isRead {
                 webhookNotifications[index].isRead = true
                 unreadCount = max(0, unreadCount - 1)
+                saveNotificationsToPersistence()
             }
         }
     }
@@ -58,6 +61,7 @@ class WebhookNotificationService: ObservableObject {
     func clearAllNotifications() {
         webhookNotifications.removeAll()
         unreadCount = 0
+        saveNotificationsToPersistence()
         logger.info("[WebhookNotification] All webhook notifications cleared")
     }
     
@@ -175,22 +179,18 @@ extension WebhookNotificationService {
         }
     }
     
-    /// Handle catalog sync notifications triggered by webhooks
+    /// Handle catalog sync notifications triggered by webhooks (DISABLED - preventing duplicates)
     private func handleCatalogSyncNotification(_ notification: Notification) {
-        guard let userInfo = notification.userInfo,
-              let reason = userInfo["reason"] as? String,
-              reason.contains("webhook") || reason.contains("catalog") else {
-            return
+        // DISABLED: This was creating duplicate notifications 
+        // Webhook sync notifications are now handled directly by PushNotificationService
+        
+        // Still update stats for tracking
+        if let userInfo = notification.userInfo,
+           let reason = userInfo["reason"] as? String,
+           reason.contains("webhook") || reason.contains("catalog") {
+            webhookStats.catalogUpdates += 1
+            logger.trace("[WebhookNotification] Catalog sync stats updated")
         }
-        
-        webhookStats.catalogUpdates += 1
-        
-        addWebhookNotification(
-            title: "Catalog Updated",
-            message: "Catalog synchronized via webhook",
-            type: .success,
-            eventType: "catalog.sync"
-        )
     }
     
     /// Add a webhook-related notification (public for external services)
@@ -237,11 +237,66 @@ extension WebhookNotificationService {
             webhookNotifications.removeLast()
         }
         
-        logger.debug("[WebhookNotification] Added webhook notification: \(notification.title)")
+        logger.trace("[WebhookNotification] Added webhook notification: \(notification.title)")
+        
+        // Save to persistence after adding
+        saveNotificationsToPersistence()
+    }
+    
+    // MARK: - Persistence
+    
+    private func loadPersistedNotifications() {
+        if let data = UserDefaults.standard.data(forKey: "WebhookNotifications"),
+           let decoded = try? JSONDecoder().decode([WebhookNotificationData].self, from: data) {
+            
+            webhookNotifications = decoded.map { data in
+                WebhookNotification(
+                    title: data.title,
+                    message: data.message,
+                    type: data.type,
+                    eventType: data.eventType,
+                    timestamp: data.timestamp,
+                    isRead: data.isRead
+                )
+            }
+            
+            // Recalculate unread count
+            unreadCount = self.webhookNotifications.filter { !$0.isRead }.count
+            
+            logger.debug("[WebhookNotification] Loaded \(self.webhookNotifications.count) persisted notifications")
+        }
+    }
+    
+    private func saveNotificationsToPersistence() {
+        let notificationData = webhookNotifications.map { notification in
+            WebhookNotificationData(
+                title: notification.title,
+                message: notification.message,
+                type: notification.type,
+                eventType: notification.eventType,
+                timestamp: notification.timestamp,
+                isRead: notification.isRead
+            )
+        }
+        
+        if let encoded = try? JSONEncoder().encode(notificationData) {
+            UserDefaults.standard.set(encoded, forKey: "WebhookNotifications")
+            logger.trace("[WebhookNotification] Saved \(notificationData.count) notifications to persistence")
+        }
     }
 }
 
 // MARK: - Supporting Types
+
+/// Codable version of WebhookNotification for persistence
+private struct WebhookNotificationData: Codable {
+    let title: String
+    let message: String
+    let type: WebhookNotificationType
+    let eventType: String
+    let timestamp: Date
+    let isRead: Bool
+}
 
 /// Webhook notification model
 struct WebhookNotification: Identifiable {
@@ -252,6 +307,16 @@ struct WebhookNotification: Identifiable {
     let eventType: String
     let timestamp: Date
     var isRead: Bool = false
+    
+    // Custom initializer for persistence loading
+    init(title: String, message: String, type: WebhookNotificationType, eventType: String, timestamp: Date, isRead: Bool = false) {
+        self.title = title
+        self.message = message
+        self.type = type
+        self.eventType = eventType
+        self.timestamp = timestamp
+        self.isRead = isRead
+    }
     
     var timeAgo: String {
         let formatter = RelativeDateTimeFormatter()
@@ -277,13 +342,13 @@ struct WebhookNotification: Identifiable {
     var color: String {
         switch type {
         case .success:
-            return "green"
+            return "systemGreen"
         case .error:
-            return "red"
+            return "systemRed"
         case .warning:
-            return "orange"
+            return "systemOrange"
         case .info:
-            return "blue"
+            return "systemBlue"
         case .system:
             return "secondary"
         }
@@ -291,7 +356,7 @@ struct WebhookNotification: Identifiable {
 }
 
 /// Webhook notification types
-enum WebhookNotificationType {
+enum WebhookNotificationType: Codable {
     case success
     case error
     case warning

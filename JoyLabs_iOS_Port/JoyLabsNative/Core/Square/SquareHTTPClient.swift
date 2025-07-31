@@ -200,7 +200,7 @@ actor SquareHTTPClient {
     
     /// Search catalog objects with timestamp filter and cursor pagination (DIRECT API CALL)
     func searchCatalogObjects(beginTime: String? = nil, cursor: String? = nil) async throws -> CatalogResponse {
-        logger.debug("Searching catalog objects with beginTime: \(beginTime ?? "none"), cursor: \(cursor ?? "none") - DIRECT Square API")
+        logger.trace("[HTTPClient] Incremental search")
 
         // Square API search requires POST with JSON body, not GET with query params
         var searchRequest: [String: Any] = [:]
@@ -226,7 +226,7 @@ actor SquareHTTPClient {
         // Convert dictionary to JSON Data
         let bodyData = try JSONSerialization.data(withJSONObject: searchRequest)
         
-        logger.debug("Search request body: \(searchRequest)")
+        logger.trace("[HTTPClient] Search request: \(searchRequest)")
         
         return try await makeSquareAPIRequest(
             endpoint: endpoint,
@@ -436,7 +436,7 @@ actor SquareHTTPClient {
         if url.absoluteString.contains("/v2/catalog/list") {
             logger.debug("Square API: GET catalog/list (page)")
         } else {
-            logger.debug("Making Square API request: \(method.rawValue) \(url.absoluteString)")
+            logger.trace("[HTTPClient] \(method.rawValue) \(url.path)")
         }
         
         // Create request
@@ -454,11 +454,8 @@ actor SquareHTTPClient {
             request.httpBody = body
         }
         
-        // Reduce debug noise during full sync - skip headers and timeout logging for catalog requests
-        if !url.absoluteString.contains("/v2/catalog/list") {
-            logger.debug("Request headers: \(request.allHTTPHeaderFields ?? [:])")
-            logger.debug("Request timeout: \(request.timeoutInterval)s")
-        }
+        // Skip verbose request details to reduce console noise
+        logger.trace("[HTTPClient] Request headers: \(request.allHTTPHeaderFields ?? [:])")
 
         // Perform request
         let (data, response) = try await session.data(for: request)
@@ -572,7 +569,7 @@ actor SquareHTTPClient {
             throw SquareAPIError.invalidResponse
         }
 
-        logger.debug("Received response with status: \(httpResponse.statusCode)")
+        logger.trace("[HTTPClient] Status: \(httpResponse.statusCode)")
 
         // Handle different status codes
         switch httpResponse.statusCode {
