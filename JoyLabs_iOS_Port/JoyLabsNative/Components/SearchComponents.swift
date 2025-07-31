@@ -83,118 +83,127 @@ struct SwipeableScanResultCard: View {
     let onPrint: () -> Void
     @State private var showingItemDetails = false
     @State private var showingImagePicker = false
-    @State private var dragOffset: CGFloat = 0
-    @State private var isDragging = false
-
-    private let addToReorderThreshold: CGFloat = -120  // Swipe left threshold
-    private let printThreshold: CGFloat = 120          // Swipe right threshold
+    @State private var offset: CGFloat = 0
 
     var body: some View {
-        ZStack {
-            // Background colors that fill the space like iOS Reminders
-            HStack(spacing: 0) {
-                // Left side - Blue background for print (swipe right)
-                if dragOffset > 0 {
-                    Rectangle()
-                        .fill(Color.blue)
-                        .frame(width: min(dragOffset, UIScreen.main.bounds.width))
-                        .overlay(
-                            HStack {
-                                Button(action: {
-                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                        onPrint()
-                                        dragOffset = 0
-                                    }
-                                }) {
-                                    VStack(spacing: 4) {
-                                        Image(systemName: "printer.fill")
-                                            .font(.title2)
-                                        Text("Print")
-                                            .font(.caption)
-                                    }
-                                    .foregroundColor(.white)
-                                }
-                                .opacity(dragOffset > 40 ? 1.0 : 0.0)
-                                .animation(.easeInOut(duration: 0.2), value: dragOffset)
-
-                                Spacer()
-                            }
-                            .padding(.leading, 20)
-                        )
+        HStack(spacing: 0) {
+            // Left action - Print (revealed by swiping right)
+            if offset > 0 {
+                Button(action: onPrint) {
+                    HStack {
+                        Spacer()
+                        VStack(spacing: 4) {
+                            Image(systemName: "printer.fill")
+                                .font(.title2)
+                            Text("Print")
+                                .font(.caption)
+                        }
+                        .foregroundColor(.white)
+                        Spacer()
+                    }
                 }
-
-                Spacer()
-
-                // Right side - Green background for add to reorder (swipe left)
-                if dragOffset < 0 {
-                    Rectangle()
-                        .fill(Color.green)
-                        .frame(width: min(abs(dragOffset), UIScreen.main.bounds.width))
-                        .overlay(
-                            HStack {
-                                Spacer()
-
-                                Button(action: {
-                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                        onAddToReorder()
-                                        dragOffset = 0
-                                    }
-                                }) {
-                                    VStack(spacing: 4) {
-                                        Image(systemName: "plus.circle.fill")
-                                            .font(.title2)
-                                        Text("Add")
-                                            .font(.caption)
-                                    }
-                                    .foregroundColor(.white)
-                                }
-                                .opacity(abs(dragOffset) > 40 ? 1.0 : 0.0)
-                                .animation(.easeInOut(duration: 0.2), value: dragOffset)
-                            }
-                            .padding(.trailing, 20)
-                        )
+                .frame(width: offset)
+                .background(Color.blue)
+                .onTapGesture {
+                    onPrint()
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        offset = 0
+                    }
                 }
             }
-
-            // Main content card (same as original ScanResultCard)
+            
+            // Main content
             scanResultContent
-                .offset(x: dragOffset)
+                .offset(x: offset)
+                .onTapGesture {
+                    if offset != 0 {
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            offset = 0
+                        }
+                    } else {
+                        handleItemSelection()
+                    }
+                }
                 .gesture(
-                    DragGesture()
+                    DragGesture(minimumDistance: 20) // Require minimum distance before activating
                         .onChanged { value in
-                            if !isDragging {
-                                isDragging = true
+                            let horizontalTranslation = value.translation.width
+                            let verticalTranslation = value.translation.height
+                            
+                            // STRICT HORIZONTAL GESTURE DETECTION:
+                            // Only activate if horizontal movement is significantly greater than vertical
+                            // AND we've moved a minimum distance horizontally
+                            let isHorizontalGesture = abs(horizontalTranslation) > abs(verticalTranslation) * 2.5 // Much stricter ratio
+                            let hasMinimumHorizontalMovement = abs(horizontalTranslation) > 30 // Minimum movement required
+                            
+                            if isHorizontalGesture && hasMinimumHorizontalMovement {
+                                if horizontalTranslation > 0 {
+                                    // Swipe right - reveal print (but only after threshold)
+                                    offset = min(horizontalTranslation - 30, 80) // Subtract threshold
+                                } else {
+                                    // Swipe left - reveal add to reorder (but only after threshold)
+                                    offset = max(horizontalTranslation + 30, -80) // Add threshold
+                                }
                             }
-                            // Only update dragOffset, don't trigger additional animations
-                            dragOffset = value.translation.width
                         }
                         .onEnded { value in
-                            isDragging = false
-                            let finalOffset = dragOffset
-
-                            // Auto-complete actions based on threshold
-                            if finalOffset < addToReorderThreshold {
-                                // Full swipe left - auto add to reorder
-                                onAddToReorder()
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                    dragOffset = 0
-                                }
-                            } else if finalOffset > printThreshold {
-                                // Full swipe right - auto print
-                                onPrint()
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                    dragOffset = 0
+                            let horizontalTranslation = value.translation.width
+                            let verticalTranslation = value.translation.height
+                            let velocity = value.velocity.width
+                            
+                            // Only consider it a swipe gesture if it was predominantly horizontal
+                            let isHorizontalGesture = abs(horizontalTranslation) > abs(verticalTranslation) * 2.5
+                            let hasSignificantMovement = abs(horizontalTranslation) > 60 || abs(velocity) > 800
+                            
+                            if isHorizontalGesture && hasSignificantMovement {
+                                if horizontalTranslation > 0 {
+                                    // Complete print action
+                                    onPrint()
+                                    withAnimation(.easeOut(duration: 0.2)) {
+                                        offset = 0
+                                    }
+                                } else {
+                                    // Complete add to reorder action
+                                    onAddToReorder()
+                                    withAnimation(.easeOut(duration: 0.2)) {
+                                        offset = 0
+                                    }
                                 }
                             } else {
-                                // Snap back to center
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                    dragOffset = 0
+                                // Snap back - this was probably a scroll gesture
+                                withAnimation(.easeOut(duration: 0.2)) {
+                                    offset = 0
                                 }
                             }
                         }
                 )
+            
+            // Right action - Add to Reorder (revealed by swiping left)
+            if offset < 0 {
+                Button(action: onAddToReorder) {
+                    HStack {
+                        Spacer()
+                        VStack(spacing: 4) {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.title2)
+                            Text("Add")
+                                .font(.caption)
+                        }
+                        .foregroundColor(.white)
+                        Spacer()
+                    }
+                }
+                .frame(width: abs(offset))
+                .background(Color.green)
+                .onTapGesture {
+                    onAddToReorder()
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        offset = 0
+                    }
+                }
+            }
         }
-        .clipped()
+        .clipShape(Rectangle())
     }
 
     private var scanResultContent: some View {

@@ -424,6 +424,13 @@ class SQLiteSwiftCatalogManager {
             
         case "ITEM_VARIATION":
             if let variationData = object.itemVariationData {
+                // DEFENSIVE HANDLING: Check for orphaned variations (missing itemId)
+                guard !variationData.itemId.isEmpty else {
+                    logger.warning("[Database] Skipping orphaned ITEM_VARIATION \\(object.id) - missing or empty itemId")
+                    logger.debug("[Database] Orphaned variation data: name=\\(variationData.name ?? \"nil\"), sku=\\(variationData.sku ?? \"nil\")")
+                    return
+                }
+                
                 let insert = CatalogTableDefinitions.itemVariations.insert(or: .replace,
                     CatalogTableDefinitions.variationId <- object.id,
                     CatalogTableDefinitions.variationItemId <- variationData.itemId,
@@ -440,6 +447,7 @@ class SQLiteSwiftCatalogManager {
                     CatalogTableDefinitions.variationDataJson <- encodeJSON(variationData)
                 )
                 try db.run(insert)
+                logger.trace("[Database] Inserted item variation \\(object.id) for item \\(variationData.itemId)")
             }
 
         case "IMAGE":

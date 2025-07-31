@@ -232,7 +232,7 @@ struct ItemVariation: Codable {
 }
 
 struct ItemVariationData: Codable {
-    let itemId: String
+    let itemId: String  // Required by Square API - variations must have parent item
     let name: String?
     let sku: String?
     let upc: String?
@@ -270,6 +270,79 @@ struct ItemVariationData: Codable {
         case itemOptionValues = "item_option_values"
         case measurementUnitId = "measurement_unit_id"
         case sellable, stockable
+    }
+    
+    // Memberwise initializer (required when providing custom decoder)
+    init(
+        itemId: String,
+        name: String? = nil,
+        sku: String? = nil,
+        upc: String? = nil,
+        ordinal: Int? = nil,
+        pricingType: String? = nil,
+        priceMoney: Money? = nil,
+        basePriceMoney: Money? = nil,
+        defaultUnitCost: Money? = nil,
+        locationOverrides: [LocationOverride]? = nil,
+        trackInventory: Bool? = nil,
+        inventoryAlertType: String? = nil,
+        inventoryAlertThreshold: Int64? = nil,
+        userData: String? = nil,
+        serviceDuration: Int64? = nil,
+        availableForBooking: Bool? = nil,
+        itemOptionValues: [ItemOptionValue]? = nil,
+        measurementUnitId: String? = nil,
+        sellable: Bool? = nil,
+        stockable: Bool? = nil
+    ) {
+        self.itemId = itemId
+        self.name = name
+        self.sku = sku
+        self.upc = upc
+        self.ordinal = ordinal
+        self.pricingType = pricingType
+        self.priceMoney = priceMoney
+        self.basePriceMoney = basePriceMoney
+        self.defaultUnitCost = defaultUnitCost
+        self.locationOverrides = locationOverrides
+        self.trackInventory = trackInventory
+        self.inventoryAlertType = inventoryAlertType
+        self.inventoryAlertThreshold = inventoryAlertThreshold
+        self.userData = userData
+        self.serviceDuration = serviceDuration
+        self.availableForBooking = availableForBooking
+        self.itemOptionValues = itemOptionValues
+        self.measurementUnitId = measurementUnitId
+        self.sellable = sellable
+        self.stockable = stockable
+    }
+    
+    // Custom decoder to handle orphaned variations (missing item_id)
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        // Gracefully handle missing item_id for orphaned variations
+        self.itemId = try container.decodeIfPresent(String.self, forKey: .itemId) ?? ""
+        
+        self.name = try container.decodeIfPresent(String.self, forKey: .name)
+        self.sku = try container.decodeIfPresent(String.self, forKey: .sku)
+        self.upc = try container.decodeIfPresent(String.self, forKey: .upc)
+        self.ordinal = try container.decodeIfPresent(Int.self, forKey: .ordinal)
+        self.pricingType = try container.decodeIfPresent(String.self, forKey: .pricingType)
+        self.priceMoney = try container.decodeIfPresent(Money.self, forKey: .priceMoney)
+        self.basePriceMoney = try container.decodeIfPresent(Money.self, forKey: .basePriceMoney)
+        self.defaultUnitCost = try container.decodeIfPresent(Money.self, forKey: .defaultUnitCost)
+        self.locationOverrides = try container.decodeIfPresent([LocationOverride].self, forKey: .locationOverrides)
+        self.trackInventory = try container.decodeIfPresent(Bool.self, forKey: .trackInventory)
+        self.inventoryAlertType = try container.decodeIfPresent(String.self, forKey: .inventoryAlertType)
+        self.inventoryAlertThreshold = try container.decodeIfPresent(Int64.self, forKey: .inventoryAlertThreshold)
+        self.userData = try container.decodeIfPresent(String.self, forKey: .userData)
+        self.serviceDuration = try container.decodeIfPresent(Int64.self, forKey: .serviceDuration)
+        self.availableForBooking = try container.decodeIfPresent(Bool.self, forKey: .availableForBooking)
+        self.itemOptionValues = try container.decodeIfPresent([ItemOptionValue].self, forKey: .itemOptionValues)
+        self.measurementUnitId = try container.decodeIfPresent(String.self, forKey: .measurementUnitId)
+        self.sellable = try container.decodeIfPresent(Bool.self, forKey: .sellable)
+        self.stockable = try container.decodeIfPresent(Bool.self, forKey: .stockable)
     }
 }
 

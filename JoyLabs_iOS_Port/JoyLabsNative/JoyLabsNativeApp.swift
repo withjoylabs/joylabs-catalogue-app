@@ -29,6 +29,9 @@ struct JoyLabsNativeApp: App {
     private func initializeCriticalServicesSync() {
         logger.info("[App] Phase 1: Initializing critical services synchronously...")
         
+        // Clear session-based image caches on app start
+        UnifiedImageView.clearSessionCaches()
+        
         // Initialize field configuration manager synchronously
         let _ = FieldConfigurationManager.shared
         

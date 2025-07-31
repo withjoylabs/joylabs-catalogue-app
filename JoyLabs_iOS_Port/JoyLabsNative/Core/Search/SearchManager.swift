@@ -791,6 +791,14 @@ class SearchManager: ObservableObject {
 
             // Get primary image URL using unified approach
             let images = getPrimaryImageForSearchResult(itemId: itemId)
+            
+            // Pre-load images during search for immediate display
+            if let images = images, let firstImage = images.first, let imageURL = firstImage.imageData?.url {
+                Task {
+                    // Pre-load image into cache so it's ready when view appears
+                    _ = await UnifiedImageService.shared.loadImage(imageURL: imageURL, imageId: firstImage.id, itemId: itemId)
+                }
+            }
 
             return SearchResultItem(
                 id: itemId,

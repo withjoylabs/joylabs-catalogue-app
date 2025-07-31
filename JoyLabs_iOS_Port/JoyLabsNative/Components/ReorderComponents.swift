@@ -252,82 +252,33 @@ struct ReorderItemCard: View {
     let onImageTap: () -> Void
     let onImageLongPress: (() -> Void)? // NEW: Callback for long-pressing image to update
 
-    @State private var dragOffset: CGFloat = 0
-    @State private var isDragging = false
+    @State private var offset: CGFloat = 0
     @State private var showingItemDetails = false
 
-    private let deleteThreshold: CGFloat = -120
-    private let receivedThreshold: CGFloat = 120
-    private let actionButtonWidth: CGFloat = 80
-
     var body: some View {
-        ZStack {
-            // Background colors that fill the space like iOS Reminders
-            HStack(spacing: 0) {
-                // Left side - Green background for received (swipe right)
-                if dragOffset > 0 {
-                    Rectangle()
-                        .fill(Color.green)
-                        .frame(width: min(dragOffset, UIScreen.main.bounds.width))
-                        .overlay(
-                            HStack {
-                                Button(action: {
-                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                        onStatusChange(.received)
-                                        dragOffset = 0
-                                    }
-                                }) {
-                                    VStack(spacing: 4) {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .font(.title2)
-                                        Text("Received")
-                                            .font(.caption)
-                                    }
-                                    .foregroundColor(.white)
-                                }
-                                .opacity(dragOffset > 40 ? 1.0 : 0.0)
-                                .animation(.easeInOut(duration: 0.2), value: dragOffset)
-
-                                Spacer()
-                            }
-                            .padding(.leading, 20)
-                        )
+        HStack(spacing: 0) {
+            // Left action - Mark as Received (revealed by swiping right)
+            if offset > 0 {
+                Button(action: {
+                    onStatusChange(.received)
+                }) {
+                    HStack {
+                        Spacer()
+                        VStack(spacing: 4) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.title2)
+                            Text("Received")
+                                .font(.caption)
+                        }
+                        .foregroundColor(.white)
+                        Spacer()
+                    }
                 }
-
-                Spacer()
-
-                // Right side - Red background for delete (swipe left)
-                if dragOffset < 0 {
-                    Rectangle()
-                        .fill(Color.red)
-                        .frame(width: min(abs(dragOffset), UIScreen.main.bounds.width))
-                        .overlay(
-                            HStack {
-                                Spacer()
-
-                                Button(action: {
-                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                        onRemove()
-                                        dragOffset = 0
-                                    }
-                                }) {
-                                    VStack(spacing: 4) {
-                                        Image(systemName: "trash.fill")
-                                            .font(.title2)
-                                        Text("Delete")
-                                            .font(.caption)
-                                    }
-                                    .foregroundColor(.white)
-                                }
-                                .opacity(abs(dragOffset) > 40 ? 1.0 : 0.0)
-                                .animation(.easeInOut(duration: 0.2), value: dragOffset)
-                            }
-                            .padding(.trailing, 20)
-                        )
-                }
+                .frame(width: offset)
+                .background(Color.green)
             }
-
-            // Main content card
+            
+            // Main content
             HStack(spacing: 11) {
                 // Radio button (left side) - only 2 states: empty/filled
                 Button(action: {
@@ -437,7 +388,7 @@ struct ReorderItemCard: View {
             .padding(.vertical, 8)
             .background(Color(.systemBackground))
             .overlay(
-                // Subtle divider line like scan page - fixed positioning that moves with content
+                // Subtle divider line like scan page
                 VStack {
                     Spacer()
                     HStack {
@@ -449,49 +400,96 @@ struct ReorderItemCard: View {
                             .frame(height: 0.5)
                     }
                 }
-                .offset(x: dragOffset) // Move divider with content
             )
-            .offset(x: dragOffset)
+            .offset(x: offset)
             .onTapGesture {
-                // Tap anywhere on the card to open quantity modal
-                onQuantityTap?()
+                if offset != 0 {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        offset = 0
+                    }
+                } else {
+                    // Tap anywhere on the card to open quantity modal
+                    onQuantityTap?()
+                }
             }
             .onLongPressGesture {
                 // Long press to open item details
                 showingItemDetails = true
             }
             .gesture(
-                DragGesture()
+                DragGesture(minimumDistance: 20) // Require minimum distance before activating
                     .onChanged { value in
-                        isDragging = true
-                        dragOffset = value.translation.width
+                        let horizontalTranslation = value.translation.width
+                        let verticalTranslation = value.translation.height
+                        
+                        // STRICT HORIZONTAL GESTURE DETECTION:
+                        // Only activate if horizontal movement is significantly greater than vertical
+                        // AND we've moved a minimum distance horizontally
+                        let isHorizontalGesture = abs(horizontalTranslation) > abs(verticalTranslation) * 2.5 // Much stricter ratio
+                        let hasMinimumHorizontalMovement = abs(horizontalTranslation) > 30 // Minimum movement required
+                        
+                        if isHorizontalGesture && hasMinimumHorizontalMovement {
+                            if horizontalTranslation > 0 {
+                                // Swipe right - reveal received (but only after threshold)
+                                offset = min(horizontalTranslation - 30, 80) // Subtract threshold
+                            } else {
+                                // Swipe left - reveal delete (but only after threshold)
+                                offset = max(horizontalTranslation + 30, -80) // Add threshold
+                            }
+                        }
                     }
                     .onEnded { value in
-                        isDragging = false
-
-                        // Auto-complete actions based on threshold
-                        if dragOffset < deleteThreshold {
-                            // Full swipe left - auto delete
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                onRemove()
-                                dragOffset = 0
-                            }
-                        } else if dragOffset > receivedThreshold {
-                            // Full swipe right - auto mark as received
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        let horizontalTranslation = value.translation.width
+                        let verticalTranslation = value.translation.height
+                        let velocity = value.velocity.width
+                        
+                        // Only consider it a swipe gesture if it was predominantly horizontal
+                        let isHorizontalGesture = abs(horizontalTranslation) > abs(verticalTranslation) * 2.5
+                        let hasSignificantMovement = abs(horizontalTranslation) > 60 || abs(velocity) > 800
+                        
+                        if isHorizontalGesture && hasSignificantMovement {
+                            if horizontalTranslation > 0 {
+                                // Complete received action
                                 onStatusChange(.received)
-                                dragOffset = 0
+                                withAnimation(.easeOut(duration: 0.2)) {
+                                    offset = 0
+                                }
+                            } else {
+                                // Complete delete action
+                                onRemove()
+                                withAnimation(.easeOut(duration: 0.2)) {
+                                    offset = 0
+                                }
                             }
                         } else {
-                            // Snap back to center
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                dragOffset = 0
+                            // Snap back - this was probably a scroll gesture
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                offset = 0
                             }
                         }
                     }
             )
+            
+            // Right action - Delete (revealed by swiping left)
+            if offset < 0 {
+                Button(action: onRemove) {
+                    HStack {
+                        Spacer()
+                        VStack(spacing: 4) {
+                            Image(systemName: "trash.fill")
+                                .font(.title2)
+                            Text("Delete")
+                                .font(.caption)
+                        }
+                        .foregroundColor(.white)
+                        Spacer()
+                    }
+                }
+                .frame(width: abs(offset))
+                .background(Color.red)
+            }
         }
-        .clipped()
+        .clipShape(Rectangle())
         .sheet(isPresented: $showingItemDetails) {
             ItemDetailsModal(
                 context: .editExisting(itemId: item.itemId),
@@ -504,7 +502,6 @@ struct ReorderItemCard: View {
                 }
             )
         }
-
     }
 
     private func toggleStatus() {
@@ -588,11 +585,7 @@ struct ReorderPhotoCard: View {
     let onImageTap: () -> Void
     let onImageLongPress: (() -> Void)? // NEW: Callback for long-pressing image to update
 
-    @State private var dragOffset: CGFloat = 0
-    @State private var isDragging = false
-
-    private let deleteThreshold: CGFloat = -120
-    private let receivedThreshold: CGFloat = 120
+    @State private var offset: CGFloat = 0
 
     var body: some View {
         VStack(spacing: 8) {
@@ -671,33 +664,56 @@ struct ReorderPhotoCard: View {
         .background(Color(.systemBackground))
         .cornerRadius(8)
         .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
-        .offset(x: dragOffset)
+        .offset(x: offset)
         .gesture(
-            DragGesture()
+            DragGesture(minimumDistance: 20) // Require minimum distance before activating
                 .onChanged { value in
-                    isDragging = true
-                    dragOffset = value.translation.width
+                    let horizontalTranslation = value.translation.width
+                    let verticalTranslation = value.translation.height
+                    
+                    // STRICT HORIZONTAL GESTURE DETECTION:
+                    // Only activate if horizontal movement is significantly greater than vertical
+                    // AND we've moved a minimum distance horizontally
+                    let isHorizontalGesture = abs(horizontalTranslation) > abs(verticalTranslation) * 2.5 // Much stricter ratio
+                    let hasMinimumHorizontalMovement = abs(horizontalTranslation) > 30 // Minimum movement required
+                    
+                    if isHorizontalGesture && hasMinimumHorizontalMovement {
+                        if horizontalTranslation > 0 {
+                            // Swipe right - reveal received (but only after threshold)
+                            offset = min(horizontalTranslation - 30, 80) // Subtract threshold
+                        } else {
+                            // Swipe left - reveal delete (but only after threshold)
+                            offset = max(horizontalTranslation + 30, -80) // Add threshold
+                        }
+                    }
                 }
                 .onEnded { value in
-                    isDragging = false
-
-                    // Auto-complete actions based on threshold
-                    if dragOffset < deleteThreshold {
-                        // Full swipe left - auto delete
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            onRemove()
-                            dragOffset = 0
-                        }
-                    } else if dragOffset > receivedThreshold {
-                        // Full swipe right - auto mark as received
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    let horizontalTranslation = value.translation.width
+                    let verticalTranslation = value.translation.height
+                    let velocity = value.velocity.width
+                    
+                    // Only consider it a swipe gesture if it was predominantly horizontal
+                    let isHorizontalGesture = abs(horizontalTranslation) > abs(verticalTranslation) * 2.5
+                    let hasSignificantMovement = abs(horizontalTranslation) > 60 || abs(velocity) > 800
+                    
+                    if isHorizontalGesture && hasSignificantMovement {
+                        if horizontalTranslation > 0 {
+                            // Complete received action
                             onStatusChange(.received)
-                            dragOffset = 0
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                offset = 0
+                            }
+                        } else {
+                            // Complete delete action
+                            onRemove()
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                offset = 0
+                            }
                         }
                     } else {
-                        // Snap back to center
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            dragOffset = 0
+                        // Snap back - this was probably a scroll gesture
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            offset = 0
                         }
                     }
                 }

@@ -19,6 +19,15 @@ struct UnifiedImageView: View {
     
     private let logger = Logger(subsystem: "com.joylabs.native", category: "UnifiedImageView")
     
+    // Clear session caches on app start to ensure fresh lookups
+    static func clearSessionCaches() {
+        let defaults = UserDefaults.standard
+        let sessionKeys = defaults.dictionaryRepresentation().keys.filter { $0.hasPrefix("session_no_image_") }
+        for key in sessionKeys {
+            defaults.removeObject(forKey: key)
+        }
+    }
+    
     // Safe dimensions to prevent NaN values in CoreGraphics
     private var safeSize: CGFloat {
         guard size > 0, size.isFinite else { return 50 }
@@ -59,7 +68,10 @@ struct UnifiedImageView: View {
         .frame(width: safeSize, height: safeSize)
         .id(refreshTrigger) // Force refresh when trigger changes
         .onAppear {
-            loadImageIfNeeded()
+            // Check cache immediately on appear for instant display
+            if loadedImage == nil {
+                loadImageFromCacheFirst()
+            }
         }
         .onChange(of: imageURL) { _, newURL in
             loadedImage = nil
@@ -71,6 +83,23 @@ struct UnifiedImageView: View {
     }
     
     // MARK: - Private Methods
+    
+    private func loadImageFromCacheFirst() {
+        // Check cache synchronously first - if found, display immediately
+        if let imageURL = imageURL, !imageURL.isEmpty {
+            Task {
+                // Try cache first for instant display
+                let cachedImage = await imageService.loadImage(imageURL: imageURL, imageId: imageId, itemId: itemId)
+                await MainActor.run {
+                    self.loadedImage = cachedImage
+                    self.isLoading = false
+                }
+            }
+        } else {
+            // No URL provided, fall back to the original lookup method
+            loadImageIfNeeded()
+        }
+    }
     
     private func loadImageIfNeeded() {
         isLoading = true
@@ -84,18 +113,30 @@ struct UnifiedImageView: View {
                 finalImageURL = imageURL
                 finalImageId = imageId
             } else {
-                // Fetch current primary image info when no URL provided
-                logger.debug("🔄 No image URL provided, fetching primary image for item: \(itemId)")
-                do {
-                    if let imageInfo = try await UnifiedImageService.shared.getPrimaryImageInfo(for: itemId) {
-                        finalImageURL = imageInfo.cacheUrl
-                        finalImageId = imageInfo.imageId
-                        logger.debug("🔄 Using primary image: \(imageInfo.imageId) -> \(imageInfo.cacheUrl)")
-                    } else {
-                        logger.warning("⚠️ No primary image found for item: \(itemId)")
+                // Only fetch primary image if we haven't already checked for this item in this session
+                // This prevents redundant lookups while still allowing updates via notifications
+                let cacheKey = "no_image_\(itemId)"
+                let sessionKey = "session_\(cacheKey)"
+                
+                if !UserDefaults.standard.bool(forKey: sessionKey) {
+                    logger.debug("🔄 No image URL provided, fetching primary image for item: \(itemId)")
+                    do {
+                        if let imageInfo = try await UnifiedImageService.shared.getPrimaryImageInfo(for: itemId) {
+                            finalImageURL = imageInfo.cacheUrl
+                            finalImageId = imageInfo.imageId
+                            logger.debug("🔄 Using primary image: \(imageInfo.imageId) -> \(imageInfo.cacheUrl)")
+                        } else {
+                            logger.debug("⚠️ No primary image found for item: \(itemId) - caching for session")
+                            // Cache the fact that this item has no primary image for this session only
+                            UserDefaults.standard.set(true, forKey: sessionKey)
+                        }
+                    } catch {
+                        logger.error("❌ Failed to get primary image info: \(error)")
+                        // Cache the failure for this session only
+                        UserDefaults.standard.set(true, forKey: sessionKey)
                     }
-                } catch {
-                    logger.error("❌ Failed to get primary image info: \(error)")
+                } else {
+                    logger.debug("💾 Session cached: Item \(itemId) has no primary image - skipping lookup")
                 }
             }
             
@@ -134,6 +175,11 @@ struct UnifiedImageView: View {
         
         if shouldRefresh {
             logger.debug("🔄 Refreshing image for item: \(itemId) (reason: \(userInfo["action"] as? String ?? "unknown"))")
+            
+            // Clear the "no image" session cache for this item since it might now have an image
+            let sessionKey = "session_no_image_\(itemId)"
+            UserDefaults.standard.removeObject(forKey: sessionKey)
+            
             refreshTrigger = UUID()
             loadedImage = nil
             

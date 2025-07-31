@@ -581,6 +581,8 @@ actor SquareHTTPClient {
                 return try decoder.decode(responseType, from: data)
             } catch {
                 logger.error("Failed to decode response: \(error)")
+                
+                
                 throw SquareAPIError.decodingError(error)
             }
             
