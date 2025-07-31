@@ -593,8 +593,6 @@ struct SearchResultsList: View {
     // MARK: - Reorder and Print Functions
     
     private func addItemToReorderList(_ item: SearchResultItem, quantity: Int) {
-        print("🔍 Adding item to reorder list: \(item.name ?? "Unknown Item") with quantity: \(quantity)")
-        
         // Load existing reorder items
         var reorderItems: [ReorderItem] = []
         if let data = UserDefaults.standard.data(forKey: "reorderItems"),
@@ -606,7 +604,6 @@ struct SearchResultsList: View {
         if let existingIndex = reorderItems.firstIndex(where: { $0.itemId == item.id }) {
             // Update existing item with new quantity (replace, don't increment)
             reorderItems[existingIndex].quantity = quantity
-            print("✅ Updated existing item quantity to \(quantity): \(item.name ?? "Unknown Item")")
         } else {
             // Create new reorder item
             var newItem = ReorderItem(
@@ -627,13 +624,11 @@ struct SearchResultsList: View {
             newItem.imageUrl = item.images?.first?.imageData?.url
             newItem.imageId = item.images?.first?.id
             reorderItems.append(newItem)
-            print("✅ Added new item to reorder list: \(item.name ?? "Unknown Item")")
         }
         
         // Save back to UserDefaults
         if let data = try? JSONEncoder().encode(reorderItems) {
             UserDefaults.standard.set(data, forKey: "reorderItems")
-            print("💾 Saved \(reorderItems.count) reorder items to storage")
         }
         
         // Show success toast with truncated item name
@@ -643,8 +638,6 @@ struct SearchResultsList: View {
     }
     
     private func printItem(_ item: SearchResultItem) {
-        print("🖨️ Print item: \(item.name ?? "Unknown Item")")
-        
         // TODO: Implement actual printing functionality
         // For now, just show a toast notification
         ToastNotificationService.shared.showInfo("Print functionality coming soon!")
