@@ -615,7 +615,9 @@ struct ReordersView: View {
                         addOrUpdateItemInReorderList(item, quantity: currentQuantity)
 
                         // Show success notification for submitted item
-                        ToastNotificationService.shared.showSuccess("\(item.name ?? "Item") (Qty: \(currentQuantity)) added to reorder list")
+                        let itemName = item.name ?? "Item"
+                        let truncatedName = itemName.count > 15 ? String(itemName.prefix(12)) + "..." : itemName
+                        ToastNotificationService.shared.showSuccess("\(truncatedName) (Qty: \(currentQuantity)) added")
                     }
                 }
             }
@@ -651,7 +653,9 @@ struct ReordersView: View {
                         addOrUpdateItemInReorderList(item, quantity: currentQuantity)
 
                         // Show success notification for submitted item
-                        ToastNotificationService.shared.showSuccess("\(item.name ?? "Item") (Qty: \(currentQuantity)) added to reorder list")
+                        let itemName = item.name ?? "Item"
+                        let truncatedName = itemName.count > 15 ? String(itemName.prefix(12)) + "..." : itemName
+                        ToastNotificationService.shared.showSuccess("\(truncatedName) (Qty: \(currentQuantity)) added")
                     }
                 }
             }

@@ -149,7 +149,9 @@ struct ProfileView: View {
                             SettingsRow(icon: "barcode", title: "Scanner Settings", subtitle: "Configure barcode scanner")
                             SettingsRow(icon: "printer", title: "Label Preferences", subtitle: "Default label settings")
                             
-                            NavigationLink(destination: NotificationSettingsView(), isActive: $navigateToNotificationSettings) {
+                            Button(action: {
+                                navigateToNotificationSettings = true
+                            }) {
                                 SettingsRowContent(icon: "bell", title: "Notifications", subtitle: "Manage alerts and updates")
                             }
                             .buttonStyle(PlainButtonStyle())
@@ -224,6 +226,9 @@ struct ProfileView: View {
                 Task {
                     await squareAPIService.checkAuthenticationState()
                 }
+            }
+            .navigationDestination(isPresented: $navigateToNotificationSettings) {
+                NotificationSettingsView()
             }
             .onReceive(NotificationCenter.default.publisher(for: .navigateToNotificationSettings)) { _ in
                 navigateToNotificationSettings = true

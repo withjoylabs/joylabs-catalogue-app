@@ -147,37 +147,36 @@ struct ToastView: View {
     let onDismiss: () -> Void
     
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 8) {
             Image(systemName: toast.icon)
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(toast.color)
             
             Text(toast.message)
-                .font(.subheadline)
-                .fontWeight(.medium)
+                .font(.system(size: 13, weight: .medium))
                 .foregroundColor(.primary)
-                .multilineTextAlignment(.leading)
+                .lineLimit(1)
+                .truncationMode(.middle)
             
-            Spacer()
+            Spacer(minLength: 0)
             
             Button(action: onDismiss) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(.secondary)
+                    .font(.system(size: 10, weight: .bold))
+                .foregroundColor(.secondary)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
         .background(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 8)
                 .fill(Color(.systemBackground))
-                .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+                .shadow(color: .black.opacity(0.08), radius: 4, x: 0, y: 2)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(toast.color.opacity(0.2), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(toast.color.opacity(0.15), lineWidth: 0.5)
         )
-        .padding(.horizontal, 20)
     }
 }
 
@@ -198,14 +197,14 @@ struct ToastContainerModifier: ViewModifier {
                             }
                             .transition(.move(edge: .trailing).combined(with: .opacity))
                             .zIndex(1000)
+                            .padding(.trailing, 16)
                         }
-                        .padding(.top, 60) // Below status bar
-                        .padding(.trailing, 20)
+                        .padding(.top, 10) // Much higher position
                     }
                     
                     Spacer()
                 }
-                .animation(.spring(response: 0.5, dampingFraction: 0.8), value: toastService.isShowing)
+                .animation(.spring(response: 0.4, dampingFraction: 0.85), value: toastService.isShowing)
             )
     }
 }
