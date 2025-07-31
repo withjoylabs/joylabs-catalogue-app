@@ -381,6 +381,34 @@ ItemDetailsModal(
 
 **Real-time Updates**: ItemDetailsModal automatically refreshes data when catalog sync completes (webhook-triggered updates). Uses `.onReceive(NotificationCenter.default.publisher(for: .catalogSyncCompleted))` to reload item data without losing user changes.
 
+### Toast Notifications
+Use the system-wide `ToastNotificationService` for user feedback across the app:
+
+```swift
+// Success toast (green checkmark, 3 seconds)
+ToastNotificationService.shared.showSuccess("Item added to reorder list")
+
+// Error toast (red X, 4 seconds)
+ToastNotificationService.shared.showError("Failed to sync catalog")
+
+// Info toast (blue info icon, 3 seconds)
+ToastNotificationService.shared.showInfo("Catalog sync started")
+
+// Warning toast (orange triangle, 3.5 seconds)
+ToastNotificationService.shared.showWarning("Connection unstable")
+```
+
+**Setup Requirements:**
+- Views must include `.withToastNotifications()` modifier to display toasts
+- ContentView already has this setup for app-wide coverage
+- Modals need their own `.withToastNotifications()` modifier
+
+**Animation Style:**
+- Slides in from top-right edge (macOS-style)
+- Spring animation with gentle bounce
+- Auto-dismisses after specified duration
+- Manual dismiss via X button
+
 ## Error Handling Patterns
 
 ### Fail Fast for Critical Operations

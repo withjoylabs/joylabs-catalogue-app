@@ -10,6 +10,7 @@ struct ProfileView: View {
     @State private var userEmail = "manager@joylabs.com"
     @State private var alertMessage = ""
     @State private var showingAlert = false
+    @State private var navigateToNotificationSettings = false
 
     var body: some View {
         NavigationView {
@@ -148,7 +149,7 @@ struct ProfileView: View {
                             SettingsRow(icon: "barcode", title: "Scanner Settings", subtitle: "Configure barcode scanner")
                             SettingsRow(icon: "printer", title: "Label Preferences", subtitle: "Default label settings")
                             
-                            NavigationLink(destination: NotificationSettingsView()) {
+                            NavigationLink(destination: NotificationSettingsView(), isActive: $navigateToNotificationSettings) {
                                 SettingsRowContent(icon: "bell", title: "Notifications", subtitle: "Manage alerts and updates")
                             }
                             .buttonStyle(PlainButtonStyle())
@@ -223,6 +224,9 @@ struct ProfileView: View {
                 Task {
                     await squareAPIService.checkAuthenticationState()
                 }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .navigateToNotificationSettings)) { _ in
+                navigateToNotificationSettings = true
             }
         }
     }

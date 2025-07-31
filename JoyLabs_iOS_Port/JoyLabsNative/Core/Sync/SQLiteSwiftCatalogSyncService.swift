@@ -177,7 +177,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
 
                 // Notify completion for statistics refresh
                 await MainActor.run {
-                    NotificationCenter.default.post(name: .catalogSyncCompleted, object: nil)
+                    NotificationCenter.default.post(name: .catalogSyncCompleted, object: nil, userInfo: nil)
                 }
 
             } catch {
@@ -297,7 +297,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
 
                 // Notify completion for statistics refresh
                 await MainActor.run {
-                    NotificationCenter.default.post(name: .catalogSyncCompleted, object: nil)
+                    NotificationCenter.default.post(name: .catalogSyncCompleted, object: nil, userInfo: nil)
                 }
 
             } catch {

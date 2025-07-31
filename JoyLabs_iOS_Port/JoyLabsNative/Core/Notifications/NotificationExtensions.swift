@@ -7,4 +7,13 @@ extension Notification.Name {
 
     /// Posted to force immediate image refresh across all views
     static let forceImageRefresh = Notification.Name("forceImageRefresh")
+    
+    /// Posted when catalog sync completes
+    static let catalogSyncCompleted = Notification.Name("catalogSyncCompleted")
+    
+    /// Posted when catalog sync starts
+    static let catalogSyncStarted = Notification.Name("catalogSyncStarted")
+    
+    /// Posted to navigate to notification settings in profile
+    static let navigateToNotificationSettings = Notification.Name("navigateToNotificationSettings")
 }

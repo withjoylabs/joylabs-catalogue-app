@@ -4,7 +4,6 @@ import os.log
 // Notification for refreshing catalog data after sync
 extension Notification.Name {
     static let catalogDataDidUpdate = Notification.Name("catalogDataDidUpdate")
-    static let catalogSyncCompleted = Notification.Name("catalogSyncCompleted")
 }
 
 // MARK: - Modal Components

@@ -235,8 +235,6 @@ struct ReordersView: View {
     // Barcode processing state (simplified - no queue needed)
     @State private var isProcessingBarcode = false
 
-    // Success notification state - STACKING SYSTEM
-    @State private var successNotifications: [SuccessNotification] = []
 
     // Current modal quantity tracking
     @State private var currentModalQuantity: Int = 1
@@ -463,26 +461,6 @@ struct ReordersView: View {
                 )
             }
         }
-        // SUCCESS NOTIFICATION OVERLAY - STACKING FROM RIGHT
-        .overlay(alignment: .topTrailing) {
-            VStack(spacing: 8) {
-                ForEach(successNotifications) { notification in
-                    SuccessNotificationView(
-                        item: notification.item,
-                        quantity: notification.quantity,
-                        onDismiss: {
-                            withAnimation(.easeOut(duration: 0.3)) {
-                                successNotifications.removeAll { $0.id == notification.id }
-                            }
-                        }
-                    )
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
-                    .zIndex(10000) // HIGHER Z-INDEX to appear above modal dimming
-                }
-            }
-            .padding(.top, 8)
-            .padding(.trailing, 16)
-        }
     }
 
     // MARK: - Data Management
@@ -522,14 +500,26 @@ struct ReordersView: View {
 
     private func markAllAsReceived() {
         // Mark all items as received (which removes them from the list)
+        let itemsToUpdate = reorderItems.filter { $0.status == .added }
+        let updatedCount = itemsToUpdate.count
+        
         for item in reorderItems {
             updateItemStatus(itemId: item.id, newStatus: .received)
+        }
+        
+        if updatedCount > 0 {
+            ToastNotificationService.shared.showSuccess("Marked \(updatedCount) items as received")
         }
     }
 
     private func clearAllItems() {
+        let clearedCount = reorderItems.count
         reorderItems.removeAll()
         saveReorderData()
+        
+        if clearedCount > 0 {
+            ToastNotificationService.shared.showSuccess("Cleared \(clearedCount) reorder items")
+        }
     }
 
     // MARK: - Item Actions
@@ -544,11 +534,13 @@ struct ReordersView: View {
 
     private func updateItemStatus(itemId: String, newStatus: ReorderStatus) {
         if let index = reorderItems.firstIndex(where: { $0.id == itemId }) {
+            let itemName = reorderItems[index].name
+            
             if newStatus == .received {
                 // When item is marked as received, remove it from the list
                 reorderItems[index].receivedDate = Date()
                 reorderItems.remove(at: index)
-                print("✅ Item marked as received and removed from list")
+                ToastNotificationService.shared.showSuccess("\(itemName) marked as received")
             } else {
                 // Update status for added/purchased
                 reorderItems[index].status = newStatus
@@ -556,9 +548,11 @@ struct ReordersView: View {
                 switch newStatus {
                 case .purchased:
                     reorderItems[index].purchasedDate = Date()
+                    ToastNotificationService.shared.showSuccess("\(itemName) marked as purchased")
                 case .added:
                     reorderItems[index].purchasedDate = nil
                     reorderItems[index].receivedDate = nil
+                    ToastNotificationService.shared.showInfo("\(itemName) added to reorder list")
                 case .received:
                     // This case is handled above
                     break
@@ -621,7 +615,7 @@ struct ReordersView: View {
                         addOrUpdateItemInReorderList(item, quantity: currentQuantity)
 
                         // Show success notification for submitted item
-                        showSuccessNotification(for: item, quantity: currentQuantity)
+                        ToastNotificationService.shared.showSuccess("\(item.name ?? "Item") (Qty: \(currentQuantity)) added to reorder list")
                     }
                 }
             }
@@ -657,7 +651,7 @@ struct ReordersView: View {
                         addOrUpdateItemInReorderList(item, quantity: currentQuantity)
 
                         // Show success notification for submitted item
-                        showSuccessNotification(for: item, quantity: currentQuantity)
+                        ToastNotificationService.shared.showSuccess("\(item.name ?? "Item") (Qty: \(currentQuantity)) added to reorder list")
                     }
                 }
             }
@@ -672,26 +666,6 @@ struct ReordersView: View {
         processSingleBarcode(barcode)
     }
 
-    private func showSuccessNotification(for item: SearchResultItem, quantity: Int) {
-        print("🎉 Showing success notification for: \(item.name ?? "Unknown") (qty: \(quantity))")
-
-        let notification = SuccessNotification(
-            id: UUID(),
-            item: item,
-            quantity: quantity
-        )
-
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-            successNotifications.append(notification)
-        }
-
-        // Auto-hide after 2 seconds
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            withAnimation(.easeOut(duration: 0.3)) {
-                successNotifications.removeAll { $0.id == notification.id }
-            }
-        }
-    }
 
     private func processSingleBarcode(_ barcode: String) {
         guard !isProcessingBarcode else {
@@ -1179,50 +1153,6 @@ struct ReorderItemsContent: View {
     }
 }
 
-// MARK: - Success Notification Models
-struct SuccessNotification: Identifiable {
-    let id: UUID
-    let item: SearchResultItem
-    let quantity: Int
-}
-
-// MARK: - Success Notification View
-struct SuccessNotificationView: View {
-    let item: SearchResultItem
-    let quantity: Int
-    let onDismiss: () -> Void
-
-    var body: some View {
-        HStack(spacing: 8) {
-            // Success icon
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundColor(.green)
-                .font(.caption)
-
-            // Item info - SINGLE LINE
-            Text("\(item.name ?? "Unknown") (Qty: \(quantity))")
-                .font(.caption)
-                .fontWeight(.medium)
-                .lineLimit(1)
-                .foregroundColor(.primary)
-
-            // Dismiss button
-            Button(action: onDismiss) {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundColor(Color.secondary)
-                    .font(.caption2)
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(.regularMaterial)
-                .shadow(color: .black.opacity(0.1), radius: 4, x: 2, y: 2)
-        )
-        .frame(maxWidth: 280)
-    }
-}
 
 #Preview {
     ReordersView()

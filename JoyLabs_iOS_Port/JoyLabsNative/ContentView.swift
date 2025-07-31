@@ -36,15 +36,17 @@ class ReorderBadgeManager: ObservableObject {
 struct ContentView: View {
     @StateObject private var reorderBadgeManager = ReorderBadgeManager()
     @State private var showingItemDetails = false
+    @State private var selectedTab = 0
 
     var body: some View {
         ZStack {
-            TabView {
+            TabView(selection: $selectedTab) {
                 ScanView()
                     .tabItem {
                         Image(systemName: "barcode")
                         Text("Scan")
                     }
+                    .tag(0)
 
                 ReordersView()
                     .tabItem {
@@ -52,6 +54,7 @@ struct ContentView: View {
                         Text("Reorders")
                     }
                     .badge(reorderBadgeManager.unpurchasedCount > 0 ? "\(reorderBadgeManager.unpurchasedCount)" : nil)
+                    .tag(1)
 
                 // Empty placeholder to create space for FAB
                 Color.clear
@@ -60,18 +63,21 @@ struct ContentView: View {
                             .opacity(0) // Make invisible but valid
                         Text("")
                     }
+                    .tag(2)
 
                 LabelsView()
                     .tabItem {
                         Image(systemName: "tag")
                         Text("Labels")
                     }
+                    .tag(3)
 
                 ProfileView()
                     .tabItem {
                         Image(systemName: "person")
                         Text("Profile")
                     }
+                    .tag(4)
             }
             .accentColor(.blue)
 
@@ -105,6 +111,10 @@ struct ContentView: View {
                     showingItemDetails = false
                 }
             )
+        }
+        .withToastNotifications()
+        .onReceive(NotificationCenter.default.publisher(for: .navigateToNotificationSettings)) { _ in
+            selectedTab = 4 // Switch to Profile tab
         }
     }
 }

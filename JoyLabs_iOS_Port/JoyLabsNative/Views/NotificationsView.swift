@@ -20,7 +20,7 @@ struct NotificationsView: View {
                     Text("Status").tag(1)
                 }
                 .pickerStyle(SegmentedPickerStyle())
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 16)
                 .padding(.vertical, 16)
                 
                 // Content based on selected tab
@@ -52,6 +52,7 @@ struct NotificationsView: View {
                         
                         Button("Clear All") {
                             webhookNotificationService.clearAllNotifications()
+                            ToastNotificationService.shared.showSuccess("All notifications cleared")
                         }
                         
                         Divider()
@@ -77,6 +78,7 @@ struct NotificationsView: View {
         .sheet(isPresented: $showingNotificationPermission) {
             NotificationPermissionView()
         }
+        .withToastNotifications()
     }
     
     // MARK: - Notifications View
@@ -109,7 +111,7 @@ struct NotificationsView: View {
                     WebhookNotificationRow(notification: notification)
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
-                        .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
+                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                 }
             }
         }
@@ -130,7 +132,7 @@ struct NotificationsView: View {
                 // Management Actions
                 actionsCard
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 16)
             .padding(.vertical, 16)
         }
         .scrollContentBackground(.hidden)
@@ -212,7 +214,7 @@ struct NotificationsView: View {
             
             VStack(spacing: 16) {
                 HStack(spacing: 0) {
-                    WebhookStatItem(title: "Total Notifications", value: "\(webhookNotificationService.webhookStats.totalReceived)")
+                    WebhookStatItem(title: "Total Notifications", value: "\(webhookNotificationService.webhookNotifications.count)")
                     WebhookStatItem(title: "Catalog Updates", value: "\(webhookNotificationService.webhookStats.catalogUpdates)")
                     WebhookStatItem(title: "Unread", value: "\(webhookNotificationService.unreadCount)")
                 }
@@ -237,6 +239,7 @@ struct NotificationsView: View {
                 // Clear All Notifications Button
                 Button(action: {
                     webhookNotificationService.clearAllNotifications()
+                    ToastNotificationService.shared.showSuccess("All notifications cleared")
                 }) {
                     HStack {
                         Image(systemName: "trash")
@@ -267,8 +270,9 @@ struct NotificationsView: View {
                 
                 // Notification Settings Button
                 Button(action: {
-                    // TODO: Navigate to notification settings in profile
                     dismiss()
+                    // Navigate to notification settings in profile tab
+                    NotificationCenter.default.post(name: .navigateToNotificationSettings, object: nil)
                 }) {
                     HStack {
                         Image(systemName: "gear")
@@ -333,16 +337,16 @@ struct WebhookNotificationRow: View {
     let notification: WebhookNotification
     
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 8) {
             // Icon with colored background
             Image(systemName: notification.icon)
-                .font(.system(size: 14, weight: .medium))
+                .font(.system(size: 12, weight: .medium))
                 .foregroundColor(Color(notification.color))
-                .frame(width: 28, height: 28)
+                .frame(width: 22, height: 22)
                 .background(Color(notification.color).opacity(0.15))
-                .cornerRadius(6)
+                .cornerRadius(4)
             
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 3) {
                 HStack {
                     Text(notification.title)
                         .font(.subheadline)
@@ -376,7 +380,8 @@ struct WebhookNotificationRow: View {
                 }
             }
         }
-        .padding(12)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 8)
         .background(Color(.systemBackground))
         .overlay(
             RoundedRectangle(cornerRadius: 10)
