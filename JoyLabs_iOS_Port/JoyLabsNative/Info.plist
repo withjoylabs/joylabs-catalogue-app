@@ -46,6 +46,13 @@
 				<key>NSExceptionMinimumTLSVersion</key>
 				<string>TLSv1.2</string>
 			</dict>
+			<key>192.168.254.125</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSExceptionMinimumTLSVersion</key>
+				<string>TLSv1.2</string>
+			</dict>
 		</dict>
 	</dict>
 	<key>NSCameraUsageDescription</key>
@@ -56,6 +63,8 @@
 	<string>Permission needed to save photos</string>
 	<key>NSUserNotificationsUsageDescription</key>
 	<string>Allow notifications to keep your local catalog synchronized with Square in real-time. This ensures you always have the latest product information.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Access to local network is needed to communicate with LabelLive printing software for label printing functionality.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>UIApplicationSceneManifest</key>

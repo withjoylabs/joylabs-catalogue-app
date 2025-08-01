@@ -341,9 +341,9 @@ struct WebhookNotificationRow: View {
             // Icon with colored background
             Image(systemName: notification.icon)
                 .font(.system(size: 12, weight: .medium))
-                .foregroundColor(Color(notification.color))
+                .foregroundColor(notification.color)
                 .frame(width: 22, height: 22)
-                .background(Color(notification.color).opacity(0.15))
+                .background(notification.color.opacity(0.15))
                 .cornerRadius(4)
             
             VStack(alignment: .leading, spacing: 3) {

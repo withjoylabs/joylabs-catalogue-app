@@ -654,9 +654,47 @@ struct SearchResultsList: View {
     }
     
     private func printItem(_ item: SearchResultItem) {
-        // TODO: Implement actual printing functionality
-        // For now, just show a toast notification
-        ToastNotificationService.shared.showInfo("Print functionality coming soon!")
+        let printService = LabelLivePrintService.shared
+        
+        Task {
+            do {
+                // Create print data directly from SearchResultItem
+                let printData = PrintData(
+                    itemName: item.name,
+                    variationName: nil, // SearchResultItem doesn't have variation name
+                    price: item.price?.description,
+                    originalPrice: nil,
+                    upc: item.barcode,
+                    sku: item.sku,
+                    categoryName: item.categoryName,
+                    categoryId: item.categoryId,
+                    description: nil, // SearchResultItem doesn't have description
+                    createdAt: nil,
+                    updatedAt: nil,
+                    qtyForPrice: nil,
+                    qtyPrice: nil
+                )
+                
+                try await printService.printLabel(with: printData)
+                
+            } catch let error as LabelLivePrintError {
+                await MainActor.run {
+                    if case .printSuccess = error {
+                        // Success case - show success toast
+                        let itemName = item.name ?? "Item"
+                        let truncatedName = itemName.count > 20 ? String(itemName.prefix(17)) + "..." : itemName
+                        ToastNotificationService.shared.showSuccess("\(truncatedName) label sent to printer")
+                    } else {
+                        // Error case - show error toast with user-friendly message
+                        ToastNotificationService.shared.showError(error.errorDescription ?? "Print failed")
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    ToastNotificationService.shared.showError("Failed to print label: \(error.localizedDescription)")
+                }
+            }
+        }
     }
 }
 

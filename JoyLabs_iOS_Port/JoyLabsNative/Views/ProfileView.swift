@@ -11,9 +11,10 @@ struct ProfileView: View {
     @State private var alertMessage = ""
     @State private var showingAlert = false
     @State private var navigateToNotificationSettings = false
+    @State private var navigateToLabelSettings = false
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
                     // Header
@@ -147,7 +148,13 @@ struct ProfileView: View {
                             .buttonStyle(PlainButtonStyle())
 
                             SettingsRow(icon: "barcode", title: "Scanner Settings", subtitle: "Configure barcode scanner")
-                            SettingsRow(icon: "printer", title: "Label Preferences", subtitle: "Default label settings")
+                            
+                            Button(action: {
+                                navigateToLabelSettings = true
+                            }) {
+                                SettingsRowContent(icon: "printer", title: "Label Preferences", subtitle: "Configure LabelLive printing")
+                            }
+                            .buttonStyle(PlainButtonStyle())
                             
                             Button(action: {
                                 navigateToNotificationSettings = true
@@ -229,6 +236,9 @@ struct ProfileView: View {
             }
             .navigationDestination(isPresented: $navigateToNotificationSettings) {
                 NotificationSettingsView()
+            }
+            .navigationDestination(isPresented: $navigateToLabelSettings) {
+                LabelLiveSettingsView()
             }
             .onReceive(NotificationCenter.default.publisher(for: .navigateToNotificationSettings)) { _ in
                 navigateToNotificationSettings = true

@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import OSLog
 import Combine
 
@@ -339,18 +340,18 @@ struct WebhookNotification: Identifiable {
         }
     }
     
-    var color: String {
+    var color: Color {
         switch type {
         case .success:
-            return "systemGreen"
+            return .green
         case .error:
-            return "systemRed"
+            return .red
         case .warning:
-            return "systemOrange"
+            return .orange
         case .info:
-            return "systemBlue"
+            return .blue
         case .system:
-            return "secondary"
+            return .secondary
         }
     }
 }

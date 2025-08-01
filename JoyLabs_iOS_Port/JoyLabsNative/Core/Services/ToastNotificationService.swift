@@ -22,7 +22,7 @@ class ToastNotificationService: ObservableObject {
     // MARK: - Public Interface
     
     /// Show a success toast
-    func showSuccess(_ message: String, duration: TimeInterval = 3.0) {
+    func showSuccess(_ message: String, duration: TimeInterval = 4.0) {
         showToast(ToastNotification(
             message: message,
             type: .success,
@@ -31,7 +31,7 @@ class ToastNotificationService: ObservableObject {
     }
     
     /// Show an error toast
-    func showError(_ message: String, duration: TimeInterval = 4.0) {
+    func showError(_ message: String, duration: TimeInterval = 5.0) {
         showToast(ToastNotification(
             message: message,
             type: .error,
@@ -40,7 +40,7 @@ class ToastNotificationService: ObservableObject {
     }
     
     /// Show an info toast
-    func showInfo(_ message: String, duration: TimeInterval = 3.0) {
+    func showInfo(_ message: String, duration: TimeInterval = 4.0) {
         showToast(ToastNotification(
             message: message,
             type: .info,
@@ -49,7 +49,7 @@ class ToastNotificationService: ObservableObject {
     }
     
     /// Show a warning toast
-    func showWarning(_ message: String, duration: TimeInterval = 3.5) {
+    func showWarning(_ message: String, duration: TimeInterval = 4.5) {
         showToast(ToastNotification(
             message: message,
             type: .warning,
@@ -146,37 +146,70 @@ struct ToastView: View {
     let toast: ToastNotification
     let onDismiss: () -> Void
     
+    @State private var dragOffset: CGSize = .zero
+    
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
             Image(systemName: toast.icon)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(toast.color)
             
             Text(toast.message)
-                .font(.system(size: 13, weight: .medium))
+                .font(.system(size: 14, weight: .medium))
                 .foregroundColor(.primary)
-                .lineLimit(1)
-                .truncationMode(.middle)
+                .lineLimit(2)
+                .truncationMode(.tail)
             
             Spacer(minLength: 0)
             
             Button(action: onDismiss) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 10, weight: .bold))
+                    .font(.system(size: 11, weight: .bold))
                 .foregroundColor(.secondary)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
         .background(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: 12)
                 .fill(Color(.systemBackground))
-                .shadow(color: .black.opacity(0.08), radius: 4, x: 0, y: 2)
+                .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(toast.color.opacity(0.15), lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(toast.color.opacity(0.2), lineWidth: 1)
         )
+        .offset(dragOffset)
+        .scaleEffect(dragOffset == .zero ? 1.0 : 0.95)
+        .onTapGesture {
+            onDismiss()
+        }
+        .gesture(
+            DragGesture()
+                .onChanged { value in
+                    // Only allow right swipes for dismissal
+                    if value.translation.width > 0 {
+                        dragOffset = CGSize(width: min(value.translation.width, 100), height: 0)
+                    }
+                }
+                .onEnded { value in
+                    if value.translation.width > 50 || value.velocity.width > 300 {
+                        // Dismiss if swiped far enough or fast enough
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            dragOffset = CGSize(width: 200, height: 0)
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                            onDismiss()
+                        }
+                    } else {
+                        // Snap back
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            dragOffset = .zero
+                        }
+                    }
+                }
+        )
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: dragOffset)
     }
 }
 
@@ -189,6 +222,8 @@ struct ToastContainerModifier: ViewModifier {
         content
             .overlay(
                 VStack {
+                    Spacer()
+                    
                     if toastService.isShowing, let toast = toastService.currentToast {
                         HStack {
                             Spacer()
@@ -197,12 +232,10 @@ struct ToastContainerModifier: ViewModifier {
                             }
                             .transition(.move(edge: .trailing).combined(with: .opacity))
                             .zIndex(1000)
-                            .padding(.trailing, 16)
                         }
-                        .padding(.top, 10) // Much higher position
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 120) // Position above bottom search bar (estimated height + padding)
                     }
-                    
-                    Spacer()
                 }
                 .animation(.spring(response: 0.4, dampingFraction: 0.85), value: toastService.isShowing)
             )
