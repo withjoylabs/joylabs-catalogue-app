@@ -349,6 +349,84 @@ All services use consistent `[ServiceName]` logging format:
 
 ## Component Usage Guidelines
 
+### Swipe Gesture Implementation (Search Result Cards)
+Our SwipeableScanResultCard implements smooth, iOS-native-feeling swipe gestures with the following pattern:
+
+```swift
+// Key principles for smooth swipe gestures:
+// 1. Use ZStack with proper layering - buttons in background, content in foreground
+// 2. Fixed card height prevents button overflow
+// 3. Text stability during swipe prevents jarring reflows
+
+@State private var offset: CGFloat = 0
+
+var body: some View {
+    ZStack {
+        // Background layer - action buttons
+        HStack(spacing: 0) {
+            if offset > 0 {
+                SwipeActionButton(icon: "printer.fill", title: "Print", 
+                                color: .blue, width: offset, cardHeight: cardHeight)
+            }
+            Spacer()
+            if offset < 0 {
+                SwipeActionButton(icon: "plus.circle.fill", title: "Add", 
+                                color: .green, width: abs(offset), cardHeight: cardHeight)
+            }
+        }
+        
+        // Foreground layer - main content
+        content
+            .frame(height: cardHeight)
+            .background(Color(.systemBackground))
+            .offset(x: offset)
+            .simultaneousGesture(
+                DragGesture()
+                    .onChanged { value in
+                        // Simple resistance-based movement (no complex thresholds)
+                        let translation = value.translation.width
+                        let resistance: CGFloat = 0.7
+                        
+                        if translation > 0 {
+                            offset = min(translation * resistance, 100)
+                        } else {
+                            offset = max(translation * resistance, -100)
+                        }
+                    }
+                    .onEnded { value in
+                        // Simple threshold for action completion
+                        let translation = value.translation.width
+                        let velocity = value.velocity.width
+                        
+                        if abs(translation) > 60 || abs(velocity) > 500 {
+                            // Trigger action
+                            translation > 0 ? onPrint() : onAddToReorder()
+                        }
+                        
+                        // Always snap back with spring animation
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            offset = 0
+                        }
+                    }
+            )
+    }
+}
+
+// Text stability during swipe - critical for professional feel:
+// - Fixed width for item title: .frame(width: 200, alignment: .leading)
+// - Fixed size for category/UPC: .fixedSize(horizontal: true, vertical: false)
+// - Allow SKU truncation: .truncationMode(.tail) without fixedSize
+```
+
+**Key Success Factors:**
+- **No jitter**: Simple resistance factor (0.7) instead of complex threshold math
+- **Proper z-ordering**: ZStack with background buttons, foreground content
+- **Text stability**: Fixed widths prevent reflow during gesture
+- **Spring animations**: Natural iOS feel with `.spring(response: 0.3, dampingFraction: 0.8)`
+- **Smart truncation**: Priority system - category/UPC fixed, SKU can truncate
+
+## Component Usage Guidelines
+
 ### Image Display
 Always use `SimpleImageView` with factory methods for consistent sizing:
 ```swift

@@ -254,31 +254,54 @@ struct ReorderItemCard: View {
 
     @State private var offset: CGFloat = 0
     @State private var showingItemDetails = false
+    @State private var isDragging = false
+    
+    // Standard card height to ensure buttons match exactly
+    private let cardHeight: CGFloat = 66
 
     var body: some View {
-        HStack(spacing: 0) {
-            // Left action - Mark as Received (revealed by swiping right)
-            if offset > 0 {
-                Button(action: {
-                    onStatusChange(.received)
-                }) {
-                    HStack {
-                        Spacer()
-                        VStack(spacing: 4) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.title2)
-                            Text("Received")
-                                .font(.caption)
+        ZStack {
+            // Background layer - action buttons (behind main content)
+            HStack(spacing: 0) {
+                // Left action - Mark as Received (revealed by swiping right)
+                if offset > 0 {
+                    SwipeActionButton(
+                        icon: "checkmark.circle.fill",
+                        title: "Received",
+                        color: .green,
+                        width: offset,
+                        cardHeight: cardHeight,
+                        action: {
+                            onStatusChange(.received)
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                offset = 0
+                            }
                         }
-                        .foregroundColor(.white)
-                        Spacer()
-                    }
+                    )
                 }
-                .frame(width: offset)
-                .background(Color.green)
+                
+                Spacer()
+                
+                // Right action - Delete (revealed by swiping left)
+                if offset < 0 {
+                    SwipeActionButton(
+                        icon: "trash.fill",
+                        title: "Delete",
+                        color: .red,
+                        width: abs(offset),
+                        cardHeight: cardHeight,
+                        action: {
+                            onRemove()
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                offset = 0
+                            }
+                        }
+                    )
+                }
             }
+            .frame(height: cardHeight)
             
-            // Main content
+            // Foreground layer - main content (on top)
             HStack(spacing: 11) {
                 // Radio button (left side) - only 2 states: empty/filled
                 Button(action: {
@@ -305,33 +328,37 @@ struct ReorderItemCard: View {
                     onImageLongPress?()
                 }
 
-                // Main content section - exact same as scan page
+                // Main content section
                 VStack(alignment: .leading, spacing: 6) {
-                    // Item name - exact same styling as scan page
+                    // Item name - allow wrapping to full available width
                     Text(item.name)
                         .font(.system(size: 16, weight: .medium))
                         .foregroundColor(.primary)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
 
-                    // Category, UPC, SKU row - exact same as scan page
+                    // Category, UPC, SKU row - prevent overflow with SKU truncation
                     HStack(spacing: 8) {
-                        // Category with background - exact same styling as scan page
+                        // Category with background - fixed size (priority 1)
                         if let categoryName = item.categoryName, !categoryName.isEmpty {
                             Text(categoryName)
                                 .font(.system(size: 11, weight: .regular))
                                 .foregroundColor(Color.secondary)
+                                .fixedSize(horizontal: true, vertical: false) // Never truncate category
+                                .lineLimit(1)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
                                 .background(Color(.systemGray5))
                                 .cornerRadius(4)
                         }
 
-                        // UPC - exact same as scan page
+                        // UPC - fixed size (priority 2)
                         if let barcode = item.barcode, !barcode.isEmpty {
                             Text(barcode)
                                 .font(.system(size: 11))
                                 .foregroundColor(Color.secondary)
+                                .fixedSize(horizontal: true, vertical: false) // Never truncate UPC
+                                .lineLimit(1)
                         }
 
                         // Bullet point separator (only if both UPC and SKU are present)
@@ -340,13 +367,17 @@ struct ReorderItemCard: View {
                             Text("•")
                                 .font(.system(size: 11))
                                 .foregroundColor(Color.secondary)
+                                .fixedSize(horizontal: true, vertical: false)
                         }
 
-                        // SKU - exact same as scan page
+                        // SKU - flexible width, can truncate (priority 3)
                         if let sku = item.sku, !sku.isEmpty {
                             Text(sku)
                                 .font(.system(size: 11))
                                 .foregroundColor(Color.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.tail) // Show ... at end if too long
+                                // NO fixedSize - allows truncation
                         }
 
                         Spacer()
@@ -385,24 +416,12 @@ struct ReorderItemCard: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
             .background(Color(.systemBackground))
-            .overlay(
-                // Subtle divider line like scan page
-                VStack {
-                    Spacer()
-                    HStack {
-                        // Start divider after thumbnail (22px + 11px + 50px = 83px from left)
-                        Spacer()
-                            .frame(width: 83)
-                        Rectangle()
-                            .fill(Color(.separator))
-                            .frame(height: 0.5)
-                    }
-                }
-            )
+            .frame(height: cardHeight)
             .offset(x: offset)
             .onTapGesture {
-                if offset != 0 {
-                    withAnimation(.easeOut(duration: 0.2)) {
+                if abs(offset) > 5 {
+                    // Close swipe actions
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                         offset = 0
                     }
                 } else {
@@ -414,80 +433,57 @@ struct ReorderItemCard: View {
                 // Long press to open item details
                 showingItemDetails = true
             }
-            .gesture(
-                DragGesture(minimumDistance: 20) // Require minimum distance before activating
+            .simultaneousGesture(
+                DragGesture()
                     .onChanged { value in
-                        let horizontalTranslation = value.translation.width
-                        let verticalTranslation = value.translation.height
+                        isDragging = true
                         
-                        // STRICT HORIZONTAL GESTURE DETECTION:
-                        // Only activate if horizontal movement is significantly greater than vertical
-                        // AND we've moved a minimum distance horizontally
-                        let isHorizontalGesture = abs(horizontalTranslation) > abs(verticalTranslation) * 2.5 // Much stricter ratio
-                        let hasMinimumHorizontalMovement = abs(horizontalTranslation) > 30 // Minimum movement required
+                        // Simple, smooth swipe with resistance
+                        let translation = value.translation.width
+                        let resistance: CGFloat = 0.7
                         
-                        if isHorizontalGesture && hasMinimumHorizontalMovement {
-                            if horizontalTranslation > 0 {
-                                // Swipe right - reveal received (but only after threshold)
-                                offset = min(horizontalTranslation - 30, 80) // Subtract threshold
-                            } else {
-                                // Swipe left - reveal delete (but only after threshold)
-                                offset = max(horizontalTranslation + 30, -80) // Add threshold
-                            }
+                        if translation > 0 {
+                            // Swipe right - reveal received (max 100px)
+                            offset = min(translation * resistance, 100)
+                        } else {
+                            // Swipe left - reveal delete (max 100px)
+                            offset = max(translation * resistance, -100)
                         }
                     }
                     .onEnded { value in
-                        let horizontalTranslation = value.translation.width
-                        let verticalTranslation = value.translation.height
+                        isDragging = false
+                        
+                        let translation = value.translation.width
                         let velocity = value.velocity.width
                         
-                        // Only consider it a swipe gesture if it was predominantly horizontal
-                        let isHorizontalGesture = abs(horizontalTranslation) > abs(verticalTranslation) * 2.5
-                        let hasSignificantMovement = abs(horizontalTranslation) > 60 || abs(velocity) > 800
-                        
-                        if isHorizontalGesture && hasSignificantMovement {
-                            if horizontalTranslation > 0 {
+                        // Simple threshold-based completion
+                        if abs(translation) > 60 || abs(velocity) > 500 {
+                            if translation > 0 {
                                 // Complete received action
                                 onStatusChange(.received)
-                                withAnimation(.easeOut(duration: 0.2)) {
-                                    offset = 0
-                                }
                             } else {
                                 // Complete delete action
                                 onRemove()
-                                withAnimation(.easeOut(duration: 0.2)) {
-                                    offset = 0
-                                }
                             }
-                        } else {
-                            // Snap back - this was probably a scroll gesture
-                            withAnimation(.easeOut(duration: 0.2)) {
-                                offset = 0
-                            }
+                        }
+                        
+                        // Always snap back
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            offset = 0
                         }
                     }
             )
-            
-            // Right action - Delete (revealed by swiping left)
-            if offset < 0 {
-                Button(action: onRemove) {
-                    HStack {
-                        Spacer()
-                        VStack(spacing: 4) {
-                            Image(systemName: "trash.fill")
-                                .font(.title2)
-                            Text("Delete")
-                                .font(.caption)
-                        }
-                        .foregroundColor(.white)
-                        Spacer()
-                    }
-                }
-                .frame(width: abs(offset))
-                .background(Color.red)
-            }
         }
-        .clipShape(Rectangle())
+        .clipped()
+        .overlay(
+            // Stationary bottom border (full width, doesn't move with swipe)
+            VStack {
+                Spacer()
+                Rectangle()
+                    .fill(Color(.separator))
+                    .frame(height: 0.5)
+            }
+        )
         .sheet(isPresented: $showingItemDetails) {
             ItemDetailsModal(
                 context: .editExisting(itemId: item.itemId),
