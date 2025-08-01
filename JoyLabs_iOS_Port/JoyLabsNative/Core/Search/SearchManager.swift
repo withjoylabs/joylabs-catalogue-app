@@ -89,6 +89,8 @@ class SearchManager: ObservableObject {
     }
     
     // MARK: - Public Methods
+    
+    
     func performSearch(searchTerm: String, filters: SearchFilters, loadMore: Bool = false) async -> [SearchResultItem] {
         // Port the exact logic from React Native performSearch with pagination
         let trimmedTerm = searchTerm.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -792,13 +794,7 @@ class SearchManager: ObservableObject {
             // Get primary image URL using unified approach
             let images = getPrimaryImageForSearchResult(itemId: itemId)
             
-            // Pre-load images during search for immediate display
-            if let images = images, let firstImage = images.first, let imageURL = firstImage.imageData?.url {
-                Task {
-                    // Pre-load image into cache so it's ready when view appears
-                    _ = await UnifiedImageService.shared.loadImage(imageURL: imageURL, imageId: firstImage.id, itemId: itemId)
-                }
-            }
+            // SimpleImageView with AsyncImage handles caching automatically - no pre-loading needed
 
             return SearchResultItem(
                 id: itemId,

@@ -22,7 +22,7 @@ struct UnifiedImagePickerModal: View {
     @State private var authorizationStatus: PHAuthorizationStatus = .notDetermined
     @State private var showingCamera = false
 
-    @StateObject private var imageService = UnifiedImageService.shared
+    @StateObject private var imageService = SimpleImageService.shared
     @Environment(\.dismiss) private var dismiss
 
     private let logger = Logger(subsystem: "com.joylabs.native", category: "UnifiedImagePickerModal")
@@ -271,24 +271,30 @@ struct UnifiedImagePickerModal: View {
 
                 // Convert image to data with high quality
                 guard let imageData = image.jpegData(compressionQuality: 0.9) else {
-                    throw UnifiedImageError.invalidImageData("Failed to convert image to data")
+                    throw UnifiedImageError.invalidImageData
                 }
 
-                // Upload using unified service
-                let result = try await imageService.uploadImage(
+                // Upload using simple service
+                let awsURL = try await imageService.uploadImage(
                     imageData: imageData,
                     fileName: "joylabs_image_\(Int(Date().timeIntervalSince1970))_\(Int.random(in: 1000...9999)).jpg",
-                    itemId: getItemId(),
+                    itemId: getItemId()
+                )
+                
+                // Create result object for compatibility
+                let result = ImageUploadResult(
+                    squareImageId: "", // SimpleImageService doesn't return this
+                    awsUrl: awsURL,
+                    localCacheUrl: awsURL, // SimpleImageView uses AWS URL directly
                     context: context
                 )
 
                 await MainActor.run {
                     isUploading = false
-                    logger.info("✅ Image upload completed successfully: \(result.squareImageId)")
+                    logger.info("✅ Image upload completed successfully")
                     logger.info("AWS URL: \(result.awsUrl)")
-                    logger.info("Local Cache URL: \(result.localCacheUrl)")
                     onImageUploaded(result)
-                    onDismiss()
+                    // Don't call onDismiss() here - let the parent handle dismissal
                 }
             } catch {
                 await MainActor.run {

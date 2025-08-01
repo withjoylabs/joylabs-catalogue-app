@@ -273,6 +273,22 @@ struct ScanView: View {
                 searchManager.performSearchWithDebounce(searchTerm: searchText, filters: filters)
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .imageUpdated)) { notification in
+            // Refresh search results when image is updated (for real-time image updates)
+            if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                print("🔄 Image updated - refreshing search results for: '\(searchText)'")
+                let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
+                searchManager.performSearchWithDebounce(searchTerm: searchText, filters: filters)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .forceImageRefresh)) { notification in
+            // Force refresh of search results when images need to be refreshed
+            if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                print("🔄 Force image refresh - refreshing search results for: '\(searchText)'")
+                let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
+                searchManager.performSearchWithDebounce(searchTerm: searchText, filters: filters)
+            }
+        }
         .onChange(of: searchText) { oldValue, newValue in
             // CRITICAL FIX: Handle extremely fast HID scanner input
             // Cancel previous timer

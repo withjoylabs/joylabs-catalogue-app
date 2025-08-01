@@ -19,7 +19,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
 
     private let squareAPIService: SquareAPIService
     private var databaseManager: SQLiteSwiftCatalogManager
-    private var imageCacheService: ImageCacheService!
+    // SimpleImageView uses native URLCache - no custom cache service needed
     private let logger = Logger(subsystem: "com.joylabs.native", category: "SQLiteSwiftCatalogSync")
 
     // Configuration: Skip orphaned images to reduce overhead
@@ -46,8 +46,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
         // Use the shared database manager that's already connected in Phase 1
         self.databaseManager = SquareAPIServiceFactory.createDatabaseManager()
 
-        // Use the shared ImageCacheService instance instead of creating a new one
-        self.imageCacheService = ImageCacheService.shared
+        // SimpleImageView uses native URLCache - no custom cache initialization needed
 
         // Database is already connected from Phase 1 - no need to reconnect
         logger.debug("[CatalogSync] Using shared database manager (already connected)")
@@ -138,7 +137,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
                     progress.currentObjectName = "Clearing cached images..."
                     syncProgress = progress
                 }
-                await imageCacheService.clearAllImages()
+                URLCache.shared.removeAllCachedResponses() // Clear native URL cache
                 logger.info("🖼️ Cleared image cache for fresh start")
 
                 // Fetch catalog data from Square API with progress tracking

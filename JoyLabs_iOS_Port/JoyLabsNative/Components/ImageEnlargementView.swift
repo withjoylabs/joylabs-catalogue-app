@@ -13,10 +13,8 @@ struct ImageEnlargementView: View {
                         // Enlarged image - takes up shortest dimension for iPad compatibility
                         let imageSize = min(geometry.size.width, geometry.size.height) * 0.8
                         
-                        UnifiedImageView.large(
+                        SimpleImageView.large(
                             imageURL: item.imageUrl,
-                            imageId: item.imageId,
-                            itemId: item.itemId,
                             size: imageSize
                         )
                         .frame(width: imageSize, height: imageSize)

@@ -199,8 +199,9 @@ Core/
 │   └── DatabaseModels.swift
 ├── GraphQL/                        # 🚨 DEPRECATED - GraphQL (using Square API)
 │   └── GraphQLClient.swift
-├── Images/                         # ✅ ACTIVE - Image caching system
-│   ├── ImageCacheService.swift
+├── Images/                         # ✅ ACTIVE - Image URL mapping
+│   ├── AdvancedCacheManager.swift
+│   ├── BandwidthAwareDownloadManager.swift
 │   └── ImageURLManager.swift
 ├── LabelEngine/                    # 🚨 PLACEHOLDER - Label printing
 │   ├── LabelDesignEngine.swift
@@ -265,7 +266,7 @@ Views/
 │   ├── CatalogManagementView.swift.bak       # 🚨 BACKUP FILE
 │   └── CatalogManagementView_broken.swift    # 🚨 BACKUP FILE
 ├── Components/                     # ✅ ACTIVE - Reusable components
-│   └── CachedImageView.swift
+│   └── SimpleImageView.swift
 ├── Square/                         # 🚨 DEPRECATED - Square UI (moved to ProfileView)
 │   ├── SquareAuthenticationSheet.swift
 │   ├── SquareConnectionView.swift

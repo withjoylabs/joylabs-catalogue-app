@@ -209,15 +209,13 @@ struct SwipeableScanResultCard: View {
     private var scanResultContent: some View {
         // Extract image data for search results
         let imageURL = result.images?.first?.imageData?.url
-        let imageId = result.images?.first?.id
+        let _ = result.images?.first?.id
 
         return HStack(spacing: 12) {
-            // Thumbnail image (left side) - using unified image system
+            // Thumbnail image (left side) - using simple image system
             // Long press to update image
-            UnifiedImageView.thumbnail(
+            SimpleImageView.thumbnail(
                 imageURL: imageURL,
-                imageId: imageId,
-                itemId: result.id,
                 size: 50
             )
             .onLongPressGesture {
@@ -341,7 +339,7 @@ struct SwipeableScanResultCard: View {
                     showingImagePicker = false
                 },
                 onImageUploaded: { uploadResult in
-                    // UnifiedImageService handles all refresh notifications
+                    // SimpleImageService handles all refresh notifications
                     showingImagePicker = false
                 }
             )
@@ -363,15 +361,13 @@ struct ScanResultCard: View {
     var body: some View {
         // Extract image data for search results
         let imageURL = result.images?.first?.imageData?.url
-        let imageId = result.images?.first?.id
+        let _ = result.images?.first?.id
 
         return HStack(spacing: 12) {
-            // Thumbnail image (left side) - using unified image system
+            // Thumbnail image (left side) - using simple image system
             // Long press to update image
-            UnifiedImageView.thumbnail(
+            SimpleImageView.thumbnail(
                 imageURL: imageURL,
-                imageId: imageId,
-                itemId: result.id,
                 size: 50
             )
             .onLongPressGesture {
@@ -495,7 +491,7 @@ struct ScanResultCard: View {
                     showingImagePicker = false
                 },
                 onImageUploaded: { uploadResult in
-                    // UnifiedImageService handles all refresh notifications
+                    // SimpleImageService handles all refresh notifications
                     showingImagePicker = false
                 }
             )

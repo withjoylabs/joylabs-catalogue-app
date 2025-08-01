@@ -7,7 +7,7 @@ class WebhookIntegrationTests: ObservableObject {
     // MARK: - Dependencies
     private let webhookManager: WebhookManager
     private let webhookService: WebhookService
-    private let unifiedImageService: UnifiedImageService
+    private let simpleImageService: SimpleImageService
     private let logger = Logger(subsystem: "com.joylabs.native", category: "WebhookIntegrationTests")
     
     // MARK: - Test Results
@@ -19,7 +19,7 @@ class WebhookIntegrationTests: ObservableObject {
     init() {
         self.webhookManager = WebhookManager.shared
         self.webhookService = WebhookService.shared
-        self.unifiedImageService = UnifiedImageService.shared
+        self.simpleImageService = SimpleImageService.shared
     }
     
     // MARK: - Test Runner

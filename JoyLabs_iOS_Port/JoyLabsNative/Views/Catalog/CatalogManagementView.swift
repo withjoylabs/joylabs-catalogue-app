@@ -689,7 +689,7 @@ struct CatalogManagementView: View {
 
     private func clearImageCache() async {
         logger.info("🗑️ Clearing image cache...")
-        await ImageCacheService.shared.clearAllCachedImages()
+        URLCache.shared.removeAllCachedResponses()
         logger.info("✅ Image cache cleared successfully")
     }
 

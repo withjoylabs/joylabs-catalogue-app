@@ -29,8 +29,15 @@ struct JoyLabsNativeApp: App {
     private func initializeCriticalServicesSync() {
         logger.info("[App] Phase 1: Initializing critical services synchronously...")
         
-        // Clear session-based image caches on app start
-        UnifiedImageView.clearSessionCaches()
+        // Configure URLCache with generous limits for large catalogs (100,000+ items)
+        URLCache.shared = URLCache(
+            memoryCapacity: 250 * 1024 * 1024,    // 250MB memory cache (~2,500 images)
+            diskCapacity: 4 * 1024 * 1024 * 1024, // 4GB disk cache (~40,000 images)
+            diskPath: "image_cache"
+        )
+        logger.info("[App] Phase 1: URLCache configured with 250MB memory, 4GB disk for large catalog support")
+        
+        // SimpleImageView uses native URLCache - no session cache clearing needed
         
         // Initialize field configuration manager synchronously
         let _ = FieldConfigurationManager.shared
@@ -44,8 +51,7 @@ struct JoyLabsNativeApp: App {
             logger.error("[App] Phase 1: Database connection failed: \(error)")
         }
         
-        let imageURLManager = ImageURLManager(databaseManager: databaseManager)
-        ImageCacheService.initializeShared(with: imageURLManager)
+        // SimpleImageService uses native URLCache - no complex initialization needed
         
         // Pre-initialize ALL Square services to prevent cascade creation during sync
         let _ = SquareAPIServiceFactory.createTokenService()
@@ -57,7 +63,7 @@ struct JoyLabsNativeApp: App {
         
         // Pre-initialize singleton services to prevent creation during Phase 2
         let _ = PushNotificationService.shared
-        let _ = UnifiedImageService.shared
+        let _ = SimpleImageService.shared
         let _ = WebhookService.shared
         let _ = WebhookManager.shared
         let _ = WebhookNotificationService.shared

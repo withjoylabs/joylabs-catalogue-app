@@ -93,10 +93,8 @@ struct EmbeddedQuantitySelectionModal: View {
             let imageSize = geometry.size.width * 0.7
 
             // Use image data from SearchResultItem if available
-            UnifiedImageView.large(
+            SimpleImageView.large(
                 imageURL: item.images?.first?.imageData?.url,
-                imageId: item.images?.first?.id,
-                itemId: item.id,
                 size: imageSize
             )
                 .frame(width: imageSize, height: imageSize * 0.7) // Slightly rectangular

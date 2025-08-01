@@ -15,13 +15,12 @@ struct SquareImageUploadResult {
 class SquareImageService: ObservableObject {
 
     private let httpClient: SquareHTTPClient
-    private let imageCacheService: ImageCacheService
+    // SimpleImageService handles image uploads now
     private let databaseManager: SQLiteSwiftCatalogManager
     private let logger = Logger(subsystem: "com.joylabs.native", category: "SquareImageService")
 
-    init(httpClient: SquareHTTPClient, imageCacheService: ImageCacheService, databaseManager: SQLiteSwiftCatalogManager) {
+    init(httpClient: SquareHTTPClient, databaseManager: SQLiteSwiftCatalogManager) {
         self.httpClient = httpClient
-        self.imageCacheService = imageCacheService
         self.databaseManager = databaseManager
         logger.info("SquareImageService initialized")
     }
@@ -108,14 +107,8 @@ class SquareImageService: ObservableObject {
     ) async throws -> String {
         logger.info("Caching image with mapping (same as sync process): \(squareImageId)")
 
-        // Use the EXACT same method as the sync process to create mappings
-        let cacheUrl = await imageCacheService.cacheImageWithMapping(
-            awsUrl: awsUrl,
-            squareImageId: squareImageId,
-            objectType: "ITEM",
-            objectId: itemId ?? squareImageId, // Use imageId as objectId if no itemId
-            imageType: "PRIMARY"
-        )
+        // SimpleImageView uses AsyncImage with native URLCache - return AWS URL directly
+        let cacheUrl: String? = awsUrl
 
         guard let cacheUrl = cacheUrl else {
             throw SquareAPIError.networkError(NSError(domain: "ImageCache", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to cache image with mapping"]))
@@ -256,7 +249,7 @@ class SquareImageService: ObservableObject {
         logger.info("Cleaning up local cache for image: \(imageId)")
 
         // Use the existing invalidateImageById method which handles cleanup
-        await imageCacheService.invalidateImageById(squareImageId: imageId)
+        // Native URLCache handles invalidation automatically
 
         logger.info("Successfully cleaned up local cache for image: \(imageId)")
     }
@@ -337,13 +330,11 @@ extension SquareImageService {
     ) async {
         // CRITICAL: Invalidate freshness for old image to force refresh
         if let oldImageId = oldImageId, oldImageId != newImageId {
-            ImageFreshnessManager.shared.invalidateImage(imageId: oldImageId)
-            await imageCacheService.deleteCachedImage(imageId: oldImageId)
+            // Native URLCache will handle cache invalidation automatically
             logger.info("🗑️ Deleted old cached image: \(oldImageId)")
         }
 
-        // Mark new image as fresh
-        ImageFreshnessManager.shared.markImageAsFresh(imageId: newImageId)
+        // Native URLCache handles freshness automatically
 
         // Force refresh in all UI components by posting notifications
         await MainActor.run {
@@ -375,8 +366,7 @@ extension SquareImageService {
     /// Create SquareImageService with default dependencies
     static func create() -> SquareImageService {
         let httpClient = SquareAPIServiceFactory.createHTTPClient()
-        let imageCacheService = ImageCacheService.shared
         let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
-        return SquareImageService(httpClient: httpClient, imageCacheService: imageCacheService, databaseManager: databaseManager)
+        return SquareImageService(httpClient: httpClient, databaseManager: databaseManager)
     }
 }

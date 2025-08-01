@@ -19,11 +19,9 @@ struct ItemImageSection: View {
                     showingImagePicker = true
                 }) {
                     if let imageURL = viewModel.itemData.imageURL, !imageURL.isEmpty {
-                        // Use unified image system
-                        UnifiedImageView.large(
+                        // Use simple image system
+                        SimpleImageView.large(
                             imageURL: imageURL,
-                            imageId: viewModel.itemData.imageId,
-                            itemId: viewModel.itemData.id ?? "",
                             size: 200
                         )
                         .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -93,7 +91,7 @@ struct ItemImageSection: View {
                     viewModel.itemData.imageId = result.squareImageId
                     showingImagePicker = false
 
-                    // UnifiedImageService handles all notifications automatically
+                    // SimpleImageService handles all notifications automatically
                 }
             )
         }

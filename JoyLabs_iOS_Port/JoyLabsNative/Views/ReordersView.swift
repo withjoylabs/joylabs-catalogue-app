@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import SQLite
 
 // MARK: - Quantity Modal State Manager (Industry Standard Solution)
 class QuantityModalStateManager: ObservableObject {
@@ -204,7 +205,7 @@ struct GlobalBarcodeReceiver: UIViewControllerRepresentable {
     }
 }
 
-struct ReordersView: View {
+struct ReordersView: SwiftUI.View {
     @State private var reorderItems: [ReorderItem] = []
     @State private var showingExportOptions = false
     @State private var showingClearAlert = false
@@ -323,7 +324,7 @@ struct ReordersView: View {
         }
     }
 
-    var body: some View {
+    var body: some SwiftUI.View {
         NavigationView {
             ZStack {
                 // Main reorder content
@@ -373,9 +374,53 @@ struct ReordersView: View {
                 // Auto-focus removed - user can manually tap to focus
             }
             .onReceive(NotificationCenter.default.publisher(for: .catalogSyncCompleted)) { _ in
-                // Refresh search results when catalog sync completes (for webhook updates)
+                // Refresh reorder items data when catalog sync completes (for webhook updates)
+                print("🔄 Catalog sync completed - refreshing reorder items data")
+                Task {
+                    await refreshDynamicDataForReorderItems()
+                }
+                
+                // Also refresh search results if there's an active search
                 if !scannerSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     print("🔄 Catalog sync completed - refreshing reorders search results for: '\(scannerSearchText)'")
+                    let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
+                    searchManager.performSearchWithDebounce(searchTerm: scannerSearchText, filters: filters)
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .imageUpdated)) { notification in
+                print("🔔 [ReordersView] Received .imageUpdated notification")
+                if let userInfo = notification.userInfo {
+                    print("🔔 [ReordersView] Image updated notification userInfo: \(userInfo)")
+                }
+                
+                // Refresh reorder items data when image is updated (for real-time image updates)
+                print("🔄 [ReordersView] Image updated - refreshing reorder items data")
+                Task {
+                    await refreshDynamicDataForReorderItems()
+                }
+                
+                // Also refresh search results if there's an active search
+                if !scannerSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    print("🔄 [ReordersView] Image updated - refreshing reorders search results for: '\(scannerSearchText)'")
+                    let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
+                    searchManager.performSearchWithDebounce(searchTerm: scannerSearchText, filters: filters)
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .forceImageRefresh)) { notification in
+                print("🔔 [ReordersView] Received .forceImageRefresh notification")
+                if let userInfo = notification.userInfo {
+                    print("🔔 [ReordersView] Force image refresh notification userInfo: \(userInfo)")
+                }
+                
+                // Force refresh of reorder items data when images need to be refreshed
+                print("🔄 [ReordersView] Force image refresh - refreshing reorder items data")
+                Task {
+                    await refreshDynamicDataForReorderItems()
+                }
+                
+                // Also refresh search results if there's an active search
+                if !scannerSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    print("🔄 [ReordersView] Force image refresh - refreshing reorders search results for: '\(scannerSearchText)'")
                     let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
                     searchManager.performSearchWithDebounce(searchTerm: scannerSearchText, filters: filters)
                 }
@@ -471,10 +516,173 @@ struct ReordersView: View {
            let items = try? JSONDecoder().decode([ReorderItem].self, from: data) {
             reorderItems = items
             print("📦 Loaded \(items.count) reorder items from storage")
+            
+            // DEBUG: Log image URLs
+            for item in items {
+                print("📸 [ReorderLoad] Item '\(item.name)' imageUrl: \(item.imageUrl ?? "nil")")
+            }
+            
+            // Refresh dynamic data from database for all items
+            Task {
+                await refreshDynamicDataForReorderItems()
+            }
         } else {
             reorderItems = []
             print("📦 No saved reorder items found")
         }
+    }
+    
+    /// Refresh ALL data from database - using pre-computed columns (efficient like SearchManager)
+    private func refreshDynamicDataForReorderItems() async {
+        let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
+        guard let db = databaseManager.getConnection() else {
+            print("❌ [ReorderRefresh] Database not connected")
+            return
+        }
+        
+        var updatedItems: [ReorderItem] = []
+        
+        for item in reorderItems {
+            do {
+                // Query catalog_items table directly to get pre-computed category names (same pattern as SearchManager)
+                let itemQuery = CatalogTableDefinitions.catalogItems
+                    .select(CatalogTableDefinitions.itemCategoryName,
+                           CatalogTableDefinitions.itemReportingCategoryName,
+                           CatalogTableDefinitions.itemDataJson)
+                    .filter(CatalogTableDefinitions.itemId == item.itemId)
+                    .filter(CatalogTableDefinitions.itemIsDeleted == false)
+                
+                guard let itemRow = try db.pluck(itemQuery) else {
+                    print("⚠️ [ReorderRefresh] Item not found in database: \(item.itemId)")
+                    updatedItems.append(item)
+                    continue
+                }
+                
+                // Get pre-computed category names (exact same logic as SearchManager)
+                let reportingCategoryName = try? itemRow.get(CatalogTableDefinitions.itemReportingCategoryName)
+                let regularCategoryName = try? itemRow.get(CatalogTableDefinitions.itemCategoryName)
+                let categoryName = reportingCategoryName ?? regularCategoryName
+                
+                let dataJson = try? itemRow.get(CatalogTableDefinitions.itemDataJson)
+                
+                // Get first variation data for price (same pattern as SearchManager)
+                let variationQuery = CatalogTableDefinitions.itemVariations
+                    .select(CatalogTableDefinitions.variationPriceAmount)
+                    .filter(CatalogTableDefinitions.variationItemId == item.itemId)
+                    .filter(CatalogTableDefinitions.variationIsDeleted == false)
+                    .limit(1)
+                
+                var price: Double? = nil
+                if let variationRow = try db.pluck(variationQuery) {
+                    let priceAmount = try? variationRow.get(CatalogTableDefinitions.variationPriceAmount)
+                    if let amount = priceAmount, amount > 0 {
+                        let convertedPrice = Double(amount) / 100.0
+                        if convertedPrice.isFinite && !convertedPrice.isNaN && convertedPrice > 0 {
+                            price = convertedPrice
+                        }
+                    }
+                }
+                
+                // Check if item has taxes (same logic as SearchManager)
+                let hasTax = checkItemHasTaxFromDataJson(dataJson)
+                
+                // Get primary image data (same pattern as SearchManager)
+                print("   - Getting image data for itemId: \(item.itemId)")
+                let images = getPrimaryImageForReorderItem(itemId: item.itemId)
+                print("   - Found \(images?.count ?? 0) images")
+                
+                // Update reorder item with fresh data
+                var updatedItem = item
+                updatedItem.price = price
+                if let categoryName = categoryName {
+                    updatedItem.categoryName = categoryName
+                }
+                updatedItem.hasTax = hasTax
+                
+                // Update image data - PRESERVE existing if no new data found
+                if let images = images, let firstImage = images.first {
+                    updatedItem.imageId = firstImage.id
+                    updatedItem.imageUrl = firstImage.imageData?.url
+                    print("   - Found fresh image data")
+                } else {
+                    // PRESERVE existing image data if refresh fails to find images
+                    print("   - No fresh image data found, preserving existing: imageId=\(item.imageId ?? "nil"), imageUrl=\(item.imageUrl ?? "nil")")
+                    // updatedItem already has item's existing imageId and imageUrl
+                }
+                
+                print("🔄 [ReorderRefresh] Updated ALL data for '\(item.name)'")
+                print("   - Price: \(updatedItem.price?.description ?? "nil")")
+                print("   - Category: \(updatedItem.categoryName ?? "nil")")
+                print("   - Image URL: \(updatedItem.imageUrl ?? "nil")")
+                print("   - Has Tax: \(updatedItem.hasTax)")
+                
+                updatedItems.append(updatedItem)
+                
+            } catch {
+                print("❌ [ReorderRefresh] Failed to refresh item \(item.itemId): \(error)")
+                updatedItems.append(item)
+            }
+        }
+        
+        await MainActor.run {
+            reorderItems = updatedItems
+            saveReorderData()
+            print("🔄 [ReorderRefresh] Refreshed ALL data for \(updatedItems.count) reorder items using pre-computed columns")
+        }
+    }
+    
+    // MARK: - Helper functions (same patterns as SearchManager)
+    
+    private func checkItemHasTaxFromDataJson(_ dataJson: String?) -> Bool {
+        guard let dataJson = dataJson,
+              let data = dataJson.data(using: .utf8) else {
+            return false
+        }
+        
+        do {
+            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let taxIds = json["tax_ids"] as? [String] {
+                return !taxIds.isEmpty
+            }
+        } catch {
+            print("❌ [ReorderRefresh] Failed to parse tax data: \(error)")
+        }
+        
+        return false
+    }
+    
+    private func getPrimaryImageForReorderItem(itemId: String) -> [CatalogImage]? {
+        print("🖼️ [ReorderRefresh] Getting images for item: \(itemId)")
+        let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
+        guard let db = databaseManager.getConnection() else {
+            print("🖼️ [ReorderRefresh] ❌ Database not connected")
+            return nil
+        }
+        
+        do {
+            // Get item's image_ids array from database (same approach as SearchManager)
+            let selectQuery = """
+            SELECT data_json FROM catalog_items 
+            WHERE id = ? AND is_deleted = 0
+            """
+            
+            for row in try db.prepare(selectQuery, itemId) {
+                guard let dataJson = row[0] as? String,
+                      let data = dataJson.data(using: .utf8) else {
+                    continue
+                }
+                
+                // Parse the CatalogObject to get images
+                let decoder = JSONDecoder()
+                let catalogObject = try decoder.decode(CatalogObject.self, from: data)
+                
+                return catalogObject.itemData?.images
+            }
+        } catch {
+            print("❌ [ReorderRefresh] Failed to get images for item \(itemId): \(error)")
+        }
+        
+        return nil
     }
 
     private func saveReorderData() {
@@ -864,7 +1072,7 @@ struct ReordersView: View {
 }
 
 // MARK: - Reorder Content View (Separated to fix compiler type-checking)
-struct ReorderContentView: View {
+struct ReorderContentView: SwiftUI.View {
     let reorderItems: [ReorderItem]
     let filteredItems: [ReorderItem]
     let organizedItems: [(String, [ReorderItem])]
@@ -873,12 +1081,12 @@ struct ReorderContentView: View {
     let purchasedItems: Int
     let totalQuantity: Int
 
-    @Binding var sortOption: ReorderSortOption
-    @Binding var filterOption: ReorderFilterOption
+    @SwiftUI.Binding var sortOption: ReorderSortOption
+    @SwiftUI.Binding var filterOption: ReorderFilterOption
 
-    @Binding var organizationOption: ReorderOrganizationOption
-    @Binding var displayMode: ReorderDisplayMode
-    @Binding var scannerSearchText: String
+    @SwiftUI.Binding var organizationOption: ReorderOrganizationOption
+    @SwiftUI.Binding var displayMode: ReorderDisplayMode
+    @SwiftUI.Binding var scannerSearchText: String
     @FocusState.Binding var isScannerFieldFocused: Bool
 
     let onManagementAction: (ManagementAction) -> Void
@@ -890,7 +1098,7 @@ struct ReorderContentView: View {
     let onImageLongPress: (ReorderItem) -> Void // NEW: For updating item images
     let onQuantityTap: (SearchResultItem) -> Void // NEW: For opening quantity modal
 
-    var body: some View {
+    var body: some SwiftUI.View {
         GeometryReader { geometry in
             ScrollViewReader { proxy in
                 ScrollView {
@@ -936,21 +1144,21 @@ struct ReorderContentView: View {
 }
 
 // MARK: - Reorder Header Section
-struct ReorderHeaderSection: View {
+struct ReorderHeaderSection: SwiftUI.View {
     let totalItems: Int
     let unpurchasedItems: Int
     let purchasedItems: Int
     let totalQuantity: Int
 
-    @Binding var sortOption: ReorderSortOption
-    @Binding var filterOption: ReorderFilterOption
+    @SwiftUI.Binding var sortOption: ReorderSortOption
+    @SwiftUI.Binding var filterOption: ReorderFilterOption
 
-    @Binding var organizationOption: ReorderOrganizationOption
-    @Binding var displayMode: ReorderDisplayMode
+    @SwiftUI.Binding var organizationOption: ReorderOrganizationOption
+    @SwiftUI.Binding var displayMode: ReorderDisplayMode
 
     let onManagementAction: (ManagementAction) -> Void
 
-    var body: some View {
+    var body: some SwiftUI.View {
         VStack(spacing: 0) {
             // Header with stats (will collapse on scroll)
             ReordersScrollableHeader(
@@ -977,7 +1185,7 @@ struct ReorderHeaderSection: View {
 // MARK: - Old ReorderBottomSearchField removed - replaced with custom BarcodeScannerField
 
 // MARK: - Reorder Items Content (Handles Organization and Display Modes)
-struct ReorderItemsContent: View {
+struct ReorderItemsContent: SwiftUI.View {
     let organizedItems: [(String, [ReorderItem])]
     let displayMode: ReorderDisplayMode
     let onStatusChange: (String, ReorderStatus) -> Void
@@ -987,7 +1195,7 @@ struct ReorderItemsContent: View {
     let onImageLongPress: (ReorderItem) -> Void // NEW: For updating item images
     let onQuantityTap: (SearchResultItem) -> Void // NEW: For opening quantity modal
 
-    var body: some View {
+    var body: some SwiftUI.View {
         LazyVStack(spacing: 0) {
             // ELEGANT SOLUTION: Manual rendering to avoid SwiftUI ForEach compiler bug
             if organizedItems.count == 1 {
@@ -1023,7 +1231,7 @@ struct ReorderItemsContent: View {
 
     // MARK: - Helper Functions
     @ViewBuilder
-    private func sectionHeader(title: String, itemCount: Int) -> some View {
+    private func sectionHeader(title: String, itemCount: Int) -> some SwiftUI.View {
         HStack {
             Text(title)
                 .font(.headline)
@@ -1040,7 +1248,7 @@ struct ReorderItemsContent: View {
     }
 
     @ViewBuilder
-    private func renderItemsSection(items: [ReorderItem], displayMode: ReorderDisplayMode) -> some View {
+    private func renderItemsSection(items: [ReorderItem], displayMode: ReorderDisplayMode) -> some SwiftUI.View {
         switch displayMode {
         case .list:
             ForEach(items) { item in

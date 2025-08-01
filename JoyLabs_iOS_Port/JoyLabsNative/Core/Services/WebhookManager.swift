@@ -13,8 +13,8 @@ class WebhookManager: ObservableObject {
     // MARK: - Dependencies
     private let webhookService: WebhookService
     private let webhookValidator: WebhookSignatureValidator
-    private let unifiedImageService: UnifiedImageService
-    private let imageCacheService: ImageCacheService
+    private let simpleImageService: SimpleImageService
+    // SimpleImageView uses native URLCache - no custom service needed
     private let logger = Logger(subsystem: "com.joylabs.native", category: "WebhookManager")
     
     // MARK: - Published Properties
@@ -30,8 +30,7 @@ class WebhookManager: ObservableObject {
     private init() {
         self.webhookService = WebhookService.shared
         self.webhookValidator = WebhookSignatureValidator()
-        self.unifiedImageService = UnifiedImageService.shared
-        self.imageCacheService = ImageCacheService.shared
+        self.simpleImageService = SimpleImageService.shared
         
         setupWebhookObservers()
         logger.info("[WebhookManager] WebhookManager initialized and ready")

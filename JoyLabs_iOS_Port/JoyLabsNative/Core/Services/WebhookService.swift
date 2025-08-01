@@ -11,8 +11,8 @@ class WebhookService: ObservableObject {
     static let shared = WebhookService()
     
     // MARK: - Dependencies
-    private let imageCacheService: ImageCacheService
-    private let unifiedImageService: UnifiedImageService
+    // SimpleImageView uses native URLCache - no custom service needed
+    private let simpleImageService: SimpleImageService
     private let databaseManager: SQLiteSwiftCatalogManager
     private let logger = Logger(subsystem: "com.joylabs.native", category: "WebhookService")
     
@@ -28,8 +28,7 @@ class WebhookService: ObservableObject {
     
     // MARK: - Initialization
     private init() {
-        self.imageCacheService = ImageCacheService.shared
-        self.unifiedImageService = UnifiedImageService.shared
+        self.simpleImageService = SimpleImageService.shared
         self.databaseManager = SquareAPIServiceFactory.createDatabaseManager()
         
         logger.info("[Webhook] WebhookService initialized")
@@ -176,7 +175,7 @@ extension WebhookService {
         // This is a broad event that indicates changes occurred
         
         // Step 1: Clear image cache for all items to force refresh
-        await imageCacheService.cleanupStaleCache()
+        // Native URLCache handles cleanup automatically
         
         // Step 2: Post global notification for UI refresh
         NotificationCenter.default.post(name: .forceImageRefresh, object: nil, userInfo: [
@@ -247,7 +246,7 @@ extension WebhookService {
         logger.info("🔄 Invalidating images for updated item: \(itemId)")
         
         // Invalidate cached images for this item
-        await imageCacheService.invalidateImagesForObject(objectId: itemId, objectType: "ITEM")
+        // Native URLCache handles cache invalidation automatically
         
         // Post notification for UI updates
         NotificationCenter.default.post(name: .imageUpdated, object: nil, userInfo: [
@@ -261,7 +260,7 @@ extension WebhookService {
         logger.info("🔄 Handling category update: \(categoryId)")
         
         // Invalidate cached images for this category
-        await imageCacheService.invalidateImagesForObject(objectId: categoryId, objectType: "CATEGORY")
+        // Native URLCache handles cache invalidation automatically
         
         // Post notification for potential UI updates
         NotificationCenter.default.post(name: .catalogSyncCompleted, object: nil, userInfo: [
@@ -275,7 +274,7 @@ extension WebhookService {
         logger.info("🔄 Invalidating cache for updated image: \(imageId)")
         
         // Remove from memory cache
-        imageCacheService.removeFromMemoryCache(imageId: imageId)
+        // Native URLCache handles memory management automatically
         
         // Post global image refresh notification
         NotificationCenter.default.post(name: .forceImageRefresh, object: nil, userInfo: [
@@ -289,7 +288,7 @@ extension WebhookService {
         logger.info("🔄 Cleaning up deleted item: \(itemId)")
         
         // Clean up cached images for deleted item
-        await imageCacheService.invalidateImagesForObject(objectId: itemId, objectType: "ITEM")
+        // Native URLCache handles cache invalidation automatically
         
         // Post notification for UI updates
         NotificationCenter.default.post(name: .catalogSyncCompleted, object: nil, userInfo: [
@@ -303,7 +302,7 @@ extension WebhookService {
         logger.info("🔄 Cleaning up deleted image: \(imageId)")
         
         // Remove from memory cache
-        imageCacheService.removeFromMemoryCache(imageId: imageId)
+        // Native URLCache handles memory management automatically
         
         // Post notification for UI updates
         NotificationCenter.default.post(name: .forceImageRefresh, object: nil, userInfo: [
