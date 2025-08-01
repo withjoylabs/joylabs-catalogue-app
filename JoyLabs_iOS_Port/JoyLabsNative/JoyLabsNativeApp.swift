@@ -30,10 +30,14 @@ struct JoyLabsNativeApp: App {
         logger.info("[App] Phase 1: Initializing critical services synchronously...")
         
         // Configure URLCache with generous limits for large catalogs (100,000+ items)
+        // Use absolute path in Documents directory to persist cache between app builds
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let imageCachePath = documentsPath.appendingPathComponent("image_cache").path
+        
         URLCache.shared = URLCache(
             memoryCapacity: 250 * 1024 * 1024,    // 250MB memory cache (~2,500 images)
             diskCapacity: 4 * 1024 * 1024 * 1024, // 4GB disk cache (~40,000 images)
-            diskPath: "image_cache"
+            diskPath: imageCachePath
         )
         logger.info("[App] Phase 1: URLCache configured with 250MB memory, 4GB disk for large catalog support")
         
