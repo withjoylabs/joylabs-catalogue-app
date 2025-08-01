@@ -62,7 +62,7 @@ class ToastNotificationService: ObservableObject {
         dismissTimer?.invalidate()
         dismissTimer = nil
         
-        withAnimation(.easeOut(duration: 0.3)) {
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.9, blendDuration: 0.1)) {
             isShowing = false
         }
         
@@ -81,8 +81,8 @@ class ToastNotificationService: ObservableObject {
         // Set new toast
         currentToast = toast
         
-        // Show with animation
-        withAnimation(.easeIn(duration: 0.3)) {
+        // Show with smooth spring animation
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0.1)) {
             isShowing = true
         }
         
@@ -230,14 +230,17 @@ struct ToastContainerModifier: ViewModifier {
                             ToastView(toast: toast) {
                                 toastService.dismiss()
                             }
-                            .transition(.move(edge: .trailing).combined(with: .opacity))
+                            .transition(.asymmetric(
+                                insertion: .move(edge: .trailing).combined(with: .opacity).combined(with: .scale(scale: 0.8)),
+                                removal: .move(edge: .trailing).combined(with: .opacity).combined(with: .scale(scale: 0.9))
+                            ))
                             .zIndex(1000)
                         }
                         .padding(.horizontal, 16)
                         .padding(.bottom, 120) // Position above bottom search bar (estimated height + padding)
                     }
                 }
-                .animation(.spring(response: 0.4, dampingFraction: 0.85), value: toastService.isShowing)
+                .animation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0.1), value: toastService.isShowing)
             )
     }
 }
