@@ -7,52 +7,49 @@ struct LabelsView: View {
     @State private var selectedTemplate: LabelTemplate?
 
     var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Header
-                    LabelsHeader(onNewLabel: { showingTemplateSelector = true })
+        ScrollView {
+            VStack(spacing: 24) {
+                // Header
+                LabelsHeader(onNewLabel: { showingTemplateSelector = true })
 
-                    // Quick Actions
-                    QuickActionsSection(
-                        onScanAndPrint: { scanAndPrint() },
-                        onDesignLabel: { showingTemplateSelector = true },
-                        onPrintHistory: { showPrintHistory() }
-                    )
-
-                    // Recent Labels
-                    if !recentLabels.isEmpty {
-                        RecentLabelsSection(
-                            recentLabels: recentLabels,
-                            onReprintLabel: reprintLabel,
-                            onEditLabel: editLabel
-                        )
-                    }
-
-                    // Label Templates
-                    LabelTemplatesSection(
-                        templates: labelTemplates,
-                        onSelectTemplate: selectTemplate
-                    )
-
-                    Spacer(minLength: 100)
-                }
-                .padding(.horizontal, 20)
-            }
-            .navigationBarHidden(true)
-            .onAppear {
-                loadMockData()
-            }
-            .sheet(isPresented: $showingTemplateSelector) {
-                TemplateSelectionSheet(
-                    templates: labelTemplates,
-                    onSelectTemplate: { template in
-                        selectedTemplate = template
-                        showingTemplateSelector = false
-                        openLabelDesigner(with: template)
-                    }
+                // Quick Actions
+                QuickActionsSection(
+                    onScanAndPrint: { scanAndPrint() },
+                    onDesignLabel: { showingTemplateSelector = true },
+                    onPrintHistory: { showPrintHistory() }
                 )
+
+                // Recent Labels
+                if !recentLabels.isEmpty {
+                    RecentLabelsSection(
+                        recentLabels: recentLabels,
+                        onReprintLabel: reprintLabel,
+                        onEditLabel: editLabel
+                    )
+                }
+
+                // Label Templates
+                LabelTemplatesSection(
+                    templates: labelTemplates,
+                    onSelectTemplate: selectTemplate
+                )
+
+                Spacer(minLength: 100)
             }
+            .padding(.horizontal, 20)
+        }
+        .onAppear {
+            loadMockData()
+        }
+        .sheet(isPresented: $showingTemplateSelector) {
+            TemplateSelectionSheet(
+                templates: labelTemplates,
+                onSelectTemplate: { template in
+                    selectedTemplate = template
+                    showingTemplateSelector = false
+                    openLabelDesigner(with: template)
+                }
+            )
         }
     }
 

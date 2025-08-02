@@ -33,15 +33,26 @@ class ReorderBadgeManager: ObservableObject {
     }
 }
 
+
 struct ContentView: View {
     @StateObject private var reorderBadgeManager = ReorderBadgeManager()
     @State private var showingItemDetails = false
     @State private var selectedTab = 0
+    
+    // iPad detection
+    private var isIPad: Bool {
+        UIDevice.current.userInterfaceIdiom == .pad
+    }
+    
+    // Capture the original size class for child views
+    @Environment(\.horizontalSizeClass) var originalSizeClass
 
     var body: some View {
         ZStack {
             TabView(selection: $selectedTab) {
+                // Preserve original size class for child views while forcing TabView to use compact layout
                 ScanView()
+                    .environment(\.horizontalSizeClass, originalSizeClass)
                     .tabItem {
                         Image(systemName: "barcode")
                         Text("Scan")
@@ -49,6 +60,7 @@ struct ContentView: View {
                     .tag(0)
 
                 ReordersView()
+                    .environment(\.horizontalSizeClass, originalSizeClass)
                     .tabItem {
                         Image(systemName: "receipt")
                         Text("Reorders")
@@ -56,16 +68,20 @@ struct ContentView: View {
                     .badge(reorderBadgeManager.unpurchasedCount > 0 ? "\(reorderBadgeManager.unpurchasedCount)" : nil)
                     .tag(1)
 
-                // Empty placeholder to create space for FAB
-                Color.clear
+                // Empty placeholder to create space for FAB - completely transparent and non-interactive
+                Rectangle()
+                    .fill(Color.clear)
+                    .allowsHitTesting(false) // Make completely non-interactive
                     .tabItem {
-                        Image(systemName: "circle")
-                            .opacity(0) // Make invisible but valid
+                        Image(systemName: "")
+                            .opacity(0)
                         Text("")
                     }
                     .tag(2)
+                    .disabled(true) // Disable interaction entirely
 
                 LabelsView()
+                    .environment(\.horizontalSizeClass, originalSizeClass)
                     .tabItem {
                         Image(systemName: "tag")
                         Text("Labels")
@@ -73,6 +89,7 @@ struct ContentView: View {
                     .tag(3)
 
                 ProfileView()
+                    .environment(\.horizontalSizeClass, originalSizeClass)
                     .tabItem {
                         Image(systemName: "person")
                         Text("Profile")
@@ -80,23 +97,36 @@ struct ContentView: View {
                     .tag(4)
             }
             .accentColor(.blue)
+            .environment(\.horizontalSizeClass, .compact) // Force compact size class for TabView to show at bottom on iPad
 
-            // FAB positioned exactly where center tab would be - ignores keyboard
+            // FAB positioned exactly at tab bar level
             VStack {
                 Spacer()
-                Button(action: {
-                    showingItemDetails = true
-                }) {
-                    VStack(spacing: 2) {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.system(size: 25, weight: .medium))
-                            .foregroundColor(.gray)
-                        Text("Create")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(.gray)
+                HStack {
+                    Spacer()
+                    Spacer() // First tab
+                    Spacer() // Second tab
+                    
+                    // FAB button - same style as other tab icons
+                    Button(action: {
+                        showingItemDetails = true
+                    }) {
+                        VStack(spacing: 2) {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 25, weight: .regular))
+                                .foregroundColor(.primary)
+                            Text("Create")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.primary)
+                        }
                     }
+                    .buttonStyle(PlainButtonStyle())
+                    
+                    Spacer() // Fourth tab
+                    Spacer() // Fifth tab
+                    Spacer()
                 }
-                .padding(.bottom, 1) // Move down to actual tab bar level
+                .padding(.bottom, 2) // Match tab bar icon level exactly
             }
             .ignoresSafeArea(.keyboard, edges: .all)
         }
@@ -118,7 +148,6 @@ struct ContentView: View {
         }
     }
 }
-
 
 
 #Preview {

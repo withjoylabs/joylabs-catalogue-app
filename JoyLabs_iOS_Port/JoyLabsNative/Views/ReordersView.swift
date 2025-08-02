@@ -219,6 +219,11 @@ struct ReordersView: SwiftUI.View {
     // View organization and display options
     @State private var organizationOption: ReorderOrganizationOption = .none
     @State private var displayMode: ReorderDisplayMode = .list
+    
+    // Force list mode on iPad
+    private var isIPad: Bool {
+        UIDevice.current.userInterfaceIdiom == .pad
+    }
 
     // Image enlargement
     @State private var selectedItemForEnlargement: ReorderItem?
@@ -460,6 +465,7 @@ struct ReordersView: SwiftUI.View {
             }
 
         }
+        .navigationViewStyle(StackNavigationViewStyle())
         // Quantity Selection Modal (INDUSTRY STANDARD SOLUTION)
         .sheet(isPresented: $modalStateManager.showingQuantityModal, onDismiss: handleQuantityModalDismiss) {
             if let item = modalStateManager.selectedItemForQuantity {
@@ -474,7 +480,41 @@ struct ReordersView: SwiftUI.View {
                         currentModalQuantity = newQuantity
                     }
                 )
-                .presentationDetents([.fraction(0.75)])
+                .presentationDetents({
+                    if isIPad {
+                        // Calculate responsive height based on actual content needs
+                        let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene
+                        let screenHeight = scene?.screen.bounds.height ?? 1024
+                        let screenWidth = scene?.screen.bounds.width ?? 768
+                        let isLandscape = scene?.interfaceOrientation.isLandscape ?? false
+                        
+                        // Calculate content height needed:
+                        // - Navigation bar: ~50pt
+                        // - Image section: 70% of width * 0.7 aspect ratio + spacing
+                        // - Item details: ~80pt (name + details)
+                        // - Quantity header: ~50pt
+                        // - Numpad: 4 rows * 44pt + 3 * 8pt spacing = 200pt
+                        // - Padding and spacing: ~60pt
+                        // - Bottom safe area: ~40pt
+                        
+                        let imageSize = screenWidth * 0.7 * 0.7  // Width * aspect ratio
+                        let contentHeight = 50 + imageSize + 80 + 50 + 200 + 60 + 40
+                        
+                        // Use fraction that ensures content fits but doesn't exceed reasonable limits
+                        let requiredFraction = min(contentHeight / screenHeight, 0.95)
+                        
+                        if isLandscape {
+                            // Landscape needs more height relative to screen
+                            return [.fraction(max(requiredFraction, 0.8)), .large]
+                        } else {
+                            // Portrait can use calculated fraction
+                            return [.fraction(max(requiredFraction, 0.7))]
+                        }
+                    } else {
+                        // iPhone default (unchanged)
+                        return [.fraction(0.75)]
+                    }
+                }())
                 .presentationDragIndicator(.visible)
                 .onAppear {
                     print("🚨 DEBUG: Sheet presentation triggered! Using StateObject item: \(item.name ?? "Unknown")")
@@ -1336,7 +1376,10 @@ struct ReorderItemsContent: SwiftUI.View {
             }
 
         case .photosMedium, .photosSmall:
-            let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: displayMode.columnsPerRow)
+            // Force single column on iPad
+            let isIPad = UIDevice.current.userInterfaceIdiom == .pad
+            let columnCount = isIPad ? 1 : displayMode.columnsPerRow
+            let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: columnCount)
             LazyVGrid(columns: columns, spacing: 8) {
                 ForEach(items) { item in
                     ReorderPhotoCard(
