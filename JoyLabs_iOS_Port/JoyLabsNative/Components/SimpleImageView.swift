@@ -1,15 +1,26 @@
 import SwiftUI
 import OSLog
 
-/// Industry-standard image view using native AsyncImage
-/// Replaces the complex UnifiedImageView with simple, robust implementation
+/// Industry-standard image view with proper URLCache utilization
+/// Uses custom URLSession to ensure aggressive caching for instant repeated loads
 struct SimpleImageView: View {
     let imageURL: String?
     let size: CGFloat
     let placeholder: String
     let contentMode: ContentMode
     
+    @State private var image: UIImage?
+    @State private var isLoading = false
+    
     private let logger = Logger(subsystem: "com.joylabs.native", category: "SimpleImageView")
+    
+    // Custom URLSession with aggressive caching
+    private static let cachedSession: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.urlCache = URLCache.shared
+        config.requestCachePolicy = .returnCacheDataElseLoad
+        return URLSession(configuration: config)
+    }()
     
     init(
         imageURL: String?,
@@ -24,24 +35,50 @@ struct SimpleImageView: View {
     }
     
     var body: some View {
-        AsyncImage(url: URL(string: imageURL ?? "")) { phase in
-            switch phase {
-            case .success(let image):
-                image
+        Group {
+            if let image = image {
+                Image(uiImage: image)
                     .resizable()
                     .aspectRatio(contentMode: contentMode)
-            case .failure(_):
-                Image(systemName: "photo.badge.exclamationmark")
-                    .foregroundColor(.red)
-            case .empty:
-                Image(systemName: placeholder)
-                    .foregroundColor(.gray)
-            @unknown default:
+            } else if isLoading {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle())
+                    .scaleEffect(0.8)
+            } else {
                 Image(systemName: placeholder)
                     .foregroundColor(.gray)
             }
         }
         .frame(width: size, height: size)
+        .onAppear {
+            loadImage()
+        }
+        .onChange(of: imageURL) { _, _ in
+            image = nil
+            isLoading = false
+            loadImage()
+        }
+    }
+    
+    private func loadImage() {
+        guard let urlString = imageURL,
+              !urlString.isEmpty,
+              let url = URL(string: urlString),
+              image == nil, !isLoading else { return }
+        
+        isLoading = true
+        
+        var request = URLRequest(url: url)
+        request.cachePolicy = .returnCacheDataElseLoad
+        
+        Self.cachedSession.dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                isLoading = false
+                if let data = data, let uiImage = UIImage(data: data) {
+                    image = uiImage
+                }
+            }
+        }.resume()
     }
 }
 

@@ -84,10 +84,10 @@ struct ItemImageSection: View {
                 onImageUploaded: { result in
                     print("🔄 [ItemModal] Image upload completed, updating view model")
                     print("🔄 [ItemModal] New image ID: \(result.squareImageId)")
-                    print("🔄 [ItemModal] New cache URL: \(result.localCacheUrl)")
+                    print("🔄 [ItemModal] New AWS URL: \(result.awsUrl)")
 
-                    // Update the view model with the new image
-                    viewModel.itemData.imageURL = result.localCacheUrl
+                    // Update the view model with the new image (use AWS URL for proper URLCache)
+                    viewModel.itemData.imageURL = result.awsUrl
                     viewModel.itemData.imageId = result.squareImageId
                     showingImagePicker = false
 

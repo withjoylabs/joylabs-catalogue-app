@@ -339,9 +339,9 @@ struct ImageMapping {
     let createdAt: Date
     let lastAccessedAt: Date
     
-    /// Get the local cache URL for this mapping
-    var localCacheUrl: String {
-        return "cache://\(localCacheKey)"
+    /// Get the AWS URL for AsyncImage (URLCache handles caching automatically)
+    var displayUrl: String {
+        return originalAwsUrl
     }
     
     /// Check if this is the primary image

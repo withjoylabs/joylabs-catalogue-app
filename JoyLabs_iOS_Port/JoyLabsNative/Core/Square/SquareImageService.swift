@@ -338,8 +338,6 @@ extension SquareImageService {
 
         // Force refresh in all UI components by posting notifications
         await MainActor.run {
-            let cacheURL = "cache://\(newImageId).jpeg"
-
             logger.info("📡 Posting forceImageRefresh notification for item: \(itemId)")
             // Post forceImageRefresh for image-level updates
             NotificationCenter.default.post(name: .forceImageRefresh, object: nil, userInfo: [
@@ -353,7 +351,6 @@ extension SquareImageService {
             NotificationCenter.default.post(name: .imageUpdated, object: nil, userInfo: [
                 "itemId": itemId,
                 "imageId": newImageId,
-                "imageURL": cacheURL,
                 "action": "uploaded"
             ])
         }
