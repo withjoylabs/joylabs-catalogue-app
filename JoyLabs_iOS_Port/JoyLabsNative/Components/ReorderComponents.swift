@@ -583,14 +583,15 @@ struct ReorderPhotoCard: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            // Image (tappable for enlargement, long-press for update)
+            // 1:1 aspect ratio image (tappable for enlargement, long-press for update)
             Button(action: onImageTap) {
                 SimpleImageView(
                     imageURL: item.imageUrl,
                     size: imageSize,
-                    contentMode: .fit
+                    contentMode: .fill
                 )
                 .frame(width: imageSize, height: imageSize)
+                .clipped()
                 .background(Color(.systemGray6))
                 .cornerRadius(8)
             }
@@ -599,83 +600,108 @@ struct ReorderPhotoCard: View {
                 onImageLongPress?()
             }
 
-            // Details (if enabled for this display mode)
-            if displayMode.showDetails {
-                VStack(spacing: 4) {
-                    // Item name
-                    Text(item.name)
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(2)
+            // Item details underneath
+            VStack(spacing: itemDetailSpacing) {
+                // Item name (always shown)
+                Text(item.name)
+                    .font(itemNameFont)
+                    .fontWeight(.medium)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(itemNameLineLimit)
+                    .foregroundColor(.primary)
 
-                    // Category and price
+                // Category (always shown)
+                if let category = item.categoryName, !category.isEmpty {
+                    Text(category)
+                        .font(categoryFont)
+                        .foregroundColor(Color.secondary)
+                        .lineLimit(1)
+                        .multilineTextAlignment(.center)
+                }
+
+                // Additional details based on display mode
+                if showAllDetails {
+                    // UPC/Barcode
+                    if let barcode = item.barcode, !barcode.isEmpty {
+                        Text(barcode)
+                            .font(detailFont)
+                            .foregroundColor(Color.secondary)
+                            .lineLimit(1)
+                    }
+
+                    // Price
+                    if let price = item.price {
+                        Text(String(format: "$%.2f", price))
+                            .font(detailFont)
+                            .fontWeight(.medium)
+                            .foregroundColor(.primary)
+                    }
+
+                    // Quantity
+                    HStack(spacing: 4) {
+                        Text("Qty:")
+                            .font(detailFont)
+                            .foregroundColor(Color.secondary)
+                        Text("\(item.quantity)")
+                            .font(detailFont)
+                            .fontWeight(.medium)
+                            .foregroundColor(.primary)
+                    }
+                } else if displayMode == .photosSmall {
+                    // Small photos only show item name and category (already shown above)
+                    // No additional details
+                } else {
+                    // Medium photos show compact details
                     HStack {
-                        if let category = item.categoryName {
-                            Text(category)
-                                .font(.caption2)
+                        // UPC
+                        if let barcode = item.barcode, !barcode.isEmpty {
+                            Text(barcode)
+                                .font(detailFont)
                                 .foregroundColor(Color.secondary)
                                 .lineLimit(1)
                         }
-
+                        
                         Spacer()
-
+                        
+                        // Price
                         if let price = item.price {
                             Text(String(format: "$%.2f", price))
-                                .font(.caption2)
+                                .font(detailFont)
                                 .fontWeight(.medium)
                                 .foregroundColor(.primary)
                         }
                     }
-
-                    // Status and quantity
+                    
+                    // Quantity row
                     HStack {
-                        // Radio button
-                        Button(action: {
-                            withAnimation(.easeInOut(duration: 0.1)) {
-                                toggleStatus()
-                            }
-                        }) {
-                            Image(systemName: item.status == .added ? "circle" : "checkmark.circle.fill")
-                                .font(.system(size: 16))
-                                .foregroundColor(item.status == .added ? Color(.systemGray3) : .blue)
-                        }
-                        .buttonStyle(PlainButtonStyle())
-
-                        Spacer()
-
-                        // Quantity
                         Text("Qty: \(item.quantity)")
-                            .font(.caption2)
+                            .font(detailFont)
                             .foregroundColor(Color.secondary)
+                        
+                        Spacer()
                     }
                 }
-                .padding(.horizontal, 4)
             }
+            .padding(.horizontal, 4)
         }
         .background(Color(.systemBackground))
         .cornerRadius(8)
         .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
         .offset(x: offset)
         .gesture(
-            DragGesture(minimumDistance: 20) // Require minimum distance before activating
+            DragGesture(minimumDistance: 20)
                 .onChanged { value in
                     let horizontalTranslation = value.translation.width
                     let verticalTranslation = value.translation.height
                     
-                    // STRICT HORIZONTAL GESTURE DETECTION:
-                    // Only activate if horizontal movement is significantly greater than vertical
-                    // AND we've moved a minimum distance horizontally
-                    let isHorizontalGesture = abs(horizontalTranslation) > abs(verticalTranslation) * 2.5 // Much stricter ratio
-                    let hasMinimumHorizontalMovement = abs(horizontalTranslation) > 30 // Minimum movement required
+                    let isHorizontalGesture = abs(horizontalTranslation) > abs(verticalTranslation) * 2.5
+                    let hasMinimumHorizontalMovement = abs(horizontalTranslation) > 30
                     
                     if isHorizontalGesture && hasMinimumHorizontalMovement {
                         if horizontalTranslation > 0 {
-                            // Swipe right - reveal received (but only after threshold)
-                            offset = min(horizontalTranslation - 30, 80) // Subtract threshold
+                            offset = min(horizontalTranslation - 30, 80)
                         } else {
-                            // Swipe left - reveal delete (but only after threshold)
-                            offset = max(horizontalTranslation + 30, -80) // Add threshold
+                            offset = max(horizontalTranslation + 30, -80)
                         }
                     }
                 }
@@ -684,26 +710,22 @@ struct ReorderPhotoCard: View {
                     let verticalTranslation = value.translation.height
                     let velocity = value.velocity.width
                     
-                    // Only consider it a swipe gesture if it was predominantly horizontal
                     let isHorizontalGesture = abs(horizontalTranslation) > abs(verticalTranslation) * 2.5
                     let hasSignificantMovement = abs(horizontalTranslation) > 60 || abs(velocity) > 800
                     
                     if isHorizontalGesture && hasSignificantMovement {
                         if horizontalTranslation > 0 {
-                            // Complete received action
                             onStatusChange(.received)
                             withAnimation(.easeOut(duration: 0.2)) {
                                 offset = 0
                             }
                         } else {
-                            // Complete delete action
                             onRemove()
                             withAnimation(.easeOut(duration: 0.2)) {
                                 offset = 0
                             }
                         }
                     } else {
-                        // Snap back - this was probably a scroll gesture
                         withAnimation(.easeOut(duration: 0.2)) {
                             offset = 0
                         }
@@ -712,28 +734,100 @@ struct ReorderPhotoCard: View {
         )
     }
 
+    // Dynamic sizing and layout based on display mode
     private var imageSize: CGFloat {
         switch displayMode {
         case .list:
             return 50
         case .photosLarge:
-            return 120
+            // Large photos: 1 per row, generous size
+            return 180
         case .photosMedium:
-            return 100
+            // Medium photos: 2 per row, moderate size
+            return 120
         case .photosSmall:
+            // Small photos: 3 per row, compact size
             return 80
         }
     }
+    
+    private var itemNameFont: Font {
+        switch displayMode {
+        case .list:
+            return .caption
+        case .photosLarge:
+            return .body
+        case .photosMedium:
+            return .callout
+        case .photosSmall:
+            return .caption
+        }
+    }
+    
+    private var categoryFont: Font {
+        switch displayMode {
+        case .list:
+            return .caption2
+        case .photosLarge:
+            return .callout
+        case .photosMedium:
+            return .caption
+        case .photosSmall:
+            return .caption2
+        }
+    }
+    
+    private var detailFont: Font {
+        switch displayMode {
+        case .list:
+            return .caption2
+        case .photosLarge:
+            return .caption
+        case .photosMedium:
+            return .caption2
+        case .photosSmall:
+            return .caption2
+        }
+    }
+    
+    private var itemDetailSpacing: CGFloat {
+        switch displayMode {
+        case .list:
+            return 2
+        case .photosLarge:
+            return 6
+        case .photosMedium:
+            return 4
+        case .photosSmall:
+            return 3
+        }
+    }
+    
+    private var itemNameLineLimit: Int {
+        switch displayMode {
+        case .list:
+            return 2
+        case .photosLarge:
+            return 3
+        case .photosMedium:
+            return 2
+        case .photosSmall:
+            return 2
+        }
+    }
+    
+    private var showAllDetails: Bool {
+        displayMode == .photosLarge
+    }
 
     private func toggleStatus() {
-        // Only toggle between added and purchased
         switch item.status {
         case .added:
             onStatusChange(.purchased)
         case .purchased:
             onStatusChange(.added)
         case .received:
-            onStatusChange(.added) // Fallback
+            onStatusChange(.added)
         }
     }
 }

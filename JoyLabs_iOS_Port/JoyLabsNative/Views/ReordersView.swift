@@ -1352,33 +1352,9 @@ struct ReorderItemsContent: SwiftUI.View {
                 )
             }
 
-        case .photosLarge:
-            ForEach(items) { item in
-                ReorderPhotoCard(
-                    item: item,
-                    displayMode: displayMode,
-                    onStatusChange: { newStatus in
-                        onStatusChange(item.id, newStatus)
-                    },
-                    onQuantityChange: { newQuantity in
-                        onQuantityChange(item.id, newQuantity)
-                    },
-                    onRemove: {
-                        onRemoveItem(item.id)
-                    },
-                    onImageTap: {
-                        onImageTap(item)
-                    },
-                    onImageLongPress: {
-                        onImageLongPress(item)
-                    }
-                )
-            }
-
-        case .photosMedium, .photosSmall:
-            // Force single column on iPad
-            let isIPad = UIDevice.current.userInterfaceIdiom == .pad
-            let columnCount = isIPad ? 1 : displayMode.columnsPerRow
+        case .photosLarge, .photosMedium, .photosSmall:
+            // Use proper column count for each display mode
+            let columnCount = displayMode.columnsPerRow
             let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: columnCount)
             LazyVGrid(columns: columns, spacing: 8) {
                 ForEach(items) { item in

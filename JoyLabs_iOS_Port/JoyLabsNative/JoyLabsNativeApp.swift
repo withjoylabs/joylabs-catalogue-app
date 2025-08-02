@@ -32,14 +32,22 @@ struct JoyLabsNativeApp: App {
         // Configure URLCache with generous limits for large catalogs (100,000+ items)
         // Use absolute path in Documents directory to persist cache between app builds
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-        let imageCachePath = documentsPath.appendingPathComponent("image_cache").path
+        let imageCacheURL = documentsPath.appendingPathComponent("image_cache")
+        
+        // Create cache directory if it doesn't exist
+        do {
+            try FileManager.default.createDirectory(at: imageCacheURL, withIntermediateDirectories: true, attributes: nil)
+            logger.info("[App] Phase 1: Cache directory created/verified at: \(imageCacheURL.path)")
+        } catch {
+            logger.error("[App] Phase 1: Failed to create cache directory: \(error)")
+        }
         
         URLCache.shared = URLCache(
             memoryCapacity: 250 * 1024 * 1024,    // 250MB memory cache (~2,500 images)
             diskCapacity: 4 * 1024 * 1024 * 1024, // 4GB disk cache (~40,000 images)
-            diskPath: imageCachePath
+            directory: imageCacheURL  // Use directory URL instead of diskPath string
         )
-        logger.info("[App] Phase 1: URLCache configured with 250MB memory, 4GB disk for large catalog support")
+        logger.info("[App] Phase 1: URLCache configured with 250MB memory, 4GB disk at: \(imageCacheURL.path)")
         
         // SimpleImageView uses native URLCache - no session cache clearing needed
         

@@ -72,16 +72,12 @@ actor SquareHTTPClient {
         self.resilienceService = resilienceService ?? BasicResilienceService()
         self.configuration = configuration
         
-        // Configure URLSession with timeouts and caching
+        // Configure URLSession with timeouts - use shared URLCache for consistency
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = configuration.requestTimeout
         config.timeoutIntervalForResource = configuration.requestTimeout * 2
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
-        config.urlCache = URLCache(
-            memoryCapacity: 10 * 1024 * 1024, // 10MB memory cache
-            diskCapacity: 50 * 1024 * 1024,   // 50MB disk cache
-            diskPath: "square_api_cache"
-        )
+        config.urlCache = URLCache.shared  // Use shared cache configured in JoyLabsNativeApp
         
         self.session = URLSession(configuration: config)
         
