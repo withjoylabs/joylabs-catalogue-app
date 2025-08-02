@@ -583,17 +583,21 @@ struct ReorderPhotoCard: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            // 1:1 aspect ratio image (tappable for enlargement, long-press for update)
+            // Responsive 1:1 aspect ratio image that fills available column width
             Button(action: onImageTap) {
-                SimpleImageView(
-                    imageURL: item.imageUrl,
-                    size: imageSize,
-                    contentMode: .fill
-                )
-                .frame(width: imageSize, height: imageSize)
-                .clipped()
-                .background(Color(.systemGray6))
-                .cornerRadius(8)
+                GeometryReader { geometry in
+                    let imageSize = geometry.size.width
+                    SimpleImageView(
+                        imageURL: item.imageUrl,
+                        size: imageSize,
+                        contentMode: .fill
+                    )
+                    .frame(width: imageSize, height: imageSize) // Perfect 1:1 square
+                    .clipped()
+                    .background(Color(.systemGray6))
+                    .cornerRadius(8)
+                }
+                .aspectRatio(1, contentMode: .fit) // Maintain 1:1 aspect ratio at container level
             }
             .buttonStyle(PlainButtonStyle())
             .onLongPressGesture {
@@ -734,22 +738,7 @@ struct ReorderPhotoCard: View {
         )
     }
 
-    // Dynamic sizing and layout based on display mode
-    private var imageSize: CGFloat {
-        switch displayMode {
-        case .list:
-            return 50
-        case .photosLarge:
-            // Large photos: 1 per row, generous size
-            return 180
-        case .photosMedium:
-            // Medium photos: 2 per row, moderate size
-            return 120
-        case .photosSmall:
-            // Small photos: 3 per row, compact size
-            return 80
-        }
-    }
+    // Images now use responsive sizing based on available column width
     
     private var itemNameFont: Font {
         switch displayMode {
