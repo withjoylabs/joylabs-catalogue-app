@@ -930,44 +930,98 @@ struct SwipeableReorderCard: View {
     let onItemDetailsLongPress: () -> Void
 
     @State private var offset: CGFloat = 0
+    @State private var showingItemDetails = false
+    @State private var isDragging = false
+    
+    // Standard card height to ensure buttons match exactly
+    private let cardHeight: CGFloat = 66
 
     var body: some View {
-        HStack(spacing: 12) {
-            // Image (just for display, long-press for image update)
-            Button(action: onImageTap) {
-                SimpleImageView(
-                    imageURL: item.imageUrl,
-                    size: 50,
-                    contentMode: .fill
-                )
-                .frame(width: 50, height: 50)
-                .clipped()
-                .background(Color(.systemGray6))
-                .cornerRadius(8)
+        ZStack {
+            // Background layer - action buttons (behind main content)
+            HStack(spacing: 0) {
+                // Left action - Mark as Received (revealed by swiping right)
+                if offset > 0 {
+                    SwipeActionButton(
+                        icon: "checkmark.circle.fill",
+                        title: "Received",
+                        color: .green,
+                        width: offset,
+                        cardHeight: cardHeight,
+                        action: {
+                            onStatusChange(.received)
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                offset = 0
+                            }
+                        }
+                    )
+                }
+                
+                Spacer()
+                
+                // Right action - Delete (revealed by swiping left)
+                if offset < 0 {
+                    SwipeActionButton(
+                        icon: "trash.fill",
+                        title: "Delete",
+                        color: .red,
+                        width: abs(offset),
+                        cardHeight: cardHeight,
+                        action: {
+                            onRemove()
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                offset = 0
+                            }
+                        }
+                    )
+                }
             }
-            .buttonStyle(PlainButtonStyle())
-            .onLongPressGesture {
-                onImageLongPress?()
-            }
+            .frame(height: cardHeight)
+            
+            // Foreground layer - main content (on top)
+            HStack(spacing: 11) {
+                // Radio button (left side) - only 2 states: empty/filled
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.1)) {
+                        toggleStatus()
+                    }
+                }) {
+                    Image(systemName: item.status == .added ? "circle" : "checkmark.circle.fill")
+                        .font(.system(size: 22))
+                        .foregroundColor(item.status == .added ? Color(.systemGray3) : .blue)
+                        .frame(width: 22, height: 22)
+                }
+                .buttonStyle(PlainButtonStyle())
 
-            // Item details (tappable for quantity modal, long-press for item details)
-            Button(action: onQuantityTap) {
-                VStack(alignment: .leading, spacing: 4) {
+                // Thumbnail image - exact same size as scan page (50px) - tappable for enlargement, long-press for update
+                Button(action: onImageTap) {
+                    SimpleImageView.thumbnail(
+                        imageURL: item.imageUrl,
+                        size: 50
+                    )
+                }
+                .buttonStyle(PlainButtonStyle())
+                .onLongPressGesture {
+                    onImageLongPress?()
+                }
+
+                // Main content section
+                VStack(alignment: .leading, spacing: 6) {
+                    // Item name - allow wrapping to full available width
                     Text(item.name)
-                        .font(.body)
-                        .fontWeight(.medium)
+                        .font(.system(size: 16, weight: .medium))
                         .foregroundColor(.primary)
-                        .lineLimit(nil)
+                        .lineLimit(2)
                         .multilineTextAlignment(.leading)
 
-                    // Single line with category badge, UPC, SKU, and price
+                    // Category, UPC, SKU, price row - prevent overflow with SKU truncation
                     HStack(spacing: 8) {
-                        // Category with search results badge styling
-                        if let category = item.categoryName, !category.isEmpty {
-                            Text(category)
+                        // Category with background - fixed size (priority 1)
+                        if let categoryName = item.categoryName, !categoryName.isEmpty {
+                            Text(categoryName)
                                 .font(.system(size: 11, weight: .regular))
                                 .foregroundColor(Color.secondary)
-                                .fixedSize(horizontal: true, vertical: false)
+                                .fixedSize(horizontal: true, vertical: false) // Never truncate category
                                 .lineLimit(1)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
@@ -980,7 +1034,7 @@ struct SwipeableReorderCard: View {
                             Text(barcode)
                                 .font(.system(size: 11))
                                 .foregroundColor(Color.secondary)
-                                .fixedSize(horizontal: true, vertical: false)
+                                .fixedSize(horizontal: true, vertical: false) // Never truncate UPC
                                 .lineLimit(1)
                         }
 
@@ -999,7 +1053,8 @@ struct SwipeableReorderCard: View {
                                 .font(.system(size: 11))
                                 .foregroundColor(Color.secondary)
                                 .lineLimit(1)
-                                .truncationMode(.tail)
+                                .truncationMode(.tail) // Show ... at end if too long
+                                // NO fixedSize - allows truncation
                         }
 
                         // Bullet separator before price
@@ -1022,72 +1077,108 @@ struct SwipeableReorderCard: View {
                         Spacer()
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .buttonStyle(PlainButtonStyle())
-            .onLongPressGesture {
-                onItemDetailsLongPress()
-            }
 
-            // Quantity section on the right side
-            VStack(alignment: .trailing, spacing: 2) {
-                Text("\(item.quantity)")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.primary)
+                Spacer()
 
-                Text("qty")
-                    .font(.system(size: 10))
-                    .foregroundColor(Color.secondary)
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(Color(.systemBackground))
-        .offset(x: offset)
-        .gesture(
-            DragGesture(minimumDistance: 20)
-                .onChanged { value in
-                    let horizontalTranslation = value.translation.width
-                    let verticalTranslation = value.translation.height
-                    
-                    let isHorizontalGesture = abs(horizontalTranslation) > abs(verticalTranslation) * 2.5
-                    let hasMinimumHorizontalMovement = abs(horizontalTranslation) > 30
-                    
-                    if isHorizontalGesture && hasMinimumHorizontalMovement {
-                        if horizontalTranslation > 0 {
-                            offset = min(horizontalTranslation - 30, 80)
-                        } else {
-                            offset = max(horizontalTranslation + 30, -80)
-                        }
+                // Quantity section (right side) - TAPPABLE for editing
+                Button(action: onQuantityTap) {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("\(item.quantity)")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.primary)
+
+                        Text("qty")
+                            .font(.system(size: 10))
+                            .foregroundColor(Color.secondary)
                     }
                 }
-                .onEnded { value in
-                    let horizontalTranslation = value.translation.width
-                    let verticalTranslation = value.translation.height
-                    let velocity = value.velocity.width
-                    
-                    let isHorizontalGesture = abs(horizontalTranslation) > abs(verticalTranslation) * 2.5
-                    let hasSignificantMovement = abs(horizontalTranslation) > 60 || abs(velocity) > 800
-                    
-                    if isHorizontalGesture && hasSignificantMovement {
-                        if horizontalTranslation > 0 {
-                            onStatusChange(.received)
-                            withAnimation(.easeOut(duration: 0.2)) {
-                                offset = 0
-                            }
+                .buttonStyle(PlainButtonStyle())
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(Color(.systemBackground))
+            .frame(height: cardHeight)
+            .offset(x: offset)
+            .onTapGesture {
+                if abs(offset) > 5 {
+                    // Close swipe actions
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        offset = 0
+                    }
+                } else {
+                    // Tap anywhere on the card to open quantity modal
+                    onQuantityTap()
+                }
+            }
+            .onLongPressGesture {
+                // Long press to open item details
+                onItemDetailsLongPress()
+            }
+            .simultaneousGesture(
+                DragGesture()
+                    .onChanged { value in
+                        isDragging = true
+                        
+                        // Simple, smooth swipe with resistance
+                        let translation = value.translation.width
+                        let resistance: CGFloat = 0.7
+                        
+                        if translation > 0 {
+                            // Swipe right - reveal received (max 100px)
+                            offset = min(translation * resistance, 100)
                         } else {
-                            onRemove()
-                            withAnimation(.easeOut(duration: 0.2)) {
-                                offset = 0
+                            // Swipe left - reveal delete (max 100px)
+                            offset = max(translation * resistance, -100)
+                        }
+                    }
+                    .onEnded { value in
+                        isDragging = false
+                        
+                        let translation = value.translation.width
+                        let velocity = value.velocity.width
+                        
+                        // Simple threshold-based completion
+                        if abs(translation) > 60 || abs(velocity) > 500 {
+                            if translation > 0 {
+                                // Complete received action
+                                onStatusChange(.received)
+                            } else {
+                                // Complete delete action
+                                onRemove()
                             }
                         }
-                    } else {
-                        withAnimation(.easeOut(duration: 0.2)) {
+                        
+                        // Always snap back
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                             offset = 0
                         }
                     }
-                }
+            )
+        }
+        .clipped()
+        .overlay(
+            // Stationary bottom border (full width, doesn't move with swipe)
+            VStack {
+                Spacer()
+                Rectangle()
+                    .fill(Color(.separator))
+                    .frame(height: 0.5)
+            }
         )
+    }
+
+    private func toggleStatus() {
+        // Only toggle between added and purchased
+        // Received items should be swiped away, not toggled
+        switch item.status {
+        case .added:
+            onStatusChange(.purchased)
+        case .purchased:
+            onStatusChange(.added)
+        case .received:
+            // Received items shouldn't be in the list, but if they are, reset to added
+            onStatusChange(.added)
+        }
     }
 }
 
