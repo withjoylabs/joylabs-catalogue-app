@@ -349,7 +349,7 @@ struct ReordersView: SwiftUI.View {
     }
 
     var body: some SwiftUI.View {
-        NavigationView {
+        NavigationStack {
             ZStack {
                 // Main reorder content
                 ReorderContentView(
@@ -490,7 +490,6 @@ struct ReordersView: SwiftUI.View {
             }
 
         }
-        .navigationViewStyle(StackNavigationViewStyle())
         // Unified Sheet Modal (SINGLE SHEET SOLUTION - fixes multiple sheet modifier issue)
         .sheet(item: $activeSheet) { sheet in
             switch sheet {
@@ -535,14 +534,6 @@ struct ReordersView: SwiftUI.View {
                         currentModalQuantity = newQuantity
                     }
                 )
-                .presentationDetents({
-                    if isIPad {
-                        return [.fraction(0.75)]
-                    } else {
-                        return [.fraction(0.75)]
-                    }
-                }())
-                .presentationDragIndicator(.visible)
             }
         }
     }
@@ -1150,7 +1141,7 @@ struct ReorderContentView: SwiftUI.View {
                             // Content area
                             if reorderItems.isEmpty {
                                 ReordersEmptyState()
-                                    .frame(height: geometry.size.height - 200)
+                                    .frame(maxHeight: .infinity)
                             } else {
                                 ReorderItemsContent(
                                     organizedItems: organizedItems,
@@ -1418,8 +1409,10 @@ struct ReorderItemsContent: SwiftUI.View {
         case .photosLarge, .photosMedium, .photosSmall:
             // Use proper column count for each display mode
             let columnCount = displayMode.columnsPerRow
-            let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: columnCount)
-            LazyVGrid(columns: columns, spacing: 8) {
+            // Responsive spacing: smaller on iPhone for better fit
+            let spacing: CGFloat = UIDevice.current.userInterfaceIdiom == .pad ? 12 : 8
+            let columns = Array(repeating: GridItem(.flexible(), spacing: spacing), count: columnCount)
+            LazyVGrid(columns: columns, spacing: spacing) {
                 ForEach(items, id: \.id) { (item: ReorderItem) in
                     ReorderPhotoCard(
                         item: item,

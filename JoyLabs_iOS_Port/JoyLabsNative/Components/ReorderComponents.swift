@@ -575,7 +575,7 @@ struct ReorderPhotoCard: View {
     @State private var offset: CGFloat = 0
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 4) {
             // Responsive 1:1 aspect ratio image with check overlay
             GeometryReader { geometry in
                 let imageSize = geometry.size.width
@@ -627,130 +627,156 @@ struct ReorderPhotoCard: View {
             VStack {
                 // Layout varies by display mode
                 if displayMode == .photosSmall {
-                    // SMALL VIEW: 2 columns, 3 rows layout
-                    HStack(alignment: .top, spacing: 8) {
-                        // COLUMN 1: Item information
-                        VStack(alignment: .leading, spacing: itemDetailSpacing) {
-                            // Column 1, Row 1+2: Item Name (top-aligned, consistent height for 2 rows)
+                    // SMALL VIEW: Item name only, all 4 rows
+                    HStack(alignment: .top, spacing: 6) {
+                        // COLUMN 1: Item name only (rows 1-4)
+                        VStack(alignment: .leading, spacing: 0) {
                             Text(item.name)
-                                .font(itemNameFont)
-                                .fontWeight(.medium)
+                                .font(.system(size: 11, weight: .medium)) // 2 steps smaller than medium
                                 .multilineTextAlignment(.leading)
-                                .lineLimit(2)
+                                .lineLimit(4) // Use all 4 rows for item name
                                 .foregroundColor(.primary)
-                                .frame(maxWidth: .infinity, minHeight: 42, alignment: .topLeading) // Fixed height for 2 lines + line spacing
-                            
-                            // Column 1, Row 3: Category only
-                            HStack(spacing: 6) {
-                                if let category = item.categoryName, !category.isEmpty {
-                                    Text(category)
-                                        .font(.system(size: 11, weight: .regular))
-                                        .foregroundColor(Color.secondary)
-                                        .fixedSize(horizontal: true, vertical: false)
-                                        .lineLimit(1)
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 2)
-                                        .background(Color(.systemGray5))
-                                        .cornerRadius(4)
-                                }
-                                Spacer()
-                            }
+                                .frame(maxWidth: .infinity, minHeight: 56, alignment: .topLeading) // Fixed height for 4 lines + spacing
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(maxWidth: nil, alignment: .leading)
 
                         // COLUMN 2: Quantity
                         VStack(alignment: .trailing, spacing: 1) {
-                            // Column 2, Row 1+2: Qty # (spanning both rows, bigger font to fill the space)
+                            // Qty # (2 steps smaller)
                             Text("\(item.quantity)")
-                                .font(.system(size: 24, weight: .semibold)) // Bigger font for 2-row span
+                                .font(.system(size: 12, weight: .semibold)) // 2 steps smaller than medium (16->12)
                                 .foregroundColor(.primary)
-                                .frame(minWidth: 40, minHeight: 42, alignment: .topTrailing) // Match item name height with line spacing
                             
-                            // Column 2, Row 3: "qty"
+                            // "qty"
                             Text("qty")
-                                .font(.system(size: 10))
+                                .font(.system(size: 8)) // 2 steps smaller than medium (10->8)
                                 .foregroundColor(Color.secondary)
-                                .frame(minWidth: 40, alignment: .trailing)
                         }
-                        .frame(minWidth: 40)
+                        .frame(minWidth: 30) // Smaller minimum width for small view
                     }
                 } else {
                     // MEDIUM/LARGE VIEWS: Original 2x2 layout
                     HStack(alignment: .top, spacing: 8) {
                         // COLUMN 1: Item information
                         VStack(alignment: .leading, spacing: itemDetailSpacing) {
-                            // Column 1, Row 1: Item Name
-                            Text(item.name)
-                                .font(itemNameFont)
-                                .fontWeight(.medium)
-                                .multilineTextAlignment(.leading)
-                                .lineLimit(nil)
-                                .foregroundColor(.primary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                            // Column 1, Rows 1-3: Item Name (for medium photos)
+                            if displayMode == .photosMedium {
+                                Text(item.name)
+                                    .font(itemNameFont)
+                                    .fontWeight(.medium)
+                                    .multilineTextAlignment(.leading)
+                                    .lineLimit(3)
+                                    .foregroundColor(.primary)
+                                    .frame(maxWidth: .infinity, minHeight: 54, alignment: .topLeading) // Fixed height for 3 lines + spacing
+                            } else {
+                                Text(item.name)
+                                    .font(itemNameFont)
+                                    .fontWeight(.medium)
+                                    .multilineTextAlignment(.leading)
+                                    .lineLimit(nil)
+                                    .foregroundColor(.primary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
 
-                            // Column 1, Row 2: Item Details (category, UPC, SKU, price on same line)
-                            HStack(spacing: 6) {
-                                // Category badge
-                                if let category = item.categoryName, !category.isEmpty {
-                                    Text(category)
-                                        .font(.system(size: 11, weight: .regular))
-                                        .foregroundColor(Color.secondary)
-                                        .fixedSize(horizontal: true, vertical: false)
-                                        .lineLimit(1)
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 2)
-                                        .background(Color(.systemGray5))
-                                        .cornerRadius(4)
+                            // Column 1, Row 4: Category, UPC, Price (for medium photos)
+                            // For medium photos, show category, UPC, and price on row 4
+                            if displayMode == .photosMedium {
+                                HStack(spacing: 4) {
+                                    // Category badge
+                                    if let category = item.categoryName, !category.isEmpty {
+                                        Text(category)
+                                            .font(.system(size: 9, weight: .regular))
+                                            .foregroundColor(Color.secondary)
+                                            .lineLimit(1)
+                                            .padding(.horizontal, 4)
+                                            .padding(.vertical, 1)
+                                            .background(Color(.systemGray5))
+                                            .cornerRadius(3)
+                                    }
+                                    
+                                    // UPC
+                                    if let barcode = item.barcode, !barcode.isEmpty {
+                                        Text(barcode)
+                                            .font(.system(size: 9))
+                                            .foregroundColor(Color.secondary)
+                                            .lineLimit(1)
+                                    }
+                                    
+                                    // Price
+                                    if let price = item.price {
+                                        Text(String(format: "$%.2f", price))
+                                            .font(.system(size: 9, weight: .medium))
+                                            .foregroundColor(.primary)
+                                            .lineLimit(1)
+                                    }
+                                    
+                                    Spacer()
                                 }
+                            } else {
+                                // Full details for large photos view
+                                HStack(spacing: 6) {
+                                    // Category badge
+                                    if let category = item.categoryName, !category.isEmpty {
+                                        Text(category)
+                                            .font(.system(size: 11, weight: .regular))
+                                            .foregroundColor(Color.secondary)
+                                            .fixedSize(horizontal: true, vertical: false)
+                                            .lineLimit(1)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(Color(.systemGray5))
+                                            .cornerRadius(4)
+                                    }
 
-                                // UPC/Barcode
-                                if let barcode = item.barcode, !barcode.isEmpty {
-                                    Text(barcode)
-                                        .font(detailFont)
-                                        .foregroundColor(Color.secondary)
-                                        .fixedSize(horizontal: true, vertical: false)
-                                        .lineLimit(1)
+                                    // UPC/Barcode
+                                    if let barcode = item.barcode, !barcode.isEmpty {
+                                        Text(barcode)
+                                            .font(detailFont)
+                                            .foregroundColor(Color.secondary)
+                                            .fixedSize(horizontal: true, vertical: false)
+                                            .lineLimit(1)
+                                    }
+
+                                    // Bullet separator
+                                    if let barcode = item.barcode, !barcode.isEmpty,
+                                       let sku = item.sku, !sku.isEmpty {
+                                        Text("•")
+                                            .font(detailFont)
+                                            .foregroundColor(Color.secondary)
+                                            .fixedSize(horizontal: true, vertical: false)
+                                    }
+
+                                    // SKU
+                                    if let sku = item.sku, !sku.isEmpty {
+                                        Text(sku)
+                                            .font(detailFont)
+                                            .foregroundColor(Color.secondary)
+                                            .lineLimit(1)
+                                            .truncationMode(.tail)
+                                    }
+
+                                    // Bullet separator before price
+                                    if item.price != nil {
+                                        Text("•")
+                                            .font(detailFont)
+                                            .foregroundColor(Color.secondary)
+                                            .fixedSize(horizontal: true, vertical: false)
+                                    }
+
+                                    // Price - LEFT ALIGNED WITH OTHER DETAILS
+                                    if let price = item.price {
+                                        Text(String(format: "$%.2f", price))
+                                            .font(detailFont)
+                                            .fontWeight(.medium)
+                                            .foregroundColor(.primary)
+                                            .fixedSize(horizontal: true, vertical: false)
+                                    }
+
+                                    Spacer()
                                 }
-
-                                // Bullet separator
-                                if let barcode = item.barcode, !barcode.isEmpty,
-                                   let sku = item.sku, !sku.isEmpty {
-                                    Text("•")
-                                        .font(detailFont)
-                                        .foregroundColor(Color.secondary)
-                                        .fixedSize(horizontal: true, vertical: false)
-                                }
-
-                                // SKU
-                                if let sku = item.sku, !sku.isEmpty {
-                                    Text(sku)
-                                        .font(detailFont)
-                                        .foregroundColor(Color.secondary)
-                                        .lineLimit(1)
-                                        .truncationMode(.tail)
-                                }
-
-                                // Bullet separator before price
-                                if item.price != nil {
-                                    Text("•")
-                                        .font(detailFont)
-                                        .foregroundColor(Color.secondary)
-                                        .fixedSize(horizontal: true, vertical: false)
-                                }
-
-                                // Price - LEFT ALIGNED WITH OTHER DETAILS
-                                if let price = item.price {
-                                    Text(String(format: "$%.2f", price))
-                                        .font(detailFont)
-                                        .fontWeight(.medium)
-                                        .foregroundColor(.primary)
-                                        .fixedSize(horizontal: true, vertical: false)
-                                }
-
-                                Spacer()
                             }
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(maxWidth: displayMode == .photosMedium ? nil : .infinity, alignment: .leading)
 
                         // COLUMN 2: Quantity
                         VStack(alignment: .trailing, spacing: 1) {
@@ -777,7 +803,6 @@ struct ReorderPhotoCard: View {
                 print("[ReorderPhotoCard] Item details tap detected - calling onItemDetailsTap")
                 onItemDetailsTap()
             }
-            .padding(.horizontal, 4)
         }
         .background(Color(.systemBackground))
         .cornerRadius(8)
@@ -958,8 +983,10 @@ struct SwipeableReorderCard: View {
                         }
                 )
                 .onTapGesture {
-                    // Low priority: Tap for image enlargement
-                    onImageTap()
+                    // Tap to toggle checkbox (same as radio button)
+                    withAnimation(.easeInOut(duration: 0.1)) {
+                        toggleStatus()
+                    }
                 }
 
                 // Main content section - with isolated touch target for item details long press
@@ -1035,7 +1062,12 @@ struct SwipeableReorderCard: View {
                     }
                 }
                 .contentShape(Rectangle())
-                .gesture(
+                .onTapGesture {
+                    // Tap on item details opens quantity modal
+                    print("[ReorderCard] Item details tapped - calling onQuantityTap")
+                    onQuantityTap()
+                }
+                .simultaneousGesture(
                     LongPressGesture(minimumDuration: 0.5)
                         .onEnded { _ in
                             print("[ReorderCard] Long press detected - calling onItemDetailsLongPress")
@@ -1064,19 +1096,6 @@ struct SwipeableReorderCard: View {
             .background(Color(.systemBackground))
             .frame(height: cardHeight)
             .offset(x: offset)
-            .simultaneousGesture(
-                TapGesture()
-                    .onEnded {
-                        print("[ReorderCard] Tap detected - calling onQuantityTap")
-                        if abs(offset) > 5 {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                offset = 0
-                            }
-                        } else {
-                            onQuantityTap()
-                        }
-                    }
-            )
             .simultaneousGesture(
                 DragGesture()
                     .onChanged { value in

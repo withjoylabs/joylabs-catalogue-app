@@ -67,7 +67,39 @@ struct ItemDetailsModal: View {
     }
 
     var body: some View {
-        NavigationView {
+        VStack(spacing: 0) {
+            // Custom header
+            HStack {
+                Button("Cancel") {
+                    handleCancel()
+                }
+                .foregroundColor(.red)
+                
+                Spacer()
+                
+                Text(dynamicTitle)
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                
+                Spacer()
+                
+                Button("Save") {
+                    handleSave()
+                }
+                .disabled(!viewModel.canSave)
+                .foregroundColor(viewModel.canSave ? .blue : .gray)
+                .fontWeight(.semibold)
+            }
+            .padding()
+            .background(Color(.systemBackground))
+            .overlay(
+                Divider()
+                    .frame(maxWidth: .infinity, maxHeight: 1)
+                    .background(Color(.separator)),
+                alignment: .bottom
+            )
+            
+            // Content area
             ZStack {
                 ItemDetailsContent(
                     context: context,
@@ -75,9 +107,6 @@ struct ItemDetailsModal: View {
                     onSave: handleSave
                 )
                 .focused($isAnyFieldFocused)
-                .navigationTitle(dynamicTitle)
-                .navigationBarTitleDisplayMode(.inline)
-                .navigationBarHidden(false)
                 .onTapGesture {
                     // Dismiss keyboard when tapping outside text fields
                     isAnyFieldFocused = false
@@ -100,6 +129,8 @@ struct ItemDetailsModal: View {
                 }
             }
         }
+        .interactiveDismissDisabled(false)
+        .presentationDragIndicator(.visible)
         .alert("Error", isPresented: .constant(viewModel.error != nil)) {
             Button("OK") {
                 viewModel.error = nil
@@ -113,6 +144,7 @@ struct ItemDetailsModal: View {
             // Ensure keyboard is dismissed when modal disappears
             hideKeyboard()
         }
+        .ignoresSafeArea(.keyboard, edges: .bottom)
         .gesture(
             // Custom swipe down gesture to handle changes confirmation
             DragGesture()

@@ -47,40 +47,52 @@ struct UnifiedImagePickerModal: View {
     }
     
     var body: some View {
-        NavigationView {
-            GeometryReader { geometry in
-                VStack(spacing: 0) {
-                    // Responsive image preview - uses full modal width, 1:1 aspect ratio
-                    cropPreviewSection(containerWidth: geometry.size.width)
-
-                    // Divider
-                    Divider()
-
-                    // iOS Photo Library Grid (Bottom) - matches modal width exactly
-                    photoLibrarySectionWithPermissions(containerWidth: geometry.size.width)
-                        .frame(maxHeight: .infinity) // Ensure photo library gets remaining space
-                }
-            }
-            .navigationTitle("Select Photo")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                // Header with title and buttons
+                HStack {
                     Button("Cancel") {
                         onDismiss()
                     }
                     .foregroundColor(.red)
-                }
-
-                ToolbarItem(placement: .navigationBarTrailing) {
+                    
+                    Spacer()
+                    
+                    Text("Select Photo")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                    
+                    Spacer()
+                    
                     Button("Upload") {
                         handleUpload()
                     }
                     .disabled(croppedImage == nil || isUploading)
                     .foregroundColor(croppedImage != nil && !isUploading ? .blue : .gray)
+                    .fontWeight(.semibold)
                 }
+                .padding()
+                .background(Color(.systemBackground))
+                .overlay(
+                    Divider()
+                        .frame(maxWidth: .infinity, maxHeight: 1)
+                        .background(Color(.separator)),
+                    alignment: .bottom
+                )
+                
+                // Responsive image preview - uses full modal width, 1:1 aspect ratio
+                cropPreviewSection(containerWidth: geometry.size.width)
+
+                // Divider
+                Divider()
+
+                // iOS Photo Library Grid (Bottom) - matches modal width exactly
+                photoLibrarySectionWithPermissions(containerWidth: geometry.size.width)
+                    .frame(maxHeight: .infinity) // Ensure photo library gets remaining space
             }
         }
-        .navigationViewStyle(StackNavigationViewStyle()) // Force single view on iPad
+        .interactiveDismissDisabled(false)
+        .presentationDragIndicator(.visible)
         .onAppear {
             print("[UnifiedImagePickerModal] Modal appeared with context: \(context)")
             print("[UnifiedImagePickerModal] Device: \(UIDevice.current.userInterfaceIdiom == .pad ? "iPad" : "iPhone")")
@@ -91,7 +103,7 @@ struct UnifiedImagePickerModal: View {
         } message: {
             Text(uploadError ?? "Unknown error occurred")
         }
-        .fullScreenCover(isPresented: $showingCamera) {
+        .sheet(isPresented: $showingCamera) {
             CameraView { image in
                 // Set the captured image in preview
                 selectedImage = image
@@ -411,11 +423,10 @@ struct UnifiedImagePickerModal: View {
             
             let imageManager = PHImageManager.default()
             let requestOptions = PHImageRequestOptions()
-            requestOptions.deliveryMode = .fastFormat // Fast format to avoid daemon issues
-            requestOptions.resizeMode = .fast // Fast processing
-            requestOptions.isNetworkAccessAllowed = false // Disable network to prevent daemon errors
+            requestOptions.deliveryMode = .highQualityFormat // High quality thumbnails
+            requestOptions.resizeMode = .exact // Exact size for sharp thumbnails
+            requestOptions.isNetworkAccessAllowed = true // Allow network for iCloud photos
             requestOptions.isSynchronous = false // Use async to prevent blocking and daemon timeouts
-            requestOptions.version = .current // Use current version, not unadjusted
             
             let assetsToProcess = endIndex - startIndex
             print("[UnifiedImagePickerModal] Processing \(assetsToProcess) assets from index \(startIndex) to \(endIndex-1)")
@@ -423,7 +434,13 @@ struct UnifiedImagePickerModal: View {
             // Use DispatchGroup for async image loading to prevent daemon errors
             let dispatchGroup = DispatchGroup()
             var photoAssets: [PhotoAsset] = []
-            let targetSize = CGSize(width: 200 * UIScreen.main.scale, height: 200 * UIScreen.main.scale)
+            // Calculate proper thumbnail size based on screen and column count
+            let screenWidth = UIScreen.main.bounds.width
+            let columnCount: CGFloat = UIDevice.current.userInterfaceIdiom == .pad ? 6 : 4
+            let spacing = columnCount - 1
+            let itemWidth = (screenWidth - spacing) / columnCount
+            // Use 2x scale for retina quality thumbnails
+            let targetSize = CGSize(width: itemWidth * 2, height: itemWidth * 2)
             
             for i in startIndex..<endIndex {
                 let asset = allAssets.object(at: i)
@@ -437,22 +454,35 @@ struct UnifiedImagePickerModal: View {
                 ) { image, info in
                     defer { dispatchGroup.leave() }
                     
-                    // Check for errors and avoid daemon issues
-                    if let error = info?[PHImageErrorKey] as? Error {
-                        print("[UnifiedImagePickerModal] Image request error: \(error.localizedDescription)")
+                    // Comprehensive error checking
+                    if let info = info {
+                        // Check for errors
+                        if let error = info[PHImageErrorKey] as? Error {
+                            print("[UnifiedImagePickerModal] Image request error: \(error.localizedDescription)")
+                            return
+                        }
+                        
+                        // Check if image request was cancelled
+                        if let cancelled = info[PHImageCancelledKey] as? Bool, cancelled {
+                            print("[UnifiedImagePickerModal] Image request was cancelled")
+                            return
+                        }
+                        
+                        // Check if this is a degraded image we should ignore
+                        if let degraded = info[PHImageResultIsDegradedKey] as? Bool, degraded {
+                            print("[UnifiedImagePickerModal] Ignoring degraded image")
+                            return
+                        }
+                    }
+                    
+                    // Only use the image if it exists and is valid
+                    guard let image = image, image.size.width > 0, image.size.height > 0 else {
+                        print("[UnifiedImagePickerModal] Invalid or nil image")
                         return
                     }
                     
-                    // Check if image request was cancelled or degraded
-                    if let cancelled = info?[PHImageCancelledKey] as? Bool, cancelled {
-                        print("[UnifiedImagePickerModal] Image request was cancelled")
-                        return
-                    }
-                    
-                    if let image = image {
-                        let photoAsset = PhotoAsset(asset: asset, thumbnail: image)
-                        photoAssets.append(photoAsset)
-                    }
+                    let photoAsset = PhotoAsset(asset: asset, thumbnail: image)
+                    photoAssets.append(photoAsset)
                 }
             }
             
@@ -602,6 +632,7 @@ struct PhotoThumbnailView: View {
                 // Image
                 Image(uiImage: photoAsset.thumbnail)
                     .resizable()
+                    .interpolation(.high) // Use high quality interpolation for rendering
                     .scaledToFill() // Fill the entire square
                     .frame(width: thumbnailSize, height: thumbnailSize)
                     .clipped() // Crop to exact square

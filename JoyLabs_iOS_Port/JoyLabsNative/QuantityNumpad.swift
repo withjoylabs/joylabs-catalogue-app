@@ -110,7 +110,7 @@ struct NumpadButton: View {
                 .font(.headline)
                 .fontWeight(.semibold)
                 .foregroundColor(isSpecial ? .blue : .primary)
-                .frame(height: 44)
+                .frame(height: 47)
                 .frame(maxWidth: .infinity)
                 .background(
                     RoundedRectangle(cornerRadius: 8)
