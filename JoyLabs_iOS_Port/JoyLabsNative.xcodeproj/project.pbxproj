@@ -8,7 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		0C6000FC83DF6D91C933D873 /* SimpleImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F730ECB41F35B30ADCEEF069 /* SimpleImageView.swift */; };
-		135161F2D6150929CEF0A9D1 /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B03008BCC45D5E32B158F66F /* NotificationSettingsView.swift */; };
+		135161F2D6150929CEF0A9D1 /* Components/NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B03008BCC45D5E32B158F66F /* Components/NotificationSettingsView.swift */; };
 		140CE30F96C5476776E42C34 /* UnifiedImagePickerModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CC3C5DBAC897BD5BAD446F8 /* UnifiedImagePickerModal.swift */; };
 		1569B20890AD45422D438BC1 /* FieldVisibilityModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF8BABE731647487EFC23A76 /* FieldVisibilityModifier.swift */; };
 		1DD643B9A325F36154A6078B /* LabelLiveSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AFF25D6F4AAE782EEF291F9 /* LabelLiveSettings.swift */; };
@@ -29,7 +29,7 @@
 		633EAA03A1AACAFBDA6DCEC6 /* WebhookService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CB9D6E0060770E50822CE1D /* WebhookService.swift */; };
 		690DEB5BE22908836C5ABF87 /* SimpleImageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BF09157ED1FEE7951EC8474 /* SimpleImageService.swift */; };
 		6EA41FDD40E6B3236E5DC902 /* FloatingActionButtons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3773602C0EF0A589CED63975 /* FloatingActionButtons.swift */; };
-		6F5DE98B1CAA89726CC9FF2D /* NotificationSettingsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94D98163B152C53C35F66FD4 /* NotificationSettingsService.swift */; };
+		6F5DE98B1CAA89726CC9FF2D /* Core/Services/NotificationSettingsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94D98163B152C53C35F66FD4 /* Core/Services/NotificationSettingsService.swift */; };
 		85126E4554FBE0F2C78D3609 /* ToastNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1645309EC63E18A4589C1AC3 /* ToastNotificationService.swift */; };
 		9189A53F265287C2C25FF411 /* ItemDetailsBasicSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5A87F50DC4826C17C46DD0 /* ItemDetailsBasicSection.swift */; };
 		92151EA89C79EBB198799E77 /* ItemImageSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2D5FAE44721EA24C8E50126 /* ItemImageSection.swift */; };
@@ -41,38 +41,38 @@
 		A1B2C3D4E5F6789012345682 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345683 /* Assets.xcassets */; };
 		A1B2C3D4E5F6789012345684 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345685 /* Preview Assets.xcassets */; };
 		A1B2C3D4E5F6789012345716 /* SQLite in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4E5F6789012345717 /* SQLite */; };
-		A1B2C3D4E5F6789012345801 /* SQLiteSwiftCatalogManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345802 /* SQLiteSwiftCatalogManager.swift */; };
-		A1B2C3D4E5F6789012345807 /* SQLiteSwiftSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345808 /* SQLiteSwiftSyncCoordinator.swift */; };
-		A1B2C3D4E5F6789012345809 /* SQLiteSwiftCatalogSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345810 /* SQLiteSwiftCatalogSyncService.swift */; };
-		A1B2C3D4E5F6789012345811 /* SquareAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345812 /* SquareAPIService.swift */; };
-		A1B2C3D4E5F6789012345813 /* SquareOAuthCallbackHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345814 /* SquareOAuthCallbackHandler.swift */; };
-		A1B2C3D4E5F6789012345815 /* SquareOAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345816 /* SquareOAuthService.swift */; };
-		A1B2C3D4E5F6789012345817 /* SquareAPIServiceFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345818 /* SquareAPIServiceFactory.swift */; };
-		A1B2C3D4E5F6789012345821 /* SquareConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345822 /* SquareConfiguration.swift */; };
-		A1B2C3D4E5F6789012345823 /* SquareErrorRecoveryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345824 /* SquareErrorRecoveryManager.swift */; };
-		A1B2C3D4E5F6789012345825 /* SquareHTTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345826 /* SquareHTTPClient.swift */; };
-		A1B2C3D4E5F6789012345827 /* PKCEGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345828 /* PKCEGenerator.swift */; };
-		A1B2C3D4E5F6789012345833 /* DatabaseModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345834 /* DatabaseModels.swift */; };
-		A1B2C3D4E5F6789012345835 /* DataValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345836 /* DataValidation.swift */; };
-		A1B2C3D4E5F6789012345837 /* CatalogManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345838 /* CatalogManagementView.swift */; };
-		A1B2C3D4E5F6789012345839 /* SquareLocationsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345840 /* SquareLocationsService.swift */; };
-		A1B2C3D4E5F6789012345841 /* CatalogStatsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345842 /* CatalogStatsService.swift */; };
-		A1B2C3D4E5F6789012345845 /* ImageURLManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345846 /* ImageURLManager.swift */; };
-		A1B2C3D4E5F6789012345849 /* CatalogModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345849A /* CatalogModels.swift */; };
-		A1B2C3D4E5F6789012345851 /* SearchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345852 /* SearchManager.swift */; };
-		A1B2C3D4E5F6789012345853 /* ScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345854 /* ScanView.swift */; };
-		A1B2C3D4E5F6789012345855 /* ReordersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345856 /* ReordersView.swift */; };
-		A1B2C3D4E5F6789012345857 /* LabelsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345858 /* LabelsView.swift */; };
-		A1B2C3D4E5F6789012345859 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345860 /* ProfileView.swift */; };
-		A1B2C3D4E5F6789012345861 /* HeaderComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345862 /* HeaderComponents.swift */; };
-		A1B2C3D4E5F6789012345863 /* SearchComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345864 /* SearchComponents.swift */; };
-		A1B2C3D4E5F6789012345865 /* StateViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345866 /* StateViews.swift */; };
-		A1B2C3D4E5F6789012345867 /* LabelModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345868 /* LabelModels.swift */; };
-		A1B2C3D4E5F6789012345869 /* LabelComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345870 /* LabelComponents.swift */; };
-		A1B2C3D4E5F6789012345871 /* ReorderComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345872 /* ReorderComponents.swift */; };
-		A1B2C3D4E5F6789012345901 /* CatalogTableDefinitions.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345902 /* CatalogTableDefinitions.swift */; };
-		A1B2C3D4E5F6789012345903 /* CatalogTableCreator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345904 /* CatalogTableCreator.swift */; };
-		A1B2C3D4E5F6789012345905 /* CatalogObjectInserters.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345906 /* CatalogObjectInserters.swift */; };
+		A1B2C3D4E5F6789012345801 /* JoyLabsNative/Core/Database/SQLiteSwiftCatalogManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345802 /* JoyLabsNative/Core/Database/SQLiteSwiftCatalogManager.swift */; };
+		A1B2C3D4E5F6789012345807 /* JoyLabsNative/Core/Square/SQLiteSwiftSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345808 /* JoyLabsNative/Core/Square/SQLiteSwiftSyncCoordinator.swift */; };
+		A1B2C3D4E5F6789012345809 /* JoyLabsNative/Core/Sync/SQLiteSwiftCatalogSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345810 /* JoyLabsNative/Core/Sync/SQLiteSwiftCatalogSyncService.swift */; };
+		A1B2C3D4E5F6789012345811 /* JoyLabsNative/Core/Square/SquareAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345812 /* JoyLabsNative/Core/Square/SquareAPIService.swift */; };
+		A1B2C3D4E5F6789012345813 /* JoyLabsNative/Core/Square/SquareOAuthCallbackHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345814 /* JoyLabsNative/Core/Square/SquareOAuthCallbackHandler.swift */; };
+		A1B2C3D4E5F6789012345815 /* JoyLabsNative/Core/Square/SquareOAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345816 /* JoyLabsNative/Core/Square/SquareOAuthService.swift */; };
+		A1B2C3D4E5F6789012345817 /* JoyLabsNative/Core/Square/SquareAPIServiceFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345818 /* JoyLabsNative/Core/Square/SquareAPIServiceFactory.swift */; };
+		A1B2C3D4E5F6789012345821 /* JoyLabsNative/Core/Square/SquareConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345822 /* JoyLabsNative/Core/Square/SquareConfiguration.swift */; };
+		A1B2C3D4E5F6789012345823 /* JoyLabsNative/Core/Square/SquareErrorRecoveryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345824 /* JoyLabsNative/Core/Square/SquareErrorRecoveryManager.swift */; };
+		A1B2C3D4E5F6789012345825 /* JoyLabsNative/Core/Square/SquareHTTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345826 /* JoyLabsNative/Core/Square/SquareHTTPClient.swift */; };
+		A1B2C3D4E5F6789012345827 /* JoyLabsNative/Core/Square/PKCEGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345828 /* JoyLabsNative/Core/Square/PKCEGenerator.swift */; };
+		A1B2C3D4E5F6789012345833 /* JoyLabsNative/Core/Database/DatabaseModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345834 /* JoyLabsNative/Core/Database/DatabaseModels.swift */; };
+		A1B2C3D4E5F6789012345835 /* JoyLabsNative/Core/Database/DataValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345836 /* JoyLabsNative/Core/Database/DataValidation.swift */; };
+		A1B2C3D4E5F6789012345837 /* Views/Catalog/CatalogManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345838 /* Views/Catalog/CatalogManagementView.swift */; };
+		A1B2C3D4E5F6789012345839 /* JoyLabsNative/Core/Square/SquareLocationsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345840 /* JoyLabsNative/Core/Square/SquareLocationsService.swift */; };
+		A1B2C3D4E5F6789012345841 /* JoyLabsNative/Core/Database/CatalogStatsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345842 /* JoyLabsNative/Core/Database/CatalogStatsService.swift */; };
+		A1B2C3D4E5F6789012345845 /* JoyLabsNative/Core/Images/ImageURLManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345846 /* JoyLabsNative/Core/Images/ImageURLManager.swift */; };
+		A1B2C3D4E5F6789012345849 /* Core/Models/CatalogModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345849A /* Core/Models/CatalogModels.swift */; };
+		A1B2C3D4E5F6789012345851 /* JoyLabsNative/Core/Search/SearchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345852 /* JoyLabsNative/Core/Search/SearchManager.swift */; };
+		A1B2C3D4E5F6789012345853 /* JoyLabsNative/Views/ScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345854 /* JoyLabsNative/Views/ScanView.swift */; };
+		A1B2C3D4E5F6789012345855 /* JoyLabsNative/Views/ReordersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345856 /* JoyLabsNative/Views/ReordersView.swift */; };
+		A1B2C3D4E5F6789012345857 /* JoyLabsNative/Views/LabelsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345858 /* JoyLabsNative/Views/LabelsView.swift */; };
+		A1B2C3D4E5F6789012345859 /* JoyLabsNative/Views/ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345860 /* JoyLabsNative/Views/ProfileView.swift */; };
+		A1B2C3D4E5F6789012345861 /* JoyLabsNative/Components/HeaderComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345862 /* JoyLabsNative/Components/HeaderComponents.swift */; };
+		A1B2C3D4E5F6789012345863 /* JoyLabsNative/Components/SearchComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345864 /* JoyLabsNative/Components/SearchComponents.swift */; };
+		A1B2C3D4E5F6789012345865 /* JoyLabsNative/Components/StateViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345866 /* JoyLabsNative/Components/StateViews.swift */; };
+		A1B2C3D4E5F6789012345867 /* JoyLabsNative/Models/LabelModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345868 /* JoyLabsNative/Models/LabelModels.swift */; };
+		A1B2C3D4E5F6789012345869 /* JoyLabsNative/Components/LabelComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345870 /* JoyLabsNative/Components/LabelComponents.swift */; };
+		A1B2C3D4E5F6789012345871 /* JoyLabsNative/Components/ReorderComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345872 /* JoyLabsNative/Components/ReorderComponents.swift */; };
+		A1B2C3D4E5F6789012345901 /* JoyLabsNative/Core/Database/CatalogTableDefinitions.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345902 /* JoyLabsNative/Core/Database/CatalogTableDefinitions.swift */; };
+		A1B2C3D4E5F6789012345903 /* JoyLabsNative/Core/Database/CatalogTableCreator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345904 /* JoyLabsNative/Core/Database/CatalogTableCreator.swift */; };
+		A1B2C3D4E5F6789012345905 /* JoyLabsNative/Core/Database/CatalogObjectInserters.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345906 /* JoyLabsNative/Core/Database/CatalogObjectInserters.swift */; };
 		A285779AFC5B5E43CA497F39 /* LabelLiveSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11C6F817152E7F615D5CB415 /* LabelLiveSettingsView.swift */; };
 		AA5102A379E2429BBA60C844 /* NotificationPermissionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B0C0220C8486FC50DA6F922 /* NotificationPermissionView.swift */; };
 		B839576176BE6BDF2B053D07 /* SquareDataConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DAB355F729C92CB2F1631E3 /* SquareDataConverter.swift */; };
@@ -127,7 +127,7 @@
 		7F37514B9AC1E1E45F886FEB /* WebhookSignatureValidator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WebhookSignatureValidator.swift; path = Core/Services/WebhookSignatureValidator.swift; sourceTree = "<group>"; };
 		84F97B5C958182F299BA523E /* DuplicateWarningView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DuplicateWarningView.swift; path = Components/DuplicateWarningView.swift; sourceTree = "<group>"; };
 		93826EA70F24FEB3F6F59BD6 /* AppDelegate.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = JoyLabsNative/AppDelegate.swift; sourceTree = "<group>"; };
-		94D98163B152C53C35F66FD4 /* NotificationSettingsService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Core/Services/NotificationSettingsService.swift; sourceTree = "<group>"; };
+		94D98163B152C53C35F66FD4 /* Core/Services/NotificationSettingsService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Core/Services/NotificationSettingsService.swift; sourceTree = "<group>"; };
 		9CB9D6E0060770E50822CE1D /* WebhookService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WebhookService.swift; path = Core/Services/WebhookService.swift; sourceTree = "<group>"; };
 		9CC3C5DBAC897BD5BAD446F8 /* UnifiedImagePickerModal.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = UnifiedImagePickerModal.swift; path = JoyLabsNative/Components/UnifiedImagePickerModal.swift; sourceTree = "<group>"; };
 		9DAB355F729C92CB2F1631E3 /* SquareDataConverter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SquareDataConverter.swift; path = Core/Services/SquareDataConverter.swift; sourceTree = "<group>"; };
@@ -137,39 +137,39 @@
 		A1B2C3D4E5F6789012345683 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345685 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345686 /* JoyLabsNative.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = JoyLabsNative.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		A1B2C3D4E5F6789012345802 /* SQLiteSwiftCatalogManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Database/SQLiteSwiftCatalogManager.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345808 /* SQLiteSwiftSyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Square/SQLiteSwiftSyncCoordinator.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345810 /* SQLiteSwiftCatalogSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Sync/SQLiteSwiftCatalogSyncService.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345812 /* SquareAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Square/SquareAPIService.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345814 /* SquareOAuthCallbackHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Square/SquareOAuthCallbackHandler.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345816 /* SquareOAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Square/SquareOAuthService.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345818 /* SquareAPIServiceFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Square/SquareAPIServiceFactory.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345822 /* SquareConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Square/SquareConfiguration.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345824 /* SquareErrorRecoveryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Square/SquareErrorRecoveryManager.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345826 /* SquareHTTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Square/SquareHTTPClient.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345828 /* PKCEGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Square/PKCEGenerator.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345834 /* DatabaseModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Database/DatabaseModels.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345836 /* DataValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Database/DataValidation.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345838 /* CatalogManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/Catalog/CatalogManagementView.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345840 /* SquareLocationsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Square/SquareLocationsService.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345842 /* CatalogStatsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Database/CatalogStatsService.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345846 /* ImageURLManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Images/ImageURLManager.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345849A /* CatalogModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Models/CatalogModels.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345852 /* SearchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Search/SearchManager.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345854 /* ScanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Views/ScanView.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345856 /* ReordersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Views/ReordersView.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345858 /* LabelsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Views/LabelsView.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345860 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Views/ProfileView.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345862 /* HeaderComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Components/HeaderComponents.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345864 /* SearchComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Components/SearchComponents.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345866 /* StateViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Components/StateViews.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345868 /* LabelModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Models/LabelModels.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345870 /* LabelComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Components/LabelComponents.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345872 /* ReorderComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Components/ReorderComponents.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345902 /* CatalogTableDefinitions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Database/CatalogTableDefinitions.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345904 /* CatalogTableCreator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Database/CatalogTableCreator.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6789012345906 /* CatalogObjectInserters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Database/CatalogObjectInserters.swift; sourceTree = "<group>"; };
-		B03008BCC45D5E32B158F66F /* NotificationSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Components/NotificationSettingsView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345802 /* JoyLabsNative/Core/Database/SQLiteSwiftCatalogManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Database/SQLiteSwiftCatalogManager.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345808 /* JoyLabsNative/Core/Square/SQLiteSwiftSyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Square/SQLiteSwiftSyncCoordinator.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345810 /* JoyLabsNative/Core/Sync/SQLiteSwiftCatalogSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Sync/SQLiteSwiftCatalogSyncService.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345812 /* JoyLabsNative/Core/Square/SquareAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Square/SquareAPIService.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345814 /* JoyLabsNative/Core/Square/SquareOAuthCallbackHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Square/SquareOAuthCallbackHandler.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345816 /* JoyLabsNative/Core/Square/SquareOAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Square/SquareOAuthService.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345818 /* JoyLabsNative/Core/Square/SquareAPIServiceFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Square/SquareAPIServiceFactory.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345822 /* JoyLabsNative/Core/Square/SquareConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Square/SquareConfiguration.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345824 /* JoyLabsNative/Core/Square/SquareErrorRecoveryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Square/SquareErrorRecoveryManager.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345826 /* JoyLabsNative/Core/Square/SquareHTTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Square/SquareHTTPClient.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345828 /* JoyLabsNative/Core/Square/PKCEGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Square/PKCEGenerator.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345834 /* JoyLabsNative/Core/Database/DatabaseModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Database/DatabaseModels.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345836 /* JoyLabsNative/Core/Database/DataValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Database/DataValidation.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345838 /* Views/Catalog/CatalogManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/Catalog/CatalogManagementView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345840 /* JoyLabsNative/Core/Square/SquareLocationsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Square/SquareLocationsService.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345842 /* JoyLabsNative/Core/Database/CatalogStatsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Database/CatalogStatsService.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345846 /* JoyLabsNative/Core/Images/ImageURLManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Images/ImageURLManager.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345849A /* Core/Models/CatalogModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Models/CatalogModels.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345852 /* JoyLabsNative/Core/Search/SearchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Search/SearchManager.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345854 /* JoyLabsNative/Views/ScanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Views/ScanView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345856 /* JoyLabsNative/Views/ReordersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Views/ReordersView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345858 /* JoyLabsNative/Views/LabelsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Views/LabelsView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345860 /* JoyLabsNative/Views/ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Views/ProfileView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345862 /* JoyLabsNative/Components/HeaderComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Components/HeaderComponents.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345864 /* JoyLabsNative/Components/SearchComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Components/SearchComponents.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345866 /* JoyLabsNative/Components/StateViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Components/StateViews.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345868 /* JoyLabsNative/Models/LabelModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Models/LabelModels.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345870 /* JoyLabsNative/Components/LabelComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Components/LabelComponents.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345872 /* JoyLabsNative/Components/ReorderComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Components/ReorderComponents.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345902 /* JoyLabsNative/Core/Database/CatalogTableDefinitions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Database/CatalogTableDefinitions.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345904 /* JoyLabsNative/Core/Database/CatalogTableCreator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Database/CatalogTableCreator.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6789012345906 /* JoyLabsNative/Core/Database/CatalogObjectInserters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Database/CatalogObjectInserters.swift; sourceTree = "<group>"; };
+		B03008BCC45D5E32B158F66F /* Components/NotificationSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Components/NotificationSettingsView.swift; sourceTree = "<group>"; };
 		BA6CAB610624BBFC8C7C36B6 /* ItemDataTransformers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDataTransformers.swift; path = Components/ItemDataTransformers.swift; sourceTree = "<group>"; };
 		BF8BABE731647487EFC23A76 /* FieldVisibilityModifier.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FieldVisibilityModifier.swift; path = Components/FieldVisibilityModifier.swift; sourceTree = "<group>"; };
 		D583607765D3CA494A3F396E /* ItemDetailsViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsViewModel.swift; path = Components/ItemDetailsViewModel.swift; sourceTree = "<group>"; };
@@ -262,7 +262,7 @@
 				BA6CAB610624BBFC8C7C36B6 /* ItemDataTransformers.swift */,
 				16B4FF1AB7482AE61C22D7F0 /* DuplicateDetectionService.swift */,
 				84F97B5C958182F299BA523E /* DuplicateWarningView.swift */,
-				B03008BCC45D5E32B158F66F /* NotificationSettingsView.swift */,
+				B03008BCC45D5E32B158F66F /* Components/NotificationSettingsView.swift */,
 				F730ECB41F35B30ADCEEF069 /* SimpleImageView.swift */,
 			);
 			name = Components;
@@ -312,8 +312,8 @@
 			children = (
 				A1B2C3D4E5F6789012345679 /* JoyLabsNativeApp.swift */,
 				A1B2C3D4E5F6789012345681 /* ContentView.swift */,
-				A1B2C3D4E5F6789012345838 /* CatalogManagementView.swift */,
-				A1B2C3D4E5F6789012345849A /* CatalogModels.swift */,
+				A1B2C3D4E5F6789012345838 /* Views/Catalog/CatalogManagementView.swift */,
+				A1B2C3D4E5F6789012345849A /* Core/Models/CatalogModels.swift */,
 				A1B2C3D4E5F6789012345683 /* Assets.xcassets */,
 				A1B2C3D4E5F6789012345691 /* Preview Content */,
 				0B4067D357704001C7A0D307 /* QuantityNumpad.swift */,
@@ -353,36 +353,36 @@
 		A95F32152E2C866B00D0A69F /* Recovered References */ = {
 			isa = PBXGroup;
 			children = (
-				A1B2C3D4E5F6789012345802 /* SQLiteSwiftCatalogManager.swift */,
-				A1B2C3D4E5F6789012345902 /* CatalogTableDefinitions.swift */,
-				A1B2C3D4E5F6789012345904 /* CatalogTableCreator.swift */,
-				A1B2C3D4E5F6789012345906 /* CatalogObjectInserters.swift */,
-				A1B2C3D4E5F6789012345808 /* SQLiteSwiftSyncCoordinator.swift */,
-				A1B2C3D4E5F6789012345810 /* SQLiteSwiftCatalogSyncService.swift */,
-				A1B2C3D4E5F6789012345812 /* SquareAPIService.swift */,
-				A1B2C3D4E5F6789012345814 /* SquareOAuthCallbackHandler.swift */,
-				A1B2C3D4E5F6789012345816 /* SquareOAuthService.swift */,
-				A1B2C3D4E5F6789012345818 /* SquareAPIServiceFactory.swift */,
-				A1B2C3D4E5F6789012345822 /* SquareConfiguration.swift */,
-				A1B2C3D4E5F6789012345824 /* SquareErrorRecoveryManager.swift */,
-				A1B2C3D4E5F6789012345826 /* SquareHTTPClient.swift */,
-				A1B2C3D4E5F6789012345828 /* PKCEGenerator.swift */,
-				A1B2C3D4E5F6789012345834 /* DatabaseModels.swift */,
-				A1B2C3D4E5F6789012345836 /* DataValidation.swift */,
-				A1B2C3D4E5F6789012345840 /* SquareLocationsService.swift */,
-				A1B2C3D4E5F6789012345842 /* CatalogStatsService.swift */,
-				A1B2C3D4E5F6789012345846 /* ImageURLManager.swift */,
-				A1B2C3D4E5F6789012345852 /* SearchManager.swift */,
-				A1B2C3D4E5F6789012345854 /* ScanView.swift */,
-				A1B2C3D4E5F6789012345856 /* ReordersView.swift */,
-				A1B2C3D4E5F6789012345858 /* LabelsView.swift */,
-				A1B2C3D4E5F6789012345860 /* ProfileView.swift */,
-				A1B2C3D4E5F6789012345862 /* HeaderComponents.swift */,
-				A1B2C3D4E5F6789012345864 /* SearchComponents.swift */,
-				A1B2C3D4E5F6789012345866 /* StateViews.swift */,
-				A1B2C3D4E5F6789012345868 /* LabelModels.swift */,
-				A1B2C3D4E5F6789012345870 /* LabelComponents.swift */,
-				A1B2C3D4E5F6789012345872 /* ReorderComponents.swift */,
+				A1B2C3D4E5F6789012345802 /* JoyLabsNative/Core/Database/SQLiteSwiftCatalogManager.swift */,
+				A1B2C3D4E5F6789012345902 /* JoyLabsNative/Core/Database/CatalogTableDefinitions.swift */,
+				A1B2C3D4E5F6789012345904 /* JoyLabsNative/Core/Database/CatalogTableCreator.swift */,
+				A1B2C3D4E5F6789012345906 /* JoyLabsNative/Core/Database/CatalogObjectInserters.swift */,
+				A1B2C3D4E5F6789012345808 /* JoyLabsNative/Core/Square/SQLiteSwiftSyncCoordinator.swift */,
+				A1B2C3D4E5F6789012345810 /* JoyLabsNative/Core/Sync/SQLiteSwiftCatalogSyncService.swift */,
+				A1B2C3D4E5F6789012345812 /* JoyLabsNative/Core/Square/SquareAPIService.swift */,
+				A1B2C3D4E5F6789012345814 /* JoyLabsNative/Core/Square/SquareOAuthCallbackHandler.swift */,
+				A1B2C3D4E5F6789012345816 /* JoyLabsNative/Core/Square/SquareOAuthService.swift */,
+				A1B2C3D4E5F6789012345818 /* JoyLabsNative/Core/Square/SquareAPIServiceFactory.swift */,
+				A1B2C3D4E5F6789012345822 /* JoyLabsNative/Core/Square/SquareConfiguration.swift */,
+				A1B2C3D4E5F6789012345824 /* JoyLabsNative/Core/Square/SquareErrorRecoveryManager.swift */,
+				A1B2C3D4E5F6789012345826 /* JoyLabsNative/Core/Square/SquareHTTPClient.swift */,
+				A1B2C3D4E5F6789012345828 /* JoyLabsNative/Core/Square/PKCEGenerator.swift */,
+				A1B2C3D4E5F6789012345834 /* JoyLabsNative/Core/Database/DatabaseModels.swift */,
+				A1B2C3D4E5F6789012345836 /* JoyLabsNative/Core/Database/DataValidation.swift */,
+				A1B2C3D4E5F6789012345840 /* JoyLabsNative/Core/Square/SquareLocationsService.swift */,
+				A1B2C3D4E5F6789012345842 /* JoyLabsNative/Core/Database/CatalogStatsService.swift */,
+				A1B2C3D4E5F6789012345846 /* JoyLabsNative/Core/Images/ImageURLManager.swift */,
+				A1B2C3D4E5F6789012345852 /* JoyLabsNative/Core/Search/SearchManager.swift */,
+				A1B2C3D4E5F6789012345854 /* JoyLabsNative/Views/ScanView.swift */,
+				A1B2C3D4E5F6789012345856 /* JoyLabsNative/Views/ReordersView.swift */,
+				A1B2C3D4E5F6789012345858 /* JoyLabsNative/Views/LabelsView.swift */,
+				A1B2C3D4E5F6789012345860 /* JoyLabsNative/Views/ProfileView.swift */,
+				A1B2C3D4E5F6789012345862 /* JoyLabsNative/Components/HeaderComponents.swift */,
+				A1B2C3D4E5F6789012345864 /* JoyLabsNative/Components/SearchComponents.swift */,
+				A1B2C3D4E5F6789012345866 /* JoyLabsNative/Components/StateViews.swift */,
+				A1B2C3D4E5F6789012345868 /* JoyLabsNative/Models/LabelModels.swift */,
+				A1B2C3D4E5F6789012345870 /* JoyLabsNative/Components/LabelComponents.swift */,
+				A1B2C3D4E5F6789012345872 /* JoyLabsNative/Components/ReorderComponents.swift */,
 			);
 			name = "Recovered References";
 			sourceTree = "<group>";
@@ -422,7 +422,7 @@
 				6F2B7DCDFE09A9CB0B24D0EA /* WebhookManager.swift */,
 				6ECE051541206A85FCA7DCFC /* WebhookNotificationService.swift */,
 				5A12C207F099F0E3A82B8ADA /* PushNotificationService.swift */,
-				94D98163B152C53C35F66FD4 /* NotificationSettingsService.swift */,
+				94D98163B152C53C35F66FD4 /* Core/Services/NotificationSettingsService.swift */,
 				7B48CACD7CFD81508BCDBFB9 /* TokenService.swift */,
 				1645309EC63E18A4589C1AC3 /* ToastNotificationService.swift */,
 				5BF09157ED1FEE7951EC8474 /* SimpleImageService.swift */,
@@ -486,7 +486,7 @@
 			);
 			mainGroup = A1B2C3D4E5F6789012345688;
 			packageReferences = (
-				A1B2C3D4E5F6789012345718 /* XCRemoteSwiftPackageReference "SQLite.swift" */,
+				A1B2C3D4E5F6789012345718 /* XCRemoteSwiftPackageReference "SQLite" */,
 			);
 			productRefGroup = A1B2C3D4E5F6789012345690 /* Products */;
 			projectDirPath = "";
@@ -516,38 +516,38 @@
 			files = (
 				A1B2C3D4E5F6789012345680 /* ContentView.swift in Sources */,
 				A1B2C3D4E5F6789012345678 /* JoyLabsNativeApp.swift in Sources */,
-				A1B2C3D4E5F6789012345801 /* SQLiteSwiftCatalogManager.swift in Sources */,
-				A1B2C3D4E5F6789012345901 /* CatalogTableDefinitions.swift in Sources */,
-				A1B2C3D4E5F6789012345903 /* CatalogTableCreator.swift in Sources */,
-				A1B2C3D4E5F6789012345905 /* CatalogObjectInserters.swift in Sources */,
-				A1B2C3D4E5F6789012345807 /* SQLiteSwiftSyncCoordinator.swift in Sources */,
-				A1B2C3D4E5F6789012345809 /* SQLiteSwiftCatalogSyncService.swift in Sources */,
-				A1B2C3D4E5F6789012345811 /* SquareAPIService.swift in Sources */,
-				A1B2C3D4E5F6789012345813 /* SquareOAuthCallbackHandler.swift in Sources */,
-				A1B2C3D4E5F6789012345815 /* SquareOAuthService.swift in Sources */,
-				A1B2C3D4E5F6789012345817 /* SquareAPIServiceFactory.swift in Sources */,
-				A1B2C3D4E5F6789012345821 /* SquareConfiguration.swift in Sources */,
-				A1B2C3D4E5F6789012345823 /* SquareErrorRecoveryManager.swift in Sources */,
-				A1B2C3D4E5F6789012345825 /* SquareHTTPClient.swift in Sources */,
-				A1B2C3D4E5F6789012345827 /* PKCEGenerator.swift in Sources */,
-				A1B2C3D4E5F6789012345833 /* DatabaseModels.swift in Sources */,
-				A1B2C3D4E5F6789012345835 /* DataValidation.swift in Sources */,
-				A1B2C3D4E5F6789012345837 /* CatalogManagementView.swift in Sources */,
-				A1B2C3D4E5F6789012345839 /* SquareLocationsService.swift in Sources */,
-				A1B2C3D4E5F6789012345841 /* CatalogStatsService.swift in Sources */,
-				A1B2C3D4E5F6789012345845 /* ImageURLManager.swift in Sources */,
-				A1B2C3D4E5F6789012345849 /* CatalogModels.swift in Sources */,
-				A1B2C3D4E5F6789012345851 /* SearchManager.swift in Sources */,
-				A1B2C3D4E5F6789012345853 /* ScanView.swift in Sources */,
-				A1B2C3D4E5F6789012345855 /* ReordersView.swift in Sources */,
-				A1B2C3D4E5F6789012345857 /* LabelsView.swift in Sources */,
-				A1B2C3D4E5F6789012345859 /* ProfileView.swift in Sources */,
-				A1B2C3D4E5F6789012345861 /* HeaderComponents.swift in Sources */,
-				A1B2C3D4E5F6789012345863 /* SearchComponents.swift in Sources */,
-				A1B2C3D4E5F6789012345865 /* StateViews.swift in Sources */,
-				A1B2C3D4E5F6789012345867 /* LabelModels.swift in Sources */,
-				A1B2C3D4E5F6789012345869 /* LabelComponents.swift in Sources */,
-				A1B2C3D4E5F6789012345871 /* ReorderComponents.swift in Sources */,
+				A1B2C3D4E5F6789012345801 /* JoyLabsNative/Core/Database/SQLiteSwiftCatalogManager.swift in Sources */,
+				A1B2C3D4E5F6789012345901 /* JoyLabsNative/Core/Database/CatalogTableDefinitions.swift in Sources */,
+				A1B2C3D4E5F6789012345903 /* JoyLabsNative/Core/Database/CatalogTableCreator.swift in Sources */,
+				A1B2C3D4E5F6789012345905 /* JoyLabsNative/Core/Database/CatalogObjectInserters.swift in Sources */,
+				A1B2C3D4E5F6789012345807 /* JoyLabsNative/Core/Square/SQLiteSwiftSyncCoordinator.swift in Sources */,
+				A1B2C3D4E5F6789012345809 /* JoyLabsNative/Core/Sync/SQLiteSwiftCatalogSyncService.swift in Sources */,
+				A1B2C3D4E5F6789012345811 /* JoyLabsNative/Core/Square/SquareAPIService.swift in Sources */,
+				A1B2C3D4E5F6789012345813 /* JoyLabsNative/Core/Square/SquareOAuthCallbackHandler.swift in Sources */,
+				A1B2C3D4E5F6789012345815 /* JoyLabsNative/Core/Square/SquareOAuthService.swift in Sources */,
+				A1B2C3D4E5F6789012345817 /* JoyLabsNative/Core/Square/SquareAPIServiceFactory.swift in Sources */,
+				A1B2C3D4E5F6789012345821 /* JoyLabsNative/Core/Square/SquareConfiguration.swift in Sources */,
+				A1B2C3D4E5F6789012345823 /* JoyLabsNative/Core/Square/SquareErrorRecoveryManager.swift in Sources */,
+				A1B2C3D4E5F6789012345825 /* JoyLabsNative/Core/Square/SquareHTTPClient.swift in Sources */,
+				A1B2C3D4E5F6789012345827 /* JoyLabsNative/Core/Square/PKCEGenerator.swift in Sources */,
+				A1B2C3D4E5F6789012345833 /* JoyLabsNative/Core/Database/DatabaseModels.swift in Sources */,
+				A1B2C3D4E5F6789012345835 /* JoyLabsNative/Core/Database/DataValidation.swift in Sources */,
+				A1B2C3D4E5F6789012345837 /* Views/Catalog/CatalogManagementView.swift in Sources */,
+				A1B2C3D4E5F6789012345839 /* JoyLabsNative/Core/Square/SquareLocationsService.swift in Sources */,
+				A1B2C3D4E5F6789012345841 /* JoyLabsNative/Core/Database/CatalogStatsService.swift in Sources */,
+				A1B2C3D4E5F6789012345845 /* JoyLabsNative/Core/Images/ImageURLManager.swift in Sources */,
+				A1B2C3D4E5F6789012345849 /* Core/Models/CatalogModels.swift in Sources */,
+				A1B2C3D4E5F6789012345851 /* JoyLabsNative/Core/Search/SearchManager.swift in Sources */,
+				A1B2C3D4E5F6789012345853 /* JoyLabsNative/Views/ScanView.swift in Sources */,
+				A1B2C3D4E5F6789012345855 /* JoyLabsNative/Views/ReordersView.swift in Sources */,
+				A1B2C3D4E5F6789012345857 /* JoyLabsNative/Views/LabelsView.swift in Sources */,
+				A1B2C3D4E5F6789012345859 /* JoyLabsNative/Views/ProfileView.swift in Sources */,
+				A1B2C3D4E5F6789012345861 /* JoyLabsNative/Components/HeaderComponents.swift in Sources */,
+				A1B2C3D4E5F6789012345863 /* JoyLabsNative/Components/SearchComponents.swift in Sources */,
+				A1B2C3D4E5F6789012345865 /* JoyLabsNative/Components/StateViews.swift in Sources */,
+				A1B2C3D4E5F6789012345867 /* JoyLabsNative/Models/LabelModels.swift in Sources */,
+				A1B2C3D4E5F6789012345869 /* JoyLabsNative/Components/LabelComponents.swift in Sources */,
+				A1B2C3D4E5F6789012345871 /* JoyLabsNative/Components/ReorderComponents.swift in Sources */,
 				33ACA92EB8376CDDB719088F /* QuantityNumpad.swift in Sources */,
 				F734B51CB83D78322A781674 /* QuantitySelectionModal.swift in Sources */,
 				2762D04C26D1C662BFB79CF0 /* ItemDetailsModal.swift in Sources */,
@@ -587,8 +587,8 @@
 				C798D416ABF659B88BDA1C8E /* PushNotificationService.swift in Sources */,
 				AA5102A379E2429BBA60C844 /* NotificationPermissionView.swift in Sources */,
 				C309C4756E80941769C46AB8 /* AppDelegate.swift in Sources */,
-				6F5DE98B1CAA89726CC9FF2D /* NotificationSettingsService.swift in Sources */,
-				135161F2D6150929CEF0A9D1 /* NotificationSettingsView.swift in Sources */,
+				6F5DE98B1CAA89726CC9FF2D /* Core/Services/NotificationSettingsService.swift in Sources */,
+				135161F2D6150929CEF0A9D1 /* Components/NotificationSettingsView.swift in Sources */,
 				4017A953F9FBBE7E588A972C /* TokenService.swift in Sources */,
 				E9A6D95E709090B8AEE36C79 /* NotificationsView.swift in Sources */,
 				85126E4554FBE0F2C78D3609 /* ToastNotificationService.swift in Sources */,
@@ -826,7 +826,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		A1B2C3D4E5F6789012345718 /* XCRemoteSwiftPackageReference "SQLite.swift" */ = {
+		A1B2C3D4E5F6789012345718 /* XCRemoteSwiftPackageReference "SQLite" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/stephencelis/SQLite.swift";
 			requirement = {
@@ -839,7 +839,7 @@
 /* Begin XCSwiftPackageProductDependency section */
 		A1B2C3D4E5F6789012345717 /* SQLite */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = A1B2C3D4E5F6789012345718 /* XCRemoteSwiftPackageReference "SQLite.swift" */;
+			package = A1B2C3D4E5F6789012345718 /* XCRemoteSwiftPackageReference "SQLite" */;
 			productName = SQLite;
 		};
 /* End XCSwiftPackageProductDependency section */

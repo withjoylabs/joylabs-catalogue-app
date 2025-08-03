@@ -21,32 +21,45 @@ struct UnifiedImagePickerModal: View {
     @State private var isLoadingPhotos = false
     @State private var authorizationStatus: PHAuthorizationStatus = .notDetermined
     @State private var showingCamera = false
+    @State private var hasMorePhotos = true
+    @State private var isLoadingMorePhotos = false
 
     @StateObject private var imageService = SimpleImageService.shared
     @Environment(\.dismiss) private var dismiss
 
     private let logger = Logger(subsystem: "com.joylabs.native", category: "UnifiedImagePickerModal")
 
-    // 4-column grid for photo library
+    // Responsive columns: 6 on iPad, 4 on iPhone
     private var columns: [GridItem] {
-        Array(repeating: GridItem(.flexible(), spacing: 0), count: 4)
+        let columnCount = UIDevice.current.userInterfaceIdiom == .pad ? 6 : 4
+        return Array(repeating: GridItem(.flexible(), spacing: 1), count: columnCount)
     }
 
-    private var thumbnailSize: CGFloat {
-        UIScreen.main.bounds.width / 4
+    private func thumbnailSize(containerWidth: CGFloat) -> CGFloat {
+        let columnCount: CGFloat = UIDevice.current.userInterfaceIdiom == .pad ? 6 : 4
+        let spacing = columnCount - 1 // 1pt spacing between columns
+        return (containerWidth - spacing) / columnCount
+    }
+    
+    // High-quality thumbnail size for better image quality
+    private func highQualityThumbnailSize(for containerWidth: CGFloat) -> CGFloat {
+        thumbnailSize(containerWidth: containerWidth) * UIScreen.main.scale // Multiply by screen scale for retina quality
     }
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 0) {
-                // 1:1 Square Crop Preview (Top)
-                cropPreviewSection
+            GeometryReader { geometry in
+                VStack(spacing: 0) {
+                    // Responsive image preview - uses full modal width, 1:1 aspect ratio
+                    cropPreviewSection(containerWidth: geometry.size.width)
 
-                // Divider
-                Divider()
+                    // Divider
+                    Divider()
 
-                // iOS Photo Library Grid (Bottom)
-                photoLibrarySection
+                    // iOS Photo Library Grid (Bottom) - matches modal width exactly
+                    photoLibrarySectionWithPermissions(containerWidth: geometry.size.width)
+                        .frame(maxHeight: .infinity) // Ensure photo library gets remaining space
+                }
             }
             .navigationTitle("Select Photo")
             .navigationBarTitleDisplayMode(.inline)
@@ -67,7 +80,10 @@ struct UnifiedImagePickerModal: View {
                 }
             }
         }
+        .navigationViewStyle(StackNavigationViewStyle()) // Force single view on iPad
         .onAppear {
+            print("[UnifiedImagePickerModal] Modal appeared with context: \(context)")
+            print("[UnifiedImagePickerModal] Device: \(UIDevice.current.userInterfaceIdiom == .pad ? "iPad" : "iPhone")")
             requestPhotoLibraryAccess()
         }
         .alert("Upload Error", isPresented: $showingErrorAlert) {
@@ -75,16 +91,25 @@ struct UnifiedImagePickerModal: View {
         } message: {
             Text(uploadError ?? "Unknown error occurred")
         }
+        .fullScreenCover(isPresented: $showingCamera) {
+            CameraView { image in
+                // Set the captured image in preview
+                selectedImage = image
+                // Close camera view
+                showingCamera = false
+                print("[UnifiedImagePickerModal] Camera photo set in preview, staying in modal for cropping")
+            }
+        }
     }
     
     // MARK: - UI Sections
     
-    private var cropPreviewSection: some View {
-        // 1:1 Square Crop Preview - NO PADDING, edge to edge
+    private func cropPreviewSection(containerWidth: CGFloat) -> some View {
+        // Responsive 1:1 Square Crop Preview - uses full modal width
         ZStack {
             Rectangle()
                 .fill(Color.black)
-                .aspectRatio(1, contentMode: .fit)
+                .frame(width: containerWidth, height: containerWidth) // Perfect square, full width
 
             if let selectedImage = selectedImage {
                 SquareCropView(
@@ -94,7 +119,7 @@ struct UnifiedImagePickerModal: View {
                         self.cropRect = rect
                     }
                 )
-                .aspectRatio(1, contentMode: .fit)
+                .frame(width: containerWidth, height: containerWidth) // Perfect square, full width
             } else {
                 VStack(spacing: 12) {
                     Image(systemName: "photo")
@@ -115,33 +140,18 @@ struct UnifiedImagePickerModal: View {
                     .foregroundColor(.white)
             }
         }
-        .frame(width: UIScreen.main.bounds.width, height: UIScreen.main.bounds.width) // Perfect square, edge to edge
     }
     
-    private var photoLibrarySection: some View {
+    private func photoLibrarySectionWithPermissions(containerWidth: CGFloat) -> some View {
         VStack(spacing: 0) {
-            if authorizationStatus == .denied || authorizationStatus == .restricted {
-                // Permission denied state
-                VStack(spacing: 16) {
-                    Image(systemName: "photo.on.rectangle.angled")
-                        .font(.system(size: 50))
-                        .foregroundColor(.gray)
-
-                    Text("Photo Access Required")
-                        .font(.headline)
-
-                    Text("Please allow access to your photo library in Settings to select photos.")
-                        .font(.body)
-                        .multilineTextAlignment(.center)
-                        .foregroundColor(Color.secondary)
-
-                    Button("Open Settings") {
-                        openSettings()
-                    }
-                    .foregroundColor(.blue)
-                }
-                .padding(40)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            if authorizationStatus == .notDetermined {
+                // Permission not yet requested - show request UI in preview area
+                permissionRequestUI
+                    .onAppear { print("[UnifiedImagePickerModal] Showing permission request UI") }
+            } else if authorizationStatus == .denied || authorizationStatus == .restricted {
+                // Permission denied - show guidance in preview area
+                permissionDeniedUI
+                    .onAppear { print("[UnifiedImagePickerModal] Showing permission denied UI") }
             } else if isLoadingPhotos {
                 // Loading state
                 VStack {
@@ -150,94 +160,311 @@ struct UnifiedImagePickerModal: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(.top, 40)
+                .onAppear { print("[UnifiedImagePickerModal] Showing loading state") }
             } else {
-                // Photo grid - 4 columns, no spacing
+                // Photo grid with camera button + pagination
+                let currentThumbnailSize = thumbnailSize(containerWidth: containerWidth)
+                let columnCount = UIDevice.current.userInterfaceIdiom == .pad ? 6 : 4
+                
                 ScrollView {
-                    LazyVGrid(columns: columns, spacing: 0) {
+                    LazyVGrid(columns: columns, spacing: 1) {
+                        // Camera button as first item
+                        CameraButtonView(thumbnailSize: currentThumbnailSize) {
+                            // Check camera availability before showing
+                            if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                                showingCamera = true
+                            } else {
+                                print("[UnifiedImagePickerModal] Camera not available on this device")
+                            }
+                        }
+                        
+                        // Photo library items
                         ForEach(photoAssets) { photoAsset in
                             PhotoThumbnailView(
                                 photoAsset: photoAsset,
-                                thumbnailSize: thumbnailSize
+                                thumbnailSize: currentThumbnailSize
                             ) {
                                 selectPhoto(photoAsset.asset)
                             }
+                            .onAppear {
+                                // Load more photos when approaching the end
+                                if photoAsset.id == photoAssets.last?.id && hasMorePhotos && !isLoadingMorePhotos {
+                                    loadMorePhotos()
+                                }
+                            }
+                        }
+                        
+                        // Loading indicator for pagination
+                        if isLoadingMorePhotos {
+                            VStack {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                Text("Loading more...")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .frame(height: currentThumbnailSize)
+                            .frame(maxWidth: .infinity)
+                            .gridCellColumns(columnCount)
                         }
                     }
                 }
+                .onAppear { print("[UnifiedImagePickerModal] Showing photo grid with \(photoAssets.count) photos") }
             }
         }
+    }
+    
+    // MARK: - Permission UI Components
+    
+    private var permissionRequestUI: some View {
+        VStack(spacing: 20) {
+            Spacer()
+            
+            Image(systemName: "photo.on.rectangle.angled")
+                .font(.system(size: 50))
+                .foregroundColor(.blue)
+            
+            VStack(spacing: 12) {
+                Text("Photo Library Access")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                
+                Text("To display your photo library, please grant access to your photos.")
+                    .font(.body)
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(Color.secondary)
+                    .padding(.horizontal, 20)
+            }
+            
+            Button(action: {
+                requestPhotoLibraryPermission()
+            }) {
+                Text("Allow Photo Access")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color.blue)
+                    .cornerRadius(10)
+            }
+            .padding(.horizontal, 40)
+            
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    
+    private var permissionDeniedUI: some View {
+        VStack(spacing: 20) {
+            Spacer()
+            
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 50))
+                .foregroundColor(.orange)
+            
+            VStack(spacing: 12) {
+                Text("Photo Access Required")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                
+                Text("In order to display your photo library, you need to grant photo permissions in Settings.")
+                    .font(.body)
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(Color.secondary)
+                    .padding(.horizontal, 20)
+            }
+            
+            VStack(spacing: 12) {
+                Button(action: {
+                    openSettings()
+                }) {
+                    Text("Open Settings")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color.blue)
+                        .cornerRadius(10)
+                }
+                
+                Button(action: {
+                    requestPhotoLibraryPermission()
+                }) {
+                    Text("Try Again")
+                        .font(.body)
+                        .foregroundColor(.blue)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color.blue.opacity(0.1))
+                        .cornerRadius(8)
+                }
+            }
+            .padding(.horizontal, 40)
+            
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Private Methods
 
+    private func requestPhotoLibraryPermission() {
+        print("[UnifiedImagePickerModal] User requested photo library permission")
+        PHPhotoLibrary.requestAuthorization(for: .readWrite) { status in
+            print("[UnifiedImagePickerModal] Permission request result: \(status.rawValue)")
+            DispatchQueue.main.async {
+                self.authorizationStatus = status
+                if status == .authorized || status == .limited {
+                    print("[UnifiedImagePickerModal] Permission granted, loading assets")
+                    self.loadPhotoAssets()
+                } else {
+                    print("[UnifiedImagePickerModal] Permission denied or restricted")
+                }
+            }
+        }
+    }
+    
     private func requestPhotoLibraryAccess() {
         authorizationStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        print("[UnifiedImagePickerModal] Current photo authorization status: \(authorizationStatus.rawValue)")
 
         switch authorizationStatus {
         case .authorized, .limited:
+            print("[UnifiedImagePickerModal] Photo access granted, loading assets")
             loadPhotoAssets()
         case .notDetermined:
+            print("[UnifiedImagePickerModal] Requesting photo library permission...")
             PHPhotoLibrary.requestAuthorization(for: .readWrite) { status in
+                print("[UnifiedImagePickerModal] Permission result: \(status.rawValue)")
                 DispatchQueue.main.async {
                     self.authorizationStatus = status
                     if status == .authorized || status == .limited {
+                        print("[UnifiedImagePickerModal] Permission granted, loading assets")
                         self.loadPhotoAssets()
+                    } else {
+                        print("[UnifiedImagePickerModal] Permission denied or restricted")
                     }
                 }
             }
         case .denied, .restricted:
+            print("[UnifiedImagePickerModal] Photo access denied or restricted")
             break
         @unknown default:
+            print("[UnifiedImagePickerModal] Unknown authorization status")
             break
         }
     }
 
     private func loadPhotoAssets() {
+        print("[UnifiedImagePickerModal] Starting to load initial photo assets...")
         isLoadingPhotos = true
-
-        Task {
-            let fetchOptions = PHFetchOptions()
-            fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-            fetchOptions.fetchLimit = 50 // Reduced for better performance
-
-            let assets = PHAsset.fetchAssets(with: .image, options: fetchOptions)
-            let imageManager = PHImageManager.default()
-            let requestOptions = PHImageRequestOptions()
-            requestOptions.isSynchronous = true // CRITICAL: Load synchronously to avoid loading icons
-            requestOptions.deliveryMode = .highQualityFormat // Higher quality for better thumbnails
-            requestOptions.resizeMode = .exact // Exact sizing for better quality
-
-            var photoAssets: [PhotoAsset] = []
-
-            // Load thumbnails synchronously to avoid loading icons
-            for i in 0..<assets.count {
-                let asset = assets.object(at: i)
-
-                var thumbnail: UIImage?
-                imageManager.requestImage(
-                    for: asset,
-                    targetSize: CGSize(width: thumbnailSize * 3, height: thumbnailSize * 3), // Higher resolution
-                    contentMode: .aspectFill,
-                    options: requestOptions
-                ) { image, _ in
-                    thumbnail = image
-                }
-
-                // Only add assets that have successfully loaded thumbnails
-                if let thumbnail = thumbnail {
-                    let photoAsset = PhotoAsset(asset: asset, thumbnail: thumbnail)
-                    photoAssets.append(photoAsset)
+        photoAssets = [] // Reset array
+        hasMorePhotos = true
+        
+        loadPhotoBatch(startIndex: 0, batchSize: 40) { assets, hasMore in
+            DispatchQueue.main.async {
+                self.photoAssets = assets
+                self.hasMorePhotos = hasMore
+                self.isLoadingPhotos = false
+                print("[UnifiedImagePickerModal] Initial photo assets loaded: \(assets.count), hasMore: \(hasMore)")
+                
+                // Auto-preview the first photo if available
+                if let firstAsset = assets.first {
+                    self.selectPhoto(firstAsset.asset)
                 }
             }
-
-            await MainActor.run {
-                self.photoAssets = photoAssets
-                self.isLoadingPhotos = false
+        }
+    }
+    
+    private func loadMorePhotos() {
+        guard hasMorePhotos && !isLoadingMorePhotos else { return }
+        
+        print("[UnifiedImagePickerModal] Loading more photos from index \(photoAssets.count)...")
+        isLoadingMorePhotos = true
+        
+        let startIndex = photoAssets.count
+        loadPhotoBatch(startIndex: startIndex, batchSize: 20) { newAssets, hasMore in
+            DispatchQueue.main.async {
+                self.photoAssets.append(contentsOf: newAssets)
+                self.hasMorePhotos = hasMore
+                self.isLoadingMorePhotos = false
+                print("[UnifiedImagePickerModal] Loaded \(newAssets.count) more photos, total: \(self.photoAssets.count), hasMore: \(hasMore)")
+            }
+        }
+    }
+    
+    private func loadPhotoBatch(startIndex: Int, batchSize: Int, completion: @escaping ([PhotoAsset], Bool) -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let fetchOptions = PHFetchOptions()
+            fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+            
+            let allAssets = PHAsset.fetchAssets(with: .image, options: fetchOptions)
+            print("[UnifiedImagePickerModal] Found \(allAssets.count) total assets in photo library")
+            
+            let endIndex = min(startIndex + batchSize, allAssets.count)
+            let hasMore = endIndex < allAssets.count
+            
+            guard startIndex < allAssets.count else {
+                completion([], false)
+                return
+            }
+            
+            let imageManager = PHImageManager.default()
+            let requestOptions = PHImageRequestOptions()
+            requestOptions.deliveryMode = .fastFormat // Fast format to avoid daemon issues
+            requestOptions.resizeMode = .fast // Fast processing
+            requestOptions.isNetworkAccessAllowed = false // Disable network to prevent daemon errors
+            requestOptions.isSynchronous = false // Use async to prevent blocking and daemon timeouts
+            requestOptions.version = .current // Use current version, not unadjusted
+            
+            let assetsToProcess = endIndex - startIndex
+            print("[UnifiedImagePickerModal] Processing \(assetsToProcess) assets from index \(startIndex) to \(endIndex-1)")
+            
+            // Use DispatchGroup for async image loading to prevent daemon errors
+            let dispatchGroup = DispatchGroup()
+            var photoAssets: [PhotoAsset] = []
+            let targetSize = CGSize(width: 200 * UIScreen.main.scale, height: 200 * UIScreen.main.scale)
+            
+            for i in startIndex..<endIndex {
+                let asset = allAssets.object(at: i)
+                dispatchGroup.enter()
+                
+                imageManager.requestImage(
+                    for: asset,
+                    targetSize: targetSize,
+                    contentMode: .aspectFill,
+                    options: requestOptions
+                ) { image, info in
+                    defer { dispatchGroup.leave() }
+                    
+                    // Check for errors and avoid daemon issues
+                    if let error = info?[PHImageErrorKey] as? Error {
+                        print("[UnifiedImagePickerModal] Image request error: \(error.localizedDescription)")
+                        return
+                    }
+                    
+                    // Check if image request was cancelled or degraded
+                    if let cancelled = info?[PHImageCancelledKey] as? Bool, cancelled {
+                        print("[UnifiedImagePickerModal] Image request was cancelled")
+                        return
+                    }
+                    
+                    if let image = image {
+                        let photoAsset = PhotoAsset(asset: asset, thumbnail: image)
+                        photoAssets.append(photoAsset)
+                    }
+                }
+            }
+            
+            dispatchGroup.notify(queue: .main) {
+                print("[UnifiedImagePickerModal] Successfully processed \(photoAssets.count) photo assets")
+                completion(photoAssets, hasMore)
             }
         }
     }
 
     private func selectPhoto(_ asset: PHAsset) {
+        print("[UnifiedImagePickerModal] Selecting photo for preview")
         let imageManager = PHImageManager.default()
         let requestOptions = PHImageRequestOptions()
         requestOptions.deliveryMode = .highQualityFormat
@@ -251,8 +478,9 @@ struct UnifiedImagePickerModal: View {
         ) { image, _ in
             DispatchQueue.main.async {
                 if let image = image {
+                    print("[UnifiedImagePickerModal] Photo loaded into preview, modal should stay open")
                     selectedImage = image
-                    // The InstagramCropView will handle cropping automatically
+                    // The SquareCropView will handle cropping automatically
                 }
             }
         }
@@ -333,6 +561,30 @@ struct PhotoAsset: Identifiable {
     let thumbnail: UIImage // Non-optional since we load synchronously
 }
 
+/// Camera Button View for grid
+struct CameraButtonView: View {
+    let thumbnailSize: CGFloat
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            ZStack {
+                // Background
+                Rectangle()
+                    .fill(Color(.systemGray5))
+                    .frame(width: thumbnailSize, height: thumbnailSize)
+                
+                // Camera icon
+                Image(systemName: "camera.fill")
+                    .font(.system(size: thumbnailSize * 0.3))
+                    .foregroundColor(.blue)
+            }
+        }
+        .buttonStyle(PlainButtonStyle())
+        .frame(width: thumbnailSize, height: thumbnailSize) // Enforce exact square dimensions
+    }
+}
+
 /// Photo Thumbnail View for grid
 struct PhotoThumbnailView: View {
     let photoAsset: PhotoAsset
@@ -341,49 +593,77 @@ struct PhotoThumbnailView: View {
 
     var body: some View {
         Button(action: onTap) {
-            Image(uiImage: photoAsset.thumbnail)
-                .resizable()
-                .aspectRatio(1, contentMode: .fill)
-                .frame(width: thumbnailSize, height: thumbnailSize)
-                .clipped()
+            ZStack {
+                // Background
+                Rectangle()
+                    .fill(Color(.systemGray6))
+                    .frame(width: thumbnailSize, height: thumbnailSize)
+                
+                // Image
+                Image(uiImage: photoAsset.thumbnail)
+                    .resizable()
+                    .scaledToFill() // Fill the entire square
+                    .frame(width: thumbnailSize, height: thumbnailSize)
+                    .clipped() // Crop to exact square
+            }
         }
         .buttonStyle(PlainButtonStyle())
+        .frame(width: thumbnailSize, height: thumbnailSize) // Enforce exact square dimensions
     }
 }
 
 /// Camera View for taking photos
 struct CameraView: UIViewControllerRepresentable {
     let onImageCaptured: (UIImage) -> Void
+    @Environment(\.dismiss) private var dismiss
 
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
+        
+        // Check if camera is available first
+        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+            print("[CameraView] Camera not available on this device")
+            return picker
+        }
+        
         picker.sourceType = .camera
+        picker.mediaTypes = ["public.image"] // Only allow photos
+        picker.allowsEditing = false // We handle cropping in our modal
         picker.delegate = context.coordinator
+        
+        // Configure camera settings - let iOS handle device selection automatically
+        picker.cameraCaptureMode = .photo
+        // Don't specify cameraDevice - let iOS choose the best available camera
+        
         return picker
     }
 
     func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onImageCaptured: onImageCaptured)
+        Coordinator(onImageCaptured: onImageCaptured, dismiss: dismiss)
     }
 
     class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
         let onImageCaptured: (UIImage) -> Void
+        let dismiss: DismissAction
 
-        init(onImageCaptured: @escaping (UIImage) -> Void) {
+        init(onImageCaptured: @escaping (UIImage) -> Void, dismiss: DismissAction) {
             self.onImageCaptured = onImageCaptured
+            self.dismiss = dismiss
         }
 
         func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
             if let image = info[.originalImage] as? UIImage {
+                print("[CameraView] Photo captured successfully")
                 onImageCaptured(image)
             }
-            picker.dismiss(animated: true)
+            // Don't dismiss here - let the parent handle it
         }
 
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            picker.dismiss(animated: true)
+            print("[CameraView] Camera cancelled")
+            dismiss()
         }
     }
 }

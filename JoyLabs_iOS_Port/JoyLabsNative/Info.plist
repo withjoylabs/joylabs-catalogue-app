@@ -61,6 +61,10 @@
 	<string>Photo library access needed for item images</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Permission needed to save photos</string>
+	<key>PHPhotoLibraryPreventAutomaticLimitedAccessAlert</key>
+	<true/>
+	<key>NSPhotoLibraryLimitedAccessDescription</key>
+	<string>Select photos to use for product images</string>
 	<key>NSUserNotificationsUsageDescription</key>
 	<string>Allow notifications to keep your local catalog synchronized with Square in real-time. This ensures you always have the latest product information.</string>
 	<key>NSLocalNetworkUsageDescription</key>

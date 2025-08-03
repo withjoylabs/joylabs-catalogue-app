@@ -1,4 +1,21 @@
 import SwiftUI
+
+enum ReordersSheet: Identifiable {
+    case imagePicker(ReorderItem)
+    case itemDetails(ReorderItem)
+    case quantityModal(SearchResultItem)
+    
+    var id: String {
+        switch self {
+        case .imagePicker(let item):
+            return "imagePicker_\(item.itemId)"
+        case .itemDetails(let item):
+            return "itemDetails_\(item.itemId)"
+        case .quantityModal(let item):
+            return "quantityModal_\(item.id)"
+        }
+    }
+}
 import UIKit
 import SQLite
 
@@ -229,9 +246,11 @@ struct ReordersView: SwiftUI.View {
     @State private var selectedItemForEnlargement: ReorderItem?
     @State private var showingImageEnlargement = false
 
-    // Image picker for updating item images
+    // Unified sheet management
+    @State private var activeSheet: ReordersSheet?
     @State private var selectedItemForImageUpdate: ReorderItem?
-    @State private var showingImagePicker = false
+    
+    // Item details modal state
 
     // Barcode scanner state
     @State private var scannerSearchText = ""
@@ -355,13 +374,19 @@ struct ReordersView: SwiftUI.View {
                     onBarcodeScanned: handleBarcodeScanned,
                     onImageTap: { item in
                         // TODO: Implement image enlargement when ImageEnlargementView is added to project
-                        print("🖼️ Image tapped for item: \(item.name)")
+                        print("[ReordersView] Image tapped for item: \(item.name)")
                     },
                     onImageLongPress: { item in
-                        selectedItemForImageUpdate = item
-                        showingImagePicker = true
+                        print("[ReordersView] onImageLongPress called with item: \(item.name)")
+                        activeSheet = .imagePicker(item)
+                        print("[ReordersView] Set activeSheet = .imagePicker(\(item.name))")
                     },
-                    onQuantityTap: showQuantityModalForItem
+                    onQuantityTap: showQuantityModalForItem,
+                    onItemDetailsLongPress: { item in
+                        print("[ReordersView] onItemDetailsLongPress called with item: \(item.name)")
+                        activeSheet = .itemDetails(item)
+                        print("[ReordersView] Set activeSheet = .itemDetails(\(item.name))")
+                    }
                 )
 
                 // CRITICAL: Global barcode receiver (invisible, handles external keyboard input)
@@ -466,84 +491,58 @@ struct ReordersView: SwiftUI.View {
 
         }
         .navigationViewStyle(StackNavigationViewStyle())
-        // Quantity Selection Modal (INDUSTRY STANDARD SOLUTION)
-        .sheet(isPresented: $modalStateManager.showingQuantityModal, onDismiss: handleQuantityModalDismiss) {
-            if let item = modalStateManager.selectedItemForQuantity {
-                EmbeddedQuantitySelectionModal(
-                    item: item,
-                    currentQuantity: modalStateManager.modalQuantity,
-                    isExistingItem: modalStateManager.isExistingItem,
-                    isPresented: $modalStateManager.showingQuantityModal,
-                    onSubmit: handleQuantityModalSubmit,
-                    onCancel: handleQuantityModalCancel,
-                    onQuantityChange: { newQuantity in
-                        currentModalQuantity = newQuantity
-                    }
-                )
-                .presentationDetents({
-                    if isIPad {
-                        // Calculate responsive height based on actual content needs
-                        let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene
-                        let screenHeight = scene?.screen.bounds.height ?? 1024
-                        let screenWidth = scene?.screen.bounds.width ?? 768
-                        let isLandscape = scene?.interfaceOrientation.isLandscape ?? false
-                        
-                        // Calculate content height needed:
-                        // - Navigation bar: ~50pt
-                        // - Image section: 70% of width * 0.7 aspect ratio + spacing
-                        // - Item details: ~80pt (name + details)
-                        // - Quantity header: ~50pt
-                        // - Numpad: 4 rows * 44pt + 3 * 8pt spacing = 200pt
-                        // - Padding and spacing: ~60pt
-                        // - Bottom safe area: ~40pt
-                        
-                        let imageSize = screenWidth * 0.7 * 0.7  // Width * aspect ratio
-                        let contentHeight = 50 + imageSize + 80 + 50 + 200 + 60 + 40
-                        
-                        // Use fraction that ensures content fits but doesn't exceed reasonable limits
-                        let requiredFraction = min(contentHeight / screenHeight, 0.95)
-                        
-                        if isLandscape {
-                            // Landscape needs more height relative to screen
-                            return [.fraction(max(requiredFraction, 0.8)), .large]
-                        } else {
-                            // Portrait can use calculated fraction
-                            return [.fraction(max(requiredFraction, 0.7))]
-                        }
-                    } else {
-                        // iPhone default (unchanged)
-                        return [.fraction(0.75)]
-                    }
-                }())
-                .presentationDragIndicator(.visible)
-                .onAppear {
-                    print("🚨 DEBUG: Sheet presentation triggered! Using StateObject item: \(item.name ?? "Unknown")")
-                }
-            } else {
-                Text("Error: No item selected")
-                    .onAppear {
-                        print("🚨 DEBUG: ERROR - StateObject selectedItemForQuantity is nil!")
-                    }
-            }
-        }
-        // Image Picker Modal for updating item images
-        .sheet(isPresented: $showingImagePicker) {
-            if let item = selectedItemForImageUpdate {
+        // Unified Sheet Modal (SINGLE SHEET SOLUTION - fixes multiple sheet modifier issue)
+        .sheet(item: $activeSheet) { sheet in
+            switch sheet {
+            case .imagePicker(let item):
                 UnifiedImagePickerModal(
                     context: .reordersViewLongPress(
                         itemId: item.itemId,
                         imageId: item.imageId
                     ),
                     onDismiss: {
-                        showingImagePicker = false
-                        selectedItemForImageUpdate = nil
+                        activeSheet = nil
                     },
                     onImageUploaded: { result in
-                        // UnifiedImageService handles all refresh notifications
-                        showingImagePicker = false
-                        selectedItemForImageUpdate = nil
+                        activeSheet = nil
                     }
                 )
+            case .itemDetails(let item):
+                ItemDetailsModal(
+                    context: .editExisting(itemId: item.itemId),
+                    onDismiss: {
+                        activeSheet = nil
+                    },
+                    onSave: { itemData in
+                        activeSheet = nil
+                        loadReorderData() // Refresh data after edit
+                    }
+                )
+            case .quantityModal(let searchItem):
+                EmbeddedQuantitySelectionModal(
+                    item: searchItem,
+                    currentQuantity: modalStateManager.modalQuantity,
+                    isExistingItem: modalStateManager.isExistingItem,
+                    isPresented: .constant(true),
+                    onSubmit: { quantity in
+                        handleQuantityModalSubmit(quantity)
+                        activeSheet = nil
+                    },
+                    onCancel: {
+                        activeSheet = nil
+                    },
+                    onQuantityChange: { newQuantity in
+                        currentModalQuantity = newQuantity
+                    }
+                )
+                .presentationDetents({
+                    if isIPad {
+                        return [.fraction(0.75)]
+                    } else {
+                        return [.fraction(0.75)]
+                    }
+                }())
+                .presentationDragIndicator(.visible)
             }
         }
     }
@@ -988,8 +987,11 @@ struct ReordersView: SwiftUI.View {
         print("🔢 QUANTITY DEBUG: Set currentModalQuantity to \(quantity)")
 
         modalStateManager.setItem(foundItem, quantity: quantity, isExisting: isExisting)
-        modalStateManager.showModal()
-
+        
+        // Use unified sheet system
+        activeSheet = .quantityModal(foundItem)
+        print("Set activeSheet = .quantityModal")
+        
         // Note: isProcessingBarcode remains true until modal is dismissed
         // This prevents new barcodes from being processed while modal is open
     }
@@ -1137,6 +1139,7 @@ struct ReorderContentView: SwiftUI.View {
     let onImageTap: (ReorderItem) -> Void
     let onImageLongPress: (ReorderItem) -> Void // NEW: For updating item images
     let onQuantityTap: (SearchResultItem) -> Void // NEW: For opening quantity modal
+    let onItemDetailsLongPress: (ReorderItem) -> Void // NEW: For item details modal
 
     var body: some SwiftUI.View {
         GeometryReader { geometry in
@@ -1157,7 +1160,8 @@ struct ReorderContentView: SwiftUI.View {
                                     onRemoveItem: onRemoveItem,
                                     onImageTap: onImageTap,
                                     onImageLongPress: onImageLongPress,
-                                    onQuantityTap: onQuantityTap
+                                    onQuantityTap: onQuantityTap,
+                                    onItemDetailsLongPress: onItemDetailsLongPress
                                 )
                             }
                         } header: {
@@ -1177,8 +1181,10 @@ struct ReorderContentView: SwiftUI.View {
                     }
                 }
                 .coordinateSpace(name: "scroll")
+                .clipped() // Prevent content from bleeding through status bar
             }
         }
+        .ignoresSafeArea(.all, edges: []) // Respect safe area boundaries
         // TEXT FIELD REMOVED: Global HID scanner handles all barcode input without focus requirement
     }
 }
@@ -1234,28 +1240,62 @@ struct ReorderItemsContent: SwiftUI.View {
     let onImageTap: (ReorderItem) -> Void
     let onImageLongPress: (ReorderItem) -> Void // NEW: For updating item images
     let onQuantityTap: (SearchResultItem) -> Void // NEW: For opening quantity modal
+    let onItemDetailsLongPress: (ReorderItem) -> Void // NEW: For item details modal
 
     var body: some SwiftUI.View {
+        // Capture the callback to avoid scope issues
+        let itemDetailsCallback = onItemDetailsLongPress
+        
         LazyVStack(spacing: 0) {
             // ELEGANT SOLUTION: Manual rendering to avoid SwiftUI ForEach compiler bug
             if organizedItems.count == 1 {
                 // Single section - render directly
                 let (_, items) = organizedItems[0]
-                renderItemsSection(items: items, displayMode: displayMode)
+                renderItemsSection(
+                    items: items, 
+                    displayMode: displayMode,
+                    onStatusChange: onStatusChange,
+                    onQuantityChange: onQuantityChange,
+                    onRemoveItem: onRemoveItem,
+                    onImageTap: onImageTap,
+                    onImageLongPress: onImageLongPress,
+                    onQuantityTap: onQuantityTap,
+                    onItemDetailsLongPress: itemDetailsCallback
+                )
             } else if organizedItems.count > 1 {
                 // Multiple sections - render each manually
                 let (sectionTitle1, items1) = organizedItems[0]
                 if !sectionTitle1.isEmpty {
                     sectionHeader(title: sectionTitle1, itemCount: items1.count)
                 }
-                renderItemsSection(items: items1, displayMode: displayMode)
+                renderItemsSection(
+                    items: items1, 
+                    displayMode: displayMode,
+                    onStatusChange: onStatusChange,
+                    onQuantityChange: onQuantityChange,
+                    onRemoveItem: onRemoveItem,
+                    onImageTap: onImageTap,
+                    onImageLongPress: onImageLongPress,
+                    onQuantityTap: onQuantityTap,
+                    onItemDetailsLongPress: itemDetailsCallback
+                )
 
                 if organizedItems.count > 1 {
                     let (sectionTitle2, items2) = organizedItems[1]
                     if !sectionTitle2.isEmpty {
                         sectionHeader(title: sectionTitle2, itemCount: items2.count)
                     }
-                    renderItemsSection(items: items2, displayMode: displayMode)
+                    renderItemsSection(
+                        items: items2, 
+                        displayMode: displayMode,
+                        onStatusChange: onStatusChange,
+                        onQuantityChange: onQuantityChange,
+                        onRemoveItem: onRemoveItem,
+                        onImageTap: onImageTap,
+                        onImageLongPress: onImageLongPress,
+                        onQuantityTap: onQuantityTap,
+                        onItemDetailsLongPress: itemDetailsCallback
+                    )
                 }
 
                 if organizedItems.count > 2 {
@@ -1263,7 +1303,17 @@ struct ReorderItemsContent: SwiftUI.View {
                     if !sectionTitle3.isEmpty {
                         sectionHeader(title: sectionTitle3, itemCount: items3.count)
                     }
-                    renderItemsSection(items: items3, displayMode: displayMode)
+                    renderItemsSection(
+                        items: items3, 
+                        displayMode: displayMode,
+                        onStatusChange: onStatusChange,
+                        onQuantityChange: onQuantityChange,
+                        onRemoveItem: onRemoveItem,
+                        onImageTap: onImageTap,
+                        onImageLongPress: onImageLongPress,
+                        onQuantityTap: onQuantityTap,
+                        onItemDetailsLongPress: itemDetailsCallback
+                    )
                 }
             }
         }
@@ -1288,11 +1338,21 @@ struct ReorderItemsContent: SwiftUI.View {
     }
 
     @ViewBuilder
-    private func renderItemsSection(items: [ReorderItem], displayMode: ReorderDisplayMode) -> some SwiftUI.View {
+    private func renderItemsSection(
+        items: [ReorderItem], 
+        displayMode: ReorderDisplayMode,
+        onStatusChange: @escaping (String, ReorderStatus) -> Void,
+        onQuantityChange: @escaping (String, Int) -> Void,
+        onRemoveItem: @escaping (String) -> Void,
+        onImageTap: @escaping (ReorderItem) -> Void,
+        onImageLongPress: @escaping (ReorderItem) -> Void,
+        onQuantityTap: @escaping (SearchResultItem) -> Void,
+        onItemDetailsLongPress: @escaping (ReorderItem) -> Void
+    ) -> some SwiftUI.View {
         switch displayMode {
         case .list:
-            ForEach(items) { item in
-                ReorderItemCard(
+            ForEach(items, id: \.id) { (item: ReorderItem) in
+                SwipeableReorderCard(
                     item: item,
                     displayMode: displayMode,
                     onStatusChange: { newStatus in
@@ -1346,8 +1406,11 @@ struct ReorderItemsContent: SwiftUI.View {
                     onImageTap: {
                         onImageTap(item)
                     },
-                    onImageLongPress: {
+                    onImageLongPress: { _ in
                         onImageLongPress(item)
+                    },
+                    onItemDetailsLongPress: { _ in
+                        onItemDetailsLongPress(item)
                     }
                 )
             }
@@ -1357,7 +1420,7 @@ struct ReorderItemsContent: SwiftUI.View {
             let columnCount = displayMode.columnsPerRow
             let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: columnCount)
             LazyVGrid(columns: columns, spacing: 8) {
-                ForEach(items) { item in
+                ForEach(items, id: \.id) { (item: ReorderItem) in
                     ReorderPhotoCard(
                         item: item,
                         displayMode: displayMode,
@@ -1371,14 +1434,56 @@ struct ReorderItemsContent: SwiftUI.View {
                             onRemoveItem(item.id)
                         },
                         onImageTap: {
-                            onImageTap(item)
+                            // Image tap toggles bought status (already handled in ReorderPhotoCard)
                         },
-                        onImageLongPress: {
+                        onImageLongPress: { _ in
                             onImageLongPress(item)
+                        },
+                        onItemDetailsTap: {
+                            // Convert ReorderItem to SearchResultItem for quantity modal
+                            var images: [CatalogImage] = []
+                            if let imageUrl = item.imageUrl, let imageId = item.imageId {
+                                let catalogImage = CatalogImage(
+                                    id: imageId,
+                                    type: "IMAGE",
+                                    updatedAt: ISO8601DateFormatter().string(from: Date()),
+                                    version: nil,
+                                    isDeleted: false,
+                                    presentAtAllLocations: true,
+                                    imageData: ImageData(
+                                        name: nil,
+                                        url: imageUrl,
+                                        caption: nil,
+                                        photoStudioOrderId: nil
+                                    )
+                                )
+                                images.append(catalogImage)
+                            }
+                            
+                            let searchItem = SearchResultItem(
+                                id: item.itemId,
+                                name: item.name,
+                                sku: item.sku,
+                                price: item.price,
+                                barcode: item.barcode,
+                                categoryId: nil,
+                                categoryName: item.categoryName,
+                                images: images,
+                                matchType: "reorder",
+                                matchContext: item.name,
+                                isFromCaseUpc: false,
+                                caseUpcData: nil,
+                                hasTax: item.hasTax
+                            )
+                            onQuantityTap(searchItem)
+                        },
+                        onItemDetailsLongPress: { item in
+                            onItemDetailsLongPress(item)
                         }
                     )
                 }
             }
+            .id("photo-grid-\(displayMode.rawValue)")
             .padding(.horizontal, 16)
         }
     }

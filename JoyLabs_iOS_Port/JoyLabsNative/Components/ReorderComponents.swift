@@ -250,7 +250,7 @@ struct ReorderItemCard: View {
     let onQuantityTap: (() -> Void)? // NEW: Callback for tapping quantity to edit
     let onRemove: () -> Void
     let onImageTap: () -> Void
-    let onImageLongPress: (() -> Void)? // NEW: Callback for long-pressing image to update
+    let onImageLongPress: ((ReorderItem) -> Void)? // NEW: Callback for long-pressing image to update
 
     @State private var offset: CGFloat = 0
     @State private var showingItemDetails = false
@@ -317,18 +317,25 @@ struct ReorderItemCard: View {
                 .buttonStyle(PlainButtonStyle())
 
                 // Thumbnail image - exact same size as scan page (50px) - tappable for enlargement, long-press for update
-                Button(action: onImageTap) {
-                    SimpleImageView.thumbnail(
-                        imageURL: item.imageUrl,
-                        size: 50
-                    )
-                }
-                .buttonStyle(PlainButtonStyle())
-                .onLongPressGesture {
-                    onImageLongPress?()
+                SimpleImageView.thumbnail(
+                    imageURL: item.imageUrl,
+                    size: 50
+                )
+                .contentShape(Rectangle())
+                .highPriorityGesture(
+                    // High priority: Long press for image update
+                    LongPressGesture(minimumDuration: 0.5)
+                        .onEnded { _ in
+                            print("[ReorderCard] IMAGE long press detected - calling onImageLongPress")
+                            onImageLongPress?(item)
+                        }
+                )
+                .onTapGesture {
+                    // Low priority: Tap for image enlargement
+                    onImageTap()
                 }
 
-                // Main content section
+                // Main content section - with isolated touch target for item details
                 VStack(alignment: .leading, spacing: 6) {
                     // Item name - allow wrapping to full available width, never truncate
                     Text(item.name)
@@ -429,10 +436,6 @@ struct ReorderItemCard: View {
                     onQuantityTap?()
                 }
             }
-            .onLongPressGesture {
-                // Long press to open item details
-                showingItemDetails = true
-            }
             .simultaneousGesture(
                 DragGesture()
                     .onChanged { value in
@@ -484,18 +487,6 @@ struct ReorderItemCard: View {
                     .frame(height: 0.5)
             }
         )
-        .sheet(isPresented: $showingItemDetails) {
-            ItemDetailsModal(
-                context: .editExisting(itemId: item.itemId),
-                onDismiss: {
-                    showingItemDetails = false
-                },
-                onSave: { itemData in
-                    // TODO: Handle saved item
-                    showingItemDetails = false
-                }
-            )
-        }
     }
 
     private func toggleStatus() {
@@ -578,63 +569,62 @@ struct ReorderPhotoCard: View {
     let onQuantityChange: (Int) -> Void
     let onRemove: () -> Void
     let onImageTap: () -> Void // Photo tap toggles bought status
-    let onImageLongPress: (() -> Void)? // Long-press image to update image
+    let onImageLongPress: ((ReorderItem) -> Void)? // Long-press image to update image
     let onItemDetailsTap: () -> Void // Tap item details to show quantity modal
-    let onItemDetailsLongPress: () -> Void // Long-press item details to edit item
-
+    let onItemDetailsLongPress: (ReorderItem) -> Void // Long press item details to edit item
     @State private var offset: CGFloat = 0
 
     var body: some View {
         VStack(spacing: 8) {
             // Responsive 1:1 aspect ratio image with check overlay
-            Button(action: {
-                // Toggle bought status: added -> purchased -> added
-                let newStatus: ReorderStatus = (item.status == .added) ? .purchased : .added
-                onStatusChange(newStatus)
-            }) {
-                GeometryReader { geometry in
-                    let imageSize = geometry.size.width
-                    ZStack {
-                        // Background image
-                        SimpleImageView(
-                            imageURL: item.imageUrl,
-                            size: imageSize,
-                            contentMode: .fill
-                        )
-                        .frame(width: imageSize, height: imageSize) // Perfect 1:1 square
-                        .clipped()
-                        .background(Color(.systemGray6))
-                        .cornerRadius(8)
-                        
-                        // Check radio button overlay (top-left corner)
-                        VStack {
-                            HStack {
-                                Button(action: {
-                                    let newStatus: ReorderStatus = (item.status == .added) ? .purchased : .added
-                                    onStatusChange(newStatus)
-                                }) {
-                                    Image(systemName: item.status == .purchased ? "checkmark.circle.fill" : "circle")
-                                        .font(.system(size: min(imageSize * 0.15, 24))) // Responsive size
-                                        .foregroundColor(item.status == .purchased ? .green : Color(.systemGray3))
-                                        .background(Color(.systemBackground).opacity(0.8))
-                                        .clipShape(Circle())
-                                }
-                                .padding(6)
-                                Spacer()
+            GeometryReader { geometry in
+                let imageSize = geometry.size.width
+                ZStack {
+                    // Background image
+                    SimpleImageView(
+                        imageURL: item.imageUrl,
+                        size: imageSize,
+                        contentMode: .fill
+                    )
+                    .frame(width: imageSize, height: imageSize) // Perfect 1:1 square
+                    .clipped()
+                    .background(Color(.systemGray6))
+                    .cornerRadius(8)
+                    
+                    // Check radio button overlay (top-left corner)
+                    VStack {
+                        HStack {
+                            Button(action: {
+                                let newStatus: ReorderStatus = (item.status == .added) ? .purchased : .added
+                                onStatusChange(newStatus)
+                            }) {
+                                Image(systemName: item.status == .purchased ? "checkmark.circle.fill" : "circle")
+                                    .font(.system(size: min(imageSize * 0.15, 24))) // Responsive size
+                                    .foregroundColor(item.status == .purchased ? .green : Color(.systemGray3))
+                                    .background(Color(.systemBackground).opacity(0.8))
+                                    .clipShape(Circle())
                             }
+                            .padding(6)
                             Spacer()
                         }
+                        Spacer()
                     }
                 }
-                .aspectRatio(1, contentMode: .fit) // Maintain 1:1 aspect ratio at container level
             }
-            .buttonStyle(PlainButtonStyle())
+            .aspectRatio(1, contentMode: .fit) // Maintain 1:1 aspect ratio at container level
+            .contentShape(Rectangle())
             .onLongPressGesture {
-                onImageLongPress?()
+                print("[ReorderPhotoCard] Image long press detected - calling onImageLongPress")
+                onImageLongPress?(item)
+            }
+            .onTapGesture {
+                print("[ReorderPhotoCard] Image tap detected - toggling status")
+                let newStatus: ReorderStatus = (item.status == .added) ? .purchased : .added
+                onStatusChange(newStatus)
             }
 
             // Item details underneath (tappable for quantity modal, long-press for item details)
-            Button(action: onItemDetailsTap) {
+            VStack {
                 // Layout varies by display mode
                 if displayMode == .photosSmall {
                     // SMALL VIEW: 2 columns, 3 rows layout
@@ -741,7 +731,7 @@ struct ReorderPhotoCard: View {
                                 }
 
                                 // Bullet separator before price
-                                if let price = item.price {
+                                if item.price != nil {
                                     Text("•")
                                         .font(detailFont)
                                         .foregroundColor(Color.secondary)
@@ -778,9 +768,14 @@ struct ReorderPhotoCard: View {
                     }
                 }
             }
-            .buttonStyle(PlainButtonStyle())
+            .contentShape(Rectangle())
             .onLongPressGesture {
-                onItemDetailsLongPress()
+                print("[ReorderPhotoCard] Item details long press detected - calling onItemDetailsLongPress")
+                onItemDetailsLongPress(item)
+            }
+            .onTapGesture {
+                print("[ReorderPhotoCard] Item details tap detected - calling onItemDetailsTap")
+                onItemDetailsTap()
             }
             .padding(.horizontal, 4)
         }
@@ -788,50 +783,6 @@ struct ReorderPhotoCard: View {
         .cornerRadius(8)
         .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
         .offset(x: offset)
-        .gesture(
-            DragGesture(minimumDistance: 20)
-                .onChanged { value in
-                    let horizontalTranslation = value.translation.width
-                    let verticalTranslation = value.translation.height
-                    
-                    let isHorizontalGesture = abs(horizontalTranslation) > abs(verticalTranslation) * 2.5
-                    let hasMinimumHorizontalMovement = abs(horizontalTranslation) > 30
-                    
-                    if isHorizontalGesture && hasMinimumHorizontalMovement {
-                        if horizontalTranslation > 0 {
-                            offset = min(horizontalTranslation - 30, 80)
-                        } else {
-                            offset = max(horizontalTranslation + 30, -80)
-                        }
-                    }
-                }
-                .onEnded { value in
-                    let horizontalTranslation = value.translation.width
-                    let verticalTranslation = value.translation.height
-                    let velocity = value.velocity.width
-                    
-                    let isHorizontalGesture = abs(horizontalTranslation) > abs(verticalTranslation) * 2.5
-                    let hasSignificantMovement = abs(horizontalTranslation) > 60 || abs(velocity) > 800
-                    
-                    if isHorizontalGesture && hasSignificantMovement {
-                        if horizontalTranslation > 0 {
-                            onStatusChange(.received)
-                            withAnimation(.easeOut(duration: 0.2)) {
-                                offset = 0
-                            }
-                        } else {
-                            onRemove()
-                            withAnimation(.easeOut(duration: 0.2)) {
-                                offset = 0
-                            }
-                        }
-                    } else {
-                        withAnimation(.easeOut(duration: 0.2)) {
-                            offset = 0
-                        }
-                    }
-                }
-        )
     }
 
     // Images now use responsive sizing based on available column width
@@ -926,11 +877,10 @@ struct SwipeableReorderCard: View {
     let onQuantityTap: () -> Void // Tap to show quantity modal
     let onRemove: () -> Void
     let onImageTap: () -> Void
-    let onImageLongPress: (() -> Void)?
-    let onItemDetailsLongPress: () -> Void
+    let onImageLongPress: ((ReorderItem) -> Void)?
+    let onItemDetailsLongPress: (ReorderItem) -> Void
 
     @State private var offset: CGFloat = 0
-    @State private var showingItemDetails = false
     @State private var isDragging = false
     
     // Standard card height to ensure buttons match exactly
@@ -994,18 +944,25 @@ struct SwipeableReorderCard: View {
                 .buttonStyle(PlainButtonStyle())
 
                 // Thumbnail image - exact same size as scan page (50px) - tappable for enlargement, long-press for update
-                Button(action: onImageTap) {
-                    SimpleImageView.thumbnail(
-                        imageURL: item.imageUrl,
-                        size: 50
-                    )
-                }
-                .buttonStyle(PlainButtonStyle())
-                .onLongPressGesture {
-                    onImageLongPress?()
+                SimpleImageView.thumbnail(
+                    imageURL: item.imageUrl,
+                    size: 50
+                )
+                .contentShape(Rectangle())
+                .highPriorityGesture(
+                    // High priority: Long press for image update
+                    LongPressGesture(minimumDuration: 0.5)
+                        .onEnded { _ in
+                            print("[ReorderCard] IMAGE long press detected - calling onImageLongPress")
+                            onImageLongPress?(item)
+                        }
+                )
+                .onTapGesture {
+                    // Low priority: Tap for image enlargement
+                    onImageTap()
                 }
 
-                // Main content section
+                // Main content section - with isolated touch target for item details long press
                 VStack(alignment: .leading, spacing: 6) {
                     // Item name - allow wrapping to full available width
                     Text(item.name)
@@ -1058,7 +1015,7 @@ struct SwipeableReorderCard: View {
                         }
 
                         // Bullet separator before price
-                        if let price = item.price {
+                        if item.price != nil {
                             Text("•")
                                 .font(.system(size: 11))
                                 .foregroundColor(Color.secondary)
@@ -1077,6 +1034,14 @@ struct SwipeableReorderCard: View {
                         Spacer()
                     }
                 }
+                .contentShape(Rectangle())
+                .gesture(
+                    LongPressGesture(minimumDuration: 0.5)
+                        .onEnded { _ in
+                            print("[ReorderCard] Long press detected - calling onItemDetailsLongPress")
+                            onItemDetailsLongPress(item)
+                        }
+                )
 
                 Spacer()
 
@@ -1099,56 +1064,45 @@ struct SwipeableReorderCard: View {
             .background(Color(.systemBackground))
             .frame(height: cardHeight)
             .offset(x: offset)
-            .onTapGesture {
-                if abs(offset) > 5 {
-                    // Close swipe actions
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        offset = 0
+            .simultaneousGesture(
+                TapGesture()
+                    .onEnded {
+                        print("[ReorderCard] Tap detected - calling onQuantityTap")
+                        if abs(offset) > 5 {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                offset = 0
+                            }
+                        } else {
+                            onQuantityTap()
+                        }
                     }
-                } else {
-                    // Tap anywhere on the card to open quantity modal
-                    onQuantityTap()
-                }
-            }
-            .onLongPressGesture {
-                // Long press to open item details
-                onItemDetailsLongPress()
-            }
+            )
             .simultaneousGesture(
                 DragGesture()
                     .onChanged { value in
                         isDragging = true
-                        
-                        // Simple, smooth swipe with resistance
                         let translation = value.translation.width
                         let resistance: CGFloat = 0.7
                         
                         if translation > 0 {
-                            // Swipe right - reveal received (max 100px)
                             offset = min(translation * resistance, 100)
                         } else {
-                            // Swipe left - reveal delete (max 100px)
                             offset = max(translation * resistance, -100)
                         }
                     }
                     .onEnded { value in
                         isDragging = false
-                        
                         let translation = value.translation.width
                         let velocity = value.velocity.width
                         
-                        // Simple threshold-based completion
                         if abs(translation) > 60 || abs(velocity) > 500 {
                             if translation > 0 {
-                                // Complete received action
                                 onStatusChange(.received)
                             } else {
-                                // Complete delete action
                                 onRemove()
                             }
                         }
                         
-                        // Always snap back
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                             offset = 0
                         }

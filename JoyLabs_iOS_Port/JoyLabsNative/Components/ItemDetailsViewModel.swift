@@ -337,7 +337,7 @@ class ItemDetailsViewModel: ObservableObject {
     
     /// Setup the view model for a specific context
     func setupForContext(_ context: ItemDetailsContext) async {
-        print("Setting up for context: \(String(describing: context))")
+        print("[ItemDetailsViewModel] Setting up for context: \(String(describing: context))")
 
         // Store the context
         self.context = context
@@ -488,7 +488,7 @@ class ItemDetailsViewModel: ObservableObject {
     }
     
     private func loadExistingItem(itemId: String) async {
-        print("Loading existing item: \(itemId)")
+        print("[ItemDetailsModal] Loading existing item: \(itemId)")
 
         // Use the shared database manager - no need to connect again
         let catalogManager = SquareAPIServiceFactory.createDatabaseManager()
@@ -497,11 +497,11 @@ class ItemDetailsViewModel: ObservableObject {
             if let catalogObject = try catalogManager.fetchItemById(itemId) {
                 // Successfully loaded item from database
                 itemData = await transformCatalogObjectToItemDetails(catalogObject)
-                print("Successfully loaded item from database: \(itemData.name)")
+                print("[ItemDetailsModal] Successfully loaded item from database: \(itemData.name)")
 
             } else {
                 // Item not found in database
-                print("Item not found in database: \(itemId)")
+                print("[ItemDetailsModal] ERROR: Item not found in database: \(itemId) - This will cause a blank modal!")
                 error = "Item not found in database"
 
                 // Create a new item with the provided ID as fallback
@@ -511,7 +511,7 @@ class ItemDetailsViewModel: ObservableObject {
 
         } catch {
             // Error loading item
-            print("Error loading item \(itemId): \(error)")
+            print("[ItemDetailsModal] ERROR: Failed to load item \(itemId): \(error) - This will cause a blank modal!")
             self.error = "Failed to load item: \(error.localizedDescription)"
 
             // Create a new item as fallback

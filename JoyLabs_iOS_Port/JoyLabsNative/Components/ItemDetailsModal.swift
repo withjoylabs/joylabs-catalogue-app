@@ -124,6 +124,7 @@ struct ItemDetailsModal: View {
                 }
         )
         .onAppear {
+            print("[ItemDetailsModal] onAppear called with context: \(context)")
             setupForContext()
         }
         .onReceive(NotificationCenter.default.publisher(for: .catalogSyncCompleted)) { _ in
@@ -153,10 +154,13 @@ struct ItemDetailsModal: View {
     // MARK: - Private Methods
     
     private func setupForContext() {
+        print("[ItemDetailsModal] setupForContext called with context: \(String(describing: context))")
         logger.info("Setting up modal for context: \(String(describing: context))")
         
         Task {
+            print("[ItemDetailsModal] About to call viewModel.setupForContext")
             await viewModel.setupForContext(context)
+            print("[ItemDetailsModal] viewModel.setupForContext completed")
         }
     }
     
