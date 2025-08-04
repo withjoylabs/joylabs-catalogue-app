@@ -211,6 +211,7 @@ struct ScanView: View {
     }()
     @FocusState private var isSearchFieldFocused: Bool
     @State private var searchDebounceTimer: Timer?
+    
 
     var body: some View {
         ZStack {
@@ -293,6 +294,12 @@ struct ScanView: View {
             // CRITICAL FIX: Handle extremely fast HID scanner input
             // Cancel previous timer
             searchDebounceTimer?.invalidate()
+
+            // CRITICAL: Clear search results immediately when text is cleared
+            if newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                searchManager.clearSearch()
+                return
+            }
 
             // Only trigger search if field is focused and has content
             guard isSearchFieldFocused && !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {

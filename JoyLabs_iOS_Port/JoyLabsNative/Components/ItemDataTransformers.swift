@@ -133,6 +133,7 @@ class ItemDataTransformers {
         // For new items: use ID starting with # (Square requirement)
         // For existing items: use the existing Square ID
         let itemId = (itemDetails.id?.isEmpty == false) ? itemDetails.id! : "#\(UUID().uuidString)"
+        let isNewItem = itemDetails.id?.isEmpty != false
 
         // Create item data - validation already done by SquareCRUDService
         // CRITICAL: Map both reporting category and additional categories to Square API
@@ -154,7 +155,7 @@ class ItemDataTransformers {
             abbreviation: itemDetails.abbreviation.isEmpty ? nil : itemDetails.abbreviation,
             categories: transformCategoriesToAPI(itemDetails.categoryIds), // Map additional categories
             reportingCategory: itemDetails.reportingCategoryId != nil ? ReportingCategory(id: itemDetails.reportingCategoryId!) : nil, // Map reporting category
-            imageIds: itemDetails.imageIds.isEmpty ? nil : itemDetails.imageIds,
+            imageIds: isNewItem ? (itemDetails.imageIds.isEmpty ? nil : itemDetails.imageIds) : nil, // Only include imageIds for new items
             // PERFORMANCE OPTIMIZATION FIELDS (set to nil for new items)
             taxNames: nil,
             modifierNames: nil
@@ -187,6 +188,8 @@ class ItemDataTransformers {
     static func transformItemDetailsToCatalogObject(_ itemDetails: ItemDetailsData) -> CatalogObject {
         logger.warning("Using legacy transform method without validation - consider using version with databaseManager")
 
+        let isNewItem = itemDetails.id?.isEmpty != false
+
         // Create item data without validation (legacy behavior)
         let itemData = ItemData(
             name: itemDetails.name.isEmpty ? nil : itemDetails.name,
@@ -206,7 +209,7 @@ class ItemDataTransformers {
             abbreviation: itemDetails.abbreviation.isEmpty ? nil : itemDetails.abbreviation,
             categories: nil, // Use categoryId instead of categories array
             reportingCategory: nil, // Use categoryId instead of reportingCategory
-            imageIds: itemDetails.imageIds.isEmpty ? nil : itemDetails.imageIds,
+            imageIds: isNewItem ? (itemDetails.imageIds.isEmpty ? nil : itemDetails.imageIds) : nil, // Only include imageIds for new items
             taxNames: nil,
             modifierNames: nil
         )
@@ -288,7 +291,7 @@ class ItemDataTransformers {
                 id: (variation.id?.isEmpty == false) ? variation.id! : "#\(UUID().uuidString)", // # prefix for new variations
                 type: "ITEM_VARIATION",
                 updatedAt: nil,
-                version: nil,
+                version: variation.version, // Preserve existing version for updates, nil for new variations
                 isDeleted: false,
                 presentAtAllLocations: true,
                 itemVariationData: ItemVariationData(

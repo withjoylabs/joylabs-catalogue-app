@@ -281,11 +281,6 @@ actor SquareHTTPClient {
             logger.debug("Request body: \(bodyString)")
         }
 
-        // Log the request body for debugging
-        if let bodyString = String(data: bodyData, encoding: .utf8) {
-            logger.debug("Request body: \(bodyString)")
-        }
-
         return try await makeSquareAPIRequest(
             endpoint: "/v2/catalog/object",  // Direct Square API endpoint
             method: .POST,

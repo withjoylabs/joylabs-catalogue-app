@@ -63,8 +63,17 @@ struct SimpleImageView: View {
     private func loadImage() {
         guard let urlString = imageURL,
               !urlString.isEmpty,
-              let url = URL(string: urlString),
               image == nil, !isLoading else { return }
+        
+        // Handle base64 data URLs for new items with embedded image data
+        if urlString.hasPrefix("data:image") {
+            logger.debug("Loading base64 data URL image")
+            loadBase64Image(from: urlString)
+            return
+        }
+        
+        // Regular HTTP/HTTPS URLs
+        guard let url = URL(string: urlString) else { return }
         
         isLoading = true
         
@@ -79,6 +88,18 @@ struct SimpleImageView: View {
                 }
             }
         }.resume()
+    }
+    
+    private func loadBase64Image(from dataURL: String) {
+        // Extract base64 data from data URL format: data:image/jpeg;base64,<base64-data>
+        guard let commaRange = dataURL.range(of: ","),
+              let base64Data = Data(base64Encoded: String(dataURL[commaRange.upperBound...])),
+              let uiImage = UIImage(data: base64Data) else {
+            logger.error("Failed to decode base64 image data")
+            return
+        }
+        
+        image = uiImage
     }
 }
 

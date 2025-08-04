@@ -485,6 +485,150 @@ ToastNotificationService.shared.showWarning("Connection unstable")
 - Auto-dismisses after specified duration
 - Manual dismiss via X button
 
+## Square API Critical Patterns (Prevent VERSION_MISMATCH)
+
+### Square's Optimistic Locking System
+Square API uses optimistic locking via version fields. **CRITICAL**: Every catalog object and its child objects must include current version fields when updating, or Square will reject the request with VERSION_MISMATCH.
+
+### Universal Rules for Square API Updates
+
+#### 1. **Fetch-Before-Update Pattern (MANDATORY)**
+```
+Always fetch current object from Square API → Extract ALL version fields → Apply to update request
+```
+- **Never** assume you know the current version
+- **Never** hardcode version values or set to null/nil
+- **Always** get current versions immediately before update
+
+#### 2. **Hierarchical Version Management**
+Square catalog objects have nested structures. **ALL levels must have correct versions**:
+```
+ITEM (has version)
+  └── ITEM_VARIATION (has version)  
+  └── ITEM_VARIATION (has version)
+  └── IMAGE (has version)
+```
+
+**Critical Rule**: If updating an ITEM, you must include current versions for:
+- The ITEM itself
+- ALL its ITEM_VARIATIONs  
+- ALL its IMAGEs
+- Any other child objects
+
+#### 3. **Version Field Patterns**
+```swift
+// ✅ CORRECT - Always fetch current versions first
+let currentObject = await squareAPI.fetchObject(id)
+let updateRequest = buildUpdateRequest(data, currentVersions: currentObject.getAllVersions())
+
+// ❌ WRONG - Never hardcode or omit versions for existing objects
+let updateRequest = UpdateRequest(id: id, version: nil) // Will cause VERSION_MISMATCH
+```
+
+#### 4. **New vs Existing Object Handling**
+- **New objects**: Omit version field (Square assigns automatically)
+- **Existing objects**: Must include current version from Square
+- **Child objects**: Follow same rule based on whether they exist
+
+### Common VERSION_MISMATCH Traps
+
+#### Trap 1: Missing Child Object Versions
+```swift
+// ❌ TRAP - Updating item but forgetting variation versions
+{
+  "id": "ITEM123",
+  "version": 1234567890,  // ✅ Main object version included
+  "item_data": {
+    "variations": [
+      {
+        "id": "VAR123",
+        // ❌ Missing version field - causes VERSION_MISMATCH
+        "item_variation_data": { ... }
+      }
+    ]
+  }
+}
+```
+
+#### Trap 2: Stale Version Data
+```swift
+// ❌ TRAP - Using cached/old version data
+let item = database.getItem(id)  // Might be stale
+updateItemWithVersion(item.version)  // Could be outdated
+
+// ✅ CORRECT - Always fetch fresh
+let item = await squareAPI.fetchItem(id)  // Current version
+updateItemWithVersion(item.version)
+```
+
+#### Trap 3: Partial Object Updates
+```swift
+// ❌ TRAP - Only sending changed fields without versions
+{
+  "id": "ITEM123",
+  "item_data": {
+    "name": "New Name"  // Missing version fields
+  }
+}
+
+// ✅ CORRECT - Full object with all versions
+{
+  "id": "ITEM123",
+  "version": 1234567890,
+  "item_data": {
+    "name": "New Name",
+    "variations": [
+      { "id": "VAR123", "version": 9876543210, ... }
+    ]
+  }
+}
+```
+
+### Implementation Strategy
+
+#### Step 1: Version-Safe Data Models
+```swift
+// Always provide safe access to version fields
+struct CatalogObject {
+    let version: Int64?
+    
+    var safeVersion: Int64 {
+        return version ?? 0  // Never return nil
+    }
+}
+```
+
+#### Step 2: Mandatory Fetch-Before-Update
+```swift
+func updateCatalogObject(id: String, changes: Changes) {
+    // 1. ALWAYS fetch current state first
+    let current = await squareAPI.fetchObject(id)
+    
+    // 2. Apply changes while preserving versions
+    let updated = applyChanges(changes, to: current)
+    
+    // 3. Send complete object with versions
+    await squareAPI.updateObject(updated)
+}
+```
+
+#### Step 3: Version Propagation
+When transforming data, preserve version information through the entire pipeline:
+```
+Database → Domain Model → API Request
+   ↓           ↓           ↓
+version    version     version (preserved at every step)
+```
+
+### Debugging VERSION_MISMATCH
+1. **Log request body** - Check all version fields are present
+2. **Verify object hierarchy** - Ensure child objects have versions
+3. **Check timing** - Versions change rapidly, fetch immediately before update
+4. **Test with simple objects first** - Start with items without variations
+
+### Key Takeaway
+**VERSION_MISMATCH = Missing or incorrect version field somewhere in your object hierarchy.** Always fetch current state, include all version fields, and never hardcode version values.
+
 ## Error Handling Patterns
 
 ### Fail Fast for Critical Operations

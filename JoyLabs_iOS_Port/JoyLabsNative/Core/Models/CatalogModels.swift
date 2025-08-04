@@ -222,6 +222,11 @@ struct ItemVariation: Codable {
     let presentAtAllLocations: Bool?
     let itemVariationData: ItemVariationData?
     
+    // Provide default value for missing version field
+    var safeVersion: Int64 {
+        return version ?? 0
+    }
+    
     enum CodingKeys: String, CodingKey {
         case id, type, version
         case updatedAt = "updated_at"

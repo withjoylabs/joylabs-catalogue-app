@@ -382,11 +382,38 @@ class ItemDetailsViewModel: ObservableObject {
         do {
             let savedObject: CatalogObject
 
-            if itemData.id == nil || itemData.id?.isEmpty == true {
+            let wasNewItem = itemData.id == nil || itemData.id?.isEmpty == true
+            
+            if wasNewItem {
                 // CREATE: New item
                 print("Creating new item via Square API")
                 savedObject = try await crudService.createItem(itemData)
                 print("✅ Item created successfully: \(savedObject.id)")
+                
+                // Process deferred image upload if needed
+                if DeferredImageUploadManager.shared.isDeferredUpload(itemData.imageURL) {
+                    print("🔄 Processing deferred image upload for new item: \(savedObject.id)")
+                    
+                    do {
+                        let finalImageURL = try await DeferredImageUploadManager.shared.processDeferredUploads(
+                            for: savedObject.id,
+                            base64ImageURL: itemData.imageURL
+                        )
+                        
+                        // Update itemData with final image URL before transformation
+                        await MainActor.run {
+                            self.itemData.imageURL = finalImageURL
+                        }
+                        
+                        print("✅ Deferred image upload completed successfully")
+                    } catch {
+                        print("⚠️ Deferred image upload failed, but item was created: \(error)")
+                        // Don't fail the entire save operation, just log the error
+                        await MainActor.run {
+                            self.itemData.imageURL = nil // Clear the invalid temp URL
+                        }
+                    }
+                }
             } else {
                 // UPDATE: Existing item
                 print("Updating existing item via Square API: \(itemData.id!)")

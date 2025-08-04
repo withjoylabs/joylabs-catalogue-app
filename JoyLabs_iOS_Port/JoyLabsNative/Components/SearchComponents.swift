@@ -303,9 +303,7 @@ struct SwipeableScanResultCard: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
         .background(Color(.systemBackground))
-        .onTapGesture {
-            handleItemSelection()
-        }
+        // Tap gesture handled by swipe gesture above (line 146)
         .sheet(isPresented: $showingItemDetails) {
             ItemDetailsModal(
                 context: .editExisting(itemId: result.id),
@@ -335,6 +333,7 @@ struct SwipeableScanResultCard: View {
         }
     }
 
+    
     private func handleItemSelection() {
         print("Selected item: \(result.name ?? result.id)")
         showingItemDetails = true
@@ -375,143 +374,6 @@ struct SwipeActionButton: View {
     }
 }
 
-// MARK: - Search Result Card (Original - kept for backward compatibility)
-struct ScanResultCard: View {
-    let result: SearchResultItem
-    @State private var showingItemDetails = false
-    @State private var showingImagePicker = false
-
-    var body: some View {
-        // Extract image data for search results
-        let imageURL = result.images?.first?.imageData?.url
-        let _ = result.images?.first?.id
-
-        return HStack(spacing: 12) {
-            // Thumbnail image (left side) - using simple image system
-            // Long press to update image
-            SimpleImageView.thumbnail(
-                imageURL: imageURL,
-                size: 50
-            )
-            .onLongPressGesture {
-                showingImagePicker = true
-            }
-
-            // Main content section
-            VStack(alignment: .leading, spacing: 6) {
-                // Item name
-                Text(result.name ?? "Unknown Item")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.primary)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-
-                // Category, UPC, SKU row
-                HStack(spacing: 8) {
-                    // Category with background - reduced visual intensity
-                    if let categoryName = result.categoryName, !categoryName.isEmpty {
-                        Text(categoryName)
-                            .font(.system(size: 11, weight: .regular))
-                            .foregroundColor(Color.secondary)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color(.systemGray5))
-                            .cornerRadius(4)
-                    } else {
-                        // Debug: Show when category is missing - essential for debugging
-                        Text("NO CAT")
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundColor(.red)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 1)
-                            .background(Color.red.opacity(0.1))
-                            .cornerRadius(2)
-                    }
-
-                    // UPC
-                    if let barcode = result.barcode, !barcode.isEmpty {
-                        Text(barcode)
-                            .font(.system(size: 11))
-                            .foregroundColor(Color.secondary)
-                    }
-
-                    // Bullet point separator (only if both UPC and SKU are present)
-                    if let barcode = result.barcode, !barcode.isEmpty,
-                       let sku = result.sku, !sku.isEmpty {
-                        Text("•")
-                            .font(.system(size: 11))
-                            .foregroundColor(Color.secondary)
-                    }
-
-                    // SKU
-                    if let sku = result.sku, !sku.isEmpty {
-                        Text(sku)
-                            .font(.system(size: 11))
-                            .foregroundColor(Color.secondary)
-                    }
-
-                    Spacer()
-                }
-            }
-
-            Spacer()
-
-            // Price section (right side)
-            VStack(alignment: .trailing, spacing: 2) {
-                if let price = result.price, price.isFinite && !price.isNaN {
-                    Text("$\(price, specifier: "%.2f")")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.primary)
-
-                    // Show "+tax" if item has taxes
-                    if result.hasTax {
-                        Text("+tax")
-                            .font(.system(size: 10))
-                            .foregroundColor(Color.secondary)
-                    }
-                }
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(Color(.systemBackground))
-        .onTapGesture {
-            handleItemSelection()
-        }
-        .sheet(isPresented: $showingItemDetails) {
-            ItemDetailsModal(
-                context: .editExisting(itemId: result.id),
-                onDismiss: {
-                    showingItemDetails = false
-                },
-                onSave: { itemData in
-                    // TODO: Handle saved item
-                    showingItemDetails = false
-                }
-            )
-        }
-        .sheet(isPresented: $showingImagePicker) {
-            UnifiedImagePickerModal(
-                context: .scanViewLongPress(
-                    itemId: result.id,
-                    imageId: result.images?.first?.id
-                ),
-                onDismiss: {
-                    showingImagePicker = false
-                },
-                onImageUploaded: { uploadResult in
-                    // SimpleImageService handles all refresh notifications
-                    showingImagePicker = false
-                }
-            )
-        }
-    }
-
-    private func handleItemSelection() {
-        print("Selected item: \(result.name ?? result.id)")
-        showingItemDetails = true
-    }
-}
 
 // MARK: - Product Info View
 struct ProductInfoView: View {
@@ -675,22 +537,7 @@ struct SearchBarWithClear: View {
 }
 
 #Preview("Original Scan Result Card") {
-    let sampleResult = SearchResultItem(
-        id: "1",
-        name: "Sample Product",
-        sku: "SKU123",
-        price: 19.99,
-        barcode: "1234567890",
-        categoryId: nil,
-        categoryName: nil,
-        images: [],
-        matchType: "name",
-        matchContext: "",
-        isFromCaseUpc: false,
-        caseUpcData: nil,
-        hasTax: true
-    )
-
-    ScanResultCard(result: sampleResult)
-        .padding()
+    // Legacy preview removed - use SwipeableScanResultCard instead
+    Text("Use SwipeableScanResultCard preview instead")
+        .foregroundColor(.secondary)
 }

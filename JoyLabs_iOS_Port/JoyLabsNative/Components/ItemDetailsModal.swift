@@ -159,6 +159,11 @@ struct ItemDetailsModal: View {
             print("[ItemDetailsModal] onAppear called with context: \(context)")
             setupForContext()
         }
+        .onDisappear {
+            // Only reset when modal is actually being dismissed (not during presentation animation)
+            // We'll let the parent handle modal lifecycle properly
+            print("[ItemDetailsModal] onDisappear called")
+        }
         .onReceive(NotificationCenter.default.publisher(for: .catalogSyncCompleted)) { _ in
             // Refresh item data when catalog sync completes (for webhook updates)
             if case .editExisting(let itemId) = context {

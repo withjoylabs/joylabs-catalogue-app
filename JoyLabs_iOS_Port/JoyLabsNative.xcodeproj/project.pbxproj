@@ -38,6 +38,7 @@
 		7D83E6DC3B87B824D4DFE0A2 /* ReorderAppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D786AE1AEAE343A9AC9C0007 /* ReorderAppState.swift */; };
 		85126E4554FBE0F2C78D3609 /* ToastNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1645309EC63E18A4589C1AC3 /* ToastNotificationService.swift */; };
 		8796DF07A71B45B6C419C13A /* SwipeableReorderCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9656EA400096ADC30614CEB4 /* SwipeableReorderCard.swift */; };
+		905F0111BFADB010745559BD /* DeferredImageUploadManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CCA9B512044EB597E9B73C7 /* DeferredImageUploadManager.swift */; };
 		9189A53F265287C2C25FF411 /* ItemDetailsBasicSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5A87F50DC4826C17C46DD0 /* ItemDetailsBasicSection.swift */; };
 		92151EA89C79EBB198799E77 /* ItemImageSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2D5FAE44721EA24C8E50126 /* ItemImageSection.swift */; };
 		99246C9B894AF2AE6D86F627 /* SquareCRUDService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35AB2C1793F03C8E7C4FDE80 /* SquareCRUDService.swift */; };
@@ -142,6 +143,7 @@
 		75FC10AFED4E5423B76916D5 /* ItemAvailabilitySection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemAvailabilitySection.swift; path = Components/ItemAvailabilitySection.swift; sourceTree = "<group>"; };
 		7B48CACD7CFD81508BCDBFB9 /* TokenService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TokenService.swift; path = Core/Services/TokenService.swift; sourceTree = "<group>"; };
 		7BD6FFEA84896CD48CE4E372 /* ReorderContentView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderContentView.swift; path = JoyLabsNative/Views/Reorders/ReorderContentView.swift; sourceTree = "<group>"; };
+		7CCA9B512044EB597E9B73C7 /* DeferredImageUploadManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DeferredImageUploadManager.swift; path = Core/Services/DeferredImageUploadManager.swift; sourceTree = "<group>"; };
 		7F37514B9AC1E1E45F886FEB /* WebhookSignatureValidator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WebhookSignatureValidator.swift; path = Core/Services/WebhookSignatureValidator.swift; sourceTree = "<group>"; };
 		84F97B5C958182F299BA523E /* DuplicateWarningView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DuplicateWarningView.swift; path = Components/DuplicateWarningView.swift; sourceTree = "<group>"; };
 		93826EA70F24FEB3F6F59BD6 /* AppDelegate.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = JoyLabsNative/AppDelegate.swift; sourceTree = "<group>"; };
@@ -511,6 +513,7 @@
 				1645309EC63E18A4589C1AC3 /* ToastNotificationService.swift */,
 				5BF09157ED1FEE7951EC8474 /* SimpleImageService.swift */,
 				D7606A3222698687642B402D /* LabelLivePrintService.swift */,
+				7CCA9B512044EB597E9B73C7 /* DeferredImageUploadManager.swift */,
 			);
 			name = Services;
 			sourceTree = "<group>";
@@ -693,6 +696,7 @@
 				19F619C092689543928A0A06 /* ReorderFilterManager.swift in Sources */,
 				4B74843754CDBD240D53D5FC /* ReorderStatisticsCalculator.swift in Sources */,
 				7D83E6DC3B87B824D4DFE0A2 /* ReorderAppState.swift in Sources */,
+				905F0111BFADB010745559BD /* DeferredImageUploadManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

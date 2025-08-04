@@ -83,6 +83,17 @@ class SquareCRUDService: ObservableObject {
             lastOperationResult = result
             
             logger.info("✅ Successfully created item: \(createdObject.id) (version: \(createdObject.safeVersion))")
+            
+            // 6. UI REFRESH: Notify UI components to refresh with new data
+            await MainActor.run {
+                NotificationCenter.default.post(
+                    name: .catalogSyncCompleted,
+                    object: nil,
+                    userInfo: ["itemId": createdObject.id, "operation": "create"]
+                )
+                logger.info("📡 Posted catalog sync notification for created item: \(createdObject.id)")
+            }
+            
             return createdObject
             
         } catch {
@@ -121,25 +132,27 @@ class SquareCRUDService: ObservableObject {
             // 1. VALIDATION: Pre-validate data
             try validateItemForUpdate(itemDetails)
 
-            // 2. FETCH LATEST VERSION: Get current version from database to avoid version mismatch
-            let latestVersion = try await databaseManager.getItemVersion(itemId: itemId)
-            logger.debug("Latest version from database: \(latestVersion)")
+            // 2. FETCH CURRENT VERSION: Get latest version from Square API (required by Square)
+            logger.debug("Fetching current item version from Square API for update: \(itemId)")
+            let currentObject = try await squareAPIService.fetchCatalogObjectById(itemId)
+            let currentVersion = currentObject.safeVersion
+            logger.debug("Current version from Square API: \(currentVersion)")
 
-            // 3. TRANSFORM: Convert to CatalogObject with latest version
+            // 3. TRANSFORM: Convert to CatalogObject with current version from Square
             var catalogObject = ItemDataTransformers.transformItemDetailsToCatalogObject(
                 itemDetails,
                 databaseManager: databaseManager
             )
 
-            // Update with latest version to prevent version mismatch
+            // 4. APPLY CURRENT VERSIONS: Set the current version from Square API for main object
             catalogObject = CatalogObject(
                 id: catalogObject.id,
                 type: catalogObject.type,
                 updatedAt: catalogObject.updatedAt,
-                version: latestVersion, // Use latest version from database
+                version: currentVersion, // Use current version from Square API
                 isDeleted: catalogObject.isDeleted,
                 presentAtAllLocations: catalogObject.presentAtAllLocations,
-                itemData: catalogObject.itemData,
+                itemData: updateItemDataWithCurrentVersions(catalogObject.itemData, currentItem: currentObject),
                 categoryData: catalogObject.categoryData,
                 itemVariationData: catalogObject.itemVariationData,
                 modifierData: catalogObject.modifierData,
@@ -149,7 +162,7 @@ class SquareCRUDService: ObservableObject {
                 imageData: catalogObject.imageData
             )
             
-            // 3. SQUARE API: Update with idempotency key (get full response with ID mappings)
+            // 5. SQUARE API: Update with idempotency key (get full response with ID mappings)
             let idempotencyKey = "update_item_\(itemId)_\(Date().timeIntervalSince1970)"
             let response = try await squareAPIService.upsertCatalogObjectWithMappings(
                 catalogObject,
@@ -160,10 +173,10 @@ class SquareCRUDService: ObservableObject {
                 throw SquareAPIError.upsertFailed("No object returned from update operation")
             }
 
-            // 4. DATABASE SYNC: Update local database with exact API response and ID mappings
+            // 6. DATABASE SYNC: Update local database with exact API response and ID mappings
             try await updateLocalDatabaseAfterUpdate(updatedObject, idMappings: response.idMappings)
             
-            // 5. SUCCESS: Record operation result
+            // 7. SUCCESS: Record operation result
             let result = CRUDOperationResult(
                 operation: .update,
                 objectId: updatedObject.id,
@@ -175,6 +188,17 @@ class SquareCRUDService: ObservableObject {
             lastOperationResult = result
             
             logger.info("✅ Successfully updated item: \(updatedObject.id) (version: \(updatedObject.safeVersion))")
+            
+            // 8. UI REFRESH: Notify UI components to refresh with updated data
+            await MainActor.run {
+                NotificationCenter.default.post(
+                    name: .catalogSyncCompleted,
+                    object: nil,
+                    userInfo: ["itemId": updatedObject.id, "operation": "update"]
+                )
+                logger.info("📡 Posted catalog sync notification for updated item: \(updatedObject.id)")
+            }
+            
             return updatedObject
             
         } catch {
@@ -224,6 +248,17 @@ class SquareCRUDService: ObservableObject {
             lastOperationResult = result
             
             logger.info("✅ Successfully deleted item: \(itemId)")
+            
+            // 4. UI REFRESH: Notify UI components to refresh with deleted item
+            await MainActor.run {
+                NotificationCenter.default.post(
+                    name: .catalogSyncCompleted,
+                    object: nil,
+                    userInfo: ["itemId": itemId, "operation": "delete"]
+                )
+                logger.info("📡 Posted catalog sync notification for deleted item: \(itemId)")
+            }
+            
             return deletedObject
             
         } catch {
@@ -467,4 +502,58 @@ enum CRUDOperation: String, CaseIterable {
     case create = "CREATE"
     case update = "UPDATE"
     case delete = "DELETE"
+}
+
+// MARK: - SquareCRUDService Helper Methods Extension
+extension SquareCRUDService {
+    /// Update ItemData variations with current versions from Square API
+    private func updateItemDataWithCurrentVersions(_ itemData: ItemData?, currentItem: CatalogObject) -> ItemData? {
+        guard let itemData = itemData else { return nil }
+        
+        // Get current variations from Square's response to extract their versions
+        let currentVariations = currentItem.itemData?.variations ?? []
+        
+        // Update variations with current versions
+        let updatedVariations = itemData.variations?.map { variation in
+            // Find matching current variation by ID
+            let currentVariation = currentVariations.first { $0.id == variation.id }
+            
+            // For existing variations: use current version from Square API
+            // For new variations (no matching ID): use nil (Square will assign version)
+            let currentVersion = currentVariation?.safeVersion
+            
+            return ItemVariation(
+                id: variation.id,
+                type: variation.type,
+                updatedAt: variation.updatedAt,
+                version: currentVersion, // Use current version from Square, or nil for new variations
+                isDeleted: variation.isDeleted,
+                presentAtAllLocations: variation.presentAtAllLocations,
+                itemVariationData: variation.itemVariationData
+            )
+        }
+        
+        return ItemData(
+            name: itemData.name,
+            description: itemData.description,
+            categoryId: itemData.categoryId,
+            taxIds: itemData.taxIds,
+            variations: updatedVariations,
+            productType: itemData.productType,
+            skipModifierScreen: itemData.skipModifierScreen,
+            itemOptions: itemData.itemOptions,
+            modifierListInfo: itemData.modifierListInfo,
+            images: itemData.images,
+            labelColor: itemData.labelColor,
+            availableOnline: itemData.availableOnline,
+            availableForPickup: itemData.availableForPickup,
+            availableElectronically: itemData.availableElectronically,
+            abbreviation: itemData.abbreviation,
+            categories: itemData.categories,
+            reportingCategory: itemData.reportingCategory,
+            imageIds: itemData.imageIds,
+            taxNames: itemData.taxNames,
+            modifierNames: itemData.modifierNames
+        )
+    }
 }

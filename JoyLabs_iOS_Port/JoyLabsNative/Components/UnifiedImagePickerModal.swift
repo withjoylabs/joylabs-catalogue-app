@@ -536,28 +536,54 @@ struct UnifiedImagePickerModal: View {
                 guard let imageData = image.jpegData(compressionQuality: 0.9) else {
                     throw UnifiedImageError.invalidImageData
                 }
-
-                // Upload using simple service
-                let awsURL = try await imageService.uploadImage(
-                    imageData: imageData,
-                    fileName: "joylabs_image_\(Int(Date().timeIntervalSince1970))_\(Int.random(in: 1000...9999)).jpg",
-                    itemId: getItemId()
-                )
                 
-                // Create result object for compatibility
-                let result = ImageUploadResult(
-                    squareImageId: "", // SimpleImageService doesn't return this
-                    awsUrl: awsURL,
-                    localCacheUrl: awsURL, // SimpleImageView uses AWS URL directly
-                    context: context
-                )
+                let itemId = getItemId()
+                
+                if itemId.isEmpty {
+                    // NEW ITEM: No itemId yet - return image data to be included in item creation
+                    logger.info("📦 New item detected - preparing image data for inclusion in item creation")
+                    
+                    // Convert image data to base64 for temporary storage in ItemDetailsData
+                    let base64Image = imageData.base64EncodedString()
+                    let dataURL = "data:image/jpeg;base64,\(base64Image)"
+                    
+                    // Create result with data URL for new items
+                    let result = ImageUploadResult(
+                        squareImageId: "", // Will be set after item creation
+                        awsUrl: dataURL, // Base64 data URL for temporary storage
+                        localCacheUrl: dataURL,
+                        context: context
+                    )
+                    
+                    await MainActor.run {
+                        isUploading = false
+                        logger.info("✅ Image data prepared for new item creation")
+                        onImageUploaded(result)
+                    }
+                } else {
+                    // IMMEDIATE UPLOAD: Existing item with ID - upload normally
+                    logger.info("🚀 Uploading image immediately for existing item: \(itemId)")
+                    
+                    let awsURL = try await imageService.uploadImage(
+                        imageData: imageData,
+                        fileName: "joylabs_image_\(Int(Date().timeIntervalSince1970))_\(Int.random(in: 1000...9999)).jpg",
+                        itemId: itemId
+                    )
+                    
+                    // Create result object for compatibility
+                    let result = ImageUploadResult(
+                        squareImageId: "", // SimpleImageService doesn't return this
+                        awsUrl: awsURL,
+                        localCacheUrl: awsURL, // SimpleImageView uses AWS URL directly
+                        context: context
+                    )
 
-                await MainActor.run {
-                    isUploading = false
-                    logger.info("✅ Image upload completed successfully")
-                    logger.info("AWS URL: \(result.awsUrl)")
-                    onImageUploaded(result)
-                    // Don't call onDismiss() here - let the parent handle dismissal
+                    await MainActor.run {
+                        isUploading = false
+                        logger.info("✅ Image upload completed successfully")
+                        logger.info("AWS URL: \(result.awsUrl)")
+                        onImageUploaded(result)
+                    }
                 }
             } catch {
                 await MainActor.run {
