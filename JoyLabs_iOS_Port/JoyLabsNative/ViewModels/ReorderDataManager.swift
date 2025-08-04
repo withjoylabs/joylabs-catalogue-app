@@ -89,10 +89,8 @@ class ReorderDataManager: ObservableObject {
                 // Check if item has taxes
                 let hasTax = checkItemHasTaxFromDataJson(dataJson)
                 
-                // Get primary image data
-                print("   - Getting image data for itemId: \(item.itemId)")
-                let images = getPrimaryImageForReorderItem(itemId: item.itemId)
-                print("   - Found \(images?.count ?? 0) images")
+                // Get primary image data using centralized SimpleImageService
+                let imageUrl = await getPrimaryImageForReorderItem(itemId: item.itemId)
                 
                 // Update reorder item with fresh data
                 var updatedItem = item
@@ -103,13 +101,12 @@ class ReorderDataManager: ObservableObject {
                 updatedItem.hasTax = hasTax
                 
                 // Update image data - PRESERVE existing if no new data found
-                if let images = images, let firstImage = images.first {
-                    updatedItem.imageId = firstImage.id
-                    updatedItem.imageUrl = firstImage.imageData?.url
-                    print("   - Found fresh image data")
+                if let imageUrl = imageUrl {
+                    updatedItem.imageUrl = imageUrl
+                    // Note: SimpleImageService focuses on URLs, not IDs
                 } else {
                     // PRESERVE existing image data if refresh fails to find images
-                    print("   - No fresh image data found, preserving existing: imageId=\(item.imageId ?? "nil"), imageUrl=\(item.imageUrl ?? "nil")")
+                    // Keep existing imageId and imageUrl unchanged
                 }
                 
                 print("🔄 [ReorderRefresh] Updated ALL data for '\(item.name)'")
@@ -186,38 +183,10 @@ class ReorderDataManager: ObservableObject {
         return false
     }
     
-    private func getPrimaryImageForReorderItem(itemId: String) -> [CatalogImage]? {
-        print("🖼️ [ReorderRefresh] Getting images for item: \(itemId)")
-        let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
-        guard let db = databaseManager.getConnection() else {
-            print("🖼️ [ReorderRefresh] ❌ Database not connected")
-            return nil
-        }
-        
-        do {
-            // Get item's image_ids array from database
-            let selectQuery = """
-            SELECT data_json FROM catalog_items 
-            WHERE id = ? AND is_deleted = 0
-            """
-            
-            for row in try db.prepare(selectQuery, itemId) {
-                guard let dataJson = row[0] as? String,
-                      let data = dataJson.data(using: .utf8) else {
-                    continue
-                }
-                
-                // Parse the CatalogObject to get images
-                let decoder = JSONDecoder()
-                let catalogObject = try decoder.decode(CatalogObject.self, from: data)
-                
-                return catalogObject.itemData?.images
-            }
-        } catch {
-            print("❌ [ReorderRefresh] Failed to get images for item \(itemId): \(error)")
-        }
-        
-        return nil
+    private func getPrimaryImageForReorderItem(itemId: String) async -> String? {
+        // Use centralized SimpleImageService instead of parsing JSON directly
+        let imageService = SimpleImageService.shared
+        return await imageService.getPrimaryImageURL(for: itemId)
     }
     
     // MARK: - Statistics Calculation

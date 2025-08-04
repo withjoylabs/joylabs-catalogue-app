@@ -632,8 +632,8 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
                 squareImageId: object.id,
                 awsUrl: awsUrl,
                 objectType: "IMAGE",
-                objectId: object.id,
-                imageType: "PRIMARY"
+                objectId: object.id
+                // No imageType - removed PRIMARY/SECONDARY tracking
             )
 
 
@@ -691,16 +691,14 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
                     }
                     
                     if let imageIdArray = imageIds, imageIdArray.contains(imageId) {
-                        // Determine if this is the primary image (first in array)
-                        let imageType = imageIdArray.first == imageId ? "PRIMARY" : "SECONDARY"
-
-                        // Create the item-to-image mapping
+                        // Create the item-to-image mapping without type tag
+                        // Square's image_ids array order determines display priority
                         let _ = try imageURLManager.storeImageMapping(
                             squareImageId: imageId,
                             awsUrl: awsUrl,
                             objectType: "ITEM",
-                            objectId: itemId,
-                            imageType: imageType
+                            objectId: itemId
+                            // No imageType - using Square's array order as truth
                         )
 
                         mappingsCreated += 1
@@ -761,7 +759,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
         let imageURLManager = SquareAPIServiceFactory.createImageURLManager()
         var mappingsCreated = 0
 
-        for (index, imageId) in imageIds.enumerated() {
+        for (_, imageId) in imageIds.enumerated() {
             do {
                 // Look up the IMAGE object to get its AWS URL
                 let sql = "SELECT url FROM images WHERE id = ? AND is_deleted = 0"
@@ -774,16 +772,14 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
                 }
 
                 if let awsUrl = awsUrl, !awsUrl.isEmpty {
-                    // Determine if this is the primary image (first in array)
-                    let imageType = index == 0 ? "PRIMARY" : "SECONDARY"
-
-                    // Create the item-to-image mapping
+                    // Create the item-to-image mapping without type tag
+                    // Square's image_ids array order determines display priority
                     let cacheKey = try imageURLManager.storeImageMapping(
                         squareImageId: imageId,
                         awsUrl: awsUrl,
                         objectType: "ITEM",
-                        objectId: object.id,
-                        imageType: imageType
+                        objectId: object.id
+                        // No imageType - using Square's array order as truth
                     )
 
                     mappingsCreated += 1
