@@ -70,15 +70,20 @@ struct UnifiedImagePickerModal: View {
                     .disabled(croppedImage == nil || isUploading)
                     .foregroundColor(croppedImage != nil && !isUploading ? .blue : .gray)
                     .fontWeight(.semibold)
+                    .frame(minWidth: 60, minHeight: 44)
+                    .contentShape(Rectangle())
+                    .buttonStyle(PlainButtonStyle())
                 }
                 .padding()
                 .background(Color(.systemBackground))
                 .overlay(
                     Divider()
                         .frame(maxWidth: .infinity, maxHeight: 1)
-                        .background(Color(.separator)),
+                        .background(Color(.separator))
+                        .allowsHitTesting(false), // Ensure divider doesn't block touches
                     alignment: .bottom
                 )
+                .zIndex(1) // Ensure header is above other content
                 
                 // Responsive image preview - uses full modal width, 1:1 aspect ratio
                 cropPreviewSection(containerWidth: geometry.size.width)
@@ -132,6 +137,7 @@ struct UnifiedImagePickerModal: View {
                     }
                 )
                 .frame(width: containerWidth, height: containerWidth) // Perfect square, full width
+                .id(selectedImage) // Force view recreation when image changes to ensure proper initialization
             } else {
                 VStack(spacing: 12) {
                     Image(systemName: "photo")
@@ -508,7 +514,6 @@ struct UnifiedImagePickerModal: View {
         ) { image, _ in
             DispatchQueue.main.async {
                 if let image = image {
-                    print("[UnifiedImagePickerModal] Photo loaded into preview, modal should stay open")
                     selectedImage = image
                     // The SquareCropView will handle cropping automatically
                 }
@@ -760,11 +765,11 @@ struct SquareCropView: View {
                         )
                     )
 
-                // Crop frame overlay
+                // Crop frame overlay - ensure it doesn't block touches
                 Rectangle()
                     .stroke(Color.white, lineWidth: 2)
                     .frame(width: containerSize, height: containerSize)
-                    .allowsHitTesting(false)
+                    .allowsHitTesting(false) // Critical: don't block touches
             }
             .frame(width: containerSize, height: containerSize)
             .clipped()
@@ -800,11 +805,23 @@ struct SquareCropView: View {
         let cropX = ((displayWidth - containerSize) / 2 - constrainedOffsetValue.width) / totalScale
         let cropY = ((displayHeight - containerSize) / 2 - constrainedOffsetValue.height) / totalScale
         
+        // Ensure crop coordinates are within image bounds
+        let clampedCropX = max(0, min(cropX, image.size.width - 1))
+        let clampedCropY = max(0, min(cropY, image.size.height - 1))
+        
+        // Calculate crop dimensions ensuring they don't exceed image bounds
+        let cropWidth = min(containerSize / totalScale, image.size.width - clampedCropX)
+        let cropHeight = min(containerSize / totalScale, image.size.height - clampedCropY)
+        
+        // Ensure positive dimensions
+        let validCropWidth = max(1, cropWidth)
+        let validCropHeight = max(1, cropHeight)
+        
         let cropRect = CGRect(
-            x: max(0, cropX),
-            y: max(0, cropY),
-            width: min(containerSize / totalScale, image.size.width - cropX),
-            height: min(containerSize / totalScale, image.size.height - cropY)
+            x: clampedCropX,
+            y: clampedCropY,
+            width: validCropWidth,
+            height: validCropHeight
         )
         
         if let croppedImage = cropImage(image: image, to: cropRect) {
@@ -813,7 +830,9 @@ struct SquareCropView: View {
     }
 
     private func cropImage(image: UIImage, to rect: CGRect) -> UIImage? {
-        guard let cgImage = image.cgImage else { return nil }
+        guard let cgImage = image.cgImage else {
+            return nil
+        }
         
         // Convert crop rect to pixel coordinates
         let pixelRect = CGRect(
@@ -823,7 +842,17 @@ struct SquareCropView: View {
             height: min(CGFloat(cgImage.height) - rect.origin.y * image.scale, rect.size.height * image.scale)
         )
         
-        guard let croppedCGImage = cgImage.cropping(to: pixelRect) else { return nil }
+        // Validate pixel rect
+        guard pixelRect.width > 0 && pixelRect.height > 0 &&
+              pixelRect.origin.x >= 0 && pixelRect.origin.y >= 0 &&
+              pixelRect.maxX <= CGFloat(cgImage.width) && pixelRect.maxY <= CGFloat(cgImage.height) else {
+            return nil
+        }
+        
+        guard let croppedCGImage = cgImage.cropping(to: pixelRect) else {
+            return nil
+        }
+        
         return UIImage(cgImage: croppedCGImage, scale: image.scale, orientation: image.imageOrientation)
     }
 }
