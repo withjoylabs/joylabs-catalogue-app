@@ -215,6 +215,7 @@ struct ProfileView: View {
                         showingAlert = true
                     }
                 )
+                .fullScreenModal()
             }
             .alert("Sign Out", isPresented: $showingSignOutAlert) {
                 Button("Cancel", role: .cancel) { }

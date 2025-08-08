@@ -318,6 +318,7 @@ struct ReordersView: SwiftUI.View {
                         viewModel.dismissActiveSheet()
                     }
                 )
+                .nestedComponentModal()
             case .itemDetails(let item):
                 ItemDetailsModal(
                     context: .editExisting(itemId: item.itemId),
@@ -329,6 +330,7 @@ struct ReordersView: SwiftUI.View {
                         viewModel.loadReorderData() // Refresh data after edit
                     }
                 )
+                .fullScreenModal()
             case .quantityModal(_):
                 if let selectedItem = viewModel.modalStateManager.selectedItemForQuantity {
                     EmbeddedQuantitySelectionModal(
@@ -346,6 +348,7 @@ struct ReordersView: SwiftUI.View {
                             viewModel.currentModalQuantity = newQuantity
                         }
                     )
+                    .fullScreenModal()
                 }
             }
         }

@@ -198,7 +198,7 @@ struct CatalogManagementView: View {
                     showingSyncConfirmation = false
                 }
             )
-            .presentationDetents([.height(300)])
+            .compactModal(fraction: 0.4)
         }
         .sheet(isPresented: $showingStopSyncConfirmation) {
             StopSyncConfirmationModal(
@@ -210,7 +210,7 @@ struct CatalogManagementView: View {
                     showingStopSyncConfirmation = false
                 }
             )
-            .presentationDetents([.height(250)])
+            .compactModal(fraction: 0.35)
         }
         .sheet(isPresented: $showingSyncSuccessModal) {
             SyncSuccessModal(
@@ -218,7 +218,7 @@ struct CatalogManagementView: View {
                     showingSyncSuccessModal = false
                 }
             )
-            .presentationDetents([.height(200)])
+            .compactModal(fraction: 0.3)
         }
         .alert("Database Management", isPresented: $showingClearDatabaseConfirmation) {
             Button("Cancel", role: .cancel) { }

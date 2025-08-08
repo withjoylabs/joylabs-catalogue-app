@@ -155,36 +155,38 @@ struct ReportingCategorySelector: View {
                     Divider()
 
                     // Categories List
-                    ScrollView {
-                        LazyVStack(spacing: 0) {
-                            ForEach(filteredCategories.indices, id: \.self) { index in
-                                let category = filteredCategories[index]
-                                Button(action: {
-                                    reportingCategoryId = category.id
-                                    showingDropdown = false
-                                    searchText = ""
-                                }) {
-                                    HStack {
-                                        Text(category.name ?? "Unnamed Category")
-                                            .foregroundColor(.primary)
-                                        Spacer()
-                                        if reportingCategoryId == category.id {
-                                            Image(systemName: "checkmark")
-                                                .foregroundColor(.blue)
+                    GeometryReader { geometry in
+                        ScrollView {
+                            LazyVStack(spacing: 0) {
+                                ForEach(filteredCategories.indices, id: \.self) { index in
+                                    let category = filteredCategories[index]
+                                    Button(action: {
+                                        reportingCategoryId = category.id
+                                        showingDropdown = false
+                                        searchText = ""
+                                    }) {
+                                        HStack {
+                                            Text(category.name ?? "Unnamed Category")
+                                                .foregroundColor(.primary)
+                                            Spacer()
+                                            if reportingCategoryId == category.id {
+                                                Image(systemName: "checkmark")
+                                                    .foregroundColor(.blue)
+                                            }
                                         }
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 8)
                                     }
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 8)
-                                }
-                                .background(Color(.systemBackground))
+                                    .background(Color(.systemBackground))
 
-                                if index < filteredCategories.count - 1 {
-                                    Divider()
+                                    if index < filteredCategories.count - 1 {
+                                        Divider()
+                                    }
                                 }
                             }
                         }
+                        .frame(maxHeight: min(geometry.size.height * 0.3, 300))
                     }
-                    .frame(maxHeight: 200)
                 }
                 .background(Color(.systemBackground))
                 .cornerRadius(8)
@@ -320,50 +322,52 @@ struct AdditionalCategoriesSelector: View {
                     Divider()
 
                     // Categories List
-                    ScrollView {
-                        LazyVStack(spacing: 0) {
-                            ForEach(filteredCategories.indices, id: \.self) { index in
-                                let category = filteredCategories[index]
-                                if let categoryId = category.id {
-                                    Button(action: {
-                                        if categoryIds.contains(categoryId) {
-                                            categoryIds.removeAll { $0 == categoryId }
-                                        } else {
-                                            categoryIds.append(categoryId)
-                                        }
-                                    }) {
-                                        HStack {
-                                            // Show if this is the reporting category
-                                            if reportingCategoryId == categoryId {
-                                                Text("\(category.name ?? "Unnamed Category") (Reporting)")
-                                                    .foregroundColor(.blue)
-                                                    .fontWeight(.medium)
-                                            } else {
-                                                Text(category.name ?? "Unnamed Category")
-                                                    .foregroundColor(.primary)
-                                            }
-
-                                            Spacer()
-
+                    GeometryReader { geometry in
+                        ScrollView {
+                            LazyVStack(spacing: 0) {
+                                ForEach(filteredCategories.indices, id: \.self) { index in
+                                    let category = filteredCategories[index]
+                                    if let categoryId = category.id {
+                                        Button(action: {
                                             if categoryIds.contains(categoryId) {
-                                                Image(systemName: "checkmark")
-                                                    .foregroundColor(.blue)
+                                                categoryIds.removeAll { $0 == categoryId }
+                                            } else {
+                                                categoryIds.append(categoryId)
                                             }
-                                        }
-                                        .padding(.horizontal, 12)
-                                        .padding(.vertical, 8)
-                                    }
-                                    .background(Color(.systemBackground))
-                                    .disabled(reportingCategoryId == categoryId) // Can't select reporting category as additional
+                                        }) {
+                                            HStack {
+                                                // Show if this is the reporting category
+                                                if reportingCategoryId == categoryId {
+                                                    Text("\(category.name ?? "Unnamed Category") (Reporting)")
+                                                        .foregroundColor(.blue)
+                                                        .fontWeight(.medium)
+                                                } else {
+                                                    Text(category.name ?? "Unnamed Category")
+                                                        .foregroundColor(.primary)
+                                                }
 
-                                    if index < filteredCategories.count - 1 {
-                                        Divider()
+                                                Spacer()
+
+                                                if categoryIds.contains(categoryId) {
+                                                    Image(systemName: "checkmark")
+                                                        .foregroundColor(.blue)
+                                                }
+                                            }
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 8)
+                                        }
+                                        .background(Color(.systemBackground))
+                                        .disabled(reportingCategoryId == categoryId) // Can't select reporting category as additional
+
+                                        if index < filteredCategories.count - 1 {
+                                            Divider()
+                                        }
                                     }
                                 }
                             }
                         }
+                        .frame(maxHeight: min(geometry.size.height * 0.3, 300))
                     }
-                    .frame(maxHeight: 200)
                 }
                 .background(Color(.systemBackground))
                 .cornerRadius(8)

@@ -29,6 +29,7 @@
 		5C42100E0690BACD20C3D6F2 /* DuplicateDetectionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16B4FF1AB7482AE61C22D7F0 /* DuplicateDetectionService.swift */; };
 		5FB7F70AD13E95F7FDC8BD50 /* WebhookIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09BFF04263C6393A3C5DD86A /* WebhookIntegrationTests.swift */; };
 		611221FE14DD319E9DC39D50 /* ItemEcommerceSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AFAF5D9F92448678D1A1EE2 /* ItemEcommerceSection.swift */; };
+		62E17EEFBD0A30493327D374 /* ViewExtensions+ModalPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EFA46CC1207E812F353D29F /* ViewExtensions+ModalPresentation.swift */; };
 		633EAA03A1AACAFBDA6DCEC6 /* WebhookService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CB9D6E0060770E50822CE1D /* WebhookService.swift */; };
 		65577A06B7D6A9FED610402A /* ReorderPhotoCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F32EEA3114D99A383F2B69FC /* ReorderPhotoCard.swift */; };
 		690DEB5BE22908836C5ABF87 /* SimpleImageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BF09157ED1FEE7951EC8474 /* SimpleImageService.swift */; };
@@ -144,6 +145,7 @@
 		7B48CACD7CFD81508BCDBFB9 /* TokenService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TokenService.swift; path = Core/Services/TokenService.swift; sourceTree = "<group>"; };
 		7BD6FFEA84896CD48CE4E372 /* ReorderContentView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderContentView.swift; path = JoyLabsNative/Views/Reorders/ReorderContentView.swift; sourceTree = "<group>"; };
 		7CCA9B512044EB597E9B73C7 /* DeferredImageUploadManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DeferredImageUploadManager.swift; path = Core/Services/DeferredImageUploadManager.swift; sourceTree = "<group>"; };
+		7EFA46CC1207E812F353D29F /* ViewExtensions+ModalPresentation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ViewExtensions+ModalPresentation.swift"; path = "Extensions/ViewExtensions+ModalPresentation.swift"; sourceTree = "<group>"; };
 		7F37514B9AC1E1E45F886FEB /* WebhookSignatureValidator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WebhookSignatureValidator.swift; path = Core/Services/WebhookSignatureValidator.swift; sourceTree = "<group>"; };
 		84F97B5C958182F299BA523E /* DuplicateWarningView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DuplicateWarningView.swift; path = Components/DuplicateWarningView.swift; sourceTree = "<group>"; };
 		93826EA70F24FEB3F6F59BD6 /* AppDelegate.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = JoyLabsNative/AppDelegate.swift; sourceTree = "<group>"; };
@@ -398,6 +400,7 @@
 				04A7BD54E19F17C9F0607C08 /* Testing */,
 				FCA1EEFAA8C3E62322E3ACB2 /* JoyLabsNative.entitlements */,
 				77BBD53CCA5DCDECA9C8F056 /* Models */,
+				E8569C96DE846CD87FE837CC /* Extensions */,
 			);
 			path = JoyLabsNative;
 			sourceTree = "<group>";
@@ -523,6 +526,14 @@
 			children = (
 			);
 			name = Components;
+			sourceTree = "<group>";
+		};
+		E8569C96DE846CD87FE837CC /* Extensions */ = {
+			isa = PBXGroup;
+			children = (
+				7EFA46CC1207E812F353D29F /* ViewExtensions+ModalPresentation.swift */,
+			);
+			name = Extensions;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -697,6 +708,7 @@
 				4B74843754CDBD240D53D5FC /* ReorderStatisticsCalculator.swift in Sources */,
 				7D83E6DC3B87B824D4DFE0A2 /* ReorderAppState.swift in Sources */,
 				905F0111BFADB010745559BD /* DeferredImageUploadManager.swift in Sources */,
+				62E17EEFBD0A30493327D374 /* ViewExtensions+ModalPresentation.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

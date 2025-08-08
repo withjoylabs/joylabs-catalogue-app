@@ -65,6 +65,7 @@ struct ItemCustomAttributesSection: View {
             AddCustomAttributeSheet { key, value in
                 viewModel.itemData.customAttributes[key] = value
             }
+            .nestedComponentModal()
         }
     }
 }

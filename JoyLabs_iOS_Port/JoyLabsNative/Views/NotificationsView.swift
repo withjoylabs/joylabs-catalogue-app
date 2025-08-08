@@ -77,6 +77,7 @@ struct NotificationsView: View {
         }
         .sheet(isPresented: $showingNotificationPermission) {
             NotificationPermissionView()
+                .fullScreenModal()
         }
         .withToastNotifications()
     }

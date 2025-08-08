@@ -498,6 +498,7 @@ struct NoResultsView: View {
                         showingItemDetails = false
                     }
                 )
+                .fullScreenModal()
             }
         }
     }

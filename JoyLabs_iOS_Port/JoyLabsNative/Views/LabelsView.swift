@@ -50,6 +50,7 @@ struct LabelsView: View {
                     openLabelDesigner(with: template)
                 }
             )
+            .fullScreenModal()
         }
     }
 

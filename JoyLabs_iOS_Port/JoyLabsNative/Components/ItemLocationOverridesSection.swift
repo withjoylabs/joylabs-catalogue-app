@@ -64,6 +64,7 @@ struct ItemLocationOverridesSection: View {
                     viewModel.itemData.locationOverrides.append(newOverride)
                 }
             )
+            .nestedComponentModal()
         }
     }
 }

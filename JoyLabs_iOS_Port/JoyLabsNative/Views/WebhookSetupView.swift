@@ -121,6 +121,7 @@ struct WebhookSetupView: View {
         }
         .sheet(isPresented: $showingInstructions) {
             WebhookInstructionsView()
+                .fullScreenModal()
         }
     }
     

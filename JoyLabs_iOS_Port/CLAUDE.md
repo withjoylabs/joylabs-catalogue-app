@@ -459,6 +459,35 @@ ItemDetailsModal(
 
 **Real-time Updates**: ItemDetailsModal automatically refreshes data when catalog sync completes (webhook-triggered updates). Uses `.onReceive(NotificationCenter.default.publisher(for: .catalogSyncCompleted))` to reload item data without losing user changes.
 
+### Modal Presentation Sizing
+Use standardized presentation patterns for consistent iPad/iPhone modal behavior:
+
+```swift
+// For full-screen modals (item details, main features)
+.sheet(isPresented: $showingModal) {
+    ItemDetailsModal(...)
+        .fullScreenModal()
+}
+
+// For image pickers and component modals (nested functionality)
+.sheet(isPresented: $showingImagePicker) {
+    UnifiedImagePickerModal(...)
+        .nestedComponentModal()
+}
+```
+
+**Key Principles:**
+- **iOS 18+ iPad**: Uses `.presentationSizing(.page)` for fullscreen behavior
+- **iOS 17 iPad**: Uses default fullscreen presentation 
+- **iPhone**: Uses `.presentationDetents([.large])` for proper sizing
+- **Never** hardcode modal widths - always use responsive patterns
+- **Different sheet contents** require different patterns - apply modifiers per modal type
+
+**Available Patterns:**
+- `.fullScreenModal()` - Main feature modals (item details, settings)
+- `.nestedComponentModal()` - Image pickers, nested functionality  
+- Apply pattern to each modal individually, not to parent sheets
+
 ### Toast Notifications
 Use the system-wide `ToastNotificationService` for user feedback across the app:
 

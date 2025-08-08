@@ -170,6 +170,7 @@ struct LabelLiveSettingsView: View {
                         showingAddMapping = false
                     }
                 )
+                .nestedComponentModal()
             }
     }
     

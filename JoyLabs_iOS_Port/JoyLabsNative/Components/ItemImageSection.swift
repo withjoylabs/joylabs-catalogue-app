@@ -94,6 +94,7 @@ struct ItemImageSection: View {
                     // SimpleImageService handles all notifications automatically
                 }
             )
+            .nestedComponentModal()
         }
 
     }

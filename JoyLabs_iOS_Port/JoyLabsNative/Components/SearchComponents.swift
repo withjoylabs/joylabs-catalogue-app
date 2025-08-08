@@ -315,6 +315,7 @@ struct SwipeableScanResultCard: View {
                     showingItemDetails = false
                 }
             )
+            .fullScreenModal()
         }
         .sheet(isPresented: $showingImagePicker) {
             UnifiedImagePickerModal(
@@ -330,6 +331,7 @@ struct SwipeableScanResultCard: View {
                     showingImagePicker = false
                 }
             )
+            .nestedComponentModal()
         }
     }
 

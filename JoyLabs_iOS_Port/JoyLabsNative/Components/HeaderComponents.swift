@@ -106,6 +106,7 @@ struct NotificationButton: View {
         }
         .sheet(isPresented: $showingWebhookNotifications) {
             NotificationsView()
+                .fullScreenModal()
         }
     }
 }

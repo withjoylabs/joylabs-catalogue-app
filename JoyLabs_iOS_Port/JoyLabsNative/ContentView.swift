@@ -48,6 +48,7 @@ struct ContentView: View {
     @Environment(\.horizontalSizeClass) var originalSizeClass
 
     var body: some View {
+        // Sheet presentation at app level - OUTSIDE size class override to ensure proper iPad behavior
         ZStack {
             TabView(selection: $selectedTab) {
                 // Preserve original size class for child views while forcing TabView to use compact layout
@@ -130,6 +131,7 @@ struct ContentView: View {
             }
             .ignoresSafeArea(.keyboard, edges: .all)
         }
+        // CRITICAL: Sheet presentation OUTSIDE size class override - ensures iPad gets proper regular size class
         .sheet(isPresented: $showingItemDetails) {
             ItemDetailsModal(
                 context: .createNew,
@@ -141,6 +143,7 @@ struct ContentView: View {
                     showingItemDetails = false
                 }
             )
+            .fullScreenModal()
         }
         .onReceive(NotificationCenter.default.publisher(for: .navigateToNotificationSettings)) { _ in
             selectedTab = 4 // Switch to Profile tab

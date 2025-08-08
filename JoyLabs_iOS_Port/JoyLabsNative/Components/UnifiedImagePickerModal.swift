@@ -95,6 +95,7 @@ struct UnifiedImagePickerModal: View {
                 photoLibrarySectionWithPermissions(containerWidth: geometry.size.width)
                     .frame(maxHeight: .infinity) // Ensure photo library gets remaining space
             }
+            .frame(maxHeight: .infinity)
         }
         .interactiveDismissDisabled(false)
         .presentationDragIndicator(.visible)
@@ -116,6 +117,7 @@ struct UnifiedImagePickerModal: View {
                 showingCamera = false
                 print("[UnifiedImagePickerModal] Camera photo set in preview, staying in modal for cropping")
             }
+            .nestedComponentModal()
         }
     }
     

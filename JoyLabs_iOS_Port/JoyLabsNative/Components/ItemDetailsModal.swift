@@ -129,6 +129,7 @@ struct ItemDetailsModal: View {
                 }
             }
         }
+        .frame(maxHeight: .infinity)
         .interactiveDismissDisabled(false)
         .presentationDragIndicator(.visible)
         .alert("Error", isPresented: .constant(viewModel.error != nil)) {
@@ -157,6 +158,26 @@ struct ItemDetailsModal: View {
         )
         .onAppear {
             print("[ItemDetailsModal] onAppear called with context: \(context)")
+            
+            // DEBUG: Log device and modal presentation info
+            print("[ItemDetailsModal] Device: \(UIDevice.current.userInterfaceIdiom == .pad ? "iPad" : "iPhone")")
+            print("[ItemDetailsModal] iOS Version: \(UIDevice.current.systemVersion)")
+            if #available(iOS 18.0, *) {
+                print("[ItemDetailsModal] iOS 18+ detected - should use presentationSizing")
+            } else {
+                print("[ItemDetailsModal] iOS 17 or earlier - using legacy presentation")
+            }
+            
+            // Get current size class info
+            if let window = UIApplication.shared.connectedScenes
+                .compactMap({ $0 as? UIWindowScene })
+                .first?.windows.first {
+                let sizeClass = window.rootViewController?.traitCollection.horizontalSizeClass
+                print("[ItemDetailsModal] Current horizontal size class: \(sizeClass?.rawValue ?? -1) (1=compact, 2=regular)")
+            }
+            
+            print("[ItemDetailsModal] Modal presentation debug complete")
+            
             setupForContext()
         }
         .onDisappear {
@@ -352,7 +373,7 @@ struct ItemDetailsContent: View {
                 // Delete Button Section
                 ItemDeleteSection(viewModel: viewModel)
 
-                // Bottom spacing for floating buttons and keyboard - increased to clear FAB
+                // Bottom spacing for floating buttons and keyboard
                 Spacer()
                     .frame(height: 120)
                 }

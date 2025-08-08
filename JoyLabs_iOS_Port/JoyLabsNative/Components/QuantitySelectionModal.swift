@@ -52,7 +52,7 @@ struct EmbeddedQuantitySelectionModal: View {
 
     // MARK: - Computed Properties for Clean Architecture
     private var modalContent: some View {
-        GeometryReader { geometry in
+        GeometryReader { outerGeometry in
             VStack(spacing: 0) {
                 // Custom header
                 HStack {
@@ -88,7 +88,7 @@ struct EmbeddedQuantitySelectionModal: View {
                 
                 ScrollView {
                     VStack(spacing: 0) {
-                        itemThumbnailSection(geometry: geometry)
+                        itemThumbnailSection(geometry: outerGeometry)
                         itemDetailsSection
                         quantitySection
                         Spacer(minLength: 20)
@@ -216,6 +216,7 @@ struct EmbeddedQuantitySelectionModal: View {
             QuantityNumpad(currentQuantity: $currentQuantity, itemId: item.id)
                 .padding(.horizontal, 16)
         }
+        .frame(maxHeight: .infinity)
         .padding(.top, 8)
     }
 }
