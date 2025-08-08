@@ -13,6 +13,8 @@ open JoyLabsNative.xcodeproj
 xcodebuild -project JoyLabsNative.xcodeproj -scheme JoyLabsNative -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.5' build
 ```
 
+**IMPORTANT**: Do not run build commands unless the user explicitly asks. Building takes many tokens. The user will build and report any compilation errors.
+
 ### Adding Files to Xcode Project
 Use ruby gem xcodeproj to add files into the project.
 Here is sample code. IMPORTANT: Use absolute paths.

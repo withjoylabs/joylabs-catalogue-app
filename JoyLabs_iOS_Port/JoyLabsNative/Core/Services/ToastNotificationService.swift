@@ -159,8 +159,7 @@ struct ToastView: View {
                 .foregroundColor(.primary)
                 .lineLimit(2)
                 .truncationMode(.tail)
-            
-            Spacer(minLength: 0)
+                .fixedSize(horizontal: false, vertical: true)
             
             Button(action: onDismiss) {
                 Image(systemName: "xmark")
@@ -219,22 +218,31 @@ struct ToastContainerModifier: ViewModifier {
     @ObservedObject private var toastService = ToastNotificationService.shared
     
     func body(content: Content) -> some View {
-        content
-            .overlay(alignment: .bottomTrailing) {
-                if toastService.isShowing, let toast = toastService.currentToast {
-                    ToastView(toast: toast) {
-                        toastService.dismiss()
+        ZStack {
+            content
+            
+            // Toast overlay at highest z-level
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    
+                    if toastService.isShowing, let toast = toastService.currentToast {
+                        ToastView(toast: toast) {
+                            toastService.dismiss()
+                        }
+                        .transition(.asymmetric(
+                            insertion: .offset(x: 400, y: 0).combined(with: .opacity),
+                            removal: .offset(x: 400, y: 0).combined(with: .opacity)
+                        ))
                     }
-                    .transition(.asymmetric(
-                        insertion: .move(edge: .bottom).combined(with: .move(edge: .trailing)).combined(with: .opacity),
-                        removal: .move(edge: .bottom).combined(with: .move(edge: .trailing)).combined(with: .opacity)
-                    ))
-                    .padding(.trailing, 16)
-                    .padding(.bottom, 140) // Position above scan view text input
-                    .zIndex(.infinity) // Highest possible z-index
                 }
+                .padding(.trailing, 16)
+                .padding(.bottom, 140) // Position above scan view text input
             }
-            .animation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0.1), value: toastService.isShowing)
+            .allowsHitTesting(toastService.isShowing) // Only intercept touches when showing
+        }
+        .animation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0.1), value: toastService.isShowing)
     }
 }
 
