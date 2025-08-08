@@ -329,22 +329,24 @@ struct ReordersView: SwiftUI.View {
                         viewModel.loadReorderData() // Refresh data after edit
                     }
                 )
-            case .quantityModal(let searchItem):
-                EmbeddedQuantitySelectionModal(
-                    item: searchItem,
-                    currentQuantity: viewModel.modalStateManager.modalQuantity,
-                    isExistingItem: viewModel.modalStateManager.isExistingItem,
-                    isPresented: .constant(true),
-                    onSubmit: { quantity in
-                        viewModel.handleQuantityModalSubmit(quantity)
-                    },
-                    onCancel: {
-                        viewModel.handleQuantityModalCancel()
-                    },
-                    onQuantityChange: { newQuantity in
-                        viewModel.currentModalQuantity = newQuantity
-                    }
-                )
+            case .quantityModal(_):
+                if let selectedItem = viewModel.modalStateManager.selectedItemForQuantity {
+                    EmbeddedQuantitySelectionModal(
+                        item: selectedItem,
+                        currentQuantity: viewModel.modalStateManager.modalQuantity,
+                        isExistingItem: viewModel.modalStateManager.isExistingItem,
+                        isPresented: .constant(true),
+                        onSubmit: { quantity in
+                            viewModel.handleQuantityModalSubmit(quantity)
+                        },
+                        onCancel: {
+                            viewModel.handleQuantityModalCancel()
+                        },
+                        onQuantityChange: { newQuantity in
+                            viewModel.currentModalQuantity = newQuantity
+                        }
+                    )
+                }
             }
         }
     }

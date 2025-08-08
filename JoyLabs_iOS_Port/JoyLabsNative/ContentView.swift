@@ -142,7 +142,6 @@ struct ContentView: View {
                 }
             )
         }
-        .withToastNotifications()
         .onReceive(NotificationCenter.default.publisher(for: .navigateToNotificationSettings)) { _ in
             selectedTab = 4 // Switch to Profile tab
         }

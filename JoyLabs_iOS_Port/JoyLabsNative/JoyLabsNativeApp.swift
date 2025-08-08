@@ -23,6 +23,7 @@ struct JoyLabsNativeApp: App {
                     logger.info("App received URL: \(url.absoluteString)")
                     handleIncomingURL(url)
                 }
+                .withToastNotifications() // Apply toast notifications at the highest level
         }
     }
 

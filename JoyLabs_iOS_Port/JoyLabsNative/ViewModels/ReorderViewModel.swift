@@ -273,7 +273,12 @@ class ReorderViewModel: ObservableObject {
 
         currentModalQuantity = quantity
         modalStateManager.setItem(item, quantity: quantity, isExisting: isExisting)
-        activeSheet = .quantityModal(item)
+        modalStateManager.showModal() // Set the showingQuantityModal flag for chain scanning
+        
+        // Only set activeSheet if modal is not already showing (to avoid animation)
+        if activeSheet == nil {
+            activeSheet = .quantityModal(item)
+        }
         
         print("🔢 Showing quantity modal for: \(item.name ?? "Unknown"), qty: \(quantity), existing: \(isExisting)")
     }

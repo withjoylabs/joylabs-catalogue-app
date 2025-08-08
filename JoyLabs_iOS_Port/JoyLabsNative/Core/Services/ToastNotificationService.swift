@@ -220,28 +220,21 @@ struct ToastContainerModifier: ViewModifier {
     
     func body(content: Content) -> some View {
         content
-            .overlay(
-                VStack {
-                    Spacer()
-                    
-                    if toastService.isShowing, let toast = toastService.currentToast {
-                        HStack {
-                            Spacer()
-                            ToastView(toast: toast) {
-                                toastService.dismiss()
-                            }
-                            .transition(.asymmetric(
-                                insertion: .move(edge: .trailing).combined(with: .opacity).combined(with: .scale(scale: 0.8)),
-                                removal: .move(edge: .trailing).combined(with: .opacity).combined(with: .scale(scale: 0.9))
-                            ))
-                            .zIndex(1000)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 120) // Position above bottom search bar (estimated height + padding)
+            .overlay(alignment: .bottomTrailing) {
+                if toastService.isShowing, let toast = toastService.currentToast {
+                    ToastView(toast: toast) {
+                        toastService.dismiss()
                     }
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .bottom).combined(with: .move(edge: .trailing)).combined(with: .opacity),
+                        removal: .move(edge: .bottom).combined(with: .move(edge: .trailing)).combined(with: .opacity)
+                    ))
+                    .padding(.trailing, 16)
+                    .padding(.bottom, 140) // Position above scan view text input
+                    .zIndex(.infinity) // Highest possible z-index
                 }
-                .animation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0.1), value: toastService.isShowing)
-            )
+            }
+            .animation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0.1), value: toastService.isShowing)
     }
 }
 
