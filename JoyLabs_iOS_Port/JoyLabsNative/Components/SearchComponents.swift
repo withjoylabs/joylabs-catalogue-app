@@ -46,7 +46,7 @@ struct SearchTextField: View {
             if !searchText.isEmpty {
                 Button(action: {
                     searchText = ""
-                    isSearchFieldFocused = true
+                    // Don't auto-focus after clearing to prevent keyboard conflicts
                 }) {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundColor(Color.secondary)

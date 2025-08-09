@@ -30,13 +30,11 @@ class QuantityModalStateManager: ObservableObject {
         selectedItemForQuantity = item
         modalQuantity = quantity
         isExistingItem = isExisting
-        print("🚨 DEBUG: QuantityModalStateManager - Set item: \(item.name ?? "Unknown"), qty: \(quantity), existing: \(isExisting)")
     }
 
     func showModal() {
         modalJustPresented = true
         showingQuantityModal = true
-        print("🚨 DEBUG: QuantityModalStateManager - Modal shown")
 
         // Clear the flag after a short delay to allow normal dismiss behavior
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -49,7 +47,6 @@ class QuantityModalStateManager: ObservableObject {
         showingQuantityModal = false
         isExistingItem = false
         modalJustPresented = false
-        print("🚨 DEBUG: QuantityModalStateManager - State cleared")
     }
 }
 

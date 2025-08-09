@@ -221,7 +221,7 @@ struct VariationUPCField: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("UPC/Barcode")
+            Text("UPC")
                 .font(.caption)
                 .fontWeight(.medium)
                 .foregroundColor(.primary)

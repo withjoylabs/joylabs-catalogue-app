@@ -451,7 +451,7 @@ struct SearchErrorView: View {
 struct NoResultsView: View {
     let searchManager: SearchManager
     @State private var showingItemDetails = false
-    @State private var selectedQueryType: SearchQueryType = .sku
+    @State private var selectedQueryType: SearchQueryType = .upc  // Default to UPC instead of SKU
 
     var body: some View {
         VStack(spacing: 20) {
@@ -519,7 +519,9 @@ struct CreateItemButtons: View {
 
             VStack(spacing: 8) {
                 // SKU Button
-                Button(action: { action(.sku) }) {
+                Button(action: { 
+                    action(.sku) 
+                }) {
                     HStack {
                         Image(systemName: "tag.fill")
                             .foregroundColor(.blue)
@@ -542,7 +544,7 @@ struct CreateItemButtons: View {
                 }
 
                 // UPC Button
-                Button(action: { action(.barcode) }) {
+                Button(action: { action(.upc) }) {
                     HStack {
                         Image(systemName: "barcode")
                             .foregroundColor(.green)

@@ -337,8 +337,6 @@ class ItemDetailsViewModel: ObservableObject {
     
     /// Setup the view model for a specific context
     func setupForContext(_ context: ItemDetailsContext) async {
-        print("[ItemDetailsViewModel] Setting up for context: \(String(describing: context))")
-
         // Store the context
         self.context = context
 
@@ -731,8 +729,6 @@ class ItemDetailsViewModel: ObservableObject {
     }
     
     private func setupNewItem() {
-        print("Setting up new item")
-
         itemData = ItemDetailsData()
 
         // Create variation with configurable default name
@@ -742,12 +738,10 @@ class ItemDetailsViewModel: ObservableObject {
     }
     
     private func setupNewItemFromSearch(query: String, queryType: SearchQueryType) {
-        print("Setting up new item from search: \(query) (\(queryType))")
-        
         setupNewItem()
 
         switch queryType {
-        case .barcode:
+        case .upc:
             if !itemData.variations.isEmpty {
                 itemData.variations[0].upc = query
             }

@@ -32,7 +32,7 @@ enum ItemDetailsContext: Equatable {
 // MARK: - Search Query Type
 /// Specifies what type of search query was used to trigger item creation
 enum SearchQueryType: String, CaseIterable {
-    case barcode = "UPC"
+    case upc = "UPC"
     case sku = "SKU"
     case name = "Name"
     
@@ -145,7 +145,6 @@ struct ItemDetailsModal: View {
             // Ensure keyboard is dismissed when modal disappears
             hideKeyboard()
         }
-        .ignoresSafeArea(.keyboard, edges: .bottom)
         .gesture(
             // Custom swipe down gesture to handle changes confirmation
             DragGesture()
@@ -157,27 +156,6 @@ struct ItemDetailsModal: View {
                 }
         )
         .onAppear {
-            print("[ItemDetailsModal] onAppear called with context: \(context)")
-            
-            // DEBUG: Log device and modal presentation info
-            print("[ItemDetailsModal] Device: \(UIDevice.current.userInterfaceIdiom == .pad ? "iPad" : "iPhone")")
-            print("[ItemDetailsModal] iOS Version: \(UIDevice.current.systemVersion)")
-            if #available(iOS 18.0, *) {
-                print("[ItemDetailsModal] iOS 18+ detected - should use presentationSizing")
-            } else {
-                print("[ItemDetailsModal] iOS 17 or earlier - using legacy presentation")
-            }
-            
-            // Get current size class info
-            if let window = UIApplication.shared.connectedScenes
-                .compactMap({ $0 as? UIWindowScene })
-                .first?.windows.first {
-                let sizeClass = window.rootViewController?.traitCollection.horizontalSizeClass
-                print("[ItemDetailsModal] Current horizontal size class: \(sizeClass?.rawValue ?? -1) (1=compact, 2=regular)")
-            }
-            
-            print("[ItemDetailsModal] Modal presentation debug complete")
-            
             setupForContext()
         }
         .onDisappear {
@@ -212,13 +190,10 @@ struct ItemDetailsModal: View {
     // MARK: - Private Methods
     
     private func setupForContext() {
-        print("[ItemDetailsModal] setupForContext called with context: \(String(describing: context))")
         logger.info("Setting up modal for context: \(String(describing: context))")
         
         Task {
-            print("[ItemDetailsModal] About to call viewModel.setupForContext")
             await viewModel.setupForContext(context)
-            print("[ItemDetailsModal] viewModel.setupForContext completed")
         }
     }
     
@@ -451,7 +426,7 @@ struct CreateFromSearchHeader: View {
 
 #Preview("Create From Search") {
     ItemDetailsModal(
-        context: .createFromSearch(query: "1234567890123", queryType: .barcode),
+        context: .createFromSearch(query: "1234567890123", queryType: .upc),
         onDismiss: {},
         onSave: { _ in }
     )
