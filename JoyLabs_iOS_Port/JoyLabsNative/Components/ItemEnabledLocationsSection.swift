@@ -5,94 +5,87 @@ struct ItemEnabledLocationsSection: View {
     @ObservedObject var viewModel: ItemDetailsViewModel
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            ItemDetailsSectionHeader(title: "Enabled at Locations", icon: "location")
-
-            VStack(spacing: 4) {
-                // All Locations Toggle
-                HStack {
-                    Text("Enable at All Locations")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundColor(.primary)
-                    
-                    Spacer()
-                    
-                    Toggle("", isOn: $viewModel.itemData.enabledAtAllLocations)
-                        .labelsHidden()
+        ItemDetailsSection(title: "Enabled at Locations", icon: "location") {
+            ItemDetailsCard {
+                VStack(spacing: 0) {
+                    // All Locations Toggle
+                    ItemDetailsFieldRow {
+                        ItemDetailsToggleRow(
+                            title: "Enable at All Locations",
+                            isOn: $viewModel.itemData.enabledAtAllLocations
+                        )
                         .onChange(of: viewModel.itemData.enabledAtAllLocations) { _, newValue in
                             if newValue {
                                 // If enabling at all locations, select all
                                 viewModel.itemData.enabledLocationIds = viewModel.availableLocations.map { $0.id }
                             }
                         }
-                }
-                .padding(.vertical, 4)
+                    }
 
-                if !viewModel.itemData.enabledAtAllLocations {
-                    Divider()
+                    if !viewModel.itemData.enabledAtAllLocations {
+                        ItemDetailsFieldSeparator()
 
-                    // Individual Location Selection
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Select Specific Locations")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(Color.secondary)
-                        
-                        if viewModel.availableLocations.isEmpty {
-                            HStack {
-                                Image(systemName: "info.circle")
-                                    .foregroundColor(.orange)
-                                Text("No locations available. Connect to Square to sync locations.")
-                                    .font(.caption)
-                                    .foregroundColor(Color.secondary)
-                            }
-                            .padding(.vertical, 8)
-                        } else {
-                            ForEach(viewModel.availableLocations, id: \.id) { location in
-                                LocationToggleRow(
-                                    location: location,
-                                    isEnabled: viewModel.itemData.enabledLocationIds.contains(location.id)
-                                ) { isEnabled in
-                                    if isEnabled {
-                                        if !viewModel.itemData.enabledLocationIds.contains(location.id) {
-                                            viewModel.itemData.enabledLocationIds.append(location.id)
+                        // Individual Location Selection
+                        ItemDetailsFieldRow {
+                            VStack(alignment: .leading, spacing: ItemDetailsSpacing.fieldSpacing) {
+                                Text("Select Specific Locations")
+                                    .font(.itemDetailsSubheadline)
+                                    .foregroundColor(.itemDetailsSecondaryText)
+                                
+                                if viewModel.availableLocations.isEmpty {
+                                    ItemDetailsInfoView(
+                                        message: "No locations available. Connect to Square to sync locations.",
+                                        style: .warning
+                                    )
+                                } else {
+                                    VStack(spacing: ItemDetailsSpacing.compactSpacing) {
+                                        ForEach(viewModel.availableLocations, id: \.id) { location in
+                                            LocationToggleRow(
+                                                location: location,
+                                                isEnabled: viewModel.itemData.enabledLocationIds.contains(location.id)
+                                            ) { isEnabled in
+                                                if isEnabled {
+                                                    if !viewModel.itemData.enabledLocationIds.contains(location.id) {
+                                                        viewModel.itemData.enabledLocationIds.append(location.id)
+                                                    }
+                                                } else {
+                                                    viewModel.itemData.enabledLocationIds.removeAll { $0 == location.id }
+                                                }
+                                            }
                                         }
-                                    } else {
-                                        viewModel.itemData.enabledLocationIds.removeAll { $0 == location.id }
                                     }
                                 }
                             }
                         }
                     }
-                }
-                
-                // Summary
-                if !viewModel.itemData.enabledLocationIds.isEmpty {
-                    Divider()
                     
-                    HStack {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
+                    // Summary
+                    if !viewModel.itemData.enabledLocationIds.isEmpty {
+                        ItemDetailsFieldSeparator()
                         
-                        if viewModel.itemData.enabledAtAllLocations {
-                            Text("Enabled at all locations")
-                                .font(.caption)
-                                .foregroundColor(Color.secondary)
-                        } else {
-                            Text("Enabled at \(viewModel.itemData.enabledLocationIds.count) location(s)")
-                                .font(.caption)
-                                .foregroundColor(Color.secondary)
+                        ItemDetailsFieldRow {
+                            HStack {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.itemDetailsSuccess)
+                                    .font(.itemDetailsBody.weight(.medium))
+                                
+                                if viewModel.itemData.enabledAtAllLocations {
+                                    Text("Enabled at all locations")
+                                        .font(.itemDetailsCaption)
+                                        .foregroundColor(.itemDetailsSecondaryText)
+                                } else {
+                                    Text("Enabled at \(viewModel.itemData.enabledLocationIds.count) location(s)")
+                                        .font(.itemDetailsCaption)
+                                        .foregroundColor(.itemDetailsSecondaryText)
+                                }
+                                
+                                Spacer()
+                            }
                         }
-                        
-                        Spacer()
                     }
                 }
             }
         }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
     }
 }
 
@@ -106,13 +99,13 @@ struct LocationToggleRow: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(location.name)
-                    .font(.body)
-                    .foregroundColor(.primary)
+                    .font(.itemDetailsBody)
+                    .foregroundColor(.itemDetailsPrimaryText)
                 
                 if !location.address.isEmpty {
                     Text(location.address)
-                        .font(.caption)
-                        .foregroundColor(Color.secondary)
+                        .font(.itemDetailsCaption)
+                        .foregroundColor(.itemDetailsSecondaryText)
                         .lineLimit(1)
                 }
             }
@@ -125,7 +118,7 @@ struct LocationToggleRow: View {
             ))
             .labelsHidden()
         }
-        .padding(.vertical, 4)
+        .frame(minHeight: ItemDetailsSpacing.minimumTouchTarget)
     }
 }
 

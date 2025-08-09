@@ -25,6 +25,7 @@ struct ComprehensiveItemData {
     var categoryId: String? // Legacy single category
     var categories: [CategoryReference] = [] // Square's categories array
     var reportingCategory: ReportingCategory? // Square's reporting category
+    var isAlcoholic: Bool = false
     
     // MARK: - Variations and Pricing
     var variations: [ComprehensiveVariationData] = []
@@ -32,6 +33,7 @@ struct ComprehensiveItemData {
     
     // MARK: - Tax Configuration
     var taxIds: [String] = []
+    var isTaxable: Bool = true // Square API default
     
     // MARK: - Modifiers
     var modifierListInfo: [ModifierListInfo] = []

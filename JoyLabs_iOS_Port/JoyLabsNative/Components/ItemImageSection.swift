@@ -111,7 +111,7 @@ struct ItemImageSection: View {
         isRemoving = true
 
         do {
-            // Delete from Square API
+            // Delete from Square API using SquareImageService
             let imageService = SquareImageService.create()
             try await imageService.deleteImage(imageId: imageId)
 

@@ -7,39 +7,67 @@ struct ItemDetailsPricingSection: View {
     @StateObject private var configManager = FieldConfigurationManager.shared
     
     var body: some View {
-        // Variations list - same hierarchy as other sections
-        ForEach(Array(viewModel.itemData.variations.enumerated()), id: \.offset) { index, variation in
-                    VariationCard(
-                        variation: Binding(
-                            get: {
-                                // Safe bounds checking
-                                guard index < viewModel.itemData.variations.count else {
-                                    return ItemDetailsVariationData()
+        ItemDetailsSection(title: "Pricing & Variations", icon: "dollarsign.circle") {
+            ItemDetailsCard {
+                VStack(spacing: 0) {
+                    ForEach(Array(viewModel.itemData.variations.enumerated()), id: \.offset) { index, variation in
+                        VariationCard(
+                            variation: Binding(
+                                get: {
+                                    // Safe bounds checking
+                                    guard index < viewModel.itemData.variations.count else {
+                                        return ItemDetailsVariationData()
+                                    }
+                                    return viewModel.itemData.variations[index]
+                                },
+                                set: { newValue in
+                                    // Safe bounds checking
+                                    guard index < viewModel.itemData.variations.count else { return }
+                                    viewModel.itemData.variations[index] = newValue
+                                    viewModel.hasUnsavedChanges = true
                                 }
-                                return viewModel.itemData.variations[index]
-                            },
-                            set: { newValue in
-                                // Safe bounds checking
-                                guard index < viewModel.itemData.variations.count else { return }
-                                viewModel.itemData.variations[index] = newValue
+                            ),
+                            index: index,
+                            onDelete: {
+                                // Safe removal with bounds checking
+                                guard index < viewModel.itemData.variations.count && viewModel.itemData.variations.count > 1 else { return }
+                                viewModel.itemData.variations.remove(at: index)
                                 viewModel.hasUnsavedChanges = true
-                            }
-                        ),
-                        index: index,
-                        onDelete: {
-                            // Safe removal with bounds checking
-                            guard index < viewModel.itemData.variations.count && viewModel.itemData.variations.count > 1 else { return }
-                            viewModel.itemData.variations.remove(at: index)
-                            viewModel.hasUnsavedChanges = true
-                        },
-                        viewModel: viewModel
-                    )
-        }
-
-        // Add variation button - same hierarchy
-        if viewModel.itemData.variations.count < 5 {
-            AddVariationButton {
-                addNewVariation()
+                            },
+                            viewModel: viewModel
+                        )
+                        
+                        // Add black spacing between variations
+                        if index < viewModel.itemData.variations.count - 1 {
+                            Rectangle()
+                                .fill(Color.itemDetailsModalBackground)
+                                .frame(height: ItemDetailsSpacing.sectionSpacing)
+                        }
+                        
+                        // Add separator only if this is not the last variation and we can add more
+                        if index == viewModel.itemData.variations.count - 1 && viewModel.itemData.variations.count < 5 {
+                            ItemDetailsFieldSeparator()
+                        }
+                    }
+                    
+                    // Add variation button - separate section
+                    if viewModel.itemData.variations.count < 5 {
+                        Rectangle()
+                            .fill(Color.itemDetailsModalBackground)
+                            .frame(height: ItemDetailsSpacing.compactSpacing)
+                        
+                        ItemDetailsButton(
+                            title: "Add Variation",
+                            icon: "plus.circle",
+                            style: .secondary
+                        ) {
+                            addNewVariation()
+                        }
+                        .padding(ItemDetailsSpacing.fieldSpacing)
+                        .background(Color.itemDetailsSectionBackground)
+                        .cornerRadius(ItemDetailsSpacing.sectionCornerRadius)
+                    }
+                }
             }
         }
     }
@@ -69,13 +97,10 @@ struct VariationCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Header with variation name and delete button
+        VStack(alignment: .leading, spacing: 0) {
+            // Header with variation name and delete button - with background and padding
             HStack {
-                Text("Variation \(index + 1)")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.primary)
+                ItemDetailsFieldLabel(title: "Variation \(index + 1)")
                 
                 Spacer()
                 
@@ -89,81 +114,175 @@ struct VariationCard: View {
                         }
                     }) {
                         Image(systemName: "trash")
-                            .foregroundColor(.red)
-                            .font(.caption)
+                            .foregroundColor(.itemDetailsDestructive)
+                            .font(.itemDetailsSubheadline)
                     }
                 }
             }
+            .padding(.horizontal, ItemDetailsSpacing.fieldSpacing)
+            .padding(.vertical, ItemDetailsSpacing.fieldSpacing)
+            .background(Color.itemDetailsSectionBackground)
             
-            VStack(spacing: 12) {
-                // Variation name
-                VariationNameField(
-                    name: Binding(
+            VStack(spacing: 0) {
+                // Variation name - reduced spacing
+                VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
+                    ItemDetailsFieldLabel(title: "Variation Name")
+                    
+                    TextField("e.g., Small, Medium, Large", text: Binding(
                         get: { variation.name ?? "" },
                         set: { variation.name = $0.isEmpty ? nil : $0 }
-                    )
-                )
+                    ))
+                    .font(.itemDetailsBody)
+                    .padding(ItemDetailsSpacing.fieldPadding)
+                    .background(Color.itemDetailsFieldBackground)
+                    .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                }
+                .padding(.horizontal, ItemDetailsSpacing.fieldSpacing)
+                .padding(.vertical, ItemDetailsSpacing.compactSpacing)
+                .background(Color.itemDetailsSectionBackground)
                 
-                // UPC and SKU row (UPC first)
+                Rectangle()
+                    .fill(Color.itemDetailsSeparator)
+                    .frame(height: 0.5)
+                
+                // UPC and SKU row - reduced spacing
                 HStack(spacing: 12) {
-                    VariationUPCField(
-                        upc: Binding(
+                    VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
+                        ItemDetailsFieldLabel(title: "UPC")
+                        
+                        TextField("Barcode number", text: Binding(
                             get: { variation.upc ?? "" },
                             set: {
                                 variation.upc = $0.isEmpty ? nil : $0
-                                // Trigger duplicate detection when UPC changes
                                 duplicateDetection.checkForDuplicates(
                                     sku: variation.sku ?? "",
                                     upc: $0,
                                     excludeItemId: viewModel.itemData.id
                                 )
                             }
-                        )
-                    )
+                        ))
+                        .font(.itemDetailsBody)
+                        .padding(ItemDetailsSpacing.fieldPadding)
+                        .background(Color.itemDetailsFieldBackground)
+                        .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
+                        .keyboardType(.numberPad)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    }
 
-                    VariationSKUField(
-                        sku: Binding(
+                    VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
+                        ItemDetailsFieldLabel(title: "SKU")
+                        
+                        TextField("Internal SKU", text: Binding(
                             get: { variation.sku ?? "" },
                             set: {
                                 variation.sku = $0.isEmpty ? nil : $0
-                                // Trigger duplicate detection when SKU changes
                                 duplicateDetection.checkForDuplicates(
                                     sku: $0,
                                     upc: variation.upc ?? "",
                                     excludeItemId: viewModel.itemData.id
                                 )
                             }
-                        )
-                    )
+                        ))
+                        .font(.itemDetailsBody)
+                        .padding(ItemDetailsSpacing.fieldPadding)
+                        .background(Color.itemDetailsFieldBackground)
+                        .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    }
                 }
+                .padding(.horizontal, ItemDetailsSpacing.fieldSpacing)
+                .padding(.vertical, ItemDetailsSpacing.compactSpacing)
+                .background(Color.itemDetailsSectionBackground)
 
-                // Validation and duplicate detection section (fixed height to prevent jittering)
-                DuplicateDetectionSection(
-                    variation: variation,
-                    duplicateDetection: duplicateDetection
-                )
-                
-                // Pricing type and price (50/50 split - always show both)
-                HStack(spacing: 12) {
-                    PriceField(
-                        priceMoney: Binding(
-                            get: { variation.priceMoney },
-                            set: { variation.priceMoney = $0 }
-                        ),
-                        isDisabled: variation.pricingType == .variablePricing
+                // Duplicate detection - only show when needed
+                if !duplicateDetection.duplicateWarnings.isEmpty || 
+                   (variation.upc != nil && !variation.upc!.isEmpty && !duplicateDetection.validateUPC(variation.upc!).isValid) {
+                    Rectangle()
+                        .fill(Color.itemDetailsSeparator)
+                        .frame(height: 0.5)
+                    
+                    DuplicateDetectionSection(
+                        variation: variation,
+                        duplicateDetection: duplicateDetection
                     )
-                    .frame(maxWidth: .infinity)
-
-                    PricingTypeSelector(
-                        pricingType: Binding(
+                    .padding(.horizontal, ItemDetailsSpacing.fieldSpacing)
+                    .padding(.vertical, ItemDetailsSpacing.compactSpacing)
+                    .background(Color.itemDetailsSectionBackground)
+                }
+                
+                Rectangle()
+                    .fill(Color.itemDetailsSeparator)
+                    .frame(height: 0.5)
+                
+                // Price and pricing type - reduced spacing
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
+                        ItemDetailsFieldLabel(title: "Price")
+                        
+                        HStack {
+                            Text("$")
+                                .foregroundColor(.secondary)
+                            
+                            if variation.pricingType == .variablePricing {
+                                Text("Variable")
+                                    .foregroundColor(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 8)
+                                    .background(Color(.systemGray6))
+                                    .cornerRadius(6)
+                            } else {
+                                TextField("0.00", text: Binding(
+                                    get: { 
+                                        if let price = variation.priceMoney {
+                                            return String(format: "%.2f", price.displayAmount)
+                                        }
+                                        return ""
+                                    },
+                                    set: { text in
+                                        if let amount = Double(text) {
+                                            variation.priceMoney = MoneyData(dollars: amount)
+                                        } else if text.isEmpty {
+                                            variation.priceMoney = nil
+                                        }
+                                    }
+                                ))
+                                .keyboardType(.decimalPad)
+                                .font(.itemDetailsBody)
+                                .padding(ItemDetailsSpacing.fieldPadding)
+                                .background(Color.itemDetailsFieldBackground)
+                                .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                            }
+                        }
+                    }
+                    
+                    VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
+                        ItemDetailsFieldLabel(title: "Pricing Type")
+                        
+                        Picker("Pricing Type", selection: Binding(
                             get: { variation.pricingType },
                             set: { variation.pricingType = $0 }
-                        )
-                    )
-                    .frame(maxWidth: .infinity)
+                        )) {
+                            ForEach(PricingType.allCases, id: \.self) { type in
+                                Text(type.displayName).tag(type)
+                            }
+                        }
+                        .pickerStyle(SegmentedPickerStyle())
+                    }
                 }
+                .padding(.horizontal, ItemDetailsSpacing.fieldSpacing)
+                .padding(.vertical, ItemDetailsSpacing.compactSpacing)
+                .background(Color.itemDetailsSectionBackground)
             }
         }
+        .background(Color.itemDetailsSectionBackground)
+        .cornerRadius(ItemDetailsSpacing.sectionCornerRadius)
         .confirmationDialog(
             "Delete Variation",
             isPresented: $showingDeleteConfirmation,
@@ -184,16 +303,11 @@ struct VariationNameField: View {
     @Binding var name: String
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Variation Name")
-                .font(.caption)
-                .fontWeight(.medium)
-                .foregroundColor(.primary)
-            
-            TextField("e.g., Small, Medium, Large", text: $name)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-                .autocorrectionDisabled()
-        }
+        ItemDetailsTextField(
+            title: "Variation Name",
+            placeholder: "e.g., Small, Medium, Large",
+            text: $name
+        )
     }
 }
 
@@ -202,16 +316,11 @@ struct VariationSKUField: View {
     @Binding var sku: String
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("SKU")
-                .font(.caption)
-                .fontWeight(.medium)
-                .foregroundColor(.primary)
-            
-            TextField("Internal SKU", text: $sku)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-                .autocorrectionDisabled()
-        }
+        ItemDetailsTextField(
+            title: "SKU",
+            placeholder: "Internal SKU",
+            text: $sku
+        )
     }
 }
 
@@ -220,17 +329,12 @@ struct VariationUPCField: View {
     @Binding var upc: String
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("UPC")
-                .font(.caption)
-                .fontWeight(.medium)
-                .foregroundColor(.primary)
-            
-            TextField("Barcode number", text: $upc)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-                .keyboardType(.numberPad)
-                .autocorrectionDisabled()
-        }
+        ItemDetailsTextField(
+            title: "UPC",
+            placeholder: "Barcode number",
+            text: $upc,
+            keyboardType: .numberPad
+        )
     }
 }
 
@@ -268,11 +372,10 @@ struct PriceField: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
             Text("Price")
-                .font(.caption)
-                .fontWeight(.medium)
-                .foregroundColor(.primary)
+                .font(.itemDetailsFieldLabel)
+                .foregroundColor(.itemDetailsPrimaryText)
 
             HStack {
                 Text("$")
@@ -289,7 +392,12 @@ struct PriceField: View {
                 } else {
                     TextField("0.00", text: $priceText)
                         .keyboardType(.decimalPad)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .font(.itemDetailsBody)
+                        .padding(ItemDetailsSpacing.fieldPadding)
+                        .background(Color.itemDetailsFieldBackground)
+                        .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
                         .onChange(of: priceText) { _, newValue in
                             updatePriceFromText(newValue)
                         }

@@ -19,12 +19,14 @@ struct ItemDetailsData {
     var productType: ProductType = .regular
     var reportingCategoryId: String?
     var categoryIds: [String] = []
+    var isAlcoholic: Bool = false
     
     // Pricing and variations
     var variations: [ItemDetailsVariationData] = []
     
     // Tax and modifiers
     var taxIds: [String] = []
+    var isTaxable: Bool = true // Square API default
     var modifierListIds: [String] = []
     
     // Images
@@ -730,10 +732,16 @@ class ItemDetailsViewModel: ObservableObject {
     
     private func setupNewItem() {
         itemData = ItemDetailsData()
+        
+        // Apply field configuration defaults
+        let config = FieldConfigurationManager.shared.currentConfiguration
+        itemData.skipModifierScreen = config.pricingFields.defaultSkipModifierScreen
+        itemData.isTaxable = config.pricingFields.defaultIsTaxable
+        itemData.isAlcoholic = config.classificationFields.defaultIsAlcoholic
 
         // Create variation with configurable default name
         var variation = ItemDetailsVariationData()
-        variation.name = ItemFieldConfiguration.defaultConfiguration().pricingFields.defaultVariationName
+        variation.name = config.pricingFields.defaultVariationName
         itemData.variations = [variation]
     }
     

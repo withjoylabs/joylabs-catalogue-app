@@ -94,6 +94,7 @@
 		CC4CE3294C46EDAA954DC559 /* ItemDetailsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D583607765D3CA494A3F396E /* ItemDetailsViewModel.swift */; };
 		D7AB8C6042BF5B8980E922A3 /* ReorderHeaderSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC109DD4E71A09E72CF6F0D3 /* ReorderHeaderSection.swift */; };
 		DA39CFBD36DCA1D81A5F2AB6 /* ItemCustomAttributesSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 109D8EF3405D7C8718DCDF2B /* ItemCustomAttributesSection.swift */; };
+		DC0BF75906B9902A9E9F25EE /* ItemDetailsStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE43F36BB6F6797E1742AD7C /* ItemDetailsStyles.swift */; };
 		DE9B0804171D8F8469343090 /* SquareImageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECE3FAA42B58C68978179AFA /* SquareImageService.swift */; };
 		E0A4C587E31A4D97E9D4D827 /* ItemDetailsCategoriesSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36FF7B27B9EC548A6363CA3B /* ItemDetailsCategoriesSection.swift */; };
 		E96B947FD6602A6362924F1C /* ReorderDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D65BFF8B1281F6313E2EAA1 /* ReorderDataManager.swift */; };
@@ -197,6 +198,7 @@
 		BA6CAB610624BBFC8C7C36B6 /* ItemDataTransformers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDataTransformers.swift; path = Components/ItemDataTransformers.swift; sourceTree = "<group>"; };
 		BF8BABE731647487EFC23A76 /* FieldVisibilityModifier.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FieldVisibilityModifier.swift; path = Components/FieldVisibilityModifier.swift; sourceTree = "<group>"; };
 		CC109DD4E71A09E72CF6F0D3 /* ReorderHeaderSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderHeaderSection.swift; path = JoyLabsNative/Views/Reorders/ReorderHeaderSection.swift; sourceTree = "<group>"; };
+		CE43F36BB6F6797E1742AD7C /* ItemDetailsStyles.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsStyles.swift; path = Components/ItemDetailsStyles.swift; sourceTree = "<group>"; };
 		D583607765D3CA494A3F396E /* ItemDetailsViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsViewModel.swift; path = Components/ItemDetailsViewModel.swift; sourceTree = "<group>"; };
 		D71532DF527344EFA478B1B3 /* FieldConfigurationManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FieldConfigurationManager.swift; path = Components/FieldConfigurationManager.swift; sourceTree = "<group>"; };
 		D7606A3222698687642B402D /* LabelLivePrintService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LabelLivePrintService.swift; path = Core/Services/LabelLivePrintService.swift; sourceTree = "<group>"; };
@@ -309,6 +311,7 @@
 				84F97B5C958182F299BA523E /* DuplicateWarningView.swift */,
 				B03008BCC45D5E32B158F66F /* NotificationSettingsView.swift */,
 				F730ECB41F35B30ADCEEF069 /* SimpleImageView.swift */,
+				CE43F36BB6F6797E1742AD7C /* ItemDetailsStyles.swift */,
 			);
 			name = Components;
 			sourceTree = "<group>";
@@ -709,6 +712,7 @@
 				7D83E6DC3B87B824D4DFE0A2 /* ReorderAppState.swift in Sources */,
 				905F0111BFADB010745559BD /* DeferredImageUploadManager.swift in Sources */,
 				62E17EEFBD0A30493327D374 /* ViewExtensions+ModalPresentation.swift in Sources */,
+				DC0BF75906B9902A9E9F25EE /* ItemDetailsStyles.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

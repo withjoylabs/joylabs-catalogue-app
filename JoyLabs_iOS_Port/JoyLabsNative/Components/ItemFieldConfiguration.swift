@@ -49,6 +49,7 @@ struct ItemFieldConfiguration: Codable {
         config.pricingFields.variationsEnabled = true
         config.pricingFields.taxEnabled = true
         config.pricingFields.modifiersEnabled = false
+        config.pricingFields.skipModifierScreenEnabled = true
         
         // Enable basic inventory
         config.inventoryFields.trackInventoryEnabled = true
@@ -114,6 +115,9 @@ struct BasicFieldsConfig: Codable {
     
     var sortNameEnabled: Bool = false
     var defaultSortName: String = ""
+    
+    // Core Square API defaults
+    var defaultPresentAtAllLocations: Bool = true
 }
 
 struct ClassificationFieldsConfig: Codable {
@@ -129,6 +133,10 @@ struct ClassificationFieldsConfig: Codable {
     var productTypeRequired: Bool = false
     var defaultProductType: ProductType = .regular
     
+    var isAlcoholicEnabled: Bool = false
+    var isAlcoholicRequired: Bool = false
+    var defaultIsAlcoholic: Bool = false
+    
     var multiCategoriesEnabled: Bool = false
 }
 
@@ -142,11 +150,16 @@ struct PricingFieldsConfig: Codable {
     var taxRequired: Bool = false
     var defaultTaxIds: [String] = []
     
+    var isTaxableEnabled: Bool = true
+    var isTaxableRequired: Bool = false
+    var defaultIsTaxable: Bool = true
+    
     var modifiersEnabled: Bool = false
     var modifiersRequired: Bool = false
     var defaultModifierListIds: [String] = []
     
-    var skipModifierScreenEnabled: Bool = false
+    var skipModifierScreenEnabled: Bool = true
+    var skipModifierScreenRequired: Bool = false
     var defaultSkipModifierScreen: Bool = false
     
     var itemOptionsEnabled: Bool = false
@@ -363,6 +376,12 @@ extension ComprehensiveItemData {
         // Apply e-commerce defaults
         onlineVisibility = config.ecommerceFields.defaultOnlineVisibility
         ecomVisibility = config.ecommerceFields.defaultEcomVisibility
+        
+        // Apply pricing defaults  
+        isTaxable = config.pricingFields.defaultIsTaxable
+        
+        // Apply classification defaults
+        isAlcoholic = config.classificationFields.defaultIsAlcoholic
         
         // Apply team data defaults if enabled
         if config.teamDataFields.caseDataEnabled && teamData == nil {

@@ -251,8 +251,8 @@ struct DuplicateDetectionLoadingView: View {
             )
         ])
         
-        // UPC validation error
-        UPCValidationErrorView(error: .invalidLength(15))
+        // UPC validation error  
+        UPCValidationErrorView(error: UPCValidationError.invalidLength(15))
         
         // Loading indicator
         DuplicateDetectionLoadingView()

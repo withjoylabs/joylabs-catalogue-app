@@ -7,45 +7,64 @@ struct ItemMeasurementSection: View {
     @StateObject private var configManager = FieldConfigurationManager.shared
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            ItemDetailsSectionHeader(title: "Measurement & Units", icon: "ruler")
-
-            VStack(spacing: 4) {
-                // Measurement Unit
-                if configManager.currentConfiguration.advancedFields.measurementUnitEnabled {
-                    MeasurementUnitSettings(
-                        measurementUnitId: Binding(
-                            get: { viewModel.itemData.measurementUnitId ?? "" },
-                            set: { viewModel.itemData.measurementUnitId = $0.isEmpty ? nil : $0 }
-                        )
-                    )
-                }
-                
-                // Sellable/Stockable Settings
-                if configManager.currentConfiguration.advancedFields.sellableEnabled ||
-                   configManager.currentConfiguration.advancedFields.stockableEnabled {
-                    SellableStockableSettings(
-                        sellable: Binding(
-                            get: { viewModel.itemData.sellable },
-                            set: { viewModel.itemData.sellable = $0 }
-                        ),
-                        stockable: Binding(
-                            get: { viewModel.itemData.stockable },
-                            set: { viewModel.itemData.stockable = $0 }
-                        ),
-                        sellableEnabled: configManager.currentConfiguration.advancedFields.sellableEnabled,
-                        stockableEnabled: configManager.currentConfiguration.advancedFields.stockableEnabled
-                    )
-                }
-                
-                // User Data (Custom JSON)
-                if configManager.currentConfiguration.advancedFields.userDataEnabled {
-                    UserDataSettings(
-                        userData: Binding(
-                            get: { viewModel.itemData.userData ?? "" },
-                            set: { viewModel.itemData.userData = $0.isEmpty ? nil : $0 }
-                        )
-                    )
+        ItemDetailsSection(title: "Measurement & Units", icon: "ruler") {
+            ItemDetailsCard {
+                VStack(spacing: 0) {
+                    var hasContent = false
+                    
+                    // Measurement Unit
+                    if configManager.currentConfiguration.advancedFields.measurementUnitEnabled {
+                        ItemDetailsFieldRow {
+                            MeasurementUnitSettings(
+                                measurementUnitId: Binding(
+                                    get: { viewModel.itemData.measurementUnitId ?? "" },
+                                    set: { viewModel.itemData.measurementUnitId = $0.isEmpty ? nil : $0 }
+                                )
+                            )
+                        }
+                        let _ = { hasContent = true }()
+                    }
+                    
+                    // Sellable/Stockable Settings
+                    if configManager.currentConfiguration.advancedFields.sellableEnabled ||
+                       configManager.currentConfiguration.advancedFields.stockableEnabled {
+                        
+                        if hasContent {
+                            ItemDetailsFieldSeparator()
+                        }
+                        
+                        ItemDetailsFieldRow {
+                            SellableStockableSettings(
+                                sellable: Binding(
+                                    get: { viewModel.itemData.sellable },
+                                    set: { viewModel.itemData.sellable = $0 }
+                                ),
+                                stockable: Binding(
+                                    get: { viewModel.itemData.stockable },
+                                    set: { viewModel.itemData.stockable = $0 }
+                                ),
+                                sellableEnabled: configManager.currentConfiguration.advancedFields.sellableEnabled,
+                                stockableEnabled: configManager.currentConfiguration.advancedFields.stockableEnabled
+                            )
+                        }
+                        let _ = { hasContent = true }()
+                    }
+                    
+                    // User Data (Custom JSON)
+                    if configManager.currentConfiguration.advancedFields.userDataEnabled {
+                        if hasContent {
+                            ItemDetailsFieldSeparator()
+                        }
+                        
+                        ItemDetailsFieldRow {
+                            UserDataSettings(
+                                userData: Binding(
+                                    get: { viewModel.itemData.userData ?? "" },
+                                    set: { viewModel.itemData.userData = $0.isEmpty ? nil : $0 }
+                                )
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -77,64 +96,47 @@ struct MeasurementUnitSettings: View {
     ]
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Measurement Unit")
-                .font(.subheadline)
-                .fontWeight(.medium)
-                .foregroundColor(.primary)
+        VStack(alignment: .leading, spacing: ItemDetailsSpacing.fieldSpacing) {
+            ItemDetailsFieldLabel(title: "Measurement Unit", helpText: "Unit for inventory and pricing")
             
-            VStack(spacing: 12) {
-                // Unit Picker
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Unit of Measurement")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundColor(.primary)
+            // Unit Picker
+            VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
+                Text("Unit of Measurement")
+                    .font(.itemDetailsSubheadline)
+                    .foregroundColor(.itemDetailsPrimaryText)
+                
+                Picker("Measurement Unit", selection: $measurementUnitId) {
+                    Text("No Unit")
+                        .tag("")
                     
-                    Picker("Measurement Unit", selection: $measurementUnitId) {
-                        Text("No Unit")
-                            .tag("")
+                    ForEach(commonUnits, id: \.id) { unit in
+                        Text("\(unit.name) (\(unit.abbreviation))")
+                            .tag(unit.id)
+                    }
+                }
+                .pickerStyle(MenuPickerStyle())
+            }
+            
+            // Selected unit display
+            if !measurementUnitId.isEmpty {
+                if let selectedUnit = commonUnits.first(where: { $0.id == measurementUnitId }) {
+                    HStack {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.itemDetailsSuccess)
+                            .font(.itemDetailsCaption)
                         
-                        ForEach(commonUnits, id: \.id) { unit in
-                            Text("\(unit.name) (\(unit.abbreviation))")
-                                .tag(unit.id)
-                        }
+                        Text("Selected: \(selectedUnit.name) (\(selectedUnit.abbreviation))")
+                            .font(.itemDetailsCaption)
+                            .foregroundColor(.itemDetailsSecondaryText)
+                        
+                        Spacer()
                     }
-                    .pickerStyle(MenuPickerStyle())
-                }
-                
-                // Selected unit display
-                if !measurementUnitId.isEmpty {
-                    if let selectedUnit = commonUnits.first(where: { $0.id == measurementUnitId }) {
-                        HStack {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.green)
-                            
-                            Text("Selected: \(selectedUnit.name) (\(selectedUnit.abbreviation))")
-                                .font(.caption)
-                                .foregroundColor(Color.secondary)
-                            
-                            Spacer()
-                        }
-                    }
-                }
-                
-                // Info text
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Measurement Unit Guide:")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundColor(Color.secondary)
-                    
-                    Text("• Used for inventory tracking and pricing\n• Helps customers understand quantity\n• Required for some integrations\n• Can be changed later if needed")
-                        .font(.caption)
-                        .foregroundColor(Color.secondary)
                 }
             }
+            
+            // Info text
+            ItemDetailsInfoView(message: "• Used for inventory tracking and pricing\n• Helps customers understand quantity\n• Required for some integrations\n• Can be changed later if needed")
         }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(8)
     }
 }
 
@@ -146,15 +148,12 @@ struct SellableStockableSettings: View {
     let stockableEnabled: Bool
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Item Properties")
-                .font(.subheadline)
-                .fontWeight(.medium)
-                .foregroundColor(.primary)
+        VStack(alignment: .leading, spacing: ItemDetailsSpacing.fieldSpacing) {
+            ItemDetailsFieldLabel(title: "Item Properties", helpText: "Configure how this item behaves in your system")
             
-            VStack(spacing: 12) {
+            VStack(spacing: ItemDetailsSpacing.compactSpacing) {
                 if sellableEnabled {
-                    ToggleRow(
+                    ItemDetailsToggleRow(
                         title: "Sellable",
                         description: "Item can be sold to customers",
                         isOn: $sellable
@@ -162,29 +161,17 @@ struct SellableStockableSettings: View {
                 }
                 
                 if stockableEnabled {
-                    ToggleRow(
+                    ItemDetailsToggleRow(
                         title: "Stockable",
                         description: "Item can be tracked in inventory",
                         isOn: $stockable
                     )
                 }
-                
-                // Info about the settings
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Property Guide:")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundColor(Color.secondary)
-                    
-                    Text("• Sellable: Controls if item appears in sales channels\n• Stockable: Controls if item can be tracked in inventory\n• Both can be enabled independently")
-                        .font(.caption)
-                        .foregroundColor(Color.secondary)
-                }
             }
+            
+            // Info about the settings
+            ItemDetailsInfoView(message: "• Sellable: Controls if item appears in sales channels\n• Stockable: Controls if item can be tracked in inventory\n• Both can be enabled independently")
         }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(8)
     }
 }
 
@@ -194,12 +181,9 @@ struct UserDataSettings: View {
     @State private var isExpanded = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: ItemDetailsSpacing.fieldSpacing) {
             HStack {
-                Text("Custom Data")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundColor(.primary)
+                ItemDetailsFieldLabel(title: "Custom Data", helpText: isExpanded ? nil : "Store additional JSON metadata")
                 
                 Spacer()
                 
@@ -209,56 +193,46 @@ struct UserDataSettings: View {
                     }
                 }) {
                     Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .foregroundColor(.blue)
-                        .font(.caption)
+                        .foregroundColor(.itemDetailsAccent)
+                        .font(.itemDetailsCaption)
                 }
             }
             
             if isExpanded {
-                VStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 4) {
+                VStack(spacing: ItemDetailsSpacing.fieldSpacing) {
+                    VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
                         Text("JSON Data")
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .foregroundColor(.primary)
+                            .font(.itemDetailsSubheadline)
+                            .foregroundColor(.itemDetailsPrimaryText)
                         
                         TextField("Enter custom JSON data", text: $userData, axis: .vertical)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .font(.system(.body, design: .monospaced))
+                            .padding(ItemDetailsSpacing.fieldPadding)
+                            .background(Color.itemDetailsFieldBackground)
+                            .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
                             .lineLimit(5...10)
-                            .font(.system(.caption, design: .monospaced))
                     }
                     
                     // JSON validation indicator
                     if !userData.isEmpty {
                         HStack {
                             Image(systemName: isValidJSON ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                                .foregroundColor(isValidJSON ? .green : .orange)
+                                .foregroundColor(isValidJSON ? .itemDetailsSuccess : .itemDetailsWarning)
+                                .font(.itemDetailsCaption)
                             
                             Text(isValidJSON ? "Valid JSON" : "Invalid JSON format")
-                                .font(.caption)
-                                .foregroundColor(isValidJSON ? .green : .orange)
+                                .font(.itemDetailsCaption)
+                                .foregroundColor(isValidJSON ? .itemDetailsSuccess : .itemDetailsWarning)
                             
                             Spacer()
                         }
                     }
                     
                     // Info text
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Custom Data Guide:")
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .foregroundColor(Color.secondary)
-                        
-                        Text("• Store additional item metadata as JSON\n• Useful for integrations and custom fields\n• Must be valid JSON format\n• Example: {\"color\": \"red\", \"size\": \"large\"}")
-                            .font(.caption)
-                            .foregroundColor(Color.secondary)
-                    }
+                    ItemDetailsInfoView(message: "• Store additional item metadata as JSON\n• Useful for integrations and custom fields\n• Must be valid JSON format\n• Example: {\"color\": \"red\", \"size\": \"large\"}")
                 }
             }
         }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(8)
     }
     
     private var isValidJSON: Bool {

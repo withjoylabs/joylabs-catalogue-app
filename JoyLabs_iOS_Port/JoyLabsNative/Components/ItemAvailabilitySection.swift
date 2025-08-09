@@ -5,106 +5,88 @@ struct ItemAvailabilitySection: View {
     @ObservedObject var viewModel: ItemDetailsViewModel
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            ItemDetailsSectionHeader(title: "Availability", icon: "clock")
+        ItemDetailsSection(title: "Availability", icon: "clock") {
+            ItemDetailsCard {
+                VStack(spacing: 0) {
+                    // Available for Sale Toggle
+                    ItemDetailsFieldRow {
+                        ItemDetailsToggleRow(
+                            title: "Available for Sale",
+                            isOn: $viewModel.itemData.isAvailableForSale
+                        )
+                    }
 
-            VStack(spacing: 4) {
-                // Available for Sale Toggle
-                HStack {
-                    Text("Available for Sale")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundColor(.primary)
+                    ItemDetailsFieldSeparator()
 
-                    Spacer()
+                    // Available Online Toggle
+                    ItemDetailsFieldRow {
+                        ItemDetailsToggleRow(
+                            title: "Available Online",
+                            isOn: $viewModel.itemData.isAvailableOnline
+                        )
+                    }
 
-                    Toggle("", isOn: $viewModel.itemData.isAvailableForSale)
-                        .labelsHidden()
-                }
-                .padding(.vertical, 4)
+                    ItemDetailsFieldSeparator()
 
-                Divider()
-
-                // Available Online Toggle
-                HStack {
-                    Text("Available Online")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundColor(.primary)
-
-                    Spacer()
-
-                    Toggle("", isOn: $viewModel.itemData.isAvailableOnline)
-                        .labelsHidden()
-                }
-                .padding(.vertical, 4)
-
-                Divider()
-
-                // Available for Pickup Toggle
-                HStack {
-                    Text("Available for Pickup")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundColor(.primary)
-
-                    Spacer()
-
-                    Toggle("", isOn: $viewModel.itemData.isAvailableForPickup)
-                        .labelsHidden()
-                }
-                .padding(.vertical, 4)
+                    // Available for Pickup Toggle
+                    ItemDetailsFieldRow {
+                        ItemDetailsToggleRow(
+                            title: "Available for Pickup",
+                            isOn: $viewModel.itemData.isAvailableForPickup
+                        )
+                    }
                 
-                // Availability Schedule (if needed)
-                if viewModel.showAdvancedFeatures {
-                    Divider()
-                    
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Availability Schedule")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(Color.secondary)
+                    // Availability Schedule (if needed)
+                    if viewModel.showAdvancedFeatures {
+                        ItemDetailsFieldSeparator()
                         
-                        HStack {
-                            Text("Start Date")
-                                .font(.body)
-                            
-                            Spacer()
-                            
-                            if let startDate = viewModel.itemData.availabilityStartDate {
-                                Text(startDate, style: .date)
-                                    .font(.body)
-                                    .foregroundColor(.blue)
-                            } else {
-                                Text("Not Set")
-                                    .font(.body)
-                                    .foregroundColor(Color.secondary)
-                            }
-                        }
-                        
-                        HStack {
-                            Text("End Date")
-                                .font(.body)
-                            
-                            Spacer()
-                            
-                            if let endDate = viewModel.itemData.availabilityEndDate {
-                                Text(endDate, style: .date)
-                                    .font(.body)
-                                    .foregroundColor(.blue)
-                            } else {
-                                Text("Not Set")
-                                    .font(.body)
-                                    .foregroundColor(Color.secondary)
+                        ItemDetailsFieldRow {
+                            VStack(alignment: .leading, spacing: ItemDetailsSpacing.fieldSpacing) {
+                                ItemDetailsFieldLabel(title: "Availability Schedule", helpText: "Set specific dates when this item is available")
+                                
+                                VStack(spacing: ItemDetailsSpacing.compactSpacing) {
+                                    HStack {
+                                        Text("Start Date")
+                                            .font(.itemDetailsSubheadline)
+                                            .foregroundColor(.itemDetailsPrimaryText)
+                                        
+                                        Spacer()
+                                        
+                                        if let startDate = viewModel.itemData.availabilityStartDate {
+                                            Text(startDate, style: .date)
+                                                .font(.itemDetailsBody)
+                                                .foregroundColor(.itemDetailsAccent)
+                                        } else {
+                                            Text("Not Set")
+                                                .font(.itemDetailsBody)
+                                                .foregroundColor(.itemDetailsSecondaryText)
+                                        }
+                                    }
+                                    
+                                    HStack {
+                                        Text("End Date")
+                                            .font(.itemDetailsSubheadline)
+                                            .foregroundColor(.itemDetailsPrimaryText)
+                                        
+                                        Spacer()
+                                        
+                                        if let endDate = viewModel.itemData.availabilityEndDate {
+                                            Text(endDate, style: .date)
+                                                .font(.itemDetailsBody)
+                                                .foregroundColor(.itemDetailsAccent)
+                                        } else {
+                                            Text("Not Set")
+                                                .font(.itemDetailsBody)
+                                                .foregroundColor(.itemDetailsSecondaryText)
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
         }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
     }
 }
 

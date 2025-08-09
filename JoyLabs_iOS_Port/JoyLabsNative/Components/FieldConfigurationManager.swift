@@ -173,6 +173,12 @@ class FieldConfigurationManager: ObservableObject {
             return currentConfiguration.pricingFields.variationsEnabled
         case .pricingTax:
             return currentConfiguration.pricingFields.taxEnabled
+        case .pricingIsTaxable:
+            return currentConfiguration.pricingFields.isTaxableEnabled
+        case .pricingSkipModifierScreen:
+            return currentConfiguration.pricingFields.skipModifierScreenEnabled
+        case .classificationIsAlcoholic:
+            return currentConfiguration.classificationFields.isAlcoholicEnabled
         case .inventoryTracking:
             return currentConfiguration.inventoryFields.trackInventoryEnabled
         case .inventoryAlerts:
@@ -207,6 +213,12 @@ class FieldConfigurationManager: ObservableObject {
             return currentConfiguration.pricingFields.variationsRequired
         case .pricingTax:
             return currentConfiguration.pricingFields.taxRequired
+        case .pricingIsTaxable:
+            return currentConfiguration.pricingFields.isTaxableRequired
+        case .pricingSkipModifierScreen:
+            return currentConfiguration.pricingFields.skipModifierScreenRequired
+        case .classificationIsAlcoholic:
+            return currentConfiguration.classificationFields.isAlcoholicRequired
         case .inventoryTracking:
             return currentConfiguration.inventoryFields.trackInventoryRequired
         case .inventoryAlerts:
@@ -276,6 +288,9 @@ enum FieldPath: String, CaseIterable {
     case classificationReportingCategory = "classification.reportingCategory"
     case pricingVariations = "pricing.variations"
     case pricingTax = "pricing.tax"
+    case pricingIsTaxable = "pricing.isTaxable"
+    case pricingSkipModifierScreen = "pricing.skipModifierScreen"
+    case classificationIsAlcoholic = "classification.isAlcoholic"
     case inventoryTracking = "inventory.tracking"
     case inventoryAlerts = "inventory.alerts"
     case servicesDuration = "services.duration"
@@ -293,6 +308,9 @@ enum FieldPath: String, CaseIterable {
         case .classificationReportingCategory: return "Reporting Category"
         case .pricingVariations: return "Variations"
         case .pricingTax: return "Tax Settings"
+        case .pricingIsTaxable: return "Item Taxable"
+        case .pricingSkipModifierScreen: return "Skip Modifier Screen"
+        case .classificationIsAlcoholic: return "Alcoholic Item"
         case .inventoryTracking: return "Inventory Tracking"
         case .inventoryAlerts: return "Inventory Alerts"
         case .servicesDuration: return "Service Duration"

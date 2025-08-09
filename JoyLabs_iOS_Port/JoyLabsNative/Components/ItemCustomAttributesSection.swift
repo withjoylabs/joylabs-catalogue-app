@@ -7,56 +7,53 @@ struct ItemCustomAttributesSection: View {
     @State private var showingAddAttribute = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            ItemDetailsSectionHeader(title: "Custom Attributes", icon: "tag")
-
-            VStack(spacing: 4) {
-                // Info text
-                HStack {
-                    Image(systemName: "info.circle")
-                        .foregroundColor(.blue)
-                    Text("Add custom data fields to store additional item information")
-                        .font(.caption)
-                        .foregroundColor(Color.secondary)
-                }
-                .padding(.vertical, 4)
+        ItemDetailsSection(title: "Custom Attributes", icon: "tag") {
+            ItemDetailsCard {
+                VStack(spacing: 0) {
+                    // Info text
+                    ItemDetailsFieldRow {
+                        ItemDetailsInfoView(message: "Add custom data fields to store additional item information")
+                    }
                 
-                // Existing attributes
-                ForEach(Array(viewModel.itemData.customAttributes.keys.sorted()), id: \.self) { key in
-                    CustomAttributeRow(
-                        key: key,
-                        value: Binding(
-                            get: { viewModel.itemData.customAttributes[key] ?? "" },
-                            set: { newValue in
-                                if newValue.isEmpty {
+                    // Existing attributes
+                    ForEach(Array(viewModel.itemData.customAttributes.keys.sorted()), id: \.self) { key in
+                        ItemDetailsFieldSeparator()
+                        
+                        ItemDetailsFieldRow {
+                            CustomAttributeRow(
+                                key: key,
+                                value: Binding(
+                                    get: { viewModel.itemData.customAttributes[key] ?? "" },
+                                    set: { newValue in
+                                        if newValue.isEmpty {
+                                            viewModel.itemData.customAttributes.removeValue(forKey: key)
+                                        } else {
+                                            viewModel.itemData.customAttributes[key] = newValue
+                                        }
+                                    }
+                                ),
+                                onDelete: {
                                     viewModel.itemData.customAttributes.removeValue(forKey: key)
-                                } else {
-                                    viewModel.itemData.customAttributes[key] = newValue
                                 }
+                            )
+                        }
+                    }
+                    
+                    // Add attribute button
+                    if viewModel.itemData.customAttributes.count < 10 {
+                        if !viewModel.itemData.customAttributes.isEmpty {
+                            ItemDetailsFieldSeparator()
+                        }
+                        
+                        ItemDetailsFieldRow {
+                            ItemDetailsButton(
+                                title: "Add Custom Attribute",
+                                icon: "plus.circle",
+                                style: .secondary
+                            ) {
+                                showingAddAttribute = true
                             }
-                        ),
-                        onDelete: {
-                            viewModel.itemData.customAttributes.removeValue(forKey: key)
                         }
-                    )
-                }
-                
-                // Add attribute button
-                if viewModel.itemData.customAttributes.count < 10 {
-                    Button(action: {
-                        showingAddAttribute = true
-                    }) {
-                        HStack {
-                            Image(systemName: "plus.circle")
-                                .foregroundColor(.blue)
-                            Text("Add Custom Attribute")
-                                .foregroundColor(.blue)
-                                .fontWeight(.medium)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.blue.opacity(0.1))
-                        .cornerRadius(8)
                     }
                 }
             }
@@ -80,13 +77,12 @@ struct CustomAttributeRow: View {
     @State private var isEditing = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: ItemDetailsSpacing.fieldSpacing) {
             // Header with key name and delete button
             HStack {
                 Text(key)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.primary)
+                    .font(.itemDetailsFieldLabel)
+                    .foregroundColor(.itemDetailsPrimaryText)
                 
                 Spacer()
                 
@@ -94,60 +90,54 @@ struct CustomAttributeRow: View {
                     showingDeleteConfirmation = true
                 }) {
                     Image(systemName: "trash")
-                        .foregroundColor(.red)
-                        .font(.caption)
+                        .foregroundColor(.itemDetailsDestructive)
+                        .font(.itemDetailsCaption)
                 }
             }
-            
+        
             // Value field
             if isEditing {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
                     TextField("Enter value", text: $value, axis: .vertical)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .font(.itemDetailsBody)
+                        .padding(ItemDetailsSpacing.fieldPadding)
+                        .background(Color.itemDetailsFieldBackground)
+                        .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
                         .lineLimit(3...6)
                     
                     HStack {
-                        Button("Cancel") {
+                        ItemDetailsButton(title: "Cancel", style: .plain) {
                             isEditing = false
                         }
-                        .foregroundColor(Color.secondary)
                         
                         Spacer()
                         
-                        Button("Save") {
+                        ItemDetailsButton(title: "Save", style: .primary) {
                             isEditing = false
                         }
-                        .foregroundColor(.blue)
-                        .fontWeight(.medium)
                     }
-                    .font(.caption)
                 }
             } else {
                 HStack {
                     if value.isEmpty {
                         Text("No value set")
-                            .font(.body)
-                            .foregroundColor(Color.secondary)
+                            .font(.itemDetailsBody)
+                            .foregroundColor(.itemDetailsSecondaryText)
                             .italic()
                     } else {
                         Text(value)
-                            .font(.body)
-                            .foregroundColor(.primary)
+                            .font(.itemDetailsBody)
+                            .foregroundColor(.itemDetailsPrimaryText)
                     }
                     
                     Spacer()
                     
-                    Button("Edit") {
+                    ItemDetailsButton(title: "Edit", style: .plain) {
                         isEditing = true
                     }
-                    .font(.caption)
-                    .foregroundColor(.blue)
                 }
             }
         }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(8)
         .confirmationDialog(
             "Delete Custom Attribute",
             isPresented: $showingDeleteConfirmation,

@@ -353,6 +353,19 @@ struct FieldVisibilityDetailView: View {
                     ),
                     description: "Category used for reporting purposes"
                 )
+
+                FieldToggleRow(
+                    title: "Contains Alcohol",
+                    isEnabled: Binding(
+                        get: { configManager.currentConfiguration.classificationFields.isAlcoholicEnabled },
+                        set: { configManager.updateFieldConfiguration(\.classificationFields.isAlcoholicEnabled, value: $0) }
+                    ),
+                    isRequired: Binding(
+                        get: { configManager.currentConfiguration.classificationFields.isAlcoholicRequired },
+                        set: { configManager.updateFieldConfiguration(\.classificationFields.isAlcoholicRequired, value: $0) }
+                    ),
+                    description: "Item contains alcohol and requires compliance"
+                )
             }
             
             Section("Taxes and Modifiers") {
@@ -370,6 +383,19 @@ struct FieldVisibilityDetailView: View {
                 )
 
                 FieldToggleRow(
+                    title: "Item is Taxable",
+                    isEnabled: Binding(
+                        get: { configManager.currentConfiguration.pricingFields.isTaxableEnabled },
+                        set: { configManager.updateFieldConfiguration(\.pricingFields.isTaxableEnabled, value: $0) }
+                    ),
+                    isRequired: Binding(
+                        get: { configManager.currentConfiguration.pricingFields.isTaxableRequired },
+                        set: { configManager.updateFieldConfiguration(\.pricingFields.isTaxableRequired, value: $0) }
+                    ),
+                    description: "Toggle whether item is subject to taxes"
+                )
+
+                FieldToggleRow(
                     title: "Modifier Lists",
                     isEnabled: Binding(
                         get: { configManager.currentConfiguration.pricingFields.modifiersEnabled },
@@ -380,6 +406,19 @@ struct FieldVisibilityDetailView: View {
                         set: { configManager.updateFieldConfiguration(\.pricingFields.modifiersRequired, value: $0) }
                     ),
                     description: "Modifier lists that can be applied to this item"
+                )
+
+                FieldToggleRow(
+                    title: "Skip Details Screen at Checkout",
+                    isEnabled: Binding(
+                        get: { configManager.currentConfiguration.pricingFields.skipModifierScreenEnabled },
+                        set: { configManager.updateFieldConfiguration(\.pricingFields.skipModifierScreenEnabled, value: $0) }
+                    ),
+                    isRequired: Binding(
+                        get: { configManager.currentConfiguration.pricingFields.skipModifierScreenRequired },
+                        set: { configManager.updateFieldConfiguration(\.pricingFields.skipModifierScreenRequired, value: $0) }
+                    ),
+                    description: "Skip modifier selection screen during checkout"
                 )
             }
             
@@ -508,7 +547,7 @@ struct DefaultValuesDetailView: View {
         Form {
             Section("Square API Defaults") {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Default values are automatically applied when creating new items to ensure Square API compliance.")
+                    Text("Set default values that are automatically applied when creating new items. Fields are only included in Square API requests if they have a value.")
                         .font(.caption)
                         .foregroundColor(Color.secondary)
                     
@@ -523,81 +562,211 @@ struct DefaultValuesDetailView: View {
                 .padding(.vertical, 4)
             }
             
-            Section("Default Item Values") {
-                HStack {
-                    Text("Product Type")
-                    Spacer()
-                    Text("REGULAR")
-                        .foregroundColor(Color.secondary)
-                }
-                
-                HStack {
-                    Text("Available Online")
-                    Spacer()
-                    Text("true")
-                        .foregroundColor(Color.secondary)
-                }
-                
-                HStack {
-                    Text("Available for Pickup")
-                    Spacer()
-                    Text("true")
-                        .foregroundColor(Color.secondary)
-                }
-                
-                HStack {
-                    Text("Present at All Locations")
-                    Spacer()
-                    Text("true")
-                        .foregroundColor(Color.secondary)
-                }
-            }
-            
-            Section("Default Variation Values") {
-                HStack {
-                    Text("Pricing Type")
-                    Spacer()
-                    Text("FIXED_PRICING")
-                        .foregroundColor(Color.secondary)
-                }
-                
-                HStack {
-                    Text("Track Inventory")
-                    Spacer()
-                    Text("false")
-                        .foregroundColor(Color.secondary)
-                }
-                
-                HStack {
-                    Text("Sellable")
-                    Spacer()
-                    Text("true")
-                        .foregroundColor(Color.secondary)
-                }
-                
-                HStack {
-                    Text("Stockable")
-                    Spacer()
-                    Text("true")
-                        .foregroundColor(Color.secondary)
-                }
-            }
-            
-            Section("API Compliance Notes") {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("These defaults ensure all created items meet Square's API requirements:")
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                    
-                    Text("• Items must have a name and at least one variation\n• Pricing type must be FIXED_PRICING or VARIABLE_PRICING\n• Boolean fields default to appropriate values\n• Optional fields are omitted if not specified")
-                        .font(.caption)
-                        .foregroundColor(Color.secondary)
-                }
-                .padding(.vertical, 4)
-            }
+            basicDefaultsSection
+            pricingDefaultsSection
+            classificationDefaultsSection
+            variationDefaultsSection
+            complianceNotesSection
         }
         .navigationTitle("Default Values")
         .navigationBarTitleDisplayMode(.inline)
+    }
+    
+    // MARK: - Basic Defaults Section
+    private var basicDefaultsSection: some View {
+        Section(header: HStack {
+            Text("Basic Item Defaults")
+            Spacer()
+            Button("Reset") {
+                resetBasicDefaults()
+            }
+            .font(.caption)
+            .foregroundColor(.blue)
+        }) {
+            DefaultValueToggleRow(
+                title: "Available Online",
+                binding: Binding(
+                    get: { configManager.currentConfiguration.ecommerceFields.defaultAvailableOnline },
+                    set: { configManager.updateFieldConfiguration(\.ecommerceFields.defaultAvailableOnline, value: $0) }
+                ),
+                isEnabled: true
+            )
+            
+            DefaultValueToggleRow(
+                title: "Available for Pickup", 
+                binding: Binding(
+                    get: { configManager.currentConfiguration.ecommerceFields.defaultAvailableForPickup },
+                    set: { configManager.updateFieldConfiguration(\.ecommerceFields.defaultAvailableForPickup, value: $0) }
+                ),
+                isEnabled: true
+            )
+            
+            DefaultValueToggleRow(
+                title: "Present at All Locations",
+                binding: Binding(
+                    get: { configManager.currentConfiguration.basicFields.defaultPresentAtAllLocations },
+                    set: { configManager.updateFieldConfiguration(\.basicFields.defaultPresentAtAllLocations, value: $0) }
+                ),
+                isEnabled: true
+            )
+        }
+    }
+    
+    // MARK: - Pricing Defaults Section
+    private var pricingDefaultsSection: some View {
+        Section(header: HStack {
+            Text("Pricing & Modifier Defaults")
+            Spacer()
+            Button("Reset") {
+                resetPricingDefaults()
+            }
+            .font(.caption)
+            .foregroundColor(.blue)
+        }) {
+            if configManager.currentConfiguration.pricingFields.isTaxableEnabled {
+                DefaultValueToggleRow(
+                    title: "Item is Taxable",
+                    binding: Binding(
+                        get: { configManager.currentConfiguration.pricingFields.defaultIsTaxable },
+                        set: { configManager.updateFieldConfiguration(\.pricingFields.defaultIsTaxable, value: $0) }
+                    ),
+                    isEnabled: true
+                )
+            }
+            
+            if configManager.currentConfiguration.pricingFields.skipModifierScreenEnabled {
+                DefaultValueToggleRow(
+                    title: "Skip Details Screen at Checkout",
+                    binding: Binding(
+                        get: { configManager.currentConfiguration.pricingFields.defaultSkipModifierScreen },
+                        set: { configManager.updateFieldConfiguration(\.pricingFields.defaultSkipModifierScreen, value: $0) }
+                    ),
+                    isEnabled: true
+                )
+            }
+        }
+    }
+    
+    // MARK: - Classification Defaults Section  
+    private var classificationDefaultsSection: some View {
+        Section(header: HStack {
+            Text("Classification Defaults")
+            Spacer()
+            Button("Reset") {
+                resetClassificationDefaults()
+            }
+            .font(.caption)
+            .foregroundColor(.blue)
+        }) {
+            if configManager.currentConfiguration.classificationFields.isAlcoholicEnabled {
+                DefaultValueToggleRow(
+                    title: "Contains Alcohol",
+                    binding: Binding(
+                        get: { configManager.currentConfiguration.classificationFields.defaultIsAlcoholic },
+                        set: { configManager.updateFieldConfiguration(\.classificationFields.defaultIsAlcoholic, value: $0) }
+                    ),
+                    isEnabled: true
+                )
+            }
+        }
+    }
+    
+    // MARK: - Variation Defaults Section
+    private var variationDefaultsSection: some View {
+        Section(header: HStack {
+            Text("Variation Defaults")
+            Spacer()
+            Button("Reset") {
+                resetVariationDefaults()
+            }
+            .font(.caption)
+            .foregroundColor(.blue)
+        }) {
+            DefaultValueToggleRow(
+                title: "Track Inventory",
+                binding: Binding(
+                    get: { configManager.currentConfiguration.inventoryFields.defaultTrackInventory },
+                    set: { configManager.updateFieldConfiguration(\.inventoryFields.defaultTrackInventory, value: $0) }
+                ),
+                isEnabled: true
+            )
+            
+            DefaultValueToggleRow(
+                title: "Sellable",
+                binding: Binding(
+                    get: { configManager.currentConfiguration.advancedFields.defaultSellable },
+                    set: { configManager.updateFieldConfiguration(\.advancedFields.defaultSellable, value: $0) }
+                ),
+                isEnabled: true
+            )
+            
+            DefaultValueToggleRow(
+                title: "Stockable",
+                binding: Binding(
+                    get: { configManager.currentConfiguration.advancedFields.defaultStockable },
+                    set: { configManager.updateFieldConfiguration(\.advancedFields.defaultStockable, value: $0) }
+                ),
+                isEnabled: true
+            )
+        }
+    }
+    
+    // MARK: - Compliance Notes Section
+    private var complianceNotesSection: some View {
+        Section("API Compliance Notes") {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Default values ensure Square API compliance:")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                
+                Text("• Hidden fields are excluded from API requests\n• Default values apply only to enabled fields\n• Boolean fields use these defaults when creating items\n• Required fields must still be filled by user")
+                    .font(.caption)
+                    .foregroundColor(Color.secondary)
+            }
+            .padding(.vertical, 4)
+        }
+    }
+    
+    // MARK: - Reset Methods
+    private func resetBasicDefaults() {
+        configManager.updateFieldConfiguration(\.ecommerceFields.defaultAvailableOnline, value: true)
+        configManager.updateFieldConfiguration(\.ecommerceFields.defaultAvailableForPickup, value: true) 
+        configManager.updateFieldConfiguration(\.basicFields.defaultPresentAtAllLocations, value: true)
+    }
+    
+    private func resetPricingDefaults() {
+        configManager.updateFieldConfiguration(\.pricingFields.defaultIsTaxable, value: true)
+        configManager.updateFieldConfiguration(\.pricingFields.defaultSkipModifierScreen, value: false)
+    }
+    
+    private func resetClassificationDefaults() {
+        configManager.updateFieldConfiguration(\.classificationFields.defaultIsAlcoholic, value: false)
+    }
+    
+    private func resetVariationDefaults() {
+        configManager.updateFieldConfiguration(\.inventoryFields.defaultTrackInventory, value: false)
+        configManager.updateFieldConfiguration(\.advancedFields.defaultSellable, value: true)
+        configManager.updateFieldConfiguration(\.advancedFields.defaultStockable, value: true)
+    }
+}
+
+// MARK: - Default Value Toggle Row Component
+struct DefaultValueToggleRow: View {
+    let title: String
+    @Binding var binding: Bool
+    let isEnabled: Bool
+    
+    var body: some View {
+        HStack {
+            Text(title)
+                .foregroundColor(isEnabled ? .primary : .secondary)
+            
+            Spacer()
+            
+            Toggle("", isOn: $binding)
+                .labelsHidden()
+                .disabled(!isEnabled)
+        }
     }
 }
 
