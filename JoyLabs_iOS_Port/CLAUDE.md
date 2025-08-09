@@ -349,6 +349,60 @@ All services use consistent `[ServiceName]` logging format:
 - `[CatalogSync]` - Sync operations
 - `[App]` - App lifecycle events
 
+## Item Details Modal Centralized Styling System
+
+### Overview
+The Item Details Modal uses a fully centralized styling system defined in `ItemDetailsStyles.swift`. This ensures 100% consistency across all modal components with zero style overrides or hardcoded values.
+
+### Core Spacing System
+```swift
+// Only THREE spacing values for the entire modal:
+ItemDetailsSpacing.sectionSpacing = 20  // Between major sections only
+ItemDetailsSpacing.compactSpacing = 7   // Universal spacing for ALL fields/elements
+ItemDetailsSpacing.minimalSpacing = 4   // Extra tight for closely related items
+```
+
+### Centralized Components (ALWAYS use these)
+- **ItemDetailsSection** - Section container with header
+- **ItemDetailsCard** - Gray background card wrapper
+- **ItemDetailsFieldRow** - Field container with 7px vertical padding
+- **ItemDetailsTextField** - Text input with consistent styling
+- **ItemDetailsButton** - Buttons with proper padding/colors
+- **ItemDetailsToggleRow** - Toggle switches with descriptions
+- **ItemDetailsFieldSeparator** - Horizontal dividers
+- **ItemDetailsInfoView** - Info/warning messages
+
+### Critical Rules
+1. **NEVER use hardcoded values** - No `.padding(16)`, use `ItemDetailsSpacing.compactSpacing`
+2. **NEVER use system colors directly** - No `.blue`, use `.itemDetailsAccent`
+3. **NEVER create custom field layouts** - Always use centralized components
+4. **ALL vertical spacing is 7px** - No exceptions for fields, toggles, or buttons
+
+### Example Pattern
+```swift
+ItemDetailsSection(title: "Section Name", icon: "icon.name") {
+    ItemDetailsCard {
+        VStack(spacing: 0) {
+            ItemDetailsFieldRow {
+                ItemDetailsTextField(
+                    title: "Field Name",
+                    text: $binding
+                )
+            }
+            
+            ItemDetailsFieldSeparator()
+            
+            ItemDetailsFieldRow {
+                ItemDetailsToggleRow(
+                    title: "Toggle Name",
+                    isOn: $binding
+                )
+            }
+        }
+    }
+}
+```
+
 ## Component Usage Guidelines
 
 ### Swipe Gesture Implementation (Search Result Cards)

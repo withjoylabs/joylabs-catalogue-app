@@ -78,12 +78,12 @@ struct OnlineVisibilitySettings: View {
     @Binding var ecomVisibility: EcomVisibility
     
     var body: some View {
-        VStack(alignment: .leading, spacing: ItemDetailsSpacing.fieldSpacing) {
+        VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
             ItemDetailsFieldLabel(title: "Online Visibility", helpText: "Control where this item appears online")
             
-            VStack(spacing: ItemDetailsSpacing.fieldSpacing) {
+            VStack(spacing: ItemDetailsSpacing.compactSpacing) {
                 // Online Visibility Picker
-                VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
+                VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
                     Text("Visibility Level")
                         .font(.itemDetailsSubheadline)
                         .foregroundColor(.itemDetailsPrimaryText)
@@ -98,7 +98,7 @@ struct OnlineVisibilitySettings: View {
                 }
                 
                 // E-commerce Visibility Picker
-                VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
+                VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
                     Text("E-commerce Status")
                         .font(.itemDetailsSubheadline)
                         .foregroundColor(.itemDetailsPrimaryText)
@@ -126,49 +126,29 @@ struct SEOSettings: View {
     @Binding var seoKeywords: String
     
     var body: some View {
-        VStack(alignment: .leading, spacing: ItemDetailsSpacing.fieldSpacing) {
+        VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
             ItemDetailsFieldLabel(title: "SEO Settings", helpText: "Optimize your item for search engines")
             
-            VStack(spacing: ItemDetailsSpacing.fieldSpacing) {
+            VStack(spacing: ItemDetailsSpacing.compactSpacing) {
                 // SEO Title
-                VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
-                    HStack {
-                        Text("SEO Title")
-                            .font(.itemDetailsSubheadline)
-                            .foregroundColor(.itemDetailsPrimaryText)
-                        
-                        Spacer()
-                        
-                        Text("\(seoTitle.count)/60")
-                            .font(.itemDetailsCaption)
-                            .foregroundColor(seoTitle.count > 60 ? .itemDetailsDestructive : .itemDetailsSecondaryText)
-                    }
-                    
-                    TextField("Optimized title for search engines", text: $seoTitle)
-                        .font(.itemDetailsBody)
-                        .padding(ItemDetailsSpacing.fieldPadding)
-                        .background(Color.itemDetailsFieldBackground)
-                        .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
-                        .autocorrectionDisabled()
-                }
+                ItemDetailsTextField(
+                    title: "SEO Title",
+                    placeholder: "Optimized title for search engines",
+                    text: $seoTitle,
+                    helpText: "Keep under 60 characters (\(seoTitle.count)/60)"
+                )
                 
                 // SEO Description
-                VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
-                    HStack {
-                        Text("SEO Description")
-                            .font(.itemDetailsSubheadline)
-                            .foregroundColor(.itemDetailsPrimaryText)
-                        
-                        Spacer()
-                        
-                        Text("\(seoDescription.count)/160")
-                            .font(.itemDetailsCaption)
-                            .foregroundColor(seoDescription.count > 160 ? .itemDetailsDestructive : .itemDetailsSecondaryText)
-                    }
+                VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
+                    ItemDetailsFieldLabel(
+                        title: "SEO Description",
+                        helpText: "Keep under 160 characters (\(seoDescription.count)/160)"
+                    )
                     
                     TextField("Brief description for search results", text: $seoDescription, axis: .vertical)
                         .font(.itemDetailsBody)
-                        .padding(ItemDetailsSpacing.fieldPadding)
+                        .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
+                        .padding(.vertical, ItemDetailsSpacing.compactSpacing)
                         .background(Color.itemDetailsFieldBackground)
                         .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
                         .lineLimit(3...5)
@@ -176,18 +156,12 @@ struct SEOSettings: View {
                 }
                 
                 // SEO Keywords
-                VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
-                    Text("Keywords")
-                        .font(.itemDetailsSubheadline)
-                        .foregroundColor(.itemDetailsPrimaryText)
-                    
-                    TextField("Comma-separated keywords", text: $seoKeywords)
-                        .font(.itemDetailsBody)
-                        .padding(ItemDetailsSpacing.fieldPadding)
-                        .background(Color.itemDetailsFieldBackground)
-                        .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
-                        .autocorrectionDisabled()
-                }
+                ItemDetailsTextField(
+                    title: "Keywords",
+                    placeholder: "Comma-separated keywords",
+                    text: $seoKeywords,
+                    helpText: "Use relevant keywords naturally"
+                )
                 
                 // SEO Tips
                 ItemDetailsInfoView(message: "• Keep titles under 60 characters\n• Keep descriptions under 160 characters\n• Use relevant keywords naturally\n• Make titles and descriptions unique")
@@ -212,10 +186,10 @@ struct SalesChannelsSettings: View {
     ]
     
     var body: some View {
-        VStack(alignment: .leading, spacing: ItemDetailsSpacing.fieldSpacing) {
+        VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
             ItemDetailsFieldLabel(title: "Sales Channels", helpText: "Select where this item can be sold")
             
-            VStack(spacing: ItemDetailsSpacing.compactSpacing) {
+            VStack(spacing: ItemDetailsSpacing.minimalSpacing) {
                 // Current channels
                 if channels.isEmpty {
                     Text("No sales channels selected")
@@ -268,7 +242,7 @@ struct SalesChannelsSettings: View {
                             .font(.itemDetailsBody)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 6)
-                            .background(Color(.systemGray6))
+                            .background(Color.itemDetailsFieldBackground)
                             .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
                         
                         ItemDetailsButton(

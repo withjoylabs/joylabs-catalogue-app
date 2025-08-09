@@ -44,10 +44,6 @@ struct ItemDetailsPricingSection: View {
                                 .frame(height: ItemDetailsSpacing.sectionSpacing)
                         }
                         
-                        // Add separator only if this is not the last variation and we can add more
-                        if index == viewModel.itemData.variations.count - 1 && viewModel.itemData.variations.count < 5 {
-                            ItemDetailsFieldSeparator()
-                        }
                     }
                     
                     // Add variation button - separate section
@@ -63,7 +59,7 @@ struct ItemDetailsPricingSection: View {
                         ) {
                             addNewVariation()
                         }
-                        .padding(ItemDetailsSpacing.fieldSpacing)
+                        .padding(ItemDetailsSpacing.compactSpacing)
                         .background(Color.itemDetailsSectionBackground)
                         .cornerRadius(ItemDetailsSpacing.sectionCornerRadius)
                     }
@@ -119,8 +115,8 @@ struct VariationCard: View {
                     }
                 }
             }
-            .padding(.horizontal, ItemDetailsSpacing.fieldSpacing)
-            .padding(.vertical, ItemDetailsSpacing.fieldSpacing)
+            .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
+            .padding(.vertical, ItemDetailsSpacing.compactSpacing)
             .background(Color.itemDetailsSectionBackground)
             
             VStack(spacing: 0) {
@@ -133,14 +129,15 @@ struct VariationCard: View {
                         set: { variation.name = $0.isEmpty ? nil : $0 }
                     ))
                     .font(.itemDetailsBody)
-                    .padding(ItemDetailsSpacing.fieldPadding)
+                    .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
+                    .padding(.vertical, ItemDetailsSpacing.compactSpacing)
                     .background(Color.itemDetailsFieldBackground)
                     .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                 }
-                .padding(.horizontal, ItemDetailsSpacing.fieldSpacing)
-                .padding(.vertical, ItemDetailsSpacing.compactSpacing)
+                .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
+                .padding(.vertical, ItemDetailsSpacing.minimalSpacing)
                 .background(Color.itemDetailsSectionBackground)
                 
                 Rectangle()
@@ -164,7 +161,8 @@ struct VariationCard: View {
                             }
                         ))
                         .font(.itemDetailsBody)
-                        .padding(ItemDetailsSpacing.fieldPadding)
+                        .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
+                    .padding(.vertical, ItemDetailsSpacing.compactSpacing)
                         .background(Color.itemDetailsFieldBackground)
                         .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
                         .keyboardType(.numberPad)
@@ -187,15 +185,16 @@ struct VariationCard: View {
                             }
                         ))
                         .font(.itemDetailsBody)
-                        .padding(ItemDetailsSpacing.fieldPadding)
+                        .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
+                    .padding(.vertical, ItemDetailsSpacing.compactSpacing)
                         .background(Color.itemDetailsFieldBackground)
                         .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                     }
                 }
-                .padding(.horizontal, ItemDetailsSpacing.fieldSpacing)
-                .padding(.vertical, ItemDetailsSpacing.compactSpacing)
+                .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
+                .padding(.vertical, ItemDetailsSpacing.minimalSpacing)
                 .background(Color.itemDetailsSectionBackground)
 
                 // Duplicate detection - only show when needed
@@ -209,7 +208,7 @@ struct VariationCard: View {
                         variation: variation,
                         duplicateDetection: duplicateDetection
                     )
-                    .padding(.horizontal, ItemDetailsSpacing.fieldSpacing)
+                    .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
                     .padding(.vertical, ItemDetailsSpacing.compactSpacing)
                     .background(Color.itemDetailsSectionBackground)
                 }
@@ -225,15 +224,15 @@ struct VariationCard: View {
                         
                         HStack {
                             Text("$")
-                                .foregroundColor(.secondary)
+                                .foregroundColor(.itemDetailsSecondaryText)
                             
                             if variation.pricingType == .variablePricing {
                                 Text("Variable")
-                                    .foregroundColor(.secondary)
+                                    .foregroundColor(.itemDetailsSecondaryText)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 8)
-                                    .background(Color(.systemGray6))
+                                    .background(Color.itemDetailsFieldBackground)
                                     .cornerRadius(6)
                             } else {
                                 TextField("0.00", text: Binding(
@@ -253,7 +252,8 @@ struct VariationCard: View {
                                 ))
                                 .keyboardType(.decimalPad)
                                 .font(.itemDetailsBody)
-                                .padding(ItemDetailsSpacing.fieldPadding)
+                                .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
+                    .padding(.vertical, ItemDetailsSpacing.compactSpacing)
                                 .background(Color.itemDetailsFieldBackground)
                                 .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
                                 .textInputAutocapitalization(.never)
@@ -276,8 +276,8 @@ struct VariationCard: View {
                         .pickerStyle(SegmentedPickerStyle())
                     }
                 }
-                .padding(.horizontal, ItemDetailsSpacing.fieldSpacing)
-                .padding(.vertical, ItemDetailsSpacing.compactSpacing)
+                .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
+                .padding(.vertical, ItemDetailsSpacing.minimalSpacing)
                 .background(Color.itemDetailsSectionBackground)
             }
         }
@@ -393,7 +393,8 @@ struct PriceField: View {
                     TextField("0.00", text: $priceText)
                         .keyboardType(.decimalPad)
                         .font(.itemDetailsBody)
-                        .padding(ItemDetailsSpacing.fieldPadding)
+                        .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
+                    .padding(.vertical, ItemDetailsSpacing.compactSpacing)
                         .background(Color.itemDetailsFieldBackground)
                         .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
                         .textInputAutocapitalization(.never)

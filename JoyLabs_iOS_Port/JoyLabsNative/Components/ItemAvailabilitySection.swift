@@ -41,10 +41,10 @@ struct ItemAvailabilitySection: View {
                         ItemDetailsFieldSeparator()
                         
                         ItemDetailsFieldRow {
-                            VStack(alignment: .leading, spacing: ItemDetailsSpacing.fieldSpacing) {
+                            VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
                                 ItemDetailsFieldLabel(title: "Availability Schedule", helpText: "Set specific dates when this item is available")
                                 
-                                VStack(spacing: ItemDetailsSpacing.compactSpacing) {
+                                VStack(spacing: ItemDetailsSpacing.minimalSpacing) {
                                     HStack {
                                         Text("Start Date")
                                             .font(.itemDetailsSubheadline)

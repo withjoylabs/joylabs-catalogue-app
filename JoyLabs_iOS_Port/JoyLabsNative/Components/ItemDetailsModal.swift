@@ -73,12 +73,12 @@ struct ItemDetailsModal: View {
                 Button("Cancel") {
                     handleCancel()
                 }
-                .foregroundColor(.red)
+                .foregroundColor(.itemDetailsDestructive)
                 
                 Spacer()
                 
                 Text(dynamicTitle)
-                    .font(.headline)
+                    .font(.itemDetailsSectionTitle)
                     .fontWeight(.semibold)
                 
                 Spacer()
@@ -87,15 +87,15 @@ struct ItemDetailsModal: View {
                     handleSave()
                 }
                 .disabled(!viewModel.canSave)
-                .foregroundColor(viewModel.canSave ? .blue : .gray)
+                .foregroundColor(viewModel.canSave ? .itemDetailsAccent : .itemDetailsSecondaryText)
                 .fontWeight(.semibold)
             }
             .padding()
-            .background(Color(.systemBackground))
+            .background(Color.itemDetailsModalBackground)
             .overlay(
                 Divider()
                     .frame(maxWidth: .infinity, maxHeight: 1)
-                    .background(Color(.separator)),
+                    .background(Color.itemDetailsSeparator),
                 alignment: .bottom
             )
             
@@ -286,7 +286,7 @@ struct ItemDetailsContent: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 10) {
+                LazyVStack(spacing: ItemDetailsSpacing.compactSpacing) {
                 // Context-specific header message
                 if case .createFromSearch(let query, let queryType) = context {
                     CreateFromSearchHeader(query: query, queryType: queryType)
@@ -395,7 +395,7 @@ struct CreateFromSearchHeader: View {
     var body: some View {
         HStack {
             Image(systemName: "plus.circle.fill")
-                .foregroundColor(.blue)
+                .foregroundColor(.itemDetailsAccent)
                 .font(.title2)
             
             VStack(alignment: .leading, spacing: 4) {
@@ -411,7 +411,7 @@ struct CreateFromSearchHeader: View {
             Spacer()
         }
         .padding()
-        .background(Color.blue.opacity(0.1))
+        .background(Color.itemDetailsAccent.opacity(0.1))
         .cornerRadius(8)
     }
 }

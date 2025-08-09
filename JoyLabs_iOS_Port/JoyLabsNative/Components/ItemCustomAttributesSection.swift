@@ -77,7 +77,7 @@ struct CustomAttributeRow: View {
     @State private var isEditing = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: ItemDetailsSpacing.fieldSpacing) {
+        VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
             // Header with key name and delete button
             HStack {
                 Text(key)
@@ -172,7 +172,10 @@ struct AddCustomAttributeSheet: View {
                             .fontWeight(.medium)
                         
                         TextField("e.g., Brand, Color, Material", text: $attributeKey)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .font(.itemDetailsBody)
+                            .padding(ItemDetailsSpacing.fieldPadding)
+                            .background(Color.itemDetailsFieldBackground)
+                            .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
                             .autocorrectionDisabled()
                     }
                     
@@ -210,7 +213,7 @@ struct AddCustomAttributeSheet: View {
                 Section {
                     Text("Custom attributes allow you to store additional information about your items that isn't covered by standard fields.")
                         .font(.caption)
-                        .foregroundColor(Color.secondary)
+                        .foregroundColor(.itemDetailsSecondaryText)
                 }
             }
             .navigationTitle("Add Custom Attribute")

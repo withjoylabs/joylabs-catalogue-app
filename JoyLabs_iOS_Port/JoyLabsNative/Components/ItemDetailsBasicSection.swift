@@ -29,7 +29,7 @@ struct ItemDetailsBasicSection: View {
                         ItemDetailsFieldSeparator()
                         
                         ItemDetailsFieldRow {
-                            VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
+                            VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
                                 ItemDetailsFieldLabel(title: "Description", helpText: "Optional item description")
                                 
                                 TextField("Enter item description (optional)", text: Binding(
@@ -68,7 +68,7 @@ struct ItemDetailsBasicSection: View {
                         ItemDetailsFieldSeparator()
                         
                         ItemDetailsFieldRow {
-                            VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
+                            VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
                                 ItemDetailsFieldLabel(title: "Product Type", helpText: "Choose the type of product")
                                 
                                 Picker("Product Type", selection: Binding(

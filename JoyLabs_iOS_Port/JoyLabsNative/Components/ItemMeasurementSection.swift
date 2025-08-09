@@ -96,7 +96,7 @@ struct MeasurementUnitSettings: View {
     ]
     
     var body: some View {
-        VStack(alignment: .leading, spacing: ItemDetailsSpacing.fieldSpacing) {
+        VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
             ItemDetailsFieldLabel(title: "Measurement Unit", helpText: "Unit for inventory and pricing")
             
             // Unit Picker
@@ -148,7 +148,7 @@ struct SellableStockableSettings: View {
     let stockableEnabled: Bool
     
     var body: some View {
-        VStack(alignment: .leading, spacing: ItemDetailsSpacing.fieldSpacing) {
+        VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
             ItemDetailsFieldLabel(title: "Item Properties", helpText: "Configure how this item behaves in your system")
             
             VStack(spacing: ItemDetailsSpacing.compactSpacing) {
@@ -181,7 +181,7 @@ struct UserDataSettings: View {
     @State private var isExpanded = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: ItemDetailsSpacing.fieldSpacing) {
+        VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
             HStack {
                 ItemDetailsFieldLabel(title: "Custom Data", helpText: isExpanded ? nil : "Store additional JSON metadata")
                 
@@ -199,7 +199,7 @@ struct UserDataSettings: View {
             }
             
             if isExpanded {
-                VStack(spacing: ItemDetailsSpacing.fieldSpacing) {
+                VStack(spacing: ItemDetailsSpacing.compactSpacing) {
                     VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
                         Text("JSON Data")
                             .font(.itemDetailsSubheadline)
@@ -207,7 +207,8 @@ struct UserDataSettings: View {
                         
                         TextField("Enter custom JSON data", text: $userData, axis: .vertical)
                             .font(.system(.body, design: .monospaced))
-                            .padding(ItemDetailsSpacing.fieldPadding)
+                            .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
+                            .padding(.vertical, ItemDetailsSpacing.compactSpacing)
                             .background(Color.itemDetailsFieldBackground)
                             .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
                             .lineLimit(5...10)

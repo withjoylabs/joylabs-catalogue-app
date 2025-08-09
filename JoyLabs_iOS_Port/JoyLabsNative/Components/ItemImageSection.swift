@@ -50,7 +50,7 @@ struct ItemImageSection: View {
                         Text("Add Photo")
                     }
                     .font(.subheadline)
-                    .foregroundColor(.blue)
+                    .foregroundColor(.itemDetailsAccent)
                 }
                 
                 if viewModel.itemData.imageURL != nil && !viewModel.itemData.imageURL!.isEmpty {
@@ -64,7 +64,7 @@ struct ItemImageSection: View {
                             Text("Remove")
                         }
                         .font(.subheadline)
-                        .foregroundColor(.red)
+                        .foregroundColor(.itemDetailsDestructive)
                     }
                     .padding(.leading, 20)
                 }
@@ -73,7 +73,7 @@ struct ItemImageSection: View {
             }
         }
         .padding()
-        .background(Color(.systemGray6))
+        .background(Color.itemDetailsFieldBackground)
         .cornerRadius(12)
         .sheet(isPresented: $showingImagePicker) {
             UnifiedImagePickerModal(
@@ -145,7 +145,7 @@ struct ItemImageSection: View {
 struct ImagePlaceholder: View {
     var body: some View {
         RoundedRectangle(cornerRadius: 12)
-            .fill(Color(.systemGray5))
+            .fill(Color.itemDetailsSecondaryText.opacity(0.3))
             .frame(width: 200, height: 200)
             .overlay(
                 VStack(spacing: 8) {

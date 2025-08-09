@@ -27,7 +27,7 @@ struct ItemEnabledLocationsSection: View {
 
                         // Individual Location Selection
                         ItemDetailsFieldRow {
-                            VStack(alignment: .leading, spacing: ItemDetailsSpacing.fieldSpacing) {
+                            VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
                                 Text("Select Specific Locations")
                                     .font(.itemDetailsSubheadline)
                                     .foregroundColor(.itemDetailsSecondaryText)
@@ -38,7 +38,7 @@ struct ItemEnabledLocationsSection: View {
                                         style: .warning
                                     )
                                 } else {
-                                    VStack(spacing: ItemDetailsSpacing.compactSpacing) {
+                                    VStack(spacing: ItemDetailsSpacing.minimalSpacing) {
                                         ForEach(viewModel.availableLocations, id: \.id) { location in
                                             LocationToggleRow(
                                                 location: location,

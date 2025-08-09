@@ -30,7 +30,8 @@ struct ItemDetailsCategoriesSection: View {
                                             .foregroundColor(.itemDetailsSecondaryText)
                                             .font(.itemDetailsCaption)
                                     }
-                                    .padding(ItemDetailsSpacing.fieldPadding)
+                                    .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
+                                    .padding(.vertical, ItemDetailsSpacing.compactSpacing)
                                     .background(Color.itemDetailsFieldBackground)
                                     .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
                                 }
@@ -71,7 +72,8 @@ struct ItemDetailsCategoriesSection: View {
                                             .foregroundColor(.itemDetailsSecondaryText)
                                             .font(.itemDetailsCaption)
                                     }
-                                    .padding(ItemDetailsSpacing.fieldPadding)
+                                    .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
+                                    .padding(.vertical, ItemDetailsSpacing.compactSpacing)
                                     .background(Color.itemDetailsFieldBackground)
                                     .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
                                 }
@@ -186,7 +188,7 @@ struct TaxSelector: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: ItemDetailsSpacing.fieldSpacing) {
+        VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
             HStack {
                 ItemDetailsFieldLabel(title: "Tax Settings")
                 Spacer()
@@ -268,7 +270,7 @@ struct ModifierListSelector: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: ItemDetailsSpacing.fieldSpacing) {
+        VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
             HStack {
                 ItemDetailsFieldLabel(title: "Modifier Lists")
                 Spacer()

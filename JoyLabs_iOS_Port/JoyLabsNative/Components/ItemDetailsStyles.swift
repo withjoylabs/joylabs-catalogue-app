@@ -54,11 +54,8 @@ enum ItemDetailsSpacing {
     /// Reduced spacing between major sections
     static let sectionSpacing: CGFloat = 20
     
-    /// Reduced spacing between fields within a section
-    static let fieldSpacing: CGFloat = 12
-    
-    /// Small spacing for related elements
-    static let compactSpacing: CGFloat = 6
+    /// Universal spacing for all fields and elements (7px everywhere)
+    static let compactSpacing: CGFloat = 7
     
     /// Extra small spacing for tight layouts
     static let minimalSpacing: CGFloat = 4
@@ -174,7 +171,6 @@ struct ItemDetailsToggleRow: View {
                 .labelsHidden()
                 .disabled(!isEnabled)
         }
-        .frame(minHeight: ItemDetailsSpacing.minimumTouchTarget)
     }
 }
 
@@ -228,7 +224,8 @@ struct ItemDetailsTextField: View {
             
             TextField(placeholder, text: $text)
                 .font(.itemDetailsBody)
-                .padding(ItemDetailsSpacing.fieldPadding)
+                .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
+                .padding(.vertical, ItemDetailsSpacing.compactSpacing)
                 .background(Color.itemDetailsFieldBackground)
                 .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
                 .keyboardType(keyboardType)
@@ -299,8 +296,9 @@ struct ItemDetailsButton: View {
                     .font(.itemDetailsSubheadline.weight(.medium))
             }
             .foregroundColor(style.foregroundColor)
-            .frame(maxWidth: .infinity, minHeight: ItemDetailsSpacing.minimumTouchTarget)
+            .frame(maxWidth: .infinity)
             .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
+            .padding(.vertical, ItemDetailsSpacing.compactSpacing)
             .background(style.backgroundColor)
             .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
         }
@@ -397,7 +395,8 @@ struct ItemDetailsFieldRow<Content: View>: View {
     var body: some View {
         VStack(spacing: 0) {
             content
-                .padding(ItemDetailsSpacing.fieldSpacing)
+                .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
+                .padding(.vertical, ItemDetailsSpacing.compactSpacing)
                 .background(Color.itemDetailsSectionBackground)
         }
     }
@@ -443,7 +442,7 @@ struct ItemDetailsFieldSeparator: View {
             ItemDetailsSection(title: "Components", icon: "square.stack") {
                 ItemDetailsCard {
                     ItemDetailsFieldRow {
-                        VStack(spacing: ItemDetailsSpacing.fieldSpacing) {
+                        VStack(spacing: ItemDetailsSpacing.compactSpacing) {
                             ItemDetailsInfoView(message: "This is an info message", style: .info)
                             ItemDetailsInfoView(message: "This is a warning message", style: .warning)
                             
