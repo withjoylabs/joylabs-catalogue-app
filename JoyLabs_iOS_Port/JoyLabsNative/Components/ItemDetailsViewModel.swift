@@ -256,6 +256,7 @@ class ItemDetailsViewModel: ObservableObject {
     @Published var availableCategories: [CategoryData] = []
     @Published var availableTaxes: [TaxData] = []
     @Published var availableModifierLists: [ModifierListData] = []
+    @Published var recentCategories: [CategoryData] = []
 
     // Service dependencies
     private let databaseManager: SQLiteSwiftCatalogManager
@@ -922,6 +923,7 @@ class ItemDetailsViewModel: ObservableObject {
             group.addTask { await self.loadTaxes() }
             group.addTask { await self.loadModifierLists() }
             group.addTask { await self.loadLocations() }
+            group.addTask { await self.loadRecentCategories() }
         }
     }
 
@@ -1157,6 +1159,50 @@ class ItemDetailsViewModel: ObservableObject {
 
         } catch {
             logger.error("Failed to load pre-resolved names for item \(itemId): \(error)")
+        }
+    }
+    
+    // MARK: - Recent Categories Management
+    
+    private func loadRecentCategories() async {
+        let recentCategoryIds = UserDefaults.standard.stringArray(forKey: "recentCategoryIds") ?? []
+        let recent = availableCategories.filter { category in
+            guard let id = category.id else { return false }
+            return recentCategoryIds.contains(id)
+        }
+        
+        // Preserve order from UserDefaults
+        var orderedRecent: [CategoryData] = []
+        for categoryId in recentCategoryIds {
+            if let category = recent.first(where: { $0.id == categoryId }) {
+                orderedRecent.append(category)
+            }
+        }
+        
+        await MainActor.run {
+            self.recentCategories = Array(orderedRecent.prefix(5)) // Keep only 5 most recent
+        }
+    }
+    
+    func addToRecentCategories(_ categoryId: String?) {
+        guard let categoryId = categoryId else { return }
+        
+        var recentIds = UserDefaults.standard.stringArray(forKey: "recentCategoryIds") ?? []
+        
+        // Remove if already exists
+        recentIds.removeAll { $0 == categoryId }
+        
+        // Add to beginning
+        recentIds.insert(categoryId, at: 0)
+        
+        // Keep only 5 most recent
+        recentIds = Array(recentIds.prefix(5))
+        
+        UserDefaults.standard.set(recentIds, forKey: "recentCategoryIds")
+        
+        // Update UI
+        Task {
+            await loadRecentCategories()
         }
     }
 

@@ -231,6 +231,15 @@ struct ItemDetailsTextField: View {
                 .keyboardType(keyboardType)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+                .toolbar {
+                    ToolbarItemGroup(placement: .keyboard) {
+                        Spacer()
+                        Button("Done") {
+                            // Dismiss keyboard
+                            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                        }
+                    }
+                }
                 .overlay(
                     RoundedRectangle(cornerRadius: ItemDetailsSpacing.fieldCornerRadius)
                         .stroke(error != nil ? Color.itemDetailsDestructive : Color.clear, lineWidth: 1)
@@ -408,6 +417,230 @@ struct ItemDetailsFieldSeparator: View {
         Rectangle()
             .fill(Color.itemDetailsSeparator)
             .frame(height: 0.5)
+    }
+}
+
+// MARK: - Category Selection Components
+
+/// Single-select modal for reporting category
+struct ItemDetailsCategorySingleSelectModal: View {
+    @Binding var isPresented: Bool
+    @Binding var selectedCategoryId: String?
+    let categories: [CategoryData]
+    let title: String
+    let onCategorySelected: ((String?) -> Void)?
+    
+    @State private var searchText = ""
+    @State private var tempSelectedId: String? = nil
+    @FocusState private var isSearchFieldFocused: Bool
+    
+    private var filteredCategories: [CategoryData] {
+        if searchText.isEmpty {
+            return categories
+        }
+        return categories.filter { category in
+            (category.name ?? "").localizedCaseInsensitiveContains(searchText)
+        }
+    }
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 0) {
+                // Search bar - matching ItemDetails styling
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(.itemDetailsSecondaryText)
+                    
+                    TextField("Search categories", text: $searchText)
+                        .font(.itemDetailsBody)
+                        .focused($isSearchFieldFocused)
+                        .toolbar {
+                            ToolbarItemGroup(placement: .keyboard) {
+                                Spacer()
+                                Button("Done") {
+                                    isSearchFieldFocused = false
+                                }
+                            }
+                        }
+                }
+                .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
+                .padding(.vertical, ItemDetailsSpacing.compactSpacing)
+                .background(Color.itemDetailsFieldBackground)
+                .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
+                .padding()
+                
+                Divider()
+                
+                // Categories list
+                List {
+                    ForEach(filteredCategories, id: \.id) { category in
+                        if let categoryId = category.id {
+                            let isSelected = tempSelectedId == categoryId
+                            
+                            HStack {
+                                Text(category.name ?? "Unnamed")
+                                    .font(.itemDetailsBody)
+                                    .foregroundColor(.itemDetailsPrimaryText)
+                                
+                                Spacer()
+                                
+                                if isSelected {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.itemDetailsAccent)
+                                        .font(.itemDetailsBody)
+                                }
+                            }
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                tempSelectedId = categoryId
+                            }
+                        }
+                    }
+                }
+                .listStyle(PlainListStyle())
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarItems(
+                leading: Button("Cancel") {
+                    isPresented = false
+                },
+                trailing: Button("Done") {
+                    selectedCategoryId = tempSelectedId
+                    onCategorySelected?(tempSelectedId)
+                    isPresented = false
+                }
+                .fontWeight(.semibold)
+                .foregroundColor(.itemDetailsAccent)
+            )
+        }
+        .onAppear {
+            tempSelectedId = selectedCategoryId
+            // Auto-focus search field
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                isSearchFieldFocused = true
+            }
+        }
+    }
+}
+
+/// Multi-select modal for categories
+struct ItemDetailsCategoryMultiSelectModal: View {
+    @Binding var isPresented: Bool
+    @Binding var selectedCategoryIds: [String]
+    let categories: [CategoryData]
+    let title: String
+    
+    @State private var searchText = ""
+    @State private var tempSelectedIds: [String] = []
+    @FocusState private var isSearchFieldFocused: Bool
+    
+    private var filteredCategories: [CategoryData] {
+        if searchText.isEmpty {
+            return categories
+        }
+        return categories.filter { category in
+            (category.name ?? "").localizedCaseInsensitiveContains(searchText)
+        }
+    }
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 0) {
+                // Search bar - matching ItemDetails styling
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(.itemDetailsSecondaryText)
+                    
+                    TextField("Search categories", text: $searchText)
+                        .font(.itemDetailsBody)
+                        .focused($isSearchFieldFocused)
+                        .toolbar {
+                            ToolbarItemGroup(placement: .keyboard) {
+                                Spacer()
+                                Button("Done") {
+                                    isSearchFieldFocused = false
+                                }
+                            }
+                        }
+                }
+                .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
+                .padding(.vertical, ItemDetailsSpacing.compactSpacing)
+                .background(Color.itemDetailsFieldBackground)
+                .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
+                .padding()
+                
+                // Selection summary
+                if !tempSelectedIds.isEmpty {
+                    HStack {
+                        Text("\(tempSelectedIds.count) selected")
+                            .font(.itemDetailsCaption)
+                            .foregroundColor(.itemDetailsSecondaryText)
+                        
+                        Spacer()
+                        
+                        Button("Clear All") {
+                            tempSelectedIds.removeAll()
+                        }
+                        .font(.itemDetailsCaption)
+                        .foregroundColor(.itemDetailsAccent)
+                    }
+                    .padding(.horizontal)
+                }
+                
+                Divider()
+                
+                // Categories list
+                List {
+                    ForEach(filteredCategories, id: \.id) { category in
+                        if let categoryId = category.id {
+                            let isSelected = tempSelectedIds.contains(categoryId)
+                            
+                            HStack {
+                                Image(systemName: isSelected ? "checkmark.square.fill" : "square")
+                                    .foregroundColor(isSelected ? .itemDetailsAccent : .itemDetailsSecondaryText)
+                                    .font(.itemDetailsBody)
+                                
+                                Text(category.name ?? "Unnamed")
+                                    .font(.itemDetailsBody)
+                                    .foregroundColor(.itemDetailsPrimaryText)
+                                
+                                Spacer()
+                            }
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                if isSelected {
+                                    tempSelectedIds.removeAll { $0 == categoryId }
+                                } else {
+                                    tempSelectedIds.append(categoryId)
+                                }
+                            }
+                        }
+                    }
+                }
+                .listStyle(PlainListStyle())
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarItems(
+                leading: Button("Cancel") {
+                    isPresented = false
+                },
+                trailing: Button("Done") {
+                    selectedCategoryIds = tempSelectedIds
+                    isPresented = false
+                }
+                .fontWeight(.semibold)
+                .foregroundColor(.itemDetailsAccent)
+            )
+        }
+        .onAppear {
+            tempSelectedIds = selectedCategoryIds
+            // Auto-focus search field
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                isSearchFieldFocused = true
+            }
+        }
     }
 }
 

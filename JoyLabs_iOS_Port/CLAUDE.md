@@ -2,6 +2,99 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## CRITICAL DEVELOPMENT RULES - READ FIRST BEFORE MAKING ANY CHANGES
+
+### MANDATORY CODEBASE STUDY PROCESS
+**ALWAYS follow this process BEFORE writing any new code:**
+
+1. **Study Existing Names**: Use `Grep` to search for similar function/class/struct names to avoid conflicts
+   ```bash
+   # Example: Before creating "CategoryRow", search first:
+   grep -r "CategoryRow" --include="*.swift" .
+   ```
+
+2. **Study Data Structures**: Use `Read` to examine existing data models BEFORE accessing properties
+   ```bash
+   # Example: Before using itemData.price, check the actual structure:
+   grep -A 10 "struct ItemDetailsData" Components/ItemDetailsViewModel.swift
+   ```
+
+3. **Study Existing Patterns**: Look at similar existing components to understand conventions
+   ```bash
+   # Example: Before implementing search/highlighting, check existing patterns:
+   grep -r "search" --include="*.swift" Views/ | head -10
+   ```
+
+### FORBIDDEN ACTIONS THAT CAUSE BUILD CONFLICTS
+
+❌ **NEVER create new components without checking for existing names first**
+❌ **NEVER assume data structure properties without studying the actual models**  
+❌ **NEVER implement features (like text highlighting) that don't exist elsewhere in the codebase**
+❌ **NEVER use deprecated iOS APIs without checking existing code patterns**
+❌ **NEVER hardcode values - always use existing constants and conventions**
+
+### MANDATORY PRE-CODE CHECKLIST
+
+Before writing ANY new code, complete this checklist:
+
+- [ ] ✅ Searched for existing names/components with similar functionality
+- [ ] ✅ Read and understood the exact data structure I'm working with
+- [ ] ✅ Checked existing UI patterns for similar features
+- [ ] ✅ Verified iOS API usage matches existing codebase conventions
+- [ ] ✅ Confirmed new component names don't conflict with existing code
+
+### ERROR PREVENTION RULES
+
+1. **Data Access**: Always use optional chaining and nil coalescing
+2. **Naming**: Follow existing prefixes (`ItemDetails`, `Search`, etc.)  
+3. **UI Patterns**: Match existing search/filter implementations
+4. **iOS APIs**: Use same iOS version APIs as rest of codebase
+5. **Text Handling**: Keep it simple - no complex highlighting unless already exists
+
+**If you violate these rules, the user will rightfully lose trust in your thoroughness.**
+
+### CRITICAL: Prevent TextField AutoLayout Constraint Console Spam
+
+**Root Cause:** Custom styled TextFields inside VStack + List structures cause keyboard constraint conflicts.
+
+**MANDATORY Modal Structure for TextFields:**
+
+```swift
+// ✅ CORRECT - Use NavigationView + Form + .textFieldStyle(.roundedBorder)
+NavigationView {
+    Form {
+        Section {
+            TextField("Search...", text: $searchText)
+                .textFieldStyle(.roundedBorder)
+                .focused($isFieldFocused)
+        }
+        
+        Section {
+            // List content here
+        }
+    }
+    .navigationTitle("Title")
+    .navigationBarTitleDisplayMode(.inline)
+}
+```
+
+**❌ FORBIDDEN - Custom styled TextFields in VStack + List:**
+```swift
+// This causes constraint conflicts!
+VStack {
+    TextField("Search...", text: $searchText)
+        .padding()
+        .background(Color.gray)
+        .cornerRadius(8)
+    
+    List { /* content */ }
+}
+```
+
+**Study existing working examples:**
+- `AddMappingSheet` in `LabelLiveSettingsView.swift`
+- Any working modal with text fields uses Form, not custom styling
+
 ## Development Commands
 
 ### Build and Run

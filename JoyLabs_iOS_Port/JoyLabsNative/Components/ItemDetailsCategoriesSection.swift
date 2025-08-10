@@ -4,6 +4,8 @@ import SwiftUI
 struct ItemDetailsCategoriesSection: View {
     @ObservedObject var viewModel: ItemDetailsViewModel
     @StateObject private var configManager = FieldConfigurationManager.shared
+    @State private var showingCategoryMultiSelect = false
+    @State private var showingReportingCategorySelect = false
     
     var body: some View {
         ItemDetailsSection(title: "Categories & Classification", icon: "tag") {
@@ -15,18 +17,14 @@ struct ItemDetailsCategoriesSection: View {
                             VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
                                 ItemDetailsFieldLabel(title: "Reporting Category", isRequired: true)
                                 
-                                Menu {
-                                    ForEach(viewModel.availableCategories, id: \.id) { category in
-                                        Button(category.name ?? "Unnamed") {
-                                            viewModel.itemData.reportingCategoryId = category.id
-                                        }
-                                    }
-                                } label: {
+                                Button(action: {
+                                    showingReportingCategorySelect = true
+                                }) {
                                     HStack {
-                                        Text(selectedCategoryName ?? "Select category")
+                                        Text(selectedReportingCategoryName ?? "Select category")
                                             .foregroundColor(viewModel.itemData.reportingCategoryId == nil ? .itemDetailsSecondaryText : .itemDetailsPrimaryText)
                                         Spacer()
-                                        Image(systemName: "chevron.up.chevron.down")
+                                        Image(systemName: "chevron.right")
                                             .foregroundColor(.itemDetailsSecondaryText)
                                             .font(.itemDetailsCaption)
                                     }
@@ -35,6 +33,7 @@ struct ItemDetailsCategoriesSection: View {
                                     .background(Color.itemDetailsFieldBackground)
                                     .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
                                 }
+                                .buttonStyle(PlainButtonStyle())
                             }
                         }
                         
@@ -49,26 +48,14 @@ struct ItemDetailsCategoriesSection: View {
                             VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
                                 ItemDetailsFieldLabel(title: "Additional Categories")
                                 
-                                Menu {
-                                    ForEach(viewModel.availableCategories, id: \.id) { category in
-                                        Button(action: {
-                                            toggleCategory(category.id)
-                                        }) {
-                                            HStack {
-                                                Text(category.name ?? "Unnamed")
-                                                Spacer()
-                                                if viewModel.itemData.categoryIds.contains(category.id ?? "") {
-                                                    Image(systemName: "checkmark")
-                                                }
-                                            }
-                                        }
-                                    }
-                                } label: {
+                                Button(action: {
+                                    showingCategoryMultiSelect = true
+                                }) {
                                     HStack {
                                         Text(categorySelectionText)
                                             .foregroundColor(.itemDetailsPrimaryText)
                                         Spacer()
-                                        Image(systemName: "chevron.up.chevron.down")
+                                        Image(systemName: "square.grid.3x3")
                                             .foregroundColor(.itemDetailsSecondaryText)
                                             .font(.itemDetailsCaption)
                                     }
@@ -77,6 +64,7 @@ struct ItemDetailsCategoriesSection: View {
                                     .background(Color.itemDetailsFieldBackground)
                                     .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
                                 }
+                                .buttonStyle(PlainButtonStyle())
                             }
                         }
                         
@@ -142,9 +130,28 @@ struct ItemDetailsCategoriesSection: View {
                 }
             }
         }
+        .sheet(isPresented: $showingCategoryMultiSelect) {
+            ItemDetailsCategoryMultiSelectModal(
+                isPresented: $showingCategoryMultiSelect,
+                selectedCategoryIds: $viewModel.itemData.categoryIds,
+                categories: viewModel.availableCategories,
+                title: "Additional Categories"
+            )
+            .nestedComponentModal()
+        }
+        .sheet(isPresented: $showingReportingCategorySelect) {
+            ItemDetailsCategorySingleSelectModal(
+                isPresented: $showingReportingCategorySelect,
+                selectedCategoryId: $viewModel.itemData.reportingCategoryId,
+                categories: viewModel.availableCategories,
+                title: "Reporting Category",
+                onCategorySelected: viewModel.addToRecentCategories
+            )
+            .nestedComponentModal()
+        }
     }
     
-    private var selectedCategoryName: String? {
+    private var selectedReportingCategoryName: String? {
         guard let categoryId = viewModel.itemData.reportingCategoryId else { return nil }
         return viewModel.availableCategories.first { $0.id == categoryId }?.name
     }

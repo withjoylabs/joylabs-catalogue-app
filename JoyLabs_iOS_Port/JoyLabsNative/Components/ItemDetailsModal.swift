@@ -172,19 +172,20 @@ struct ItemDetailsModal: View {
                 }
             }
         }
-        .confirmationDialog(
-            "Discard Changes?",
-            isPresented: $showingCancelConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Discard Changes", role: .destructive) {
-                onDismiss()
-                dismiss()
-            }
-            Button("Keep Editing", role: .cancel) {}
-        } message: {
-            Text("You have unsaved changes. Are you sure you want to discard them?")
+        .actionSheet(isPresented: $showingCancelConfirmation) {
+            ActionSheet(
+                title: Text("Discard Changes?"),
+                message: Text("You have unsaved changes. Are you sure you want to discard them?"),
+                buttons: [
+                    .destructive(Text("Discard Changes")) {
+                        onDismiss()
+                        dismiss()
+                    },
+                    .cancel(Text("Keep Editing"))
+                ]
+            )
         }
+        .scrollDismissesKeyboard(.immediately)
     }
     
     // MARK: - Private Methods
@@ -252,23 +253,84 @@ struct ItemDetailsModal: View {
     private func hideKeyboard() {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
+    
+    private func createPrintData(from itemData: ItemDetailsData) -> PrintData {
+        let firstVariation = itemData.variations.first
+        let priceAmount = firstVariation?.priceMoney?.amount
+        let priceString = priceAmount.map { String(format: "%.2f", Double($0) / 100.0) }
+        
+        return PrintData(
+            itemName: itemData.name,
+            variationName: firstVariation?.name,
+            price: priceString,
+            originalPrice: nil,
+            upc: firstVariation?.upc,
+            sku: firstVariation?.sku,
+            categoryName: nil, // Would need to look up category name from ID
+            categoryId: itemData.reportingCategoryId,
+            description: itemData.description,
+            createdAt: nil,
+            updatedAt: nil,
+            qtyForPrice: nil,
+            qtyPrice: nil
+        )
+    }
 
     private func handlePrint() {
         print("Print button tapped")
-        // TODO: Implement print functionality
+        
+        Task {
+            do {
+                let printData = createPrintData(from: viewModel.itemData)
+                try await LabelLivePrintService.shared.printLabel(with: printData)
+                
+                await MainActor.run {
+                    print("Print completed successfully")
+                }
+            } catch LabelLivePrintError.printSuccess {
+                await MainActor.run {
+                    print("Print completed successfully")
+                }
+            } catch {
+                await MainActor.run {
+                    viewModel.error = error.localizedDescription
+                }
+            }
+        }
     }
 
     private func handleSaveAndPrint() {
         print("Save & Print button tapped")
 
         Task {
+            // First save the item
             if let itemData = await viewModel.saveItem() {
                 await MainActor.run {
                     onSave(itemData)
-                    // TODO: Implement print functionality
-                    print("Item saved and ready to print")
-                    onDismiss()
-                    dismiss()
+                }
+                
+                // Then print after successful save
+                do {
+                    let printData = createPrintData(from: itemData)
+                    try await LabelLivePrintService.shared.printLabel(with: printData)
+                    
+                    await MainActor.run {
+                        print("Item saved and printed successfully")
+                        onDismiss()
+                        dismiss()
+                    }
+                } catch LabelLivePrintError.printSuccess {
+                    await MainActor.run {
+                        print("Item saved and printed successfully")
+                        onDismiss()
+                        dismiss()
+                    }
+                } catch {
+                    await MainActor.run {
+                        // Item was saved but print failed
+                        viewModel.error = "Item saved but print failed: \(error.localizedDescription)"
+                        // Don't dismiss modal so user can retry or manually print
+                    }
                 }
             }
         }
