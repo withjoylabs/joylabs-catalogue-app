@@ -135,6 +135,19 @@ struct FieldConfigurationSettingsView: View {
                 isRequired: $configManager.currentConfiguration.classificationFields.productTypeRequired,
                 description: "Type of product (regular, service, etc.)"
             )
+            
+            FieldToggleRow(
+                title: "Contains Alcohol",
+                isEnabled: Binding(
+                    get: { configManager.currentConfiguration.classificationFields.isAlcoholicEnabled },
+                    set: { configManager.updateFieldConfiguration(\.classificationFields.isAlcoholicEnabled, value: $0) }
+                ),
+                isRequired: Binding(
+                    get: { configManager.currentConfiguration.classificationFields.isAlcoholicRequired },
+                    set: { configManager.updateFieldConfiguration(\.classificationFields.isAlcoholicRequired, value: $0) }
+                ),
+                description: "Toggle whether item contains alcohol"
+            )
         }
     }
     
@@ -153,6 +166,19 @@ struct FieldConfigurationSettingsView: View {
                 isEnabled: $configManager.currentConfiguration.pricingFields.taxEnabled,
                 isRequired: $configManager.currentConfiguration.pricingFields.taxRequired,
                 description: "Tax configuration for the item"
+            )
+            
+            FieldToggleRow(
+                title: "Item is Taxable",
+                isEnabled: Binding(
+                    get: { configManager.currentConfiguration.pricingFields.isTaxableEnabled },
+                    set: { configManager.updateFieldConfiguration(\.pricingFields.isTaxableEnabled, value: $0) }
+                ),
+                isRequired: Binding(
+                    get: { configManager.currentConfiguration.pricingFields.isTaxableRequired },
+                    set: { configManager.updateFieldConfiguration(\.pricingFields.isTaxableRequired, value: $0) }
+                ),
+                description: "Toggle whether item is subject to taxes"
             )
             
             FieldToggleRow(

@@ -179,6 +179,11 @@ struct ItemData: Codable {
     let categories: [CategoryReference]?
     let reportingCategory: ReportingCategory?
     let imageIds: [String]?
+    
+    // CRITICAL SQUARE API FIELDS - Previously missing
+    let isTaxable: Bool?
+    let isAlcoholic: Bool?
+    let sortName: String?
 
     // PERFORMANCE OPTIMIZATION: Pre-resolved names stored during sync
     let taxNames: String? // Comma-separated tax names for display
@@ -199,6 +204,9 @@ struct ItemData: Codable {
         case categories
         case reportingCategory = "reporting_category"
         case imageIds = "image_ids"
+        case isTaxable = "is_taxable"
+        case isAlcoholic = "is_alcoholic"
+        case sortName = "sort_name"
         case taxNames = "tax_names"
         case modifierNames = "modifier_names"
     }

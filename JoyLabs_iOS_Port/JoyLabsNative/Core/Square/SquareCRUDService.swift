@@ -552,6 +552,9 @@ extension SquareCRUDService {
             categories: itemData.categories,
             reportingCategory: itemData.reportingCategory,
             imageIds: itemData.imageIds,
+            isTaxable: itemData.isTaxable,
+            isAlcoholic: itemData.isAlcoholic,
+            sortName: itemData.sortName,
             taxNames: itemData.taxNames,
             modifierNames: itemData.modifierNames
         )

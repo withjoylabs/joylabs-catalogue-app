@@ -212,8 +212,10 @@ struct ItemSettingsView: View {
         if configManager.currentConfiguration.basicFields.abbreviationEnabled { count += 1 }
         if configManager.currentConfiguration.classificationFields.categoryEnabled { count += 1 }
         if configManager.currentConfiguration.classificationFields.reportingCategoryEnabled { count += 1 }
+        if configManager.currentConfiguration.classificationFields.isAlcoholicEnabled { count += 1 }
         // Note: Variations are always enabled (required by Square API)
         if configManager.currentConfiguration.pricingFields.taxEnabled { count += 1 }
+        if configManager.currentConfiguration.pricingFields.isTaxableEnabled { count += 1 }
         if configManager.currentConfiguration.pricingFields.modifiersEnabled { count += 1 }
         if configManager.currentConfiguration.inventoryFields.trackInventoryEnabled { count += 1 }
         if configManager.currentConfiguration.inventoryFields.inventoryAlertsEnabled { count += 1 }

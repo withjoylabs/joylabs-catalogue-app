@@ -679,6 +679,11 @@ class ItemDetailsViewModel: ObservableObject {
             // Tax information (already working correctly)
             itemDetails.taxIds = itemData.taxIds ?? []
             logger.info("Loaded \(itemDetails.taxIds.count) taxes for item: \(itemDetails.taxIds)")
+            
+            // CRITICAL SQUARE API FIELDS - Previously missing extraction
+            itemDetails.isTaxable = itemData.isTaxable ?? true // Square API default
+            itemDetails.isAlcoholic = itemData.isAlcoholic ?? false // Square API default
+            logger.info("Extracted Square API fields: isTaxable=\(itemDetails.isTaxable), isAlcoholic=\(itemDetails.isAlcoholic)")
 
             // PERFORMANCE OPTIMIZATION: Load pre-resolved tax and modifier names from database
             await loadPreResolvedNames(for: &itemDetails)
