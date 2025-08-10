@@ -255,6 +255,7 @@ class ItemDataTransformers {
         return variations.map { variation in
             ItemDetailsVariationData(
                 id: variation.itemVariationData?.itemId,
+                version: variation.version,
                 name: variation.itemVariationData?.name,
                 sku: variation.itemVariationData?.sku,
                 upc: variation.itemVariationData?.upc,
@@ -262,7 +263,7 @@ class ItemDataTransformers {
                 pricingType: transformPricingType(variation.itemVariationData?.pricingType),
                 priceMoney: transformMoney(variation.itemVariationData?.priceMoney),
                 basePriceMoney: transformMoney(variation.itemVariationData?.basePriceMoney),
-
+                locationOverrides: transformLocationOverrides(variation.itemVariationData?.locationOverrides),
                 trackInventory: variation.itemVariationData?.trackInventory ?? false,
                 inventoryAlertType: transformInventoryAlertType(variation.itemVariationData?.inventoryAlertType),
                 inventoryAlertThreshold: variation.itemVariationData?.inventoryAlertThreshold.map(Int.init),
@@ -317,7 +318,7 @@ class ItemDataTransformers {
                     priceMoney: transformMoneyToAPI(variation.priceMoney),
                     basePriceMoney: transformMoneyToAPI(variation.basePriceMoney),
                     defaultUnitCost: nil,
-                    locationOverrides: nil,
+                    locationOverrides: transformLocationOverridesToAPI(variation.locationOverrides),
                     trackInventory: variation.trackInventory,
                     inventoryAlertType: transformInventoryAlertTypeToAPI(variation.inventoryAlertType),
                     inventoryAlertThreshold: variation.inventoryAlertThreshold.map(Int64.init),
@@ -344,6 +345,49 @@ class ItemDataTransformers {
     private static func transformMoneyToAPI(_ money: MoneyData?) -> Money? {
         guard let money = money else { return nil }
         return Money(amount: Int64(money.amount), currency: money.currency)
+    }
+    
+    // MARK: - Location Override Transformations
+    
+    /// Transform location overrides from Square API model to UI model
+    private static func transformLocationOverrides(_ locationOverrides: [LocationOverride]?) -> [LocationOverrideData] {
+        guard let locationOverrides = locationOverrides else { return [] }
+        
+        return locationOverrides.compactMap { override in
+            guard let locationId = override.locationId else { return nil }
+            
+            return LocationOverrideData(
+                locationId: locationId,
+                priceMoney: transformMoney(override.priceMoney),
+                trackInventory: override.trackInventory ?? false,
+                stockOnHand: 0 // stockOnHand not available in Square LocationOverride model
+            )
+        }
+    }
+    
+    /// Transform location overrides from UI model to Square API model
+    private static func transformLocationOverridesToAPI(_ locationOverrides: [LocationOverrideData]) -> [LocationOverride]? {
+        guard !locationOverrides.isEmpty else { return nil }
+        
+        // Only include overrides that have meaningful data (price or inventory tracking)
+        let validOverrides = locationOverrides.filter { override in
+            override.priceMoney != nil || override.trackInventory
+        }
+        
+        guard !validOverrides.isEmpty else { return nil }
+        
+        return validOverrides.map { override in
+            LocationOverride(
+                locationId: override.locationId,
+                priceMoney: transformMoneyToAPI(override.priceMoney),
+                pricingType: override.priceMoney != nil ? "FIXED_PRICING" : nil,
+                trackInventory: override.trackInventory ? override.trackInventory : nil,
+                inventoryAlertType: override.inventoryAlertType?.rawValue,
+                inventoryAlertThreshold: override.inventoryAlertThreshold.map(Int64.init),
+                soldOut: nil, // Read-only field
+                soldOutValidUntil: nil // Read-only field
+            )
+        }
     }
     
     private static func transformProductType(_ productType: String?) -> ProductType {

@@ -91,6 +91,29 @@ struct VariationCard: View {
                !(variation.upc ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
                (variation.priceMoney?.amount ?? 0) > 0
     }
+    
+    // Check if user can add more price overrides
+    private var canAddPriceOverride: Bool {
+        let usedLocationIds = Set(variation.locationOverrides.map { $0.locationId })
+        let availableLocationIds = Set(viewModel.availableLocations.map { $0.id })
+        return usedLocationIds.count < availableLocationIds.count
+    }
+    
+    // Add a new price override for the first available location
+    private func addPriceOverride() {
+        let usedLocationIds = Set(variation.locationOverrides.map { $0.locationId })
+        
+        if let firstAvailableLocation = viewModel.availableLocations.first(where: { !usedLocationIds.contains($0.id) }) {
+            let newOverride = LocationOverrideData(
+                locationId: firstAvailableLocation.id,
+                priceMoney: MoneyData(dollars: 0.0),
+                trackInventory: false
+            )
+            
+            variation.locationOverrides.append(newOverride)
+            viewModel.hasUnsavedChanges = true
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -279,6 +302,41 @@ struct VariationCard: View {
                 .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
                 .padding(.vertical, ItemDetailsSpacing.minimalSpacing)
                 .background(Color.itemDetailsSectionBackground)
+                
+                // Price overrides section - following CLAUDE.md centralized pattern
+                if variation.pricingType != .variablePricing {
+                    // Existing price overrides
+                    ForEach(Array(variation.locationOverrides.enumerated()), id: \.offset) { overrideIndex, override in
+                        ItemDetailsFieldSeparator()
+                        
+                        PriceOverrideRow(
+                            override: Binding(
+                                get: { variation.locationOverrides[overrideIndex] },
+                                set: { variation.locationOverrides[overrideIndex] = $0 }
+                            ),
+                            availableLocations: viewModel.availableLocations,
+                            onDelete: {
+                                variation.locationOverrides.remove(at: overrideIndex)
+                                viewModel.hasUnsavedChanges = true
+                            }
+                        )
+                    }
+                    
+                    // Add Price Override button - AFTER existing overrides
+                    if canAddPriceOverride {
+                        ItemDetailsFieldSeparator()
+                        
+                        ItemDetailsFieldRow {
+                            ItemDetailsButton(
+                                title: "Add Price Override",
+                                icon: "plus.circle",
+                                style: .secondary
+                            ) {
+                                addPriceOverride()
+                            }
+                        }
+                    }
+                }
             }
         }
         .background(Color.itemDetailsSectionBackground)
@@ -472,6 +530,117 @@ struct DuplicateDetectionSection: View {
             // NO loading indicator - completely invisible during search to prevent UI movement
         }
         .animation(.easeInOut(duration: 0.2), value: duplicateDetection.duplicateWarnings.count)
+    }
+}
+
+// MARK: - Price Override Row
+/// Individual row for location-specific price overrides
+struct PriceOverrideRow: View {
+    @Binding var override: LocationOverrideData
+    let availableLocations: [LocationData]
+    let onDelete: () -> Void
+    
+    @State private var showingDeleteConfirmation = false
+    
+    private var locationName: String {
+        availableLocations.first { $0.id == override.locationId }?.name ?? "Unknown Location"
+    }
+    
+    var body: some View {
+        // Two-column layout: Price on left, Location on right - following CLAUDE.md pattern
+        ItemDetailsFieldRow {
+            HStack(spacing: 12) {
+                // LEFT COLUMN: Price field
+                VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
+                    ItemDetailsFieldLabel(title: "Override Price")
+                    
+                    HStack {
+                        Text("$")
+                            .foregroundColor(.itemDetailsSecondaryText)
+                        
+                        TextField("0.00", text: Binding(
+                            get: {
+                                if let price = override.priceMoney {
+                                    return String(format: "%.2f", price.displayAmount)
+                                }
+                                return ""
+                            },
+                            set: { text in
+                                if let amount = Double(text) {
+                                    override.priceMoney = MoneyData(dollars: amount)
+                                } else if text.isEmpty {
+                                    override.priceMoney = nil
+                                }
+                            }
+                        ))
+                        .keyboardType(.decimalPad)
+                        .font(.itemDetailsBody)
+                        .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
+                        .padding(.vertical, ItemDetailsSpacing.compactSpacing)
+                        .background(Color.itemDetailsFieldBackground)
+                        .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    }
+                }
+                
+                // RIGHT COLUMN: Location dropdown + Delete button
+                VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
+                    HStack {
+                        ItemDetailsFieldLabel(title: "Location")
+                        
+                        Spacer()
+                        
+                        // Delete button
+                        Button(action: {
+                            showingDeleteConfirmation = true
+                        }) {
+                            Image(systemName: "trash")
+                                .foregroundColor(.itemDetailsDestructive)
+                                .font(.itemDetailsSubheadline)
+                        }
+                    }
+                    
+                    // Location dropdown
+                    Menu {
+                        ForEach(availableLocations, id: \.id) { location in
+                            Button(location.name) {
+                                override.locationId = location.id
+                                override.locationName = location.name
+                            }
+                        }
+                    } label: {
+                        HStack {
+                            Text(locationName)
+                                .font(.itemDetailsBody)
+                                .foregroundColor(.itemDetailsPrimaryText)
+                            
+                            Spacer()
+                            
+                            Image(systemName: "chevron.down")
+                                .font(.itemDetailsCaption)
+                                .foregroundColor(.itemDetailsSecondaryText)
+                        }
+                        .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
+                        .padding(.vertical, ItemDetailsSpacing.compactSpacing)
+                        .background(Color.itemDetailsFieldBackground)
+                        .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
+                    }
+                }
+            }
+        }
+        .confirmationDialog(
+            "Delete Price Override",
+            isPresented: $showingDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                onDelete()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Are you sure you want to delete this price override for \(locationName)?")
+        }
     }
 }
 

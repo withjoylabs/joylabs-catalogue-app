@@ -338,13 +338,25 @@ class ItemDetailsViewModel: ObservableObject {
     
     // MARK: - Public Methods
     
+    // Prevent duplicate setup calls
+    @Published private var isSetupComplete = false
+    
     /// Setup the view model for a specific context
     func setupForContext(_ context: ItemDetailsContext) async {
+        // Prevent duplicate setup
+        guard !isSetupComplete else {
+            logger.info("Setup already completed for context, skipping")
+            return
+        }
+        
         // Store the context
         self.context = context
 
         isLoading = true
-        defer { isLoading = false }
+        defer { 
+            isLoading = false
+            isSetupComplete = true
+        }
         
         switch context {
         case .editExisting(let itemId):
@@ -1076,46 +1088,26 @@ class ItemDetailsViewModel: ObservableObject {
 
     /// Load locations from local database (same pattern as other data)
     private func loadLocations() async {
-        do {
-            guard let db = databaseManager.getConnection() else {
-                logger.error("No database connection available")
-                return
-            }
+        // Use SquareLocationsService instead of database query
+        let locationsService = SquareLocationsService()
+        await locationsService.fetchLocations()
+        
+        // Transform SquareLocation to LocationData
+        let locations: [LocationData] = locationsService.locations.compactMap { squareLocation in
+            guard !squareLocation.id.isEmpty,
+                  let name = squareLocation.name, !name.isEmpty else { return nil }
+            
+            return LocationData(
+                id: squareLocation.id,
+                name: name,
+                address: [squareLocation.address?.addressLine1, squareLocation.address?.locality, squareLocation.address?.administrativeDistrictLevel1].compactMap { $0 }.joined(separator: ", "),
+                isActive: squareLocation.status == "ACTIVE"
+            )
+        }
 
-            let query = """
-                SELECT id, name, address, status
-                FROM locations
-                WHERE (is_deleted = 0 OR is_deleted IS NULL) AND (status = 'ACTIVE' OR status IS NULL)
-                ORDER BY name ASC
-            """
-
-            let statement = try db.prepare(query)
-            var locations: [LocationData] = []
-
-            for row in statement {
-                let id = row[0] as? String ?? ""
-                let name = row[1] as? String ?? ""
-                let address = row[2] as? String ?? ""
-                let status = row[3] as? String ?? ""
-
-                guard !id.isEmpty, !name.isEmpty else { continue }
-
-                // Create a LocationData for UI display
-                let locationData = LocationData(
-                    id: id,
-                    name: name,
-                    address: address,
-                    isActive: status.uppercased() == "ACTIVE"
-                )
-                locations.append(locationData)
-            }
-
-            await MainActor.run {
-                self.availableLocations = locations
-                logger.debug("Loaded \(locations.count) locations for item modal")
-            }
-        } catch {
-            logger.error("Failed to load locations: \(error)")
+        await MainActor.run {
+            self.availableLocations = locations
+            logger.debug("Loaded \(locations.count) locations for item modal")
         }
     }
 
