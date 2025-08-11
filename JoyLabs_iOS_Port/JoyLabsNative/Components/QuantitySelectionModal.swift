@@ -33,18 +33,12 @@ struct EmbeddedQuantitySelectionModal: View {
     }
     
     var body: some View {
-        print("🚨 DEBUG: EmbeddedQuantitySelectionModal body rendering for: \(item.name ?? "Unknown")")
-        print("🚨 DEBUG: Modal isPresented: \(isPresented)")
-        print("🚨 DEBUG: Modal currentQuantity: \(currentQuantity)")
-        print("🚨 DEBUG: Modal isExistingItem: \(isExistingItem)")
-
-        return modalContent
+        modalContent
         .onChange(of: currentQuantity) { _, newQuantity in
             onQuantityChange?(newQuantity)
         }
         .onChange(of: item.id) { _, newItemId in
             // RESET MODAL STATE WHEN ITEM CHANGES (CHAIN SCANNING)
-            print("🔄 MODAL RESET: Item changed to \(item.name ?? "Unknown"), resetting quantity to \(initialQuantity)")
             currentQuantity = initialQuantity
             onQuantityChange?(initialQuantity)
         }
@@ -110,7 +104,7 @@ struct EmbeddedQuantitySelectionModal: View {
 
             // Use image data from SearchResultItem if available
             SimpleImageView.large(
-                imageURL: item.images?.first?.imageData?.url,
+                imageURL: imageURL,
                 size: imageSize
             )
                 .frame(width: imageSize, height: imageSize) // Perfect 1:1 square
@@ -175,6 +169,10 @@ struct EmbeddedQuantitySelectionModal: View {
         .padding(.horizontal, 16)
     }
 
+    private var imageURL: String? {
+        return item.images?.first?.imageData?.url
+    }
+    
     private var quantitySection: some View {
         VStack(spacing: 16) {
             // 3-COLUMN QTY LAYOUT ALIGNED WITH NUMPAD

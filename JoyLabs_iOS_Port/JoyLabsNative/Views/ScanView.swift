@@ -1,6 +1,14 @@
 import SwiftUI
 import UIKit
 
+// MARK: - Scroll Position Detection for Pagination
+struct ScrollOffsetPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
 // MARK: - Intelligent Dual-Mode Barcode Scanner for Scan Page
 class IntelligentBarcodeReceivingViewController: UIViewController {
     var onBarcodeScanned: ((String) -> Void)?
@@ -576,44 +584,51 @@ struct SearchResultsList: View {
     @ObservedObject var searchManager: SearchManager
 
     var body: some View {
-        List {
-            ForEach(results) { result in
-                SwipeableScanResultCard(
-                    result: result,
-                    onAddToReorder: {
-                        addItemToReorderList(result, quantity: 1)
-                    },
-                    onPrint: {
-                        printItem(result)
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(results) { result in
+                        SwipeableScanResultCard(
+                            result: result,
+                            onAddToReorder: {
+                                addItemToReorderList(result, quantity: 1)
+                            },
+                            onPrint: {
+                                printItem(result)
+                            }
+                        )
+                        .id(result.id)
+                    }
+
+                    // Loading indicator at the bottom
+                    if searchManager.isLoadingMore {
+                        HStack {
+                            Spacer()
+                            ProgressView("Loading more...")
+                                .font(.caption)
+                                .foregroundColor(Color.secondary)
+                            Spacer()
+                        }
+                        .padding()
+                    }
+                }
+                .background(
+                    GeometryReader { geometry in
+                        Color.clear.preference(
+                            key: ScrollOffsetPreferenceKey.self,
+                            value: geometry.frame(in: .named("scrollView")).minY
+                        )
                     }
                 )
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets())
-                .onAppear {
-                    // Load more when approaching the end
-                    if result.id == results.last?.id && searchManager.hasMoreResults && !searchManager.isLoadingMore {
-                        searchManager.loadMoreResults()
-                    }
-                }
             }
-
-            // Loading indicator at the bottom
-            if searchManager.isLoadingMore {
-                HStack {
-                    Spacer()
-                    ProgressView("Loading more...")
-                        .font(.caption)
-                        .foregroundColor(Color.secondary)
-                    Spacer()
+            .coordinateSpace(name: "scrollView")
+            .onPreferenceChange(ScrollOffsetPreferenceKey.self) { offset in
+                // Trigger pagination when near bottom (industry standard pattern)
+                if offset > -100 && searchManager.hasMoreResults && !searchManager.isLoadingMore && !results.isEmpty {
+                    searchManager.loadMoreResults()
                 }
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets())
             }
         }
-        .listStyle(PlainListStyle())
-        .scrollContentBackground(.hidden)
     }
     
     // MARK: - Reorder and Print Functions

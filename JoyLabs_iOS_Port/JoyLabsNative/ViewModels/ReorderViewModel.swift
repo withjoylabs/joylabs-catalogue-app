@@ -271,16 +271,25 @@ class ReorderViewModel: ObservableObject {
         let quantity = existingItemForQuantity?.quantity ?? 1
         let isExisting = existingItemForQuantity != nil
 
-        currentModalQuantity = quantity
-        modalStateManager.setItem(item, quantity: quantity, isExisting: isExisting)
-        modalStateManager.showModal() // Set the showingQuantityModal flag for chain scanning
-        
-        // Only set activeSheet if modal is not already showing (to avoid animation)
-        if activeSheet == nil {
-            activeSheet = .quantityModal(item)
-        }
-        
         print("🔢 Showing quantity modal for: \(item.name ?? "Unknown"), qty: \(quantity), existing: \(isExisting)")
+        
+        // BATCH ALL STATE UPDATES TO PREVENT MULTIPLE RE-RENDERS
+        // Use DispatchQueue to batch all updates into single render cycle
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            
+            // Update modal state manager
+            self.modalStateManager.setItem(item, quantity: quantity, isExisting: isExisting)
+            self.modalStateManager.showModal()
+            
+            // Update view model properties
+            self.currentModalQuantity = quantity
+            
+            // Only set activeSheet if modal is not already showing
+            if self.activeSheet == nil {
+                self.activeSheet = .quantityModal(item)
+            }
+        }
     }
     
     func dismissActiveSheet() {

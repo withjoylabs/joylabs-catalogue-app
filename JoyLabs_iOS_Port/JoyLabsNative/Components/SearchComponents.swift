@@ -1,5 +1,20 @@
 import SwiftUI
 
+// MARK: - Search Sheet Management
+enum SearchSheet: Identifiable {
+    case itemDetails(SearchResultItem)
+    case imagePicker(SearchResultItem)
+    
+    var id: String {
+        switch self {
+        case .itemDetails(let item):
+            return "itemDetails_\(item.id)"
+        case .imagePicker(let item):
+            return "imagePicker_\(item.id)"
+        }
+    }
+}
+
 // MARK: - Bottom Search Bar
 struct BottomSearchBar: View {
     @Binding var searchText: String
@@ -81,8 +96,7 @@ struct SwipeableScanResultCard: View {
     let result: SearchResultItem
     let onAddToReorder: () -> Void
     let onPrint: () -> Void
-    @State private var showingItemDetails = false
-    @State private var showingImagePicker = false
+    @State private var activeSheet: SearchSheet?
     @State private var offset: CGFloat = 0
     @State private var isDragging = false
     
@@ -199,9 +213,12 @@ struct SwipeableScanResultCard: View {
         )
     }
 
+    private var imageURL: String? {
+        return result.images?.first?.imageData?.url
+    }
+    
     private var scanResultContent: some View {
         // Extract image data for search results
-        let imageURL = result.images?.first?.imageData?.url
         let _ = result.images?.first?.id
 
         return HStack(spacing: 12) {
@@ -212,7 +229,7 @@ struct SwipeableScanResultCard: View {
                 size: 50
             )
             .onLongPressGesture {
-                showingImagePicker = true
+                activeSheet = .imagePicker(result)
             }
 
             // Main content section
@@ -304,44 +321,43 @@ struct SwipeableScanResultCard: View {
         .padding(.vertical, 8)
         .background(Color(.systemBackground))
         // Tap gesture handled by swipe gesture above (line 146)
-        .sheet(isPresented: $showingItemDetails) {
-            ItemDetailsModal(
-                context: .editExisting(itemId: result.id),
-                onDismiss: {
-                    showingItemDetails = false
-                },
-                onSave: { itemData in
-                    // TODO: Handle saved item
-                    showingItemDetails = false
-                }
-            )
-            .fullScreenModal()
-            .onAppear {
-                print("[SearchComponents] ItemDetailsModal appeared for item: \(result.id)")
+        .sheet(item: $activeSheet) { sheet in
+            switch sheet {
+            case .itemDetails(let item):
+                ItemDetailsModal(
+                    context: .editExisting(itemId: item.id),
+                    onDismiss: {
+                        activeSheet = nil
+                    },
+                    onSave: { itemData in
+                        // TODO: Handle saved item
+                        activeSheet = nil
+                    }
+                )
+                .fullScreenModal()
+            case .imagePicker(let item):
+                UnifiedImagePickerModal(
+                    context: .scanViewLongPress(
+                        itemId: item.id,
+                        imageId: item.images?.first?.id
+                    ),
+                    onDismiss: {
+                        activeSheet = nil
+                    },
+                    onImageUploaded: { uploadResult in
+                        // SimpleImageService handles all refresh notifications
+                        activeSheet = nil
+                    }
+                )
+                .nestedComponentModal()
             }
-        }
-        .sheet(isPresented: $showingImagePicker) {
-            UnifiedImagePickerModal(
-                context: .scanViewLongPress(
-                    itemId: result.id,
-                    imageId: result.images?.first?.id
-                ),
-                onDismiss: {
-                    showingImagePicker = false
-                },
-                onImageUploaded: { uploadResult in
-                    // SimpleImageService handles all refresh notifications
-                    showingImagePicker = false
-                }
-            )
-            .nestedComponentModal()
         }
     }
 
     
     private func handleItemSelection() {
         print("Selected item: \(result.name ?? result.id)")
-        showingItemDetails = true
+        activeSheet = .itemDetails(result)
     }
 }
 

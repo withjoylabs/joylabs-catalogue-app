@@ -2,29 +2,6 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## CRITICAL DEVELOPMENT RULES - READ FIRST BEFORE MAKING ANY CHANGES
-
-### MANDATORY CODEBASE STUDY PROCESS
-**ALWAYS follow this process BEFORE writing any new code:**
-
-1. **Study Existing Names**: Use `Grep` to search for similar function/class/struct names to avoid conflicts
-   ```bash
-   # Example: Before creating "CategoryRow", search first:
-   grep -r "CategoryRow" --include="*.swift" .
-   ```
-
-2. **Study Data Structures**: Use `Read` to examine existing data models BEFORE accessing properties
-   ```bash
-   # Example: Before using itemData.price, check the actual structure:
-   grep -A 10 "struct ItemDetailsData" Components/ItemDetailsViewModel.swift
-   ```
-
-3. **Study Existing Patterns**: Look at similar existing components to understand conventions
-   ```bash
-   # Example: Before implementing search/highlighting, check existing patterns:
-   grep -r "search" --include="*.swift" Views/ | head -10
-   ```
-
 ### FORBIDDEN ACTIONS THAT CAUSE BUILD CONFLICTS
 
 ❌ **NEVER create new components without checking for existing names first**
@@ -51,56 +28,15 @@ Before writing ANY new code, complete this checklist:
 4. **iOS APIs**: Use same iOS version APIs as rest of codebase
 5. **Text Handling**: Keep it simple - no complex highlighting unless already exists
 
-**If you violate these rules, the user will rightfully lose trust in your thoroughness.**
+### SWIFTUI MODAL PRESENTATION PITFALLS
 
-### CRITICAL: Prevent TextField AutoLayout Constraint Console Spam
-
-**Root Cause:** Custom styled TextFields inside VStack + List structures cause keyboard constraint conflicts.
-
-**MANDATORY Modal Structure for TextFields:**
-
-```swift
-// ✅ CORRECT - Use NavigationView + Form + .textFieldStyle(.roundedBorder)
-NavigationView {
-    Form {
-        Section {
-            TextField("Search...", text: $searchText)
-                .textFieldStyle(.roundedBorder)
-                .focused($isFieldFocused)
-        }
-        
-        Section {
-            // List content here
-        }
-    }
-    .navigationTitle("Title")
-    .navigationBarTitleDisplayMode(.inline)
-}
-```
-
-**❌ FORBIDDEN - Custom styled TextFields in VStack + List:**
-```swift
-// This causes constraint conflicts!
-VStack {
-    TextField("Search...", text: $searchText)
-        .padding()
-        .background(Color.gray)
-        .cornerRadius(8)
-    
-    List { /* content */ }
-}
-```
-
-**Study existing working examples:**
-- `AddMappingSheet` in `LabelLiveSettingsView.swift`
-- Any working modal with text fields uses Form, not custom styling
+❌ **NEVER use `.onAppear` in `List` items that trigger parent state changes during modal presentation**
+- **Problem**: `List` triggers `.onAppear` during modal transitions, causing parent `@ObservedObject` updates that dismiss/re-present modals
+- **Symptom**: Double `onAppear → onDisappear → onAppear` cycles, duplicate API calls, constraint warnings
+- **Solution**: Use `ScrollView` + `LazyVStack` + scroll-based pagination instead of per-item `.onAppear` triggers
+- **Industry Pattern**: Major apps use `GeometryReader` + `PreferenceKey` for pagination, not per-item lifecycle hooks
 
 ## Development Commands
-
-### Build and Run
-```bash
-# Open project in Xcode
-open JoyLabsNative.xcodeproj
 
 # IMPORTANT: Always use iPhone 16 iOS 18.5 simulator for builds
 xcodebuild -project JoyLabsNative.xcodeproj -scheme JoyLabsNative -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.5' build
@@ -130,16 +66,6 @@ project.save
 ```
 
 * After verifying that the files have been included and the build is successfully compiling, clean up the ruby file.
-
-### Testing
-```bash
-# Run tests in Xcode using Cmd+U
-# The app includes test files in JoyLabsNative/Testing/
-# - SquareDataConverterTests.swift 
-# - SquareIntegrationTests.swift
-# - WebhookIntegrationTests.swift
-# - TestRunnerView.swift (in-app test runner)
-```
 
 ## Architecture Overview
 
@@ -627,7 +553,6 @@ Use standardized presentation patterns for consistent iPad/iPhone modal behavior
 - **iOS 18+ iPad**: Uses `.presentationSizing(.page)` for fullscreen behavior
 - **iOS 17 iPad**: Uses default fullscreen presentation 
 - **iPhone**: Uses `.presentationDetents([.large])` for proper sizing
-- **Never** hardcode modal widths - always use responsive patterns
 - **Different sheet contents** require different patterns - apply modifiers per modal type
 
 **Available Patterns:**
@@ -835,68 +760,6 @@ if index % 50 == 0 {
 }
 ```
 
-### Search Debouncing
-Implement 500ms search debouncing for responsive UX without excessive API calls.
-
-## Development Notes
-
-### Deprecated Components
-Do not use these deprecated components:
-- `CachedImageView` → Use `SimpleImageView`
-- `UnifiedImageView` → Use `SimpleImageView` (replaced in 2025-02-01 overhaul)
-- `UnifiedImageService` → Use `SimpleImageService` (replaced in 2025-02-01 overhaul)
-- `ImageCacheService` → Native URLCache handles caching (removed in 2025-02-01 overhaul)
-- `ImageFreshnessManager` → AsyncImage handles freshness automatically (removed in 2025-02-01 overhaul)
-- `ImagePerformanceMonitor` → Over-engineered monitoring removed (removed in 2025-02-01 overhaul)
-- `WebhookPollingService` → Removed in favor of push notifications
-- Manual refresh triggers → System handles automatically
-- Direct service instantiation → Use `SquareAPIServiceFactory` instead
-
-### Critical Bug Patterns to Avoid
-
-#### **Startup & Service Creation Issues**:
-- **Direct service creation**: Never instantiate services directly - always use `SquareAPIServiceFactory` 
-- **Singleton access in properties**: Never access `.shared` singletons during class property initialization
-- **Duplicate service instances**: Always check factory pattern is used consistently to prevent memory leaks and race conditions
-- **Database access without connection**: Always call `databaseManager.connect()` before database operations (though Phase 1 handles this)
-- **Creating services during sync**: All services should be pre-initialized in Phase 1, not created on-demand
-
-#### **Sync & API Issues**:
-- **Empty searchCatalog() implementations**: Always connect to actual HTTP client, never return hardcoded empty arrays
-- **Resilience wrappers on sync**: Remove resilience fallbacks that mask real sync errors with empty data
-- **Multiple database connections**: Only connect once in Phase 1, all subsequent calls should be idempotent
-- **Incomplete object types in incremental sync**: Always ensure incremental sync object types match full sync configuration exactly
-- **Missing ITEM_VARIATION in webhooks**: Price changes require ITEM_VARIATION objects - verify all child object types are included
-
-#### **Notification Issues**:
-- **Redundant notification processing**: Only process webhook notifications once (background OR foreground, not both)
-- **Notification tap triggers**: Tapping notifications should only show UI, not trigger additional sync operations
-- **Emoji logs in production**: Use proper `[Service]` prefixed logs instead of emoji characters
-
-#### **Performance Anti-Patterns**:
-- **Cascade service creation**: Pre-initialize all services in Phase 1 to prevent creation chains during operations
-- **Lazy singleton initialization**: Initialize all singletons early to avoid delays during user operations
-- **Duplicate observer configurations**: Ensure observers are set up only once during service initialization
-
-### Database Schema
-The SQLite schema exactly matches the React Native version for cross-platform compatibility. Key tables:
-- `categories` (id, updated_at, version, is_deleted, name, data_json)
-- `catalog_items` (id, updated_at, version, is_deleted, name, description, category_id, etc.)
-- `item_variations` (id, item_id, name, pricing_type, price_money, etc.)
-
-### Catalog Object Type Configuration
-**CRITICAL**: Both full sync and incremental sync must use identical object type lists:
-
-**Full Sync** (`SquareConfiguration.catalogObjectTypes`):
-```
-"ITEM,CATEGORY,ITEM_VARIATION,MODIFIER,MODIFIER_LIST,TAX,DISCOUNT,IMAGE"
-```
-
-**Incremental Sync** (`SquareHTTPClient.searchCatalogObjects`):
-```swift
-searchRequest["object_types"] = ["ITEM", "CATEGORY", "ITEM_VARIATION", "MODIFIER", "MODIFIER_LIST", "TAX", "DISCOUNT", "IMAGE"]
-```
-
 **Database CRUD Support**: All 8 object types have complete insert/update handlers in `SQLiteSwiftCatalogManager.insertCatalogObject()` using `insert(or: .replace,` for proper upsert operations.
 
 ### Notification System
@@ -973,19 +836,6 @@ const notification = new apn.Notification({
 
 ## Image System Overhaul (2025-02-01)
 
-### Complete Architectural Transformation
-
-The image system was completely overhauled from a complex 13-class architecture to a simple, industry-standard implementation using native iOS components.
-
-#### **Before (Over-engineered)**:
-- 13 complex image classes: `UnifiedImageView`, `UnifiedImageService`, `ImageCacheService`, `ImageFreshnessManager`, `ImagePerformanceMonitor`, `ParallelImageProcessor`, `ProgressiveImageLoader`, `BackgroundImageDownloader`, etc.
-- Custom caching systems duplicating URLCache functionality  
-- Complex session-based cache management and freshness tracking
-- Manual image fetching, cache invalidation, and memory management
-- Over 2000 lines of image-related code
-- Performance issues causing gesture lag and UI freezing
-- Memory leaks and redundant processing during scrolling
-
 #### **After (Industry Standard)**:
 - **2 simple classes**: `SimpleImageView` (AsyncImage wrapper) + `SimpleImageService` (upload only)
 - Native AsyncImage with built-in loading states, error handling, and URLCache integration
@@ -995,89 +845,11 @@ The image system was completely overhauled from a complex 13-class architecture 
 - Native iOS performance and responsiveness
 - Automatic memory management and efficient scrolling
 
-#### **Key Improvements**:
-- **Native Performance**: Eliminated custom gesture conflicts and animation issues
-- **Automatic Caching**: URLCache handles all image caching without manual intervention
-- **Memory Efficiency**: No custom memory caches or session tracking
-- **Error Handling**: AsyncImage provides built-in error states and retry logic
-- **Maintainability**: 80% reduction in image-related code complexity
-- **Industry Standard**: Follows Apple's recommended patterns for image loading
-
 #### **Migration Pattern**:
 ```swift
-// OLD (deprecated)
-UnifiedImageView.thumbnail(imageURL: url, imageId: id, itemId: itemId, size: 50)
-
 // NEW (industry standard)
 SimpleImageView.thumbnail(imageURL: url, size: 50)
 ```
-
-#### **Architecture Benefits**:
-- **Reliability**: Uses battle-tested iOS components instead of custom implementations
-- **Performance**: Native AsyncImage eliminates custom loading overhead
-- **Simplicity**: Single responsibility pattern - SimpleImageView displays, SimpleImageService uploads
-- **Future-Proof**: Aligned with iOS best practices and SwiftUI evolution
-
-## Startup Optimization Lessons Learned
-
-### Major Orchestration Overhaul (2025-01-30)
-
-#### **Eliminated Duplicate Processes**:
-- **Single Database Connection**: Was connecting 3 times, now connects once in Phase 1
-- **No Cascade Service Creation**: Pre-initialize all services to prevent creation chains during operations
-- **No Duplicate Observer Configurations**: Fixed WebhookNotificationService setting up observers multiple times
-- **Factory Pattern Enforcement**: All services now use cached instances during operations
-
-#### **4-Phase Startup Sequence**:
-- **Phase 1 (Synchronous)**: ALL critical services and singletons pre-initialized
-- **Phase 2 (Async)**: Catch-up sync using only cached services
-- **Phase 3**: Webhook system activation
-- **Phase 4**: Push notification token registration
-
-#### **Service Pre-Initialization Strategy**:
-```swift
-// ALL Square services pre-initialized in Phase 1
-let _ = SquareAPIServiceFactory.createTokenService()
-let _ = SquareAPIServiceFactory.createHTTPClient()
-let _ = SquareAPIServiceFactory.createService()
-let _ = SquareAPIServiceFactory.createSyncCoordinator()
-
-// ALL singleton services pre-initialized in Phase 1
-let _ = PushNotificationService.shared
-let _ = UnifiedImageService.shared
-let _ = WebhookManager.shared
-let _ = WebhookNotificationService.shared
-let _ = NotificationSettingsService.shared
-```
-
-#### **Logging Standardization**:
-- Replaced all emoji logs with proper `[Service]` prefixed logs
-- Fixed out-of-order phase logging
-- Consistent logging format across all services
-- Clear startup sequence progression
-
-#### **Performance Metrics**:
-- **Before**: Multiple "Creating NEW" messages during sync operations
-- **After**: Only "Returning cached" messages during sync operations
-- **Before**: Services initializing during Phase 2 sync
-- **After**: All services ready before sync begins
-- **Before**: Race conditions and duplicate database connections
-- **After**: Perfect sequential initialization with zero duplicates
-
-### Fixed Race Conditions (Previous Iterations)
-- **Database Connection Issues**: Made `connect()` method idempotent to prevent "database is locked" errors
-- **Service Initialization Order**: Split critical services (sync) vs remaining services (async) 
-- **Factory Pattern Enforcement**: Eliminated duplicate service instances that caused memory leaks
-- **Thread Safety**: Added proper database connection checks before sync operations
-- **Build Target**: Always use iPhone 16 iOS 18.5 simulator as specified in this file
-
-### Performance Optimizations Applied
-- Removed redundant table creation calls during app startup
-- Consolidated push notification setup to prevent duplicate permission requests  
-- Fixed missing system icons with proper placeholder symbols
-- Optimized webhook notification timing to prevent startup spam
-- Pre-initialized ALL services to eliminate lazy loading delays
-- Cached service instances to prevent creation overhead during operations
 
 ## Code Philosophy
 - Always aim for professional, robust solution that properly handles asynchronous operations - exactly what any modern app would do!

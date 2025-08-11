@@ -155,10 +155,14 @@ struct ItemDetailsModal: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .catalogSyncCompleted)) { _ in
             // Refresh item data when catalog sync completes (for webhook updates)
+            // Add defensive check to prevent race conditions during modal presentation
             if case .editExisting(let itemId) = context {
                 logger.info("Catalog sync completed - refreshing item data for \(itemId)")
-                Task {
-                    await viewModel.refreshItemData(itemId: itemId)
+                // Small delay to ensure modal is fully loaded before responding to notifications
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    Task {
+                        await viewModel.refreshItemData(itemId: itemId)
+                    }
                 }
             }
         }
