@@ -52,7 +52,6 @@ struct ItemDetailsModal: View {
     @FocusState private var isAnyFieldFocused: Bool
     
     @StateObject private var viewModel = ItemDetailsViewModel()
-    @Environment(\.dismiss) private var dismiss
     
     private let logger = Logger(subsystem: "com.joylabs.native", category: "ItemDetailsModal")
 
@@ -145,17 +144,8 @@ struct ItemDetailsModal: View {
             // Ensure keyboard is dismissed when modal disappears
             hideKeyboard()
         }
-        .gesture(
-            // Custom swipe down gesture to handle changes confirmation
-            DragGesture()
-                .onEnded { value in
-                    // Detect swipe down gesture
-                    if value.translation.height > 100 && value.translation.height > abs(value.translation.width) {
-                        handleSwipeDown()
-                    }
-                }
-        )
         .onAppear {
+            print("[ItemDetailsModal] onAppear called for context: \(context)")
             setupForContext()
         }
         .onDisappear {
@@ -179,7 +169,6 @@ struct ItemDetailsModal: View {
                 buttons: [
                     .destructive(Text("Discard Changes")) {
                         onDismiss()
-                        dismiss()
                     },
                     .cancel(Text("Keep Editing"))
                 ]
@@ -205,7 +194,7 @@ struct ItemDetailsModal: View {
             if let itemData = await viewModel.saveItem() {
                 await MainActor.run {
                     onSave(itemData)
-                    dismiss()
+                    onDismiss()
                 }
             }
         }
@@ -226,29 +215,9 @@ struct ItemDetailsModal: View {
             }
         } else {
             onDismiss()
-            dismiss()
         }
     }
 
-    private func handleSwipeDown() {
-        print("Swipe down detected")
-
-        // Dismiss keyboard first
-        isAnyFieldFocused = false
-        hideKeyboard()
-
-        if viewModel.hasChanges {
-            print("User has unsaved changes - showing confirmation from swipe")
-            // Small delay to ensure keyboard dismissal completes
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                showingCancelConfirmation = true
-            }
-        } else {
-            print("No changes - dismissing modal")
-            onDismiss()
-            dismiss()
-        }
-    }
 
     private func hideKeyboard() {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
@@ -317,13 +286,11 @@ struct ItemDetailsModal: View {
                     await MainActor.run {
                         print("Item saved and printed successfully")
                         onDismiss()
-                        dismiss()
                     }
                 } catch LabelLivePrintError.printSuccess {
                     await MainActor.run {
                         print("Item saved and printed successfully")
                         onDismiss()
-                        dismiss()
                     }
                 } catch {
                     await MainActor.run {

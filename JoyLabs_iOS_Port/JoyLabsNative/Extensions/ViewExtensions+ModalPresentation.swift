@@ -11,11 +11,11 @@ extension View {
     func fullScreenModal() -> some View {
         print("[ModalPresentation] fullScreenModal() called")
         
-        // iOS 18+ changed iPad sheet behavior to form sheets - force fullscreen with presentationSizing
+        // iOS 18+ iPad - use presentationSizing(.page) for full width/height
         if UIDevice.current.userInterfaceIdiom == .pad {
             print("[ModalPresentation] iPad detected")
             if #available(iOS 18.0, *) {
-                print("[ModalPresentation] iOS 18+ - applying presentationSizing(.page)")
+                print("[ModalPresentation] iOS 18+ iPad - using presentationSizing(.page) for full screen")
                 return AnyView(self.presentationSizing(.page))
             } else {
                 print("[ModalPresentation] iOS 17 or earlier - no modifiers (default fullscreen)")

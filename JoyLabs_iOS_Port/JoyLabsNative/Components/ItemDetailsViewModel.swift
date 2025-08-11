@@ -338,25 +338,13 @@ class ItemDetailsViewModel: ObservableObject {
     
     // MARK: - Public Methods
     
-    // Prevent duplicate setup calls
-    @Published private var isSetupComplete = false
-    
     /// Setup the view model for a specific context
     func setupForContext(_ context: ItemDetailsContext) async {
-        // Prevent duplicate setup
-        guard !isSetupComplete else {
-            logger.info("Setup already completed for context, skipping")
-            return
-        }
-        
         // Store the context
         self.context = context
 
         isLoading = true
-        defer { 
-            isLoading = false
-            isSetupComplete = true
-        }
+        defer { isLoading = false }
         
         switch context {
         case .editExisting(let itemId):

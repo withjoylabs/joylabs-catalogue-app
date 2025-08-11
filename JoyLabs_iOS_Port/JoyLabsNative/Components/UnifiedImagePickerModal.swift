@@ -25,7 +25,6 @@ struct UnifiedImagePickerModal: View {
     @State private var isLoadingMorePhotos = false
 
     @StateObject private var imageService = SimpleImageService.shared
-    @Environment(\.dismiss) private var dismiss
 
     private let logger = Logger(subsystem: "com.joylabs.native", category: "UnifiedImagePickerModal")
 
@@ -110,13 +109,19 @@ struct UnifiedImagePickerModal: View {
             Text(uploadError ?? "Unknown error occurred")
         }
         .sheet(isPresented: $showingCamera) {
-            CameraView { image in
-                // Set the captured image in preview
-                selectedImage = image
-                // Close camera view
-                showingCamera = false
-                print("[UnifiedImagePickerModal] Camera photo set in preview, staying in modal for cropping")
-            }
+            CameraView(
+                onImageCaptured: { image in
+                    // Set the captured image in preview
+                    selectedImage = image
+                    // Close camera view
+                    showingCamera = false
+                    print("[UnifiedImagePickerModal] Camera photo set in preview, staying in modal for cropping")
+                },
+                onCancel: {
+                    // Close camera view
+                    showingCamera = false
+                }
+            )
             .nestedComponentModal()
         }
     }
@@ -679,7 +684,7 @@ struct PhotoThumbnailView: View {
 /// Camera View for taking photos
 struct CameraView: UIViewControllerRepresentable {
     let onImageCaptured: (UIImage) -> Void
-    @Environment(\.dismiss) private var dismiss
+    let onCancel: () -> Void
 
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
@@ -705,16 +710,16 @@ struct CameraView: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onImageCaptured: onImageCaptured, dismiss: dismiss)
+        Coordinator(onImageCaptured: onImageCaptured, onCancel: onCancel)
     }
 
     class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
         let onImageCaptured: (UIImage) -> Void
-        let dismiss: DismissAction
+        let onCancel: () -> Void
 
-        init(onImageCaptured: @escaping (UIImage) -> Void, dismiss: DismissAction) {
+        init(onImageCaptured: @escaping (UIImage) -> Void, onCancel: @escaping () -> Void) {
             self.onImageCaptured = onImageCaptured
-            self.dismiss = dismiss
+            self.onCancel = onCancel
         }
 
         func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
@@ -727,7 +732,7 @@ struct CameraView: UIViewControllerRepresentable {
 
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
             print("[CameraView] Camera cancelled")
-            dismiss()
+            onCancel()
         }
     }
 }

@@ -316,6 +316,9 @@ struct SwipeableScanResultCard: View {
                 }
             )
             .fullScreenModal()
+            .onAppear {
+                print("[SearchComponents] ItemDetailsModal appeared for item: \(result.id)")
+            }
         }
         .sheet(isPresented: $showingImagePicker) {
             UnifiedImagePickerModal(
