@@ -851,11 +851,29 @@ const notification = new apn.Notification({
 SimpleImageView.thumbnail(imageURL: url, size: 50)
 ```
 
+## HID Scanner Architecture (AppLevelHIDScanner)
+
+### Core Principles
+- **UIKeyCommand approach**: HID scanners work like game controllers - capture raw key events without TextField competition
+- **Zero keyboard issues**: No hidden TextFields, no virtual keyboards, no responder conflicts
+- **Context-aware**: Single app-level scanner serves both ScanView and ReordersView
+- **Smart focus detection**: Pauses when visible TextFields are focused to prevent interference
+- **Intelligent barcode detection**: Speed/pattern analysis distinguishes HID scans from manual keyboard input
+
+### Key Components
+- `AppLevelHIDScanner.swift` - Pure UIKeyCommand implementation
+- Context switching for different views (`.scanView`, `.reordersView`)
+- Speed-based detection (HID scanners type much faster than humans)
+- Pattern matching for barcode formats (numeric, alphanumeric)
+- Display scanned barcodes in headers, not text fields
+
 ## Code Philosophy
 - Always aim for professional, robust solution that properly handles asynchronous operations - exactly what any modern app would do!
 - Use factory pattern consistently to prevent duplicate service instances and race conditions
 - Implement proper error handling without silent fallbacks that mask real issues
-- Follow iOS best practices for background processing and push notifications## IMPORTANT LESSONS LEARNED
+- Follow iOS best practices for background processing and push notifications
+
+## IMPORTANT LESSONS LEARNED
 
 ### 1. STOP OVERENGINEERING
 - When something breaks after I add code, the problem is probably my code, not the existing system
