@@ -142,16 +142,19 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
 
                 await MainActor.run { [weak self] in
                     guard let self = self else { return }
+                    let syncEndTime = Date()
+                    let syncDuration = syncEndTime.timeIntervalSince(self.catalogSyncService.syncProgress.startTime)
+                    
                     let result = SyncResult(
                         syncType: .full,
-                        duration: 0, // TODO: Track actual duration
+                        duration: syncDuration,
                         totalProcessed: self.catalogSyncService.syncProgress.syncedObjects,
                         itemsProcessed: self.catalogSyncService.syncProgress.syncedItems,
                         inserted: self.catalogSyncService.syncProgress.syncedObjects,
                         updated: 0,
                         deleted: 0,
                         errors: [],
-                        timestamp: Date()
+                        timestamp: syncEndTime
                     )
 
                     self.lastSyncResult = result
@@ -235,16 +238,19 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
 
                 await MainActor.run { [weak self] in
                     guard let self = self else { return }
+                    let syncEndTime = Date()
+                    let syncDuration = syncEndTime.timeIntervalSince(self.catalogSyncService.syncProgress.startTime)
+                    
                     let result = SyncResult(
                         syncType: .incremental,
-                        duration: 0, // TODO: Track actual duration
+                        duration: syncDuration,
                         totalProcessed: self.catalogSyncService.syncProgress.syncedObjects,
                         itemsProcessed: self.catalogSyncService.syncProgress.syncedItems,
-                        inserted: 0, // TODO: Track actual inserts vs updates
+                        inserted: 0, // Keep as 0 - database uses upsert so can't distinguish easily
                         updated: self.catalogSyncService.syncProgress.syncedObjects,
                         deleted: 0,
                         errors: [],
-                        timestamp: Date()
+                        timestamp: syncEndTime
                     )
 
                     self.lastSyncResult = result

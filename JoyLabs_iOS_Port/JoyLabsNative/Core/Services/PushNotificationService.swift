@@ -242,16 +242,6 @@ extension PushNotificationService {
         }
     }
     
-    /// Create notification for catalog update (REMOVED - consolidating notifications)
-    private func createNotificationForCatalogUpdate(
-        eventId: String,
-        merchantId: String
-    ) async {
-        // REMOVED: This was creating duplicate notifications
-        // The final sync result notification is created in createInAppNotificationForWebhookSync
-        logger.debug("[PushNotification] Webhook received - sync will create final notification")
-    }
-    
     /// Trigger image cache refresh
     private func triggerImageCacheRefresh() async {
         NotificationCenter.default.post(
@@ -303,8 +293,9 @@ extension PushNotificationService {
             
             logger.info("[PushNotification] Webhook sync complete: \(itemsUpdated) items updated")
             
-            // Create in-app notification about sync results (always show in app notification center)
-            await createInAppNotificationForWebhookSync(itemsUpdated: itemsUpdated, eventId: eventId, isSilent: isSilent)
+            // Create in-app notification about sync results - use sync coordinator data instead of item count
+            let syncResult = syncCoordinator.lastSyncResult
+            await createInAppNotificationForWebhookSync(syncResult: syncResult, eventId: eventId, isSilent: isSilent)
             
             // Post notification to update UI with detailed sync results
             NotificationCenter.default.post(
@@ -337,20 +328,37 @@ extension PushNotificationService {
         }
     }
     
-    /// Creates an in-app notification about webhook sync results (always shows in app notification center)
-    private func createInAppNotificationForWebhookSync(itemsUpdated: Int, eventId: String, isSilent: Bool) async {
+    /// Creates an in-app notification about webhook sync results using actual sync data
+    private func createInAppNotificationForWebhookSync(syncResult: SyncResult?, eventId: String, isSilent: Bool) async {
         let title: String
         let message: String
         
-        if itemsUpdated == 0 {
-            title = "Catalog Sync"
-            message = "No changes found - catalog is up to date"
-        } else if itemsUpdated == 1 {
-            title = "Catalog Updated"
-            message = "1 item updated from Square"
+        if let result = syncResult {
+            let objectsProcessed = result.totalProcessed
+            let itemsProcessed = result.itemsProcessed
+            
+            if objectsProcessed == 0 {
+                title = "Catalog Sync"
+                message = "No changes found - catalog is up to date (webhook)"
+            } else if objectsProcessed == 1 {
+                title = "Catalog Updated"
+                if itemsProcessed == 1 {
+                    message = "1 item updated from Square (webhook)"
+                } else {
+                    message = "1 catalog object updated from Square (webhook)"
+                }
+            } else {
+                title = "Catalog Updated"
+                if itemsProcessed > 0 && itemsProcessed != objectsProcessed {
+                    message = "\(itemsProcessed) items updated, \(objectsProcessed) total objects (webhook)"
+                } else {
+                    message = "\(objectsProcessed) catalog objects updated from Square (webhook)"
+                }
+            }
         } else {
-            title = "Catalog Updated"  
-            message = "\(itemsUpdated) items updated from Square"
+            // Fallback if sync result is not available
+            title = "Catalog Sync"
+            message = "Sync completed but result data unavailable (webhook)"
         }
         
         // Always add to in-app notification center (regardless of silent/visible)

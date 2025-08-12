@@ -178,7 +178,9 @@ struct JoyLabsNativeApp: App {
             logger.info("[App] Phase 2: App launch incremental catch-up sync completed successfully - \(itemsUpdated) items updated")
             
             // Always create in-app notification about sync results (silent - no iOS notification banner)
-            await createInAppNotificationForSync(itemsUpdated: itemsUpdated, reason: "app launch")
+            // Use actual sync result data instead of flawed item count difference
+            let syncResult = syncCoordinator.lastSyncResult
+            await createInAppNotificationForSync(syncResult: syncResult, reason: "app launch")
             
             // Post notification to update UI with detailed sync results
             NotificationCenter.default.post(
@@ -228,17 +230,33 @@ struct JoyLabsNativeApp: App {
         }
     }
     
-    /// Creates a user-visible notification about sync results
-    private func createInAppNotificationForSync(itemsUpdated: Int, reason: String) async {
+    /// Creates a user-visible notification about sync results using actual sync data
+    private func createInAppNotificationForSync(syncResult: SyncResult?, reason: String) async {
         let title = "Catalog Synchronized"
         let message: String
         
-        if itemsUpdated == 0 {
-            message = "Catalog is up to date - no changes found on \(reason)"
-        } else if itemsUpdated == 1 {
-            message = "1 item synchronized on \(reason)"
+        if let result = syncResult {
+            let objectsProcessed = result.totalProcessed
+            let itemsProcessed = result.itemsProcessed
+            
+            if objectsProcessed == 0 {
+                message = "Catalog is up to date - no changes found on \(reason)"
+            } else if objectsProcessed == 1 {
+                if itemsProcessed == 1 {
+                    message = "1 item synchronized on \(reason)"
+                } else {
+                    message = "1 catalog object synchronized on \(reason)"
+                }
+            } else {
+                if itemsProcessed > 0 && itemsProcessed != objectsProcessed {
+                    message = "\(itemsProcessed) items synchronized, \(objectsProcessed) total objects on \(reason)"
+                } else {
+                    message = "\(objectsProcessed) catalog objects synchronized on \(reason)"
+                }
+            }
         } else {
-            message = "\(itemsUpdated) items synchronized on \(reason)"
+            // Fallback if sync result is not available
+            message = "Sync completed but result data unavailable on \(reason)"
         }
         
         // Always add to in-app notification center (silent - no iOS notification banner)
