@@ -67,22 +67,27 @@ public class PushNotificationService: NSObject, ObservableObject {
     /// Handle received push notification (both silent and visible)
     func handleNotification(_ userInfo: [AnyHashable: Any]) async {
         lastNotificationReceived = Date()
+        logger.info("[PushNotification] Webhook notification received at \(Date())")
         
         // Check if this is a silent notification (content-available: 1)
         let isSilentNotification = (userInfo["aps"] as? [String: Any])?["content-available"] as? Int == 1
         
-        logger.debug("[PushNotification] Processing \(isSilentNotification ? "silent" : "visible") notification")
+        logger.info("[PushNotification] Processing \(isSilentNotification ? "SILENT" : "VISIBLE") notification")
+        logger.debug("[PushNotification] Full notification payload: \(userInfo)")
         
         // Extract webhook data from notification (matches Square webhook format)
         guard let data = userInfo["data"] as? [String: Any],
               let type = data["type"] as? String,
               type == "catalog_updated" else {
-            logger.warning("⚠️ Received non-catalog push notification. Expected 'catalog_updated', got: \(userInfo)")
+            let receivedType = (userInfo["data"] as? [String: Any])?["type"] as? String ?? "unknown"
+            logger.warning("[PushNotification] Received non-catalog push notification. Expected 'catalog_updated', got type: \(receivedType)")
             
             // Log the full notification for debugging
-            logger.debug("[PushNotification] Full notification payload: \(userInfo)")
+            logger.debug("[PushNotification] Non-catalog notification payload: \(userInfo)")
             return
         }
+        
+        logger.info("[PushNotification] Confirmed catalog_updated webhook notification")
         
         let eventId = data["eventId"] as? String ?? "unknown"
         let merchantId = data["merchantId"] as? String ?? "unknown"
@@ -266,35 +271,57 @@ extension PushNotificationService {
             // RACE CONDITION FIX: Ensure database connection is established before accessing
             try databaseManager.connect()
             let itemCountBefore = try await databaseManager.getItemCount()
+            logger.debug("[PushNotification] Database item count before sync: \(itemCountBefore)")
             
             // Get the sync coordinator from the factory
             let syncCoordinator = SquareAPIServiceFactory.createSyncCoordinator()
+            logger.debug("[PushNotification] Sync coordinator obtained, current state: \(String(describing: syncCoordinator.syncState))")
+            
+            // Check if sync coordinator has previous results
+            if let previousResult = syncCoordinator.lastSyncResult {
+                logger.debug("[PushNotification] Previous sync result exists: \(previousResult.summary)")
+            } else {
+                logger.debug("[PushNotification] No previous sync result found")
+            }
             
             // Perform incremental sync to get latest catalog changes
+            logger.info("[PushNotification] Starting incremental sync...")
             await syncCoordinator.performIncrementalSync()
+            logger.info("[PushNotification] performIncrementalSync() completed")
             
             // Wait for sync to actually complete using Combine publisher
+            logger.debug("[PushNotification] Waiting for sync state to change from .syncing...")
             await withCheckedContinuation { continuation in
                 var cancellable: AnyCancellable?
                 cancellable = syncCoordinator.$syncState
                     .filter { $0 != .syncing }
                     .first()
-                    .sink { _ in
+                    .sink { state in
+                        self.logger.debug("[PushNotification] Sync state changed to: \(String(describing: state))")
                         cancellable?.cancel()
                         continuation.resume()
                     }
             }
+            logger.info("[PushNotification] Sync state completion detected")
             
             // Count items after sync to see what changed
             // Database connection should already be established, but ensure it's connected
             try databaseManager.connect()
             let itemCountAfter = try await databaseManager.getItemCount()
             let itemsUpdated = Int(abs(Int32(itemCountAfter - itemCountBefore)))
-            
-            logger.info("[PushNotification] Webhook sync complete: \(itemsUpdated) items updated")
+            logger.debug("[PushNotification] Database item count after sync: \(itemCountAfter)")
+            logger.info("[PushNotification] Item count difference: \(itemsUpdated) items")
             
             // Create in-app notification about sync results - use sync coordinator data instead of item count
             let syncResult = syncCoordinator.lastSyncResult
+            if let result = syncResult {
+                logger.info("[PushNotification] Sync result available: \(result.summary)")
+                logger.debug("[PushNotification] Sync result details - Objects: \(result.totalProcessed), Items: \(result.itemsProcessed), Duration: \(result.duration)s")
+            } else {
+                logger.warning("[PushNotification] No sync result available from coordinator!")
+            }
+            
+            logger.info("[PushNotification] Creating webhook notification...")
             await createInAppNotificationForWebhookSync(syncResult: syncResult, eventId: eventId, isSilent: isSilent)
             
             // Post notification to update UI with detailed sync results
@@ -330,16 +357,20 @@ extension PushNotificationService {
     
     /// Creates an in-app notification about webhook sync results using actual sync data
     private func createInAppNotificationForWebhookSync(syncResult: SyncResult?, eventId: String, isSilent: Bool) async {
+        logger.info("[PushNotification] Creating webhook notification for event \(eventId) (silent: \(isSilent))")
+        
         let title: String
         let message: String
         
         if let result = syncResult {
             let objectsProcessed = result.totalProcessed
             let itemsProcessed = result.itemsProcessed
+            logger.info("[PushNotification] Using sync result - Objects: \(objectsProcessed), Items: \(itemsProcessed)")
             
             if objectsProcessed == 0 {
                 title = "Catalog Sync"
                 message = "No changes found - catalog is up to date (webhook)"
+                logger.debug("[PushNotification] No changes notification created")
             } else if objectsProcessed == 1 {
                 title = "Catalog Updated"
                 if itemsProcessed == 1 {
@@ -347,6 +378,7 @@ extension PushNotificationService {
                 } else {
                     message = "1 catalog object updated from Square (webhook)"
                 }
+                logger.debug("[PushNotification] Single object update notification created")
             } else {
                 title = "Catalog Updated"
                 if itemsProcessed > 0 && itemsProcessed != objectsProcessed {
@@ -354,14 +386,19 @@ extension PushNotificationService {
                 } else {
                     message = "\(objectsProcessed) catalog objects updated from Square (webhook)"
                 }
+                logger.debug("[PushNotification] Multiple objects update notification created")
             }
         } else {
             // Fallback if sync result is not available
             title = "Catalog Sync"
             message = "Sync completed but result data unavailable (webhook)"
+            logger.warning("[PushNotification] Using fallback notification - no sync result available")
         }
         
+        logger.info("[PushNotification] Final notification: '\(title)' - '\(message)'")
+        
         // Always add to in-app notification center (regardless of silent/visible)
+        logger.debug("[PushNotification] Adding notification to WebhookNotificationService...")
         await MainActor.run {
             WebhookNotificationService.shared.addWebhookNotification(
                 title: title,
@@ -369,9 +406,10 @@ extension PushNotificationService {
                 type: .success,
                 eventType: "webhook.catalog.sync"
             )
+            self.logger.info("[PushNotification] Notification added to WebhookNotificationService")
         }
         
-        logger.info("[PushNotification] Webhook sync complete: \(message)")
+        logger.info("[PushNotification] Webhook sync notification complete: \(message)")
     }
     
     /// Get merchant ID from authentication

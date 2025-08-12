@@ -122,14 +122,19 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         didReceiveRemoteNotification userInfo: [AnyHashable: Any],
         fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
     ) {
-        logger.info("[AppDelegate] Received background push notification")
+        logger.info("[AppDelegate] Received background push notification at \(Date())")
+        logger.info("[AppDelegate] App state: \(application.applicationState.description)")
+        logger.info("[AppDelegate] Full notification payload: \(userInfo)")
         
         // Process the notification
         Task {
+            logger.info("[AppDelegate] Starting notification processing...")
             await PushNotificationService.shared.handleNotification(userInfo)
+            logger.info("[AppDelegate] Notification processing completed")
             
             // Call completion handler on main thread
             await MainActor.run {
+                logger.info("[AppDelegate] Calling completion handler with .newData")
                 completionHandler(.newData)
             }
         }
@@ -157,4 +162,20 @@ extension Notification.Name {
     static let applicationWillEnterForeground = Notification.Name("applicationWillEnterForeground")
     static let applicationDidBecomeActive = Notification.Name("applicationDidBecomeActive")
     static let applicationWillResignActive = Notification.Name("applicationWillResignActive")
+}
+
+// MARK: - UIApplication.State Extension
+extension UIApplication.State {
+    var description: String {
+        switch self {
+        case .active:
+            return "active"
+        case .inactive:
+            return "inactive"
+        case .background:
+            return "background"
+        @unknown default:
+            return "unknown"
+        }
+    }
 }

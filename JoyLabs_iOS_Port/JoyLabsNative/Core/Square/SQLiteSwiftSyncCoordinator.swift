@@ -252,17 +252,19 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
                         errors: [],
                         timestamp: syncEndTime
                     )
-
+                    
+                    self.logger.info("[SyncCoordinator] 🎯 Setting lastSyncResult: \(result.summary)")
                     self.lastSyncResult = result
                     self.saveLastSyncResult(result)
                     self.syncState = .idle
-                    self.logger.debug("[SyncCoordinator] Incremental sync completed: \(result.summary)")
+                    self.logger.info("[SyncCoordinator] ✅ Incremental sync completed and result saved")
                 }
 
             } catch {
                 await MainActor.run { [weak self] in
                     guard let self = self else { return }
-                    self.logger.error("[SyncCoordinator] Incremental sync failed: \(error)")
+                    self.logger.error("[SyncCoordinator] ❌ Incremental sync failed: \(error)")
+                    self.logger.warning("[SyncCoordinator] ⚠️ No lastSyncResult will be set due to sync failure")
                     self.error = error
                     self.syncState = .idle
                 }
