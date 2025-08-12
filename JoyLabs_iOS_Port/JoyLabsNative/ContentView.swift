@@ -69,17 +69,13 @@ struct ContentView: View {
                     .badge(reorderBadgeManager.unpurchasedCount > 0 ? "\(reorderBadgeManager.unpurchasedCount)" : nil)
                     .tag(1)
 
-                // Empty placeholder to create space for FAB - completely transparent and non-interactive
-                Rectangle()
-                    .fill(Color.clear)
-                    .allowsHitTesting(false) // Make completely non-interactive
+                // Create tab - triggers modal instead of navigation
+                Color.clear
                     .tabItem {
-                        Image(systemName: "")
-                            .opacity(0)
-                        Text("")
+                        Image(systemName: "plus.circle.fill")
+                        Text("Create")
                     }
                     .tag(2)
-                    .disabled(true) // Disable interaction entirely
 
                 LabelsView()
                     .environment(\.horizontalSizeClass, originalSizeClass)
@@ -99,37 +95,13 @@ struct ContentView: View {
             }
             .accentColor(.blue)
             .environment(\.horizontalSizeClass, .compact) // Force compact size class for TabView to show at bottom on iPad
-
-            // FAB positioned exactly at tab bar level
-            VStack {
-                Spacer()
-                HStack {
-                    Spacer()
-                    Spacer() // First tab
-                    Spacer() // Second tab
-                    
-                    // FAB button - same style as other tab icons
-                    Button(action: {
-                        showingItemDetails = true
-                    }) {
-                        VStack(spacing: 2) {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.system(size: 25, weight: .regular))
-                                .foregroundColor(.primary)
-                            Text("Create")
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundColor(.primary)
-                        }
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    
-                    Spacer() // Fourth tab
-                    Spacer() // Fifth tab
-                    Spacer()
+            .onChange(of: selectedTab) { oldValue, newValue in
+                if newValue == 2 { // Create tab tapped
+                    showingItemDetails = true
+                    // Immediately revert to previous tab to prevent showing blank page
+                    selectedTab = oldValue
                 }
-                .padding(.bottom, 2) // Match tab bar icon level exactly
             }
-            .ignoresSafeArea(.keyboard, edges: .all)
         }
         // CRITICAL: Sheet presentation OUTSIDE size class override - ensures iPad gets proper regular size class
         .sheet(isPresented: $showingItemDetails) {
