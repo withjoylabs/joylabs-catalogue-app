@@ -25,6 +25,7 @@
 		45740EBFB0E2D2CA4CCEC956 /* WebhookSignatureValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F37514B9AC1E1E45F886FEB /* WebhookSignatureValidator.swift */; };
 		4B74843754CDBD240D53D5FC /* ReorderStatisticsCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C929C41C8E9A90056B333C4 /* ReorderStatisticsCalculator.swift */; };
 		4E9DC0AFA4C7DF303C097202 /* ItemAvailabilitySection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75FC10AFED4E5423B76916D5 /* ItemAvailabilitySection.swift */; };
+		509D7C5335FB93F6B698E5D0 /* AppLevelHIDScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02A73B5385BF767E2F503CFD /* AppLevelHIDScanner.swift */; };
 		5475BE92BD8F51964C39D74A /* ReorderContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BD6FFEA84896CD48CE4E372 /* ReorderContentView.swift */; };
 		5C42100E0690BACD20C3D6F2 /* DuplicateDetectionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16B4FF1AB7482AE61C22D7F0 /* DuplicateDetectionService.swift */; };
 		5FB7F70AD13E95F7FDC8BD50 /* WebhookIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09BFF04263C6393A3C5DD86A /* WebhookIntegrationTests.swift */; };
@@ -111,6 +112,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		02A73B5385BF767E2F503CFD /* AppLevelHIDScanner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AppLevelHIDScanner.swift; path = Components/AppLevelHIDScanner.swift; sourceTree = "<group>"; };
 		08E54CBA0603F19D75E0455F /* ReorderItemsContent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderItemsContent.swift; path = JoyLabsNative/Views/Reorders/ReorderItemsContent.swift; sourceTree = "<group>"; };
 		099140CF4DCC3454A9EC9A5C /* ItemDetailsModal.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsModal.swift; path = Components/ItemDetailsModal.swift; sourceTree = "<group>"; };
 		09BFF04263C6393A3C5DD86A /* WebhookIntegrationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WebhookIntegrationTests.swift; path = Testing/WebhookIntegrationTests.swift; sourceTree = "<group>"; };
@@ -312,6 +314,7 @@
 				B03008BCC45D5E32B158F66F /* NotificationSettingsView.swift */,
 				F730ECB41F35B30ADCEEF069 /* SimpleImageView.swift */,
 				CE43F36BB6F6797E1742AD7C /* ItemDetailsStyles.swift */,
+				02A73B5385BF767E2F503CFD /* AppLevelHIDScanner.swift */,
 			);
 			name = Components;
 			sourceTree = "<group>";
@@ -713,6 +716,7 @@
 				905F0111BFADB010745559BD /* DeferredImageUploadManager.swift in Sources */,
 				62E17EEFBD0A30493327D374 /* ViewExtensions+ModalPresentation.swift in Sources */,
 				DC0BF75906B9902A9E9F25EE /* ItemDetailsStyles.swift in Sources */,
+				509D7C5335FB93F6B698E5D0 /* AppLevelHIDScanner.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -453,6 +453,9 @@ struct ItemDetailsCategorySingleSelectModal: View {
                     
                     TextField("Search categories", text: $searchText)
                         .font(.itemDetailsBody)
+                        .keyboardType(.numbersAndPunctuation)  // Block emoji keyboard access
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
                         .focused($isSearchFieldFocused)
                         .toolbar {
                             ToolbarItemGroup(placement: .keyboard) {
@@ -554,6 +557,9 @@ struct ItemDetailsCategoryMultiSelectModal: View {
                     
                     TextField("Search categories", text: $searchText)
                         .font(.itemDetailsBody)
+                        .keyboardType(.numbersAndPunctuation)  // Block emoji keyboard access
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
                         .focused($isSearchFieldFocused)
                         .toolbar {
                             ToolbarItemGroup(placement: .keyboard) {

@@ -50,179 +50,14 @@ class QuantityModalStateManager: ObservableObject {
     }
 }
 
-// MARK: - Global Barcode Receiving UIViewController
-class GlobalBarcodeReceivingViewController: UIViewController {
-    var onBarcodeScanned: ((String) -> Void)?
-
-    // Barcode accumulation
-    private var barcodeBuffer = ""
-    private var barcodeTimer: Timer?
-    private let barcodeTimeout: TimeInterval = 0.1 // 100ms timeout for barcode completion
-
-    override func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(animated)
-        // CRITICAL: Become first responder to receive global keyboard input
-        becomeFirstResponder()
-        print("🎯 Global barcode receiver became first responder")
-    }
-
-    override func viewWillDisappear(_ animated: Bool) {
-        super.viewWillDisappear(animated)
-        resignFirstResponder()
-        print("🎯 Global barcode receiver resigned first responder")
-    }
-
-    override var canBecomeFirstResponder: Bool {
-        return true
-    }
-
-    override var keyCommands: [UIKeyCommand]? {
-        var commands: [UIKeyCommand] = []
-
-        // Numbers 0-9 (most common in barcodes)
-        for i in 0...9 {
-            commands.append(UIKeyCommand(
-                input: "\(i)",
-                modifierFlags: [],
-                action: #selector(handleBarcodeCharacter(_:))
-            ))
-        }
-
-        // Letters A-Z (some barcodes include letters)
-        for char in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" {
-            commands.append(UIKeyCommand(
-                input: String(char),
-                modifierFlags: [],
-                action: #selector(handleBarcodeCharacter(_:))
-            ))
-        }
-
-        // Lowercase letters a-z
-        for char in "abcdefghijklmnopqrstuvwxyz" {
-            commands.append(UIKeyCommand(
-                input: String(char),
-                modifierFlags: [],
-                action: #selector(handleBarcodeCharacter(_:))
-            ))
-        }
-
-        // Special characters common in barcodes
-        let specialChars = ["-", "_", ".", " ", "/", "\\", "+", "=", "*", "%", "$", "#", "@", "!", "?"]
-        for char in specialChars {
-            commands.append(UIKeyCommand(
-                input: char,
-                modifierFlags: [],
-                action: #selector(handleBarcodeCharacter(_:))
-            ))
-        }
-
-        // Return key (end of barcode scan)
-        commands.append(UIKeyCommand(
-            input: "\r",
-            modifierFlags: [],
-            action: #selector(handleBarcodeComplete)
-        ))
-
-        // Enter key (alternative end of barcode)
-        commands.append(UIKeyCommand(
-            input: "\n",
-            modifierFlags: [],
-            action: #selector(handleBarcodeComplete)
-        ))
-
-        return commands
-    }
-
-    @objc private func handleBarcodeCharacter(_ command: UIKeyCommand) {
-        guard let input = command.input else { return }
-
-        // Add character to buffer
-        barcodeBuffer += input
-        // Reduced logging: only log first character to indicate scan started
-        if barcodeBuffer.count == 1 {
-            print("🔤 Global barcode scan started...")
-        }
-
-        // Reset completion timer
-        barcodeTimer?.invalidate()
-        barcodeTimer = Timer.scheduledTimer(withTimeInterval: barcodeTimeout, repeats: false) { [weak self] _ in
-            self?.completeBarcodeInput()
-        }
-    }
-
-    @objc private func handleBarcodeComplete() {
-        print("🔚 Global barcode complete signal received")
-        completeBarcodeInput()
-    }
-
-    private func completeBarcodeInput() {
-        guard !barcodeBuffer.isEmpty else { return }
-
-        let finalBarcode = barcodeBuffer.trimmingCharacters(in: .whitespacesAndNewlines)
-        print("✅ Global barcode completed: '\(finalBarcode)'")
-
-        // Clear buffer
-        barcodeBuffer = ""
-        barcodeTimer?.invalidate()
-
-        // Send to callback
-        DispatchQueue.main.async {
-            self.onBarcodeScanned?(finalBarcode)
-        }
-    }
-
-    // Enhanced key handling for better HID device support
-    override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-        for press in presses {
-            if let key = press.key {
-                let characters = key.characters
-                // Reduced logging: only log if this is fallback handling
-
-                // Handle any characters not caught by keyCommands
-                if !characters.isEmpty {
-                    // Check if this is likely from an external device
-                    if event?.allPresses.first?.gestureRecognizers?.isEmpty == true {
-                        // Add to buffer if not already handled by keyCommands
-                        if !barcodeBuffer.hasSuffix(characters) {
-                            if barcodeBuffer.isEmpty {
-                                print("🔌 External device fallback handling started...")
-                            }
-                            barcodeBuffer += characters
-
-                            // Reset completion timer
-                            barcodeTimer?.invalidate()
-                            barcodeTimer = Timer.scheduledTimer(withTimeInterval: barcodeTimeout, repeats: false) { [weak self] _ in
-                                self?.completeBarcodeInput()
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        super.pressesBegan(presses, with: event)
-    }
-}
-
-// MARK: - SwiftUI Wrapper for Global Barcode Receiver
-struct GlobalBarcodeReceiver: UIViewControllerRepresentable {
-    let onBarcodeScanned: (String) -> Void
-
-    func makeUIViewController(context: Context) -> GlobalBarcodeReceivingViewController {
-        let controller = GlobalBarcodeReceivingViewController()
-        controller.onBarcodeScanned = onBarcodeScanned
-        return controller
-    }
-
-    func updateUIViewController(_ uiViewController: GlobalBarcodeReceivingViewController, context: Context) {
-        uiViewController.onBarcodeScanned = onBarcodeScanned
-    }
-}
+// MARK: - Legacy scanner removed - now using SharedHIDScanner
 
 struct ReordersView: SwiftUI.View {
     @StateObject private var viewModel = ReorderViewModel()
     @StateObject private var barcodeManager = ReorderBarcodeScanningManager(searchManager: SearchManager(databaseManager: SquareAPIServiceFactory.createDatabaseManager()))
     @StateObject private var dataManager = ReorderDataManager()
     @StateObject private var notificationManager = ReorderNotificationManager()
+    // Remove focus monitor - using direct focus state instead
     
     @FocusState private var isScannerFieldFocused: Bool
 
@@ -257,11 +92,17 @@ struct ReordersView: SwiftUI.View {
                     onItemDetailsLongPress: viewModel.showItemDetails
                 )
 
-                // CRITICAL: Global barcode receiver (invisible, handles external keyboard input)
-                GlobalBarcodeReceiver { barcode in
-                    print("🌍 Global barcode received: '\(barcode)'")
-                    barcodeManager.handleGlobalBarcodeScanned(barcode)
-                }
+                // CRITICAL: App-level HID scanner using UIKeyCommand (no TextField, no keyboard issues)
+                AppLevelHIDScanner(
+                    onBarcodeScanned: { barcode, context in
+                        print("🌍 App-level HID scanner received barcode: '\(barcode)' in context: \(context)")
+                        if context == .reordersView {
+                            barcodeManager.handleGlobalBarcodeScanned(barcode)
+                        }
+                    },
+                    context: .reordersView,
+                    isTextFieldFocused: false  // No visible text fields in ReordersView
+                )
                 .frame(width: 0, height: 0)
                 .opacity(0)
                 .allowsHitTesting(false)
@@ -271,6 +112,7 @@ struct ReordersView: SwiftUI.View {
                 setupViewModels()
                 viewModel.loadReorderData()
             }
+            // No visible text fields to track in ReordersView
             .actionSheet(isPresented: $viewModel.showingExportOptions) {
                 ActionSheet(
                     title: Text("Export Reorders"),

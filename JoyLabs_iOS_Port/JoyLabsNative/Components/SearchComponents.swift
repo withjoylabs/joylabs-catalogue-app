@@ -47,13 +47,12 @@ struct SearchTextField: View {
                 .foregroundColor(Color.secondary)
 
             TextField("Search products, SKUs, barcodes...", text: $searchText)
+                .keyboardType(.numbersAndPunctuation)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-                .keyboardType(.default)
                 .focused($isSearchFieldFocused)
                 .submitLabel(.done)
                 .onSubmit {
-                    // Dismiss keyboard when Done is pressed
                     isSearchFieldFocused = false
                 }
 
@@ -496,12 +495,12 @@ struct SearchBarWithClear: View {
                 .foregroundColor(Color.secondary)
 
             TextField(placeholder, text: $searchText)
+                .keyboardType(.numbersAndPunctuation)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .focused($isSearchFieldFocused)
                 .submitLabel(.done)
                 .onSubmit {
-                    // Dismiss keyboard when Done is pressed
                     isSearchFieldFocused = false
                 }
             
