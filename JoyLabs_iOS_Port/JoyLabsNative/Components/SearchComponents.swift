@@ -164,26 +164,47 @@ struct SwipeableScanResultCard: View {
                         .onChanged { value in
                             isDragging = true
                             
-                            // Simple, smooth swipe with resistance
                             let translation = value.translation.width
-                            let resistance: CGFloat = 0.7
+                            let initialThreshold: CGFloat = 20  // Must drag at least 20px horizontally before gesture starts
+                            
+                            // Only start responding after initial threshold is met
+                            guard abs(translation) > initialThreshold else {
+                                return
+                            }
+                            
+                            // Apply resistance after initial threshold is overcome
+                            let adjustedTranslation = translation > 0 ? 
+                                translation - initialThreshold : 
+                                translation + initialThreshold
+                            let resistance: CGFloat = 0.5  // Moderate resistance after initiation
                             
                             if translation > 0 {
                                 // Swipe right - reveal print (max 100px)
-                                offset = min(translation * resistance, 100)
+                                offset = min(adjustedTranslation * resistance, 100)
                             } else {
                                 // Swipe left - reveal add to reorder (max 100px)
-                                offset = max(translation * resistance, -100)
+                                offset = max(adjustedTranslation * resistance, -100)
                             }
                         }
                         .onEnded { value in
                             isDragging = false
                             
                             let translation = value.translation.width
-                            let velocity = value.velocity.width
+                            let initialThreshold: CGFloat = 20
                             
-                            // Simple threshold-based completion
-                            if abs(translation) > 60 || abs(velocity) > 500 {
+                            // Only consider action if we've overcome the initial threshold
+                            guard abs(translation) > initialThreshold else {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                    offset = 0
+                                }
+                                return
+                            }
+                            
+                            // Use adjusted translation (minus initial threshold) for action completion
+                            let adjustedTranslation = abs(translation) - initialThreshold
+                            
+                            // Higher thresholds to require very intentional gestures (150px beyond initial threshold)
+                            if adjustedTranslation > 150 {
                                 if translation > 0 {
                                     // Complete print action
                                     onPrint()
