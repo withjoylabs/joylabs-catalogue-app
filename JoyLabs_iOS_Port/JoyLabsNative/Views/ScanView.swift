@@ -40,13 +40,15 @@ struct ScanView: View {
                 // Main content area
                 if !searchManager.isDatabaseReady {
                     DatabaseInitializingView()
-                } else if searchText.isEmpty {
+                } else if searchText.isEmpty && searchManager.searchResults.isEmpty {
                     EmptySearchState()
-                } else {
+                } else if !searchManager.searchResults.isEmpty {
                     SearchResultsView(
                         searchManager: searchManager,
                         scannedBarcode: lastScannedBarcode
                     )
+                } else {
+                    EmptySearchState()
                 }
 
                 Spacer()
@@ -124,8 +126,10 @@ struct ScanView: View {
 
             // Clear search results immediately when text is cleared
             if newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                searchManager.clearSearch()
-                lastScannedBarcode = ""  // Also clear scanned barcode
+                // Don't clear search if we have HID scan results
+                if lastScannedBarcode.isEmpty {
+                    searchManager.clearSearch()
+                }
                 return
             }
 
@@ -152,7 +156,7 @@ struct ScanView: View {
         // Store the scanned barcode for display
         lastScannedBarcode = barcode
         
-        // Clear manual search text since this is a HID scan
+        // Clear manual search text to keep search bar clean
         searchText = ""
         
         // Perform direct search (don't populate text field)
