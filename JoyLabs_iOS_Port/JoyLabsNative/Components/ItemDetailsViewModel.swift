@@ -80,12 +80,11 @@ struct ItemDetailsData {
     var availabilityEndDate: Date? = nil
 
     // Location settings
-    var enabledAtAllLocations: Bool = true
+    var presentAtAllLocations: Bool = true  // Square API field for location availability
     var enabledLocationIds: [String] = []
 
     // Metadata
     var isDeleted: Bool = false
-    var presentAtAllLocations: Bool = true
     var updatedAt: String?
     var createdAt: String?
 
@@ -100,7 +99,7 @@ struct ItemDetailsData {
                self.productType == other.productType &&
                self.reportingCategoryId == other.reportingCategoryId &&
                self.categoryIds == other.categoryIds &&
-               self.enabledAtAllLocations == other.enabledAtAllLocations &&
+               self.presentAtAllLocations == other.presentAtAllLocations &&
                self.variations.count == other.variations.count &&
                zip(self.variations, other.variations).allSatisfy { $0.isEqual(to: $1) }
     }
@@ -744,6 +743,7 @@ class ItemDetailsViewModel: ObservableObject {
         itemData.skipModifierScreen = config.pricingFields.defaultSkipModifierScreen
         itemData.isTaxable = config.pricingFields.defaultIsTaxable
         itemData.isAlcoholic = config.classificationFields.defaultIsAlcoholic
+        itemData.presentAtAllLocations = config.basicFields.defaultPresentAtAllLocations
 
         // Create variation with configurable default name
         var variation = ItemDetailsVariationData()

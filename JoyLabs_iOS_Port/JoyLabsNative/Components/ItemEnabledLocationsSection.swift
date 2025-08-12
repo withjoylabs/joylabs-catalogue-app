@@ -11,10 +11,10 @@ struct ItemEnabledLocationsSection: View {
                     // All Locations Toggle
                     ItemDetailsFieldRow {
                         ItemDetailsToggleRow(
-                            title: "Enable at All Locations",
-                            isOn: $viewModel.itemData.enabledAtAllLocations
+                            title: "Present at All Locations",
+                            isOn: $viewModel.itemData.presentAtAllLocations
                         )
-                        .onChange(of: viewModel.itemData.enabledAtAllLocations) { _, newValue in
+                        .onChange(of: viewModel.itemData.presentAtAllLocations) { _, newValue in
                             if newValue {
                                 // If enabling at all locations, select all
                                 viewModel.itemData.enabledLocationIds = viewModel.availableLocations.map { $0.id }
@@ -22,7 +22,7 @@ struct ItemEnabledLocationsSection: View {
                         }
                     }
 
-                    if !viewModel.itemData.enabledAtAllLocations {
+                    if !viewModel.itemData.presentAtAllLocations {
                         ItemDetailsFieldSeparator()
 
                         // Individual Location Selection
@@ -69,8 +69,8 @@ struct ItemEnabledLocationsSection: View {
                                     .foregroundColor(.itemDetailsSuccess)
                                     .font(.itemDetailsBody.weight(.medium))
                                 
-                                if viewModel.itemData.enabledAtAllLocations {
-                                    Text("Enabled at all locations")
+                                if viewModel.itemData.presentAtAllLocations {
+                                    Text("Present at all locations")
                                         .font(.itemDetailsCaption)
                                         .foregroundColor(.itemDetailsSecondaryText)
                                 } else {

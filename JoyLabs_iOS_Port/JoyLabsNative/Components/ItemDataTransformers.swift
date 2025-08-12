@@ -143,7 +143,7 @@ class ItemDataTransformers {
             description: itemDetails.description.isEmpty ? nil : itemDetails.description,
             categoryId: itemDetails.reportingCategoryId, // Legacy field for backward compatibility
             taxIds: itemDetails.taxIds.isEmpty ? nil : itemDetails.taxIds,
-            variations: transformVariationsToAPI(itemDetails.variations, itemId: itemId),
+            variations: transformVariationsToAPI(itemDetails.variations, itemId: itemId, presentAtAllLocations: itemDetails.presentAtAllLocations),
             productType: transformProductTypeToAPI(itemDetails.productType),
             skipModifierScreen: itemDetails.skipModifierScreen,
             itemOptions: nil, // TODO: Implement item options transformation
@@ -203,7 +203,7 @@ class ItemDataTransformers {
             description: itemDetails.description.isEmpty ? nil : itemDetails.description,
             categoryId: itemDetails.reportingCategoryId,
             taxIds: itemDetails.taxIds.isEmpty ? nil : itemDetails.taxIds,
-            variations: transformVariationsToAPI(itemDetails.variations, itemId: itemDetails.id ?? "#\(UUID().uuidString)"),
+            variations: transformVariationsToAPI(itemDetails.variations, itemId: itemDetails.id ?? "#\(UUID().uuidString)", presentAtAllLocations: itemDetails.presentAtAllLocations),
             productType: transformProductTypeToAPI(itemDetails.productType),
             skipModifierScreen: itemDetails.skipModifierScreen,
             itemOptions: nil,
@@ -293,7 +293,7 @@ class ItemDataTransformers {
         return categoryIds.map { CategoryReference(id: $0, ordinal: nil) }
     }
 
-    private static func transformVariationsToAPI(_ variations: [ItemDetailsVariationData], itemId: String) -> [ItemVariation]? {
+    private static func transformVariationsToAPI(_ variations: [ItemDetailsVariationData], itemId: String, presentAtAllLocations: Bool) -> [ItemVariation]? {
         guard !variations.isEmpty else { return nil }
 
         // Filter out completely empty variations
@@ -307,7 +307,7 @@ class ItemDataTransformers {
                 updatedAt: nil,
                 version: variation.version, // Preserve existing version for updates, nil for new variations
                 isDeleted: false,
-                presentAtAllLocations: true,
+                presentAtAllLocations: presentAtAllLocations, // Inherit from parent item
                 itemVariationData: ItemVariationData(
                     itemId: itemId, // Reference parent item ID (with # for new items)
                     name: variation.name?.isEmpty == false ? variation.name : nil,

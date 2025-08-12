@@ -355,7 +355,7 @@ class SquareCRUDService: ObservableObject {
                         updatedAt: createdObject.updatedAt,
                         version: createdObject.version,
                         isDeleted: variation.isDeleted,
-                        presentAtAllLocations: variation.presentAtAllLocations,
+                        presentAtAllLocations: createdObject.presentAtAllLocations, // Inherit from parent item
                         itemData: nil,
                         categoryData: nil,
                         itemVariationData: variation.itemVariationData,
@@ -408,7 +408,7 @@ class SquareCRUDService: ObservableObject {
                         updatedAt: updatedObject.updatedAt,
                         version: updatedObject.version,
                         isDeleted: variation.isDeleted,
-                        presentAtAllLocations: variation.presentAtAllLocations,
+                        presentAtAllLocations: updatedObject.presentAtAllLocations, // Inherit from parent item
                         itemData: nil,
                         categoryData: nil,
                         itemVariationData: variation.itemVariationData,
