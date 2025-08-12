@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		0C6000FC83DF6D91C933D873 /* SimpleImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F730ECB41F35B30ADCEEF069 /* SimpleImageView.swift */; };
+		0E704C1995A3979C5ED2AE88 /* FuzzySearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = D011F99665AC02112E587409 /* FuzzySearch.swift */; };
 		135161F2D6150929CEF0A9D1 /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B03008BCC45D5E32B158F66F /* NotificationSettingsView.swift */; };
 		140CE30F96C5476776E42C34 /* UnifiedImagePickerModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CC3C5DBAC897BD5BAD446F8 /* UnifiedImagePickerModal.swift */; };
 		1569B20890AD45422D438BC1 /* FieldVisibilityModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF8BABE731647487EFC23A76 /* FieldVisibilityModifier.swift */; };
@@ -201,6 +202,7 @@
 		BF8BABE731647487EFC23A76 /* FieldVisibilityModifier.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FieldVisibilityModifier.swift; path = Components/FieldVisibilityModifier.swift; sourceTree = "<group>"; };
 		CC109DD4E71A09E72CF6F0D3 /* ReorderHeaderSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderHeaderSection.swift; path = JoyLabsNative/Views/Reorders/ReorderHeaderSection.swift; sourceTree = "<group>"; };
 		CE43F36BB6F6797E1742AD7C /* ItemDetailsStyles.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsStyles.swift; path = Components/ItemDetailsStyles.swift; sourceTree = "<group>"; };
+		D011F99665AC02112E587409 /* FuzzySearch.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FuzzySearch.swift; path = Core/Search/FuzzySearch.swift; sourceTree = "<group>"; };
 		D583607765D3CA494A3F396E /* ItemDetailsViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsViewModel.swift; path = Components/ItemDetailsViewModel.swift; sourceTree = "<group>"; };
 		D71532DF527344EFA478B1B3 /* FieldConfigurationManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FieldConfigurationManager.swift; path = Components/FieldConfigurationManager.swift; sourceTree = "<group>"; };
 		D7606A3222698687642B402D /* LabelLivePrintService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LabelLivePrintService.swift; path = Core/Services/LabelLivePrintService.swift; sourceTree = "<group>"; };
@@ -282,6 +284,14 @@
 				1C929C41C8E9A90056B333C4 /* ReorderStatisticsCalculator.swift */,
 			);
 			name = Utils;
+			sourceTree = "<group>";
+		};
+		43FD6C830C31A54BB2A3E6CC /* Search */ = {
+			isa = PBXGroup;
+			children = (
+				D011F99665AC02112E587409 /* FuzzySearch.swift */,
+			);
+			name = Search;
 			sourceTree = "<group>";
 		};
 		4D8B30827E46D710BD0E75EE /* Components */ = {
@@ -494,6 +504,7 @@
 				556D91C6086532B7F7FFD0B8 /* Square */,
 				13B11C36BFD1E2EFD506D8BE /* Notifications */,
 				A32330C34ABEC2315839317A /* Images */,
+				43FD6C830C31A54BB2A3E6CC /* Search */,
 			);
 			name = Core;
 			sourceTree = "<group>";
@@ -717,6 +728,7 @@
 				62E17EEFBD0A30493327D374 /* ViewExtensions+ModalPresentation.swift in Sources */,
 				DC0BF75906B9902A9E9F25EE /* ItemDetailsStyles.swift in Sources */,
 				509D7C5335FB93F6B698E5D0 /* AppLevelHIDScanner.swift in Sources */,
+				0E704C1995A3979C5ED2AE88 /* FuzzySearch.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

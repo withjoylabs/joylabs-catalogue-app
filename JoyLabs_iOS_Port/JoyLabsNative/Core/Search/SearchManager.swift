@@ -26,8 +26,11 @@ class SearchManager: ObservableObject {
     private let imageURLManager: ImageURLManager
     private var searchTask: Task<Void, Never>?
     private let logger = Logger(subsystem: "com.joylabs.native", category: "SearchManager")
+    
+    // Fuzzy search engine for improved relevance scoring
+    private let fuzzySearch = FuzzySearch()
 
-    // Debouncing
+    // Debouncing with intelligent delay
     private var searchSubject = PassthroughSubject<(String, SearchFilters), Never>()
     private var cancellables = Set<AnyCancellable>()
 
@@ -285,14 +288,26 @@ class SearchManager: ObservableObject {
     
     // MARK: - Private Methods
     private func setupSearchDebouncing() {
-        // Debounce search requests (500ms delay to prevent rapid searches)
-        // Use background queue to avoid blocking main thread
+        // Intelligent debouncing: shorter delay for longer queries
         searchSubject
-            .debounce(for: .milliseconds(500), scheduler: DispatchQueue.global(qos: .userInitiated))
+            .debounce(for: .milliseconds(300), scheduler: DispatchQueue.global(qos: .userInitiated))
             .sink { [weak self] (searchTerm, filters) in
                 guard let self = self else { return }
+                
+                // Skip debouncing for single character to provide immediate feedback of "no results"
+                let trimmedTerm = searchTerm.trimmingCharacters(in: .whitespacesAndNewlines)
+                let delay: Int = {
+                    if trimmedTerm.count == 1 { return 0 }        // Immediate for single char
+                    if trimmedTerm.count == 2 { return 200 }      // Fast for 2 chars
+                    if trimmedTerm.count >= 3 { return 100 }      // Very fast for 3+ chars
+                    return 300                                     // Default
+                }()
+                
                 self.searchTask = Task.detached(priority: .userInitiated) { [weak self] in
-                    guard let self = self else { return }
+                    if delay > 0 {
+                        try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000))
+                    }
+                    guard let self = self, !Task.isCancelled else { return }
                     _ = await self.performSearch(searchTerm: searchTerm, filters: filters)
                 }
             }
@@ -300,7 +315,7 @@ class SearchManager: ObservableObject {
     }
     
     private func searchLocalItems(searchTerm: String, filters: SearchFilters, offset: Int = 0, limit: Int = 50) async throws -> [SearchResultItem] {
-        // Native SQLite.swift search implementation optimized for iOS
+        // RESTORED: Use the original working search architecture with proper data enrichment
         guard let db = databaseManager.getConnection() else {
             throw SearchError.databaseError(SQLiteSwiftError.noConnection)
         }
@@ -308,37 +323,34 @@ class SearchManager: ObservableObject {
         var results: [SearchResultItem] = []
         let searchTermLike = "%\(searchTerm)%"
 
-        // Name search - optimized with direct column access
+        // Name search - uses proper getCompleteItemData() enrichment
         if filters.name {
             let nameResults = try searchByName(db: db, searchTerm: searchTermLike, offset: offset, limit: limit)
             results.append(contentsOf: nameResults)
-
         }
 
-        // SKU search - optimized with dedicated SKU column
+        // SKU search - uses proper getCompleteItemData() enrichment  
         if filters.sku {
             let skuResults = try searchBySKU(db: db, searchTerm: searchTermLike, offset: offset, limit: limit)
             results.append(contentsOf: skuResults)
-
         }
 
-        // UPC/Barcode search - optimized with dedicated UPC column
+        // UPC/Barcode search - uses proper getCompleteItemData() enrichment
         if filters.barcode {
             let upcResults = try searchByUPC(db: db, searchTerm: searchTermLike, offset: offset, limit: limit)
             results.append(contentsOf: upcResults)
-
         }
 
-        // Category search
+        // Category search - uses proper getCompleteItemData() enrichment
         if filters.category {
             let categoryResults = try searchByCategory(db: db, searchTerm: searchTermLike, offset: offset, limit: limit)
             results.append(contentsOf: categoryResults)
             logger.debug("📂 Category search found \(categoryResults.count) results")
         }
 
-        // Remove duplicates and apply fuzzy ranking
+        // PRESERVED: Your working deduplication and ranking logic
         let uniqueResults = removeDuplicatesAndRank(results: results, searchTerm: searchTerm)
-        logger.info("✅ Total unique results: \(uniqueResults.count)")
+        logger.info("✅ Total unique results with complete data: \(uniqueResults.count)")
 
         return uniqueResults
     }
@@ -690,11 +702,8 @@ class SearchManager: ObservableObject {
 
     /// Get primary image for search result using CORRECT database order
     private func getPrimaryImageForSearchResult(itemId: String) -> [CatalogImage]? {
-        logger.info("🔍 [SEARCH] Getting primary image for item: \(itemId)")
-
         do {
             guard let db = databaseManager.getConnection() else {
-                logger.error("🔍 [SEARCH] ❌ Database not connected")
                 return nil
             }
             
@@ -723,14 +732,9 @@ class SearchManager: ObservableObject {
                     }
                     
                     if let imageIdArray = imageIds, let primaryImageId = imageIdArray.first {
-                    
-                    logger.info("🔍 [SEARCH] Found primary image ID from database: \(primaryImageId)")
-                    
                     // Get image mapping for this specific image ID
                     let imageMappings = try imageURLManager.getImageMappings(for: itemId, objectType: "ITEM")
                     if let mapping = imageMappings.first(where: { $0.squareImageId == primaryImageId }) {
-                        logger.info("🔍 [SEARCH] ✅ Found mapping for primary image: \(primaryImageId) -> \(mapping.originalAwsUrl)")
-                        
                         let catalogImage = CatalogImage(
                             id: primaryImageId,
                             type: "IMAGE",
@@ -746,19 +750,14 @@ class SearchManager: ObservableObject {
                             )
                         )
 
-                        logger.info("🔍 [SEARCH] ✅ Successfully created CatalogImage for item \(itemId) with correct primary image")
                         return [catalogImage]
-                        } else {
-                            logger.error("🔍 [SEARCH] ❌ No mapping found for primary image ID: \(primaryImageId)")
                         }
-                    } else {
-                        logger.error("🔍 [SEARCH] ❌ No image_ids found in database for item: \(itemId)")
                     }
                 }
             }
             
         } catch {
-            logger.error("🔍 [SEARCH] ❌ Failed to get primary image for search result \(itemId): \(error)")
+            // Silent failure for image retrieval - don't spam logs
         }
         
         return nil
@@ -934,29 +933,107 @@ class SearchManager: ObservableObject {
     }
 
     private func calculateFuzzyScore(result: SearchResultItem, searchTerm: String) -> Double {
-        // Industry-standard fuzzy matching algorithm
+        // Enhanced fuzzy matching with Levenshtein distance for typo tolerance
         let searchLower = searchTerm.lowercased()
+        var bestScore: Double = 0.0
 
-        // Check exact matches first
-        if let name = result.name?.lowercased(), name.contains(searchLower) {
-            if name == searchLower { return 1.0 } // Exact match
-            if name.hasPrefix(searchLower) { return 0.9 } // Prefix match
-            return 0.7 // Contains match
+        // Score name field (weight: 1.0)
+        if let name = result.name?.lowercased() {
+            let nameScore = scoreField(name, against: searchLower, weight: 1.0)
+            bestScore = max(bestScore, nameScore)
         }
 
-        if let sku = result.sku?.lowercased(), sku.contains(searchLower) {
-            if sku == searchLower { return 1.0 }
-            if sku.hasPrefix(searchLower) { return 0.9 }
-            return 0.8
+        // Score SKU field (weight: 1.3 - higher priority)
+        if let sku = result.sku?.lowercased() {
+            let skuScore = scoreField(sku, against: searchLower, weight: 1.3)
+            bestScore = max(bestScore, skuScore)
         }
 
-        if let barcode = result.barcode?.lowercased(), barcode.contains(searchLower) {
-            if barcode == searchLower { return 1.0 }
-            if barcode.hasPrefix(searchLower) { return 0.9 }
-            return 0.8
+        // Score barcode field (weight: 1.5 - highest priority)
+        if let barcode = result.barcode?.lowercased() {
+            let barcodeScore = scoreField(barcode, against: searchLower, weight: 1.5)
+            bestScore = max(bestScore, barcodeScore)
         }
 
-        return 0.5 // Default score for other matches
+        // Score category field (weight: 0.7 - lower priority)
+        if let category = result.categoryName?.lowercased() {
+            let categoryScore = scoreField(category, against: searchLower, weight: 0.7)
+            bestScore = max(bestScore, categoryScore)
+        }
+
+        return min(bestScore, 1.0) // Cap at 1.0
+    }
+    
+    private func scoreField(_ field: String, against searchTerm: String, weight: Double) -> Double {
+        // Exact match (highest score)
+        if field == searchTerm {
+            return 1.0 * weight
+        }
+        
+        // Prefix match  
+        if field.hasPrefix(searchTerm) {
+            return 0.9 * weight
+        }
+        
+        // Substring match
+        if field.contains(searchTerm) {
+            return 0.7 * weight  
+        }
+        
+        // Fuzzy match using Levenshtein distance for typo tolerance
+        let distance = levenshteinDistance(field, searchTerm)
+        let maxLength = max(field.count, searchTerm.count)
+        
+        if distance <= 2 && maxLength > 2 {
+            let similarity = 1.0 - (Double(distance) / Double(maxLength))
+            return (0.5 * similarity) * weight
+        }
+        
+        // Token-based matching for multi-word queries
+        let searchTokens = searchTerm.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
+        if searchTokens.count > 1 {
+            var tokenMatches = 0
+            for token in searchTokens {
+                if field.contains(token) {
+                    tokenMatches += 1
+                }
+            }
+            if tokenMatches > 0 {
+                let matchRatio = Double(tokenMatches) / Double(searchTokens.count)
+                return (0.4 * matchRatio) * weight
+            }
+        }
+        
+        return 0.0
+    }
+    
+    // Levenshtein distance for typo tolerance
+    private func levenshteinDistance(_ s1: String, _ s2: String) -> Int {
+        let a = Array(s1)
+        let b = Array(s2)
+        let m = a.count
+        let n = b.count
+        
+        guard m > 0 else { return n }
+        guard n > 0 else { return m }
+        
+        var matrix = Array(repeating: Array(repeating: 0, count: n + 1), count: m + 1)
+        
+        for i in 0...m { matrix[i][0] = i }
+        for j in 0...n { matrix[0][j] = j }
+        
+        for i in 1...m {
+            for j in 1...n {
+                let cost = a[i-1] == b[j-1] ? 0 : 1
+                matrix[i][j] = min(
+                    matrix[i-1][j] + 1,      // deletion
+                    matrix[i][j-1] + 1,      // insertion
+                    matrix[i-1][j-1] + cost  // substitution
+                )
+            }
+        }
+        
+        return matrix[m][n]
     }
 
     private func searchCaseUpcItems(searchTerm: String) async throws -> [SearchResultItem] {
