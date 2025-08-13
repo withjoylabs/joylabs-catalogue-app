@@ -62,28 +62,6 @@ struct ItemDetailsBasicSection: View {
                             )
                         }
                     }
-
-                    // Product Type (configurable)
-                    if configManager.isFieldEnabled(.classificationCategory) {
-                        ItemDetailsFieldSeparator()
-                        
-                        ItemDetailsFieldRow {
-                            VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
-                                ItemDetailsFieldLabel(title: "Product Type", helpText: "Choose the type of product")
-                                
-                                Picker("Product Type", selection: Binding(
-                                    get: { viewModel.itemData.productType },
-                                    set: { viewModel.itemData.productType = $0 }
-                                )) {
-                                    ForEach(ProductType.allCases, id: \.self) { type in
-                                        Text(type.displayName)
-                                            .tag(type)
-                                    }
-                                }
-                                .pickerStyle(SegmentedPickerStyle())
-                            }
-                        }
-                    }
                 }
             }
         }

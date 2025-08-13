@@ -105,6 +105,8 @@ struct CatalogObject: Codable {
     let version: Int64?     // Make optional since it might be missing
     let isDeleted: Bool?    // Make optional with default
     let presentAtAllLocations: Bool?
+    let presentAtLocationIds: [String]?
+    let absentAtLocationIds: [String]?
     let itemData: ItemData?
     let categoryData: CategoryData?
     let itemVariationData: ItemVariationData?
@@ -126,6 +128,29 @@ struct CatalogObject: Codable {
     var safeIsDeleted: Bool {
         return isDeleted ?? false
     }
+    
+    /// Calculate if this catalog object is available at a specific location
+    /// Based on Square's location availability logic
+    func isAvailableAtLocation(_ locationId: String) -> Bool {
+        if presentAtAllLocations == true {
+            // Available everywhere except explicitly excluded locations
+            return !(absentAtLocationIds?.contains(locationId) ?? false)
+        } else {
+            // Only available at explicitly included locations
+            return presentAtLocationIds?.contains(locationId) ?? false
+        }
+    }
+    
+    /// Check if item is truly available at ALL current and future locations
+    /// (Square Dashboard "Present at all locations" + "Available at future locations" both checked)
+    var isAvailableEverywhereIncludingFuture: Bool {
+        return presentAtAllLocations == true && (absentAtLocationIds?.isEmpty ?? true)
+    }
+    
+    /// Check if item is available at future locations (Square's "Available at future locations" toggle)
+    var isAvailableAtFutureLocations: Bool {
+        return presentAtAllLocations == true
+    }
 
     enum CodingKeys: String, CodingKey {
         case id, type
@@ -133,6 +158,8 @@ struct CatalogObject: Codable {
         case version
         case isDeleted = "is_deleted"
         case presentAtAllLocations = "present_at_all_locations"
+        case presentAtLocationIds = "present_at_location_ids"
+        case absentAtLocationIds = "absent_at_location_ids"
         case itemData = "item_data"
         case categoryData = "category_data"
         case itemVariationData = "item_variation_data"
@@ -228,6 +255,8 @@ struct ItemVariation: Codable {
     let version: Int64?
     let isDeleted: Bool?
     let presentAtAllLocations: Bool?
+    let presentAtLocationIds: [String]?
+    let absentAtLocationIds: [String]?
     let itemVariationData: ItemVariationData?
     
     // Provide default value for missing version field
@@ -240,6 +269,8 @@ struct ItemVariation: Codable {
         case updatedAt = "updated_at"
         case isDeleted = "is_deleted"
         case presentAtAllLocations = "present_at_all_locations"
+        case presentAtLocationIds = "present_at_location_ids"
+        case absentAtLocationIds = "absent_at_location_ids"
         case itemVariationData = "item_variation_data"
     }
 }

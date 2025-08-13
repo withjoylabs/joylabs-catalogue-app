@@ -152,6 +152,8 @@ class SquareCRUDService: ObservableObject {
                 version: currentVersion, // Use current version from Square API
                 isDeleted: catalogObject.isDeleted,
                 presentAtAllLocations: catalogObject.presentAtAllLocations,
+                presentAtLocationIds: catalogObject.presentAtLocationIds,
+                absentAtLocationIds: catalogObject.absentAtLocationIds,
                 itemData: updateItemDataWithCurrentVersions(catalogObject.itemData, currentItem: currentObject),
                 categoryData: catalogObject.categoryData,
                 itemVariationData: catalogObject.itemVariationData,
@@ -338,9 +340,9 @@ class SquareCRUDService: ObservableObject {
 
         // WEBHOOK COMPATIBILITY: Ensure timestamps match Square's webhook system
         // This prevents conflicts when webhooks arrive for the same object
-        try await Task.detached { [self] in
+        Task.detached { [self] in
             // Insert the main item object
-            try await self.databaseManager.insertCatalogObject(createdObject)
+            try? await self.databaseManager.insertCatalogObject(createdObject)
 
             // CRITICAL: Process variations separately for scalability
             // Square returns variations as part of the item, but we need to store them separately
@@ -356,6 +358,8 @@ class SquareCRUDService: ObservableObject {
                         version: createdObject.version,
                         isDeleted: variation.isDeleted,
                         presentAtAllLocations: createdObject.presentAtAllLocations, // Inherit from parent item
+                        presentAtLocationIds: createdObject.presentAtLocationIds, // Inherit from parent item
+                        absentAtLocationIds: createdObject.absentAtLocationIds, // Inherit from parent item
                         itemData: nil,
                         categoryData: nil,
                         itemVariationData: variation.itemVariationData,
@@ -366,11 +370,11 @@ class SquareCRUDService: ObservableObject {
                         imageData: nil
                     )
 
-                    try await self.databaseManager.insertCatalogObject(variationObject)
+                    try? await self.databaseManager.insertCatalogObject(variationObject)
                     logger.debug("Inserted variation: \(variation.id ?? "nil") for item \(createdObject.id)")
                 }
             }
-        }.value
+        }
 
         logger.debug("✅ Local database updated after create with exact Square timestamps (webhook-compatible)")
     }
@@ -392,9 +396,9 @@ class SquareCRUDService: ObservableObject {
 
         // WEBHOOK COMPATIBILITY: These exact timestamps will match webhook notifications
         // This ensures no conflicts when catalog.version.updated webhooks arrive
-        try await Task.detached { [self] in
+        Task.detached { [self] in
             // Use upsert to handle both insert and update cases
-            try await self.databaseManager.insertCatalogObject(updatedObject)
+            try? await self.databaseManager.insertCatalogObject(updatedObject)
 
             // CRITICAL: Process variations separately for scalability (same as create)
             if let itemData = updatedObject.itemData, let variations = itemData.variations {
@@ -409,6 +413,8 @@ class SquareCRUDService: ObservableObject {
                         version: updatedObject.version,
                         isDeleted: variation.isDeleted,
                         presentAtAllLocations: updatedObject.presentAtAllLocations, // Inherit from parent item
+                        presentAtLocationIds: updatedObject.presentAtLocationIds, // Inherit from parent item
+                        absentAtLocationIds: updatedObject.absentAtLocationIds, // Inherit from parent item
                         itemData: nil,
                         categoryData: nil,
                         itemVariationData: variation.itemVariationData,
@@ -419,11 +425,11 @@ class SquareCRUDService: ObservableObject {
                         imageData: nil
                     )
 
-                    try await self.databaseManager.insertCatalogObject(variationObject)
+                    try? await self.databaseManager.insertCatalogObject(variationObject)
                     logger.debug("Updated variation: \(variation.id ?? "nil") for item \(updatedObject.id)")
                 }
             }
-        }.value
+        }
 
         logger.debug("✅ Local database updated after update with exact Square timestamps (webhook-compatible)")
     }
@@ -440,6 +446,8 @@ class SquareCRUDService: ObservableObject {
                 version: deletedObject.version,
                 isDeleted: true, // Mark as deleted
                 presentAtAllLocations: nil,
+                presentAtLocationIds: nil,
+                absentAtLocationIds: nil,
                 itemData: nil,
                 categoryData: nil,
                 itemVariationData: nil,
@@ -450,9 +458,9 @@ class SquareCRUDService: ObservableObject {
                 imageData: nil
             )
 
-            try await Task.detached {
-                try await self.databaseManager.insertCatalogObject(deletedCatalogObject)
-            }.value
+            Task.detached {
+                try? await self.databaseManager.insertCatalogObject(deletedCatalogObject)
+            }
         }
 
         logger.debug("✅ Local database updated after delete")
@@ -529,6 +537,8 @@ extension SquareCRUDService {
                 version: currentVersion, // Use current version from Square, or nil for new variations
                 isDeleted: variation.isDeleted,
                 presentAtAllLocations: variation.presentAtAllLocations,
+                presentAtLocationIds: variation.presentAtLocationIds,
+                absentAtLocationIds: variation.absentAtLocationIds,
                 itemVariationData: variation.itemVariationData
             )
         }

@@ -72,61 +72,6 @@ struct ItemDetailsCategoriesSection: View {
                             ItemDetailsFieldSeparator()
                         }
                     }
-                    
-                    // Tax Selection
-                    if configManager.currentConfiguration.pricingFields.taxEnabled {
-                        ItemDetailsFieldRow {
-                            TaxSelector(
-                                taxIds: $viewModel.itemData.taxIds,
-                                viewModel: viewModel
-                            )
-                        }
-                        
-                        if configManager.currentConfiguration.pricingFields.modifiersEnabled ||
-                           configManager.currentConfiguration.pricingFields.isTaxableEnabled {
-                            ItemDetailsFieldSeparator()
-                        }
-                    }
-                    
-                    // Modifier Lists
-                    if configManager.currentConfiguration.pricingFields.modifiersEnabled {
-                        ItemDetailsFieldRow {
-                            ModifierListSelector(
-                                modifierListIds: $viewModel.itemData.modifierListIds,
-                                viewModel: viewModel
-                            )
-                        }
-                        
-                        if configManager.currentConfiguration.pricingFields.isTaxableEnabled {
-                            ItemDetailsFieldSeparator()
-                        }
-                    }
-                    
-                    // Taxable Toggle
-                    if configManager.currentConfiguration.pricingFields.isTaxableEnabled {
-                        ItemDetailsFieldRow {
-                            ItemDetailsToggleRow(
-                                title: "Item is Taxable",
-                                description: "Apply taxes at checkout",
-                                isOn: $viewModel.itemData.isTaxable
-                            )
-                        }
-                        
-                        if configManager.currentConfiguration.pricingFields.skipModifierScreenEnabled {
-                            ItemDetailsFieldSeparator()
-                        }
-                    }
-                    
-                    // Skip Details Screen Toggle
-                    if configManager.currentConfiguration.pricingFields.skipModifierScreenEnabled {
-                        ItemDetailsFieldRow {
-                            ItemDetailsToggleRow(
-                                title: "Skip Details Screen at Checkout",
-                                description: "Add item to cart immediately without showing modifier selection",
-                                isOn: $viewModel.itemData.skipModifierScreen
-                            )
-                        }
-                    }
                 }
             }
         }

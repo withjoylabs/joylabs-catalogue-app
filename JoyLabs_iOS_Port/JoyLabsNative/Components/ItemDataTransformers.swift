@@ -27,6 +27,13 @@ class ItemDataTransformers {
         itemDetails.updatedAt = catalogObject.updatedAt
         itemDetails.isDeleted = catalogObject.safeIsDeleted
         itemDetails.presentAtAllLocations = catalogObject.presentAtAllLocations ?? true
+        itemDetails.presentAtLocationIds = catalogObject.presentAtLocationIds ?? []
+        itemDetails.absentAtLocationIds = catalogObject.absentAtLocationIds ?? []
+        
+        // CRITICAL DEBUG: Log location data transformation
+        logger.info("🔍 TRANSFORM: Item \(catalogObject.id) presentAtAllLocations: \(catalogObject.presentAtAllLocations?.description ?? "nil") -> UI value: \(itemDetails.presentAtAllLocations)")
+        logger.info("🔍 TRANSFORM: Item \(catalogObject.id) presentAtLocationIds: \(catalogObject.presentAtLocationIds?.count ?? 0) locations")
+        logger.info("🔍 TRANSFORM: Item \(catalogObject.id) absentAtLocationIds: \(catalogObject.absentAtLocationIds?.count ?? 0) locations")
         
         // Extract item data
         if let itemData = catalogObject.itemData {
@@ -134,7 +141,6 @@ class ItemDataTransformers {
         // For new items: use ID starting with # (Square requirement)
         // For existing items: use the existing Square ID
         let itemId = (itemDetails.id?.isEmpty == false) ? itemDetails.id! : "#\(UUID().uuidString)"
-        let isNewItem = itemDetails.id?.isEmpty != false
 
         // Create item data - validation already done by SquareCRUDService
         // CRITICAL: Map both reporting category and additional categories to Square API
@@ -156,7 +162,7 @@ class ItemDataTransformers {
             abbreviation: itemDetails.abbreviation.isEmpty ? nil : itemDetails.abbreviation,
             categories: transformCategoriesToAPI(itemDetails.categoryIds), // Map additional categories
             reportingCategory: itemDetails.reportingCategoryId != nil ? ReportingCategory(id: itemDetails.reportingCategoryId!) : nil, // Map reporting category
-            imageIds: isNewItem ? (itemDetails.imageIds.isEmpty ? nil : itemDetails.imageIds) : nil, // Only include imageIds for new items
+            imageIds: nil, // CRITICAL: Images handled separately via SimpleImageService - never include in item CRUD operations
             
             // CRITICAL SQUARE API FIELDS - Previously missing
             isTaxable: itemDetails.isTaxable,
@@ -176,6 +182,8 @@ class ItemDataTransformers {
             version: itemDetails.version ?? 1,
             isDeleted: itemDetails.isDeleted,
             presentAtAllLocations: itemDetails.presentAtAllLocations,
+            presentAtLocationIds: itemDetails.presentAtLocationIds.isEmpty ? nil : itemDetails.presentAtLocationIds,
+            absentAtLocationIds: itemDetails.absentAtLocationIds.isEmpty ? nil : itemDetails.absentAtLocationIds,
             itemData: itemData,
             categoryData: nil,
             itemVariationData: nil,
@@ -194,8 +202,6 @@ class ItemDataTransformers {
     /// Use the version with databaseManager for CRUD operations
     static func transformItemDetailsToCatalogObject(_ itemDetails: ItemDetailsData) -> CatalogObject {
         logger.warning("Using legacy transform method without validation - consider using version with databaseManager")
-
-        let isNewItem = itemDetails.id?.isEmpty != false
 
         // Create item data without validation (legacy behavior)
         let itemData = ItemData(
@@ -216,7 +222,7 @@ class ItemDataTransformers {
             abbreviation: itemDetails.abbreviation.isEmpty ? nil : itemDetails.abbreviation,
             categories: nil, // Use categoryId instead of categories array
             reportingCategory: nil, // Use categoryId instead of reportingCategory
-            imageIds: isNewItem ? (itemDetails.imageIds.isEmpty ? nil : itemDetails.imageIds) : nil, // Only include imageIds for new items
+            imageIds: nil, // CRITICAL: Images handled separately via SimpleImageService - never include in item CRUD operations
             
             // CRITICAL SQUARE API FIELDS - Previously missing (legacy version)
             isTaxable: itemDetails.isTaxable,
@@ -235,6 +241,8 @@ class ItemDataTransformers {
             version: itemDetails.version ?? 1,
             isDeleted: itemDetails.isDeleted,
             presentAtAllLocations: itemDetails.presentAtAllLocations,
+            presentAtLocationIds: itemDetails.presentAtLocationIds.isEmpty ? nil : itemDetails.presentAtLocationIds,
+            absentAtLocationIds: itemDetails.absentAtLocationIds.isEmpty ? nil : itemDetails.absentAtLocationIds,
             itemData: itemData,
             categoryData: nil,
             itemVariationData: nil,
@@ -308,6 +316,8 @@ class ItemDataTransformers {
                 version: variation.version, // Preserve existing version for updates, nil for new variations
                 isDeleted: false,
                 presentAtAllLocations: presentAtAllLocations, // Inherit from parent item
+                presentAtLocationIds: nil, // Variations inherit from parent item
+                absentAtLocationIds: nil, // Variations inherit from parent item
                 itemVariationData: ItemVariationData(
                     itemId: itemId, // Reference parent item ID (with # for new items)
                     name: variation.name?.isEmpty == false ? variation.name : nil,

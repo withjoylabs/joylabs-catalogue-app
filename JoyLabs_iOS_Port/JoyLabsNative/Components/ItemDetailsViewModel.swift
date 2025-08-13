@@ -81,7 +81,31 @@ struct ItemDetailsData {
 
     // Location settings
     var presentAtAllLocations: Bool = true  // Square API field for location availability
-    var enabledLocationIds: [String] = []
+    var presentAtLocationIds: [String] = [] // Specific location IDs where item is present
+    var absentAtLocationIds: [String] = [] // Specific location IDs where item is absent
+    var enabledLocationIds: [String] = [] // Legacy field for backward compatibility
+    
+    // Computed property for "Available at all future locations" toggle
+    var availableAtFutureLocations: Bool {
+        get {
+            // Available at future locations when presentAtAllLocations is true
+            return presentAtAllLocations
+        }
+        set {
+            // When setting future availability
+            if newValue {
+                // Enable future locations - set presentAtAllLocations to true
+                presentAtAllLocations = true
+                // If all current locations should be enabled too, clear absent list
+                // Otherwise, keep current absent list for partial availability
+            } else {
+                // Disable future locations - set presentAtAllLocations to false
+                presentAtAllLocations = false
+                // Clear absent list since we're now using specific present list
+                absentAtLocationIds = []
+            }
+        }
+    }
 
     // Metadata
     var isDeleted: Bool = false
@@ -100,6 +124,8 @@ struct ItemDetailsData {
                self.reportingCategoryId == other.reportingCategoryId &&
                self.categoryIds == other.categoryIds &&
                self.presentAtAllLocations == other.presentAtAllLocations &&
+               self.presentAtLocationIds == other.presentAtLocationIds &&
+               self.absentAtLocationIds == other.absentAtLocationIds &&
                self.variations.count == other.variations.count &&
                zip(self.variations, other.variations).allSatisfy { $0.isEqual(to: $1) }
     }
@@ -740,14 +766,32 @@ class ItemDetailsViewModel: ObservableObject {
         
         // Apply field configuration defaults
         let config = FieldConfigurationManager.shared.currentConfiguration
+        
+        // Basic field defaults
+        itemData.presentAtAllLocations = config.basicFields.defaultPresentAtAllLocations
+        
+        // Product classification defaults
+        itemData.productType = config.classificationFields.defaultProductType
+        itemData.isAlcoholic = config.classificationFields.defaultIsAlcoholic
+        
+        // Pricing and modifier defaults
         itemData.skipModifierScreen = config.pricingFields.defaultSkipModifierScreen
         itemData.isTaxable = config.pricingFields.defaultIsTaxable
-        itemData.isAlcoholic = config.classificationFields.defaultIsAlcoholic
-        itemData.presentAtAllLocations = config.basicFields.defaultPresentAtAllLocations
+        
+        // E-commerce availability defaults
+        itemData.availableOnline = config.ecommerceFields.defaultAvailableOnline
+        itemData.availableForPickup = config.ecommerceFields.defaultAvailableForPickup
+        itemData.availableElectronically = config.ecommerceFields.defaultAvailableElectronically
+        
+        // Availability section defaults (for ItemAvailabilitySection)
+        itemData.isAvailableForSale = true // Always default to true
+        itemData.isAvailableOnline = config.ecommerceFields.defaultAvailableOnline
+        itemData.isAvailableForPickup = config.ecommerceFields.defaultAvailableForPickup
 
-        // Create variation with configurable default name
+        // Create variation with configurable defaults
         var variation = ItemDetailsVariationData()
         variation.name = config.pricingFields.defaultVariationName
+        variation.trackInventory = config.inventoryFields.defaultTrackInventory
         itemData.variations = [variation]
     }
     

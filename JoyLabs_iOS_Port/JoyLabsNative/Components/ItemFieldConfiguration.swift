@@ -4,6 +4,33 @@ import Foundation
 // This system allows enabling/disabling fields and setting default values
 // Note: Uses existing types from ItemDetailsViewModel.swift and CatalogModels.swift
 
+// MARK: - Section Configuration for Drag & Drop Reordering
+/// Configuration for a section in the Item Details Modal
+struct SectionConfiguration: Codable, Identifiable {
+    let id: String
+    let title: String
+    let icon: String
+    var isEnabled: Bool
+    var order: Int
+    var isCollapsed: Bool = true
+    
+    static let defaultSections: [SectionConfiguration] = [
+        SectionConfiguration(id: "image", title: "Image", icon: "photo", isEnabled: true, order: 0, isCollapsed: true),
+        SectionConfiguration(id: "basicInfo", title: "Basic Information", icon: "info.circle", isEnabled: true, order: 1, isCollapsed: true),
+        SectionConfiguration(id: "productType", title: "Product Type", icon: "tag", isEnabled: true, order: 2, isCollapsed: true),
+        SectionConfiguration(id: "pricing", title: "Pricing and Variations", icon: "dollarsign.circle", isEnabled: true, order: 3, isCollapsed: true),
+        SectionConfiguration(id: "categories", title: "Categories", icon: "folder", isEnabled: true, order: 4, isCollapsed: true),
+        SectionConfiguration(id: "taxes", title: "Tax Settings", icon: "percent", isEnabled: true, order: 5, isCollapsed: true),
+        SectionConfiguration(id: "modifiers", title: "Modifiers", icon: "plus.circle", isEnabled: true, order: 6, isCollapsed: true),
+        SectionConfiguration(id: "skipModifier", title: "Skip Details Screen at Checkout", icon: "forward.circle", isEnabled: true, order: 7, isCollapsed: true),
+        SectionConfiguration(id: "availability", title: "Availability", icon: "checkmark.circle", isEnabled: true, order: 8, isCollapsed: true),
+        SectionConfiguration(id: "locations", title: "Enabled at Locations", icon: "location", isEnabled: true, order: 9, isCollapsed: true),
+        SectionConfiguration(id: "customAttributes", title: "Custom Attributes", icon: "list.bullet", isEnabled: true, order: 10, isCollapsed: true),
+        SectionConfiguration(id: "ecommerce", title: "E-Commerce Settings", icon: "globe", isEnabled: true, order: 11, isCollapsed: true),
+        SectionConfiguration(id: "measurementUnit", title: "Measurement Unit", icon: "ruler", isEnabled: true, order: 12, isCollapsed: true)
+    ]
+}
+
 /// Configuration for item detail fields with settings-driven visibility and defaults
 struct ItemFieldConfiguration: Codable {
     
@@ -31,6 +58,31 @@ struct ItemFieldConfiguration: Codable {
     // MARK: - Team Data Fields
     var teamDataFields = TeamDataFieldsConfig()
     
+    // MARK: - Section Ordering Configuration
+    var sectionConfigurations: [String: SectionConfiguration] = Dictionary(
+        uniqueKeysWithValues: SectionConfiguration.defaultSections.map { ($0.id, $0) }
+    )
+    
+    /// Get sections ordered by their order property
+    var orderedSections: [SectionConfiguration] {
+        return sectionConfigurations.values.sorted { $0.order < $1.order }
+    }
+    
+    /// Update section order
+    mutating func updateSectionOrder(_ sectionId: String, newOrder: Int) {
+        sectionConfigurations[sectionId]?.order = newOrder
+    }
+    
+    /// Toggle section enabled state
+    mutating func toggleSectionEnabled(_ sectionId: String) {
+        sectionConfigurations[sectionId]?.isEnabled.toggle()
+    }
+    
+    /// Toggle section collapsed state
+    mutating func toggleSectionCollapsed(_ sectionId: String) {
+        sectionConfigurations[sectionId]?.isCollapsed.toggle()
+    }
+    
     /// Default configuration with commonly used fields enabled
     static func defaultConfiguration() -> ItemFieldConfiguration {
         var config = ItemFieldConfiguration()
@@ -43,13 +95,17 @@ struct ItemFieldConfiguration: Codable {
         // Enable essential classification fields
         config.classificationFields.categoryEnabled = true
         config.classificationFields.reportingCategoryEnabled = true
-        config.classificationFields.productTypeEnabled = false
+        config.classificationFields.productTypeEnabled = true
         
         // Enable basic pricing
         config.pricingFields.variationsEnabled = true
         config.pricingFields.taxEnabled = true
-        config.pricingFields.modifiersEnabled = false
+        config.pricingFields.modifiersEnabled = true
         config.pricingFields.skipModifierScreenEnabled = true
+        
+        // Enable location settings
+        config.ecommerceFields.availabilityEnabled = true
+        config.advancedFields.enabledLocationsEnabled = true
         
         // Enable basic inventory
         config.inventoryFields.trackInventoryEnabled = true

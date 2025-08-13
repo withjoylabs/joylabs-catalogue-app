@@ -125,6 +125,23 @@ class FieldConfigurationManager: ObservableObject {
         saveConfiguration()
     }
     
+    /// Update section configuration
+    func updateSectionConfiguration(_ sectionId: String, _ update: (inout SectionConfiguration) -> Void) {
+        if var section = currentConfiguration.sectionConfigurations[sectionId] {
+            update(&section)
+            currentConfiguration.sectionConfigurations[sectionId] = section
+            hasUnsavedChanges = true
+            saveConfiguration()
+        }
+    }
+    
+    /// Update all section configurations
+    func updateAllSectionConfigurations(_ configurations: [String: SectionConfiguration]) {
+        currentConfiguration.sectionConfigurations = configurations
+        hasUnsavedChanges = true
+        saveConfiguration()
+    }
+    
     /// Validate current configuration
     func validateConfiguration() -> [ConfigurationValidationError] {
         var errors: [ConfigurationValidationError] = []

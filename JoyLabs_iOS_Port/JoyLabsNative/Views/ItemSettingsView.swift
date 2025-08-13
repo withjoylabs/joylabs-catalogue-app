@@ -113,23 +113,23 @@ struct ItemSettingsView: View {
     // MARK: - Field Visibility Section
     private var fieldVisibilitySection: some View {
         Section("Field Visibility") {
-            NavigationLink(destination: FieldVisibilityDetailView()) {
+            NavigationLink(destination: FieldVisibilityAndReorderingView()) {
                 HStack {
-                    Image(systemName: "eye")
+                    Image(systemName: "slider.horizontal.3")
                         .foregroundColor(.blue)
                         .frame(width: 24)
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Manage Field Visibility")
+                        Text("Field Visibility & Reordering")
                             .font(.headline)
-                        Text("Control which fields appear in item forms")
+                        Text("Control field visibility and reorder sections")
                             .font(.caption)
                             .foregroundColor(Color.secondary)
                     }
 
                     Spacer()
 
-                    Text("\(enabledFieldsCount) enabled")
+                    Image(systemName: "chevron.right")
                         .font(.caption)
                         .foregroundColor(Color.secondary)
                 }
@@ -282,264 +282,6 @@ struct PresetCard: View {
     }
 }
 
-// MARK: - Field Visibility Detail View
-struct FieldVisibilityDetailView: View {
-    @ObservedObject var configManager = FieldConfigurationManager.shared
-
-    var body: some View {
-        Form {
-            Section("Basic Information") {
-                FieldToggleRow(
-                    title: "Item Name",
-                    isEnabled: Binding(
-                        get: { configManager.currentConfiguration.basicFields.nameEnabled },
-                        set: { configManager.updateFieldConfiguration(\.basicFields.nameEnabled, value: $0) }
-                    ),
-                    isRequired: Binding(
-                        get: { configManager.currentConfiguration.basicFields.nameRequired },
-                        set: { configManager.updateFieldConfiguration(\.basicFields.nameRequired, value: $0) }
-                    ),
-                    description: "The primary name of the item (Required by Square API)"
-                )
-
-                FieldToggleRow(
-                    title: "Description",
-                    isEnabled: Binding(
-                        get: { configManager.currentConfiguration.basicFields.descriptionEnabled },
-                        set: { configManager.updateFieldConfiguration(\.basicFields.descriptionEnabled, value: $0) }
-                    ),
-                    isRequired: Binding(
-                        get: { configManager.currentConfiguration.basicFields.descriptionRequired },
-                        set: { configManager.updateFieldConfiguration(\.basicFields.descriptionRequired, value: $0) }
-                    ),
-                    description: "Detailed description of the item"
-                )
-
-                FieldToggleRow(
-                    title: "Abbreviation",
-                    isEnabled: Binding(
-                        get: { configManager.currentConfiguration.basicFields.abbreviationEnabled },
-                        set: { configManager.updateFieldConfiguration(\.basicFields.abbreviationEnabled, value: $0) }
-                    ),
-                    isRequired: Binding(
-                        get: { configManager.currentConfiguration.basicFields.abbreviationRequired },
-                        set: { configManager.updateFieldConfiguration(\.basicFields.abbreviationRequired, value: $0) }
-                    ),
-                    description: "Short abbreviation for the item"
-                )
-            }
-            
-            Section("Product Classification") {
-                FieldToggleRow(
-                    title: "Category",
-                    isEnabled: Binding(
-                        get: { configManager.currentConfiguration.classificationFields.categoryEnabled },
-                        set: { configManager.updateFieldConfiguration(\.classificationFields.categoryEnabled, value: $0) }
-                    ),
-                    isRequired: Binding(
-                        get: { configManager.currentConfiguration.classificationFields.categoryRequired },
-                        set: { configManager.updateFieldConfiguration(\.classificationFields.categoryRequired, value: $0) }
-                    ),
-                    description: "Primary product category"
-                )
-
-                FieldToggleRow(
-                    title: "Reporting Category",
-                    isEnabled: Binding(
-                        get: { configManager.currentConfiguration.classificationFields.reportingCategoryEnabled },
-                        set: { configManager.updateFieldConfiguration(\.classificationFields.reportingCategoryEnabled, value: $0) }
-                    ),
-                    isRequired: Binding(
-                        get: { configManager.currentConfiguration.classificationFields.reportingCategoryRequired },
-                        set: { configManager.updateFieldConfiguration(\.classificationFields.reportingCategoryRequired, value: $0) }
-                    ),
-                    description: "Category used for reporting purposes"
-                )
-
-                FieldToggleRow(
-                    title: "Contains Alcohol",
-                    isEnabled: Binding(
-                        get: { configManager.currentConfiguration.classificationFields.isAlcoholicEnabled },
-                        set: { configManager.updateFieldConfiguration(\.classificationFields.isAlcoholicEnabled, value: $0) }
-                    ),
-                    isRequired: Binding(
-                        get: { configManager.currentConfiguration.classificationFields.isAlcoholicRequired },
-                        set: { configManager.updateFieldConfiguration(\.classificationFields.isAlcoholicRequired, value: $0) }
-                    ),
-                    description: "Item contains alcohol and requires compliance"
-                )
-            }
-            
-            Section("Taxes and Modifiers") {
-                FieldToggleRow(
-                    title: "Tax Settings",
-                    isEnabled: Binding(
-                        get: { configManager.currentConfiguration.pricingFields.taxEnabled },
-                        set: { configManager.updateFieldConfiguration(\.pricingFields.taxEnabled, value: $0) }
-                    ),
-                    isRequired: Binding(
-                        get: { configManager.currentConfiguration.pricingFields.taxRequired },
-                        set: { configManager.updateFieldConfiguration(\.pricingFields.taxRequired, value: $0) }
-                    ),
-                    description: "Tax configuration for the item"
-                )
-
-                FieldToggleRow(
-                    title: "Item is Taxable",
-                    isEnabled: Binding(
-                        get: { configManager.currentConfiguration.pricingFields.isTaxableEnabled },
-                        set: { configManager.updateFieldConfiguration(\.pricingFields.isTaxableEnabled, value: $0) }
-                    ),
-                    isRequired: Binding(
-                        get: { configManager.currentConfiguration.pricingFields.isTaxableRequired },
-                        set: { configManager.updateFieldConfiguration(\.pricingFields.isTaxableRequired, value: $0) }
-                    ),
-                    description: "Toggle whether item is subject to taxes"
-                )
-
-                FieldToggleRow(
-                    title: "Modifier Lists",
-                    isEnabled: Binding(
-                        get: { configManager.currentConfiguration.pricingFields.modifiersEnabled },
-                        set: { configManager.updateFieldConfiguration(\.pricingFields.modifiersEnabled, value: $0) }
-                    ),
-                    isRequired: Binding(
-                        get: { configManager.currentConfiguration.pricingFields.modifiersRequired },
-                        set: { configManager.updateFieldConfiguration(\.pricingFields.modifiersRequired, value: $0) }
-                    ),
-                    description: "Modifier lists that can be applied to this item"
-                )
-
-                FieldToggleRow(
-                    title: "Skip Details Screen at Checkout",
-                    isEnabled: Binding(
-                        get: { configManager.currentConfiguration.pricingFields.skipModifierScreenEnabled },
-                        set: { configManager.updateFieldConfiguration(\.pricingFields.skipModifierScreenEnabled, value: $0) }
-                    ),
-                    isRequired: Binding(
-                        get: { configManager.currentConfiguration.pricingFields.skipModifierScreenRequired },
-                        set: { configManager.updateFieldConfiguration(\.pricingFields.skipModifierScreenRequired, value: $0) }
-                    ),
-                    description: "Skip modifier selection screen during checkout"
-                )
-            }
-            
-            Section("Inventory Management") {
-                FieldToggleRow(
-                    title: "Track Inventory",
-                    isEnabled: Binding(
-                        get: { configManager.currentConfiguration.inventoryFields.trackInventoryEnabled },
-                        set: { configManager.updateFieldConfiguration(\.inventoryFields.trackInventoryEnabled, value: $0) }
-                    ),
-                    isRequired: Binding(
-                        get: { configManager.currentConfiguration.inventoryFields.trackInventoryRequired },
-                        set: { configManager.updateFieldConfiguration(\.inventoryFields.trackInventoryRequired, value: $0) }
-                    ),
-                    description: "Enable inventory tracking for this item"
-                )
-
-                FieldToggleRow(
-                    title: "Inventory Alerts",
-                    isEnabled: Binding(
-                        get: { configManager.currentConfiguration.inventoryFields.inventoryAlertsEnabled },
-                        set: { configManager.updateFieldConfiguration(\.inventoryFields.inventoryAlertsEnabled, value: $0) }
-                    ),
-                    isRequired: Binding(
-                        get: { configManager.currentConfiguration.inventoryFields.inventoryAlertsRequired },
-                        set: { configManager.updateFieldConfiguration(\.inventoryFields.inventoryAlertsRequired, value: $0) }
-                    ),
-                    description: "Low stock alerts and thresholds"
-                )
-            }
-
-            Section("Availability & Locations") {
-                FieldToggleRow(
-                    title: "Availability Settings",
-                    isEnabled: Binding(
-                        get: { configManager.currentConfiguration.ecommerceFields.availabilityEnabled },
-                        set: { configManager.updateFieldConfiguration(\.ecommerceFields.availabilityEnabled, value: $0) }
-                    ),
-                    isRequired: Binding(
-                        get: { configManager.currentConfiguration.ecommerceFields.availabilityRequired },
-                        set: { configManager.updateFieldConfiguration(\.ecommerceFields.availabilityRequired, value: $0) }
-                    ),
-                    description: "Control item availability for sale, online, and pickup"
-                )
-
-                FieldToggleRow(
-                    title: "Enabled Locations",
-                    isEnabled: Binding(
-                        get: { configManager.currentConfiguration.advancedFields.enabledLocationsEnabled },
-                        set: { configManager.updateFieldConfiguration(\.advancedFields.enabledLocationsEnabled, value: $0) }
-                    ),
-                    isRequired: Binding(
-                        get: { configManager.currentConfiguration.advancedFields.enabledLocationsRequired },
-                        set: { configManager.updateFieldConfiguration(\.advancedFields.enabledLocationsRequired, value: $0) }
-                    ),
-                    description: "Specify which locations this item is available at"
-                )
-            }
-
-            Section("Advanced Features") {
-                FieldToggleRow(
-                    title: "Custom Attributes",
-                    isEnabled: Binding(
-                        get: { configManager.currentConfiguration.advancedFields.customAttributesEnabled },
-                        set: { configManager.updateFieldConfiguration(\.advancedFields.customAttributesEnabled, value: $0) }
-                    ),
-                    isRequired: Binding(
-                        get: { configManager.currentConfiguration.advancedFields.customAttributesRequired },
-                        set: { configManager.updateFieldConfiguration(\.advancedFields.customAttributesRequired, value: $0) }
-                    ),
-                    description: "Add custom key-value pairs for additional item metadata"
-                )
-
-                FieldToggleRow(
-                    title: "Measurement Units",
-                    isEnabled: Binding(
-                        get: { configManager.currentConfiguration.advancedFields.measurementUnitEnabled },
-                        set: { configManager.updateFieldConfiguration(\.advancedFields.measurementUnitEnabled, value: $0) }
-                    ),
-                    isRequired: Binding(
-                        get: { configManager.currentConfiguration.advancedFields.measurementUnitRequired },
-                        set: { configManager.updateFieldConfiguration(\.advancedFields.measurementUnitRequired, value: $0) }
-                    ),
-                    description: "Set measurement units and sellable/stockable properties"
-                )
-            }
-
-            Section("E-commerce & SEO") {
-                FieldToggleRow(
-                    title: "Online Visibility",
-                    isEnabled: Binding(
-                        get: { configManager.currentConfiguration.ecommerceFields.onlineVisibilityEnabled },
-                        set: { configManager.updateFieldConfiguration(\.ecommerceFields.onlineVisibilityEnabled, value: $0) }
-                    ),
-                    isRequired: Binding(
-                        get: { configManager.currentConfiguration.ecommerceFields.onlineVisibilityRequired },
-                        set: { configManager.updateFieldConfiguration(\.ecommerceFields.onlineVisibilityRequired, value: $0) }
-                    ),
-                    description: "Control item visibility in online channels"
-                )
-
-                FieldToggleRow(
-                    title: "SEO Settings",
-                    isEnabled: Binding(
-                        get: { configManager.currentConfiguration.ecommerceFields.seoEnabled },
-                        set: { configManager.updateFieldConfiguration(\.ecommerceFields.seoEnabled, value: $0) }
-                    ),
-                    isRequired: Binding(
-                        get: { configManager.currentConfiguration.ecommerceFields.seoRequired },
-                        set: { configManager.updateFieldConfiguration(\.ecommerceFields.seoRequired, value: $0) }
-                    ),
-                    description: "SEO title, description, and keywords for search optimization"
-                )
-            }
-        }
-        .navigationTitle("Field Visibility")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-}
 
 // MARK: - Default Values Detail View
 struct DefaultValuesDetailView: View {

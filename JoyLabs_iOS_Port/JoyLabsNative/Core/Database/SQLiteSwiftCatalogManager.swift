@@ -258,7 +258,33 @@ class SQLiteSwiftCatalogManager {
             let decoder = JSONDecoder()
             // DON'T use convertFromSnakeCase - the JSON is already in snake_case format and our CodingKeys handle the mapping
             // decoder.keyDecodingStrategy = .convertFromSnakeCase
-            let catalogObject = try decoder.decode(CatalogObject.self, from: jsonData)
+            var catalogObject = try decoder.decode(CatalogObject.self, from: jsonData)
+
+            // CRITICAL FIX: Override presentAtAllLocations from database column (more reliable than JSON)
+            do {
+                let presentAtAllLocations = try row.get(CatalogTableDefinitions.itemPresentAtAllLocations)
+                catalogObject = CatalogObject(
+                    id: catalogObject.id,
+                    type: catalogObject.type,
+                    updatedAt: catalogObject.updatedAt,
+                    version: catalogObject.version,
+                    isDeleted: catalogObject.isDeleted,
+                    presentAtAllLocations: presentAtAllLocations, // Use database column value
+                    presentAtLocationIds: catalogObject.presentAtLocationIds,
+                    absentAtLocationIds: catalogObject.absentAtLocationIds,
+                    itemData: catalogObject.itemData,
+                    categoryData: catalogObject.categoryData,
+                    itemVariationData: catalogObject.itemVariationData,
+                    modifierData: catalogObject.modifierData,
+                    modifierListData: catalogObject.modifierListData,
+                    taxData: catalogObject.taxData,
+                    discountData: catalogObject.discountData,
+                    imageData: catalogObject.imageData
+                )
+                logger.debug("🔍 LOCATION DATA: Item \(itemId) presentAtAllLocations from DB column: \(presentAtAllLocations?.description ?? "nil")")
+            } catch {
+                logger.warning("Failed to read presentAtAllLocations from database column, using JSON value: \(error)")
+            }
 
             // CRITICAL DEBUG: Log the decoded item data structure
             if let itemData = catalogObject.itemData {
@@ -374,6 +400,9 @@ class SQLiteSwiftCatalogManager {
                 // Reduced logging noise - only log at trace level
                 logger.trace("[Database] Processing item \(object.id)")
 
+                // CRITICAL DEBUG: Log presentAtAllLocations from Square API
+                logger.info("🔍 SYNC: Item \(object.id) presentAtAllLocations from Square API: \(object.presentAtAllLocations?.description ?? "nil")")
+
                 // Extract both category types during sync for fast retrieval
                 let reportingCategoryName = extractReportingCategoryName(from: itemData, in: db)
                 let primaryCategoryName = extractPrimaryCategoryName(from: itemData, in: db)
@@ -397,6 +426,9 @@ class SQLiteSwiftCatalogManager {
                         CatalogTableDefinitions.itemReportingCategoryName <- reportingCategoryName,
                         CatalogTableDefinitions.itemTaxNames <- taxNames, // Pre-resolved tax names for performance
                         CatalogTableDefinitions.itemModifierNames <- modifierNames, // Pre-resolved modifier names for performance
+                        CatalogTableDefinitions.itemPresentAtAllLocations <- object.presentAtAllLocations, // CRITICAL: Store presentAtAllLocations for UI display
+                        CatalogTableDefinitions.itemPresentAtLocationIds <- encodeJSONArray(object.presentAtLocationIds), // Store location IDs as JSON array
+                        CatalogTableDefinitions.itemAbsentAtLocationIds <- encodeJSONArray(object.absentAtLocationIds), // Store absent location IDs as JSON array
                         CatalogTableDefinitions.itemName <- itemData.name,
                         CatalogTableDefinitions.itemDescription <- itemData.description,
                         CatalogTableDefinitions.itemDataJson <- encodeJSON(object)  // Store FULL CatalogObject, not just itemData
@@ -441,6 +473,9 @@ class SQLiteSwiftCatalogManager {
                     CatalogTableDefinitions.variationPricingType <- variationData.pricingType,
                     CatalogTableDefinitions.variationPriceAmount <- variationData.priceMoney?.amount,
                     CatalogTableDefinitions.variationPriceCurrency <- variationData.priceMoney?.currency,
+                    CatalogTableDefinitions.variationPresentAtAllLocations <- object.presentAtAllLocations, // Store variation location availability
+                    CatalogTableDefinitions.variationPresentAtLocationIds <- encodeJSONArray(object.presentAtLocationIds), // Store variation location IDs
+                    CatalogTableDefinitions.variationAbsentAtLocationIds <- encodeJSONArray(object.absentAtLocationIds), // Store variation absent location IDs
                     CatalogTableDefinitions.variationIsDeleted <- object.safeIsDeleted,
                     CatalogTableDefinitions.variationUpdatedAt <- timestamp,
                     CatalogTableDefinitions.variationVersion <- String(object.safeVersion),
@@ -513,6 +548,18 @@ class SQLiteSwiftCatalogManager {
             return String(data: data, encoding: .utf8)
         } catch {
             logger.error("Failed to encode JSON: \(error)")
+            return nil
+        }
+    }
+
+    /// Encode string array as JSON for database storage
+    private func encodeJSONArray(_ array: [String]?) -> String? {
+        guard let array = array, !array.isEmpty else { return nil }
+        do {
+            let data = try JSONEncoder().encode(array)
+            return String(data: data, encoding: .utf8)
+        } catch {
+            logger.error("Failed to encode JSON array: \(error)")
             return nil
         }
     }

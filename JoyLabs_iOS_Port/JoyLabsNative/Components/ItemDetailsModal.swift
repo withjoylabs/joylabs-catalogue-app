@@ -320,73 +320,87 @@ struct ItemDetailsContent: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: ItemDetailsSpacing.compactSpacing) {
-                // Context-specific header message
-                if case .createFromSearch(let query, let queryType) = context {
-                    CreateFromSearchHeader(query: query, queryType: queryType)
-                }
+                    // Context-specific header message
+                    if case .createFromSearch(let query, let queryType) = context {
+                        CreateFromSearchHeader(query: query, queryType: queryType)
+                    }
 
-                // Item Image Section
-                ItemImageSection(viewModel: viewModel)
+                    // Dynamic sections based on user configuration
+                    ForEach(configManager.currentConfiguration.orderedSections.filter { $0.isEnabled }, id: \.id) { section in
+                        sectionView(for: section.id)
+                    }
 
-                // Basic item information
-                ItemDetailsBasicSection(viewModel: viewModel)
-                
-                // Pricing and variations (conditionally shown)
-                if shouldShowPricingSection {
-                    ItemDetailsPricingSection(viewModel: viewModel)
-                }
-                
-                // Categories and organization (conditionally shown)
-                if shouldShowCategoriesSection {
-                    ItemDetailsCategoriesSection(viewModel: viewModel)
-                }
+                    // Delete Button Section (always last)
+                    ItemDeleteSection(viewModel: viewModel)
 
-                // Availability settings (conditionally shown)
-                if configManager.currentConfiguration.ecommerceFields.availabilityEnabled {
-                    ItemAvailabilitySection(viewModel: viewModel)
-                }
-
-                // Enabled locations (conditionally shown)
-                if configManager.currentConfiguration.advancedFields.enabledLocationsEnabled {
-                    ItemEnabledLocationsSection(viewModel: viewModel)
-                }
-
-                // Location overrides (conditionally shown)
-                if configManager.currentConfiguration.advancedFields.enabledLocationsEnabled && !viewModel.itemData.locationOverrides.isEmpty {
-                    ItemLocationOverridesSection(viewModel: viewModel)
-                }
-
-                // Custom attributes (conditionally shown)
-                if configManager.currentConfiguration.advancedFields.customAttributesEnabled {
-                    ItemCustomAttributesSection(viewModel: viewModel)
-                }
-
-                // E-commerce settings (conditionally shown)
-                if shouldShowEcommerceSection {
-                    ItemEcommerceSection(viewModel: viewModel)
-                }
-
-                // Measurement and units (conditionally shown)
-                if shouldShowMeasurementSection {
-                    ItemMeasurementSection(viewModel: viewModel)
-                }
-
-                // Advanced features (conditionally shown)
-                if viewModel.showAdvancedFeatures {
-                    ItemDetailsAdvancedSection(viewModel: viewModel)
-                }
-
-
-
-                // Delete Button Section
-                ItemDeleteSection(viewModel: viewModel)
-
-                // Bottom spacing for floating buttons and keyboard
-                Spacer()
-                    .frame(height: 120)
+                    // Bottom spacing for floating buttons and keyboard
+                    Spacer()
+                        .frame(height: 120)
                 }
                 .padding()
             }
+        }
+    }
+    
+    // MARK: - Dynamic Section Rendering
+    @ViewBuilder
+    private func sectionView(for sectionId: String) -> some View {
+        switch sectionId {
+        case "image":
+            ItemImageSection(viewModel: viewModel)
+            
+        case "basicInfo":
+            ItemDetailsBasicSection(viewModel: viewModel)
+            
+        case "productType":
+            ItemProductTypeSection(viewModel: viewModel)
+            
+        case "pricing":
+            if shouldShowPricingSection {
+                ItemDetailsPricingSection(viewModel: viewModel)
+            }
+            
+        case "categories":
+            if shouldShowCategoriesSection {
+                ItemDetailsCategoriesSection(viewModel: viewModel)
+            }
+            
+        case "taxes":
+            ItemTaxSettingsSection(viewModel: viewModel)
+            
+        case "modifiers":
+            ItemModifiersSection(viewModel: viewModel)
+            
+        case "skipModifier":
+            ItemSkipModifierSection(viewModel: viewModel)
+            
+        case "availability":
+            if configManager.currentConfiguration.ecommerceFields.availabilityEnabled {
+                ItemAvailabilitySection(viewModel: viewModel)
+            }
+            
+        case "locations":
+            if configManager.currentConfiguration.advancedFields.enabledLocationsEnabled {
+                ItemEnabledLocationsSection(viewModel: viewModel)
+            }
+            
+        case "customAttributes":
+            if configManager.currentConfiguration.advancedFields.customAttributesEnabled {
+                ItemCustomAttributesSection(viewModel: viewModel)
+            }
+            
+        case "ecommerce":
+            if shouldShowEcommerceSection {
+                ItemEcommerceSection(viewModel: viewModel)
+            }
+            
+        case "measurementUnit":
+            if shouldShowMeasurementSection {
+                ItemMeasurementSection(viewModel: viewModel)
+            }
+            
+        default:
+            EmptyView()
         }
     }
 

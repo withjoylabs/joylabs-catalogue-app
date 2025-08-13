@@ -16,9 +16,36 @@ struct ItemEnabledLocationsSection: View {
                         )
                         .onChange(of: viewModel.itemData.presentAtAllLocations) { _, newValue in
                             if newValue {
-                                // If enabling at all locations, select all
+                                // If enabling at all locations, clear location arrays (Square uses absent list for exceptions)
+                                viewModel.itemData.presentAtLocationIds = []
+                                viewModel.itemData.absentAtLocationIds = []
+                                // Legacy support: select all for UI
                                 viewModel.itemData.enabledLocationIds = viewModel.availableLocations.map { $0.id }
+                            } else {
+                                // When disabling all locations, clear absent list and populate present list with current selections
+                                viewModel.itemData.absentAtLocationIds = []
+                                viewModel.itemData.presentAtLocationIds = viewModel.itemData.enabledLocationIds
                             }
+                        }
+                    }
+                    
+                    ItemDetailsFieldSeparator()
+                    
+                    // Future Locations Toggle
+                    ItemDetailsFieldRow {
+                        ItemDetailsToggleRow(
+                            title: "Available at All Future Locations",
+                            isOn: $viewModel.itemData.availableAtFutureLocations
+                        )
+                        .onChange(of: viewModel.itemData.availableAtFutureLocations) { _, newValue in
+                            if !newValue {
+                                // If disabling future locations, must also disable present at all locations
+                                viewModel.itemData.presentAtAllLocations = false
+                                // Convert to specific location mode
+                                viewModel.itemData.presentAtLocationIds = viewModel.itemData.enabledLocationIds
+                                viewModel.itemData.absentAtLocationIds = []
+                            }
+                            // When enabling, the computed property sets presentAtAllLocations = true
                         }
                     }
 

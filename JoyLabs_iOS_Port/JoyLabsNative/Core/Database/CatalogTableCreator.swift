@@ -9,6 +9,8 @@ class CatalogTableCreator {
     
     /// Creates all catalog tables in the database
     func createTables(in db: Connection) throws {
+        // First, try to add missing columns to existing tables
+        try addMissingColumnsIfNeeded(db)
         // Create categories table
         try db.run(CatalogTableDefinitions.categories.create(ifNotExists: true) { t in
             t.column(CatalogTableDefinitions.categoryId, primaryKey: true)
@@ -30,6 +32,9 @@ class CatalogTableCreator {
             t.column(CatalogTableDefinitions.itemReportingCategoryName)
             t.column(CatalogTableDefinitions.itemTaxNames, defaultValue: nil) // Pre-resolved tax names for performance
             t.column(CatalogTableDefinitions.itemModifierNames, defaultValue: nil) // Pre-resolved modifier names for performance
+            t.column(CatalogTableDefinitions.itemPresentAtAllLocations, defaultValue: nil) // Location availability setting
+            t.column(CatalogTableDefinitions.itemPresentAtLocationIds, defaultValue: nil) // JSON array of specific location IDs where item is present
+            t.column(CatalogTableDefinitions.itemAbsentAtLocationIds, defaultValue: nil) // JSON array of specific location IDs where item is absent
             t.column(CatalogTableDefinitions.itemIsDeleted, defaultValue: false)
             t.column(CatalogTableDefinitions.itemUpdatedAt)
             t.column(CatalogTableDefinitions.itemVersion)
@@ -50,6 +55,9 @@ class CatalogTableCreator {
             t.column(CatalogTableDefinitions.variationPricingType)
             t.column(CatalogTableDefinitions.variationPriceAmount)
             t.column(CatalogTableDefinitions.variationPriceCurrency)
+            t.column(CatalogTableDefinitions.variationPresentAtAllLocations, defaultValue: nil) // Variation location availability
+            t.column(CatalogTableDefinitions.variationPresentAtLocationIds, defaultValue: nil) // JSON array of specific location IDs for variation
+            t.column(CatalogTableDefinitions.variationAbsentAtLocationIds, defaultValue: nil) // JSON array of absent location IDs for variation
             t.column(CatalogTableDefinitions.variationIsDeleted, defaultValue: false)
             t.column(CatalogTableDefinitions.variationUpdatedAt)
             t.column(CatalogTableDefinitions.variationVersion)
@@ -189,6 +197,55 @@ class CatalogTableCreator {
         } catch {
             // Column already exists or other error - continue
             logger.debug("modifier_names column already exists: \(error)")
+        }
+
+        // Add present_at_all_locations column if missing
+        do {
+            try db.run("ALTER TABLE catalog_items ADD COLUMN present_at_all_locations INTEGER")
+            logger.debug("Added present_at_all_locations column to catalog_items")
+        } catch {
+            // Column already exists or other error - continue
+            logger.debug("present_at_all_locations column already exists: \(error)")
+        }
+
+        // Add present_at_location_ids column if missing
+        do {
+            try db.run("ALTER TABLE catalog_items ADD COLUMN present_at_location_ids TEXT")
+            logger.debug("Added present_at_location_ids column to catalog_items")
+        } catch {
+            // Column already exists or other error - continue
+            logger.debug("present_at_location_ids column already exists: \(error)")
+        }
+
+        // Add absent_at_location_ids column if missing
+        do {
+            try db.run("ALTER TABLE catalog_items ADD COLUMN absent_at_location_ids TEXT")
+            logger.debug("Added absent_at_location_ids column to catalog_items")
+        } catch {
+            // Column already exists or other error - continue
+            logger.debug("absent_at_location_ids column already exists: \(error)")
+        }
+
+        // Add variation location columns if missing
+        do {
+            try db.run("ALTER TABLE item_variations ADD COLUMN present_at_all_locations INTEGER")
+            logger.debug("Added present_at_all_locations column to item_variations")
+        } catch {
+            logger.debug("present_at_all_locations column already exists in item_variations: \(error)")
+        }
+
+        do {
+            try db.run("ALTER TABLE item_variations ADD COLUMN present_at_location_ids TEXT")
+            logger.debug("Added present_at_location_ids column to item_variations")
+        } catch {
+            logger.debug("present_at_location_ids column already exists in item_variations: \(error)")
+        }
+
+        do {
+            try db.run("ALTER TABLE item_variations ADD COLUMN absent_at_location_ids TEXT")
+            logger.debug("Added absent_at_location_ids column to item_variations")
+        } catch {
+            logger.debug("absent_at_location_ids column already exists in item_variations: \(error)")
         }
     }
 }

@@ -17,11 +17,14 @@
 		21D4D3B4CE1031814FDAFCCB /* ComprehensiveItemModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 463F35C3BE9ED261FEE0206F /* ComprehensiveItemModels.swift */; };
 		2762D04C26D1C662BFB79CF0 /* ItemDetailsModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 099140CF4DCC3454A9EC9A5C /* ItemDetailsModal.swift */; };
 		2FD1191823A920EBC8718583 /* ItemDetailsAdvancedSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7C7A71E405D29DA8DA233CD /* ItemDetailsAdvancedSection.swift */; };
+		2FFC68602BF59E53AB65E786 /* ItemSkipModifierSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A855C7304B8B6B42B9DEF4C /* ItemSkipModifierSection.swift */; };
 		33ACA92EB8376CDDB719088F /* QuantityNumpad.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B4067D357704001C7A0D307 /* QuantityNumpad.swift */; };
 		343A5BEB820EB07235EEFE35 /* ItemDetailsPricingSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65695EAA6350279F084BF63B /* ItemDetailsPricingSection.swift */; };
+		37E79365D45FBBB720767A29 /* ItemModifiersSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97248AB2D5A526439B92B9E2 /* ItemModifiersSection.swift */; };
 		3D033F23814EAC17F1F30659 /* ItemSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DC776666D9E1A98076720A2 /* ItemSettingsView.swift */; };
 		4017A953F9FBBE7E588A972C /* TokenService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B48CACD7CFD81508BCDBFB9 /* TokenService.swift */; };
 		41826807649EF63DBBA03CCD /* FieldConfigurationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D71532DF527344EFA478B1B3 /* FieldConfigurationManager.swift */; };
+		4236D7318DCE1F0A794C7A50 /* ItemTaxSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7034F57676BBD40AAF7206B6 /* ItemTaxSettingsSection.swift */; };
 		43A12C33A2000D835D11605B /* ItemDataTransformers.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA6CAB610624BBFC8C7C36B6 /* ItemDataTransformers.swift */; };
 		45740EBFB0E2D2CA4CCEC956 /* WebhookSignatureValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F37514B9AC1E1E45F886FEB /* WebhookSignatureValidator.swift */; };
 		4B74843754CDBD240D53D5FC /* ReorderStatisticsCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C929C41C8E9A90056B333C4 /* ReorderStatisticsCalculator.swift */; };
@@ -37,6 +40,7 @@
 		690DEB5BE22908836C5ABF87 /* SimpleImageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BF09157ED1FEE7951EC8474 /* SimpleImageService.swift */; };
 		6EA41FDD40E6B3236E5DC902 /* FloatingActionButtons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3773602C0EF0A589CED63975 /* FloatingActionButtons.swift */; };
 		6F5DE98B1CAA89726CC9FF2D /* NotificationSettingsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94D98163B152C53C35F66FD4 /* NotificationSettingsService.swift */; };
+		7049BADF1D61D0240CB1C900 /* ItemProductTypeSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F41835B4957DA654FE6627F7 /* ItemProductTypeSection.swift */; };
 		727C46D51FB7521A15C78324 /* ReorderBarcodeScanningManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 612C9E33A082AEB63A3A1DC3 /* ReorderBarcodeScanningManager.swift */; };
 		7D83E6DC3B87B824D4DFE0A2 /* ReorderAppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D786AE1AEAE343A9AC9C0007 /* ReorderAppState.swift */; };
 		85126E4554FBE0F2C78D3609 /* ToastNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1645309EC63E18A4589C1AC3 /* ToastNotificationService.swift */; };
@@ -104,7 +108,7 @@
 		EAF11475F8FA6178769828DA /* ItemEnabledLocationsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E05265C6905F14EE507527F2 /* ItemEnabledLocationsSection.swift */; };
 		ECF91328F9AC5D2B917E3F1B /* WebhookNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6ECE051541206A85FCA7DCFC /* WebhookNotificationService.swift */; };
 		EDE038AD6E5EFB5420A06F61 /* NotificationExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49800521F9B080A23DC72541 /* NotificationExtensions.swift */; };
-		EE69A41B578F628319F0F67C /* FieldConfigurationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7E80DE7F61C9C720F968463 /* FieldConfigurationSettingsView.swift */; };
+		EF0C03051A3F310843218395 /* FieldVisibilityAndReorderingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E3BCABE673B4A6579D0625F /* FieldVisibilityAndReorderingView.swift */; };
 		F0E1858DA63A2B4ECA8E77E6 /* ItemLocationOverridesSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24FCFC0D136AEF6740D9E682 /* ItemLocationOverridesSection.swift */; };
 		F691E68C7ADFDA1137A12D8D /* ItemDeleteSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68CAE024F232AEDA149CF627 /* ItemDeleteSection.swift */; };
 		F734B51CB83D78322A781674 /* QuantitySelectionModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB32D29A7FF02592B9894919 /* QuantitySelectionModal.swift */; };
@@ -128,6 +132,7 @@
 		1C929C41C8E9A90056B333C4 /* ReorderStatisticsCalculator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderStatisticsCalculator.swift; path = JoyLabsNative/Utils/ReorderStatisticsCalculator.swift; sourceTree = "<group>"; };
 		1E5A87F50DC4826C17C46DD0 /* ItemDetailsBasicSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsBasicSection.swift; path = Components/ItemDetailsBasicSection.swift; sourceTree = "<group>"; };
 		24FCFC0D136AEF6740D9E682 /* ItemLocationOverridesSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemLocationOverridesSection.swift; path = Components/ItemLocationOverridesSection.swift; sourceTree = "<group>"; };
+		2A855C7304B8B6B42B9DEF4C /* ItemSkipModifierSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemSkipModifierSection.swift; path = Components/ItemSkipModifierSection.swift; sourceTree = "<group>"; };
 		2B0C0220C8486FC50DA6F922 /* NotificationPermissionView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NotificationPermissionView.swift; path = JoyLabsNative/Views/NotificationPermissionView.swift; sourceTree = "<group>"; };
 		35AB2C1793F03C8E7C4FDE80 /* SquareCRUDService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SquareCRUDService.swift; path = Core/Square/SquareCRUDService.swift; sourceTree = "<group>"; };
 		36FF7B27B9EC548A6363CA3B /* ItemDetailsCategoriesSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsCategoriesSection.swift; path = Components/ItemDetailsCategoriesSection.swift; sourceTree = "<group>"; };
@@ -145,16 +150,19 @@
 		6D65BFF8B1281F6313E2EAA1 /* ReorderDataManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderDataManager.swift; path = JoyLabsNative/ViewModels/ReorderDataManager.swift; sourceTree = "<group>"; };
 		6ECE051541206A85FCA7DCFC /* WebhookNotificationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WebhookNotificationService.swift; path = Core/Services/WebhookNotificationService.swift; sourceTree = "<group>"; };
 		6F2B7DCDFE09A9CB0B24D0EA /* WebhookManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WebhookManager.swift; path = Core/Services/WebhookManager.swift; sourceTree = "<group>"; };
+		7034F57676BBD40AAF7206B6 /* ItemTaxSettingsSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemTaxSettingsSection.swift; path = Components/ItemTaxSettingsSection.swift; sourceTree = "<group>"; };
 		75FC10AFED4E5423B76916D5 /* ItemAvailabilitySection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemAvailabilitySection.swift; path = Components/ItemAvailabilitySection.swift; sourceTree = "<group>"; };
 		7B48CACD7CFD81508BCDBFB9 /* TokenService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TokenService.swift; path = Core/Services/TokenService.swift; sourceTree = "<group>"; };
 		7BD6FFEA84896CD48CE4E372 /* ReorderContentView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderContentView.swift; path = JoyLabsNative/Views/Reorders/ReorderContentView.swift; sourceTree = "<group>"; };
 		7CCA9B512044EB597E9B73C7 /* DeferredImageUploadManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DeferredImageUploadManager.swift; path = Core/Services/DeferredImageUploadManager.swift; sourceTree = "<group>"; };
+		7E3BCABE673B4A6579D0625F /* FieldVisibilityAndReorderingView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FieldVisibilityAndReorderingView.swift; path = Components/FieldVisibilityAndReorderingView.swift; sourceTree = "<group>"; };
 		7EFA46CC1207E812F353D29F /* ViewExtensions+ModalPresentation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ViewExtensions+ModalPresentation.swift"; path = "Extensions/ViewExtensions+ModalPresentation.swift"; sourceTree = "<group>"; };
 		7F37514B9AC1E1E45F886FEB /* WebhookSignatureValidator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WebhookSignatureValidator.swift; path = Core/Services/WebhookSignatureValidator.swift; sourceTree = "<group>"; };
 		84F97B5C958182F299BA523E /* DuplicateWarningView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DuplicateWarningView.swift; path = Components/DuplicateWarningView.swift; sourceTree = "<group>"; };
 		93826EA70F24FEB3F6F59BD6 /* AppDelegate.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = JoyLabsNative/AppDelegate.swift; sourceTree = "<group>"; };
 		94D98163B152C53C35F66FD4 /* NotificationSettingsService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Core/Services/NotificationSettingsService.swift; sourceTree = "<group>"; };
 		9656EA400096ADC30614CEB4 /* SwipeableReorderCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SwipeableReorderCard.swift; path = JoyLabsNative/Components/Reorder/SwipeableReorderCard.swift; sourceTree = "<group>"; };
+		97248AB2D5A526439B92B9E2 /* ItemModifiersSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemModifiersSection.swift; path = Components/ItemModifiersSection.swift; sourceTree = "<group>"; };
 		9CB9D6E0060770E50822CE1D /* WebhookService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WebhookService.swift; path = Core/Services/WebhookService.swift; sourceTree = "<group>"; };
 		9CC3C5DBAC897BD5BAD446F8 /* UnifiedImagePickerModal.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = UnifiedImagePickerModal.swift; path = JoyLabsNative/Components/UnifiedImagePickerModal.swift; sourceTree = "<group>"; };
 		9DAB355F729C92CB2F1631E3 /* SquareDataConverter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SquareDataConverter.swift; path = Core/Services/SquareDataConverter.swift; sourceTree = "<group>"; };
@@ -211,10 +219,10 @@
 		E05265C6905F14EE507527F2 /* ItemEnabledLocationsSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemEnabledLocationsSection.swift; path = Components/ItemEnabledLocationsSection.swift; sourceTree = "<group>"; };
 		E2D5FAE44721EA24C8E50126 /* ItemImageSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemImageSection.swift; path = Components/ItemImageSection.swift; sourceTree = "<group>"; };
 		E7C7A71E405D29DA8DA233CD /* ItemDetailsAdvancedSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsAdvancedSection.swift; path = Components/ItemDetailsAdvancedSection.swift; sourceTree = "<group>"; };
-		E7E80DE7F61C9C720F968463 /* FieldConfigurationSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FieldConfigurationSettingsView.swift; path = Components/FieldConfigurationSettingsView.swift; sourceTree = "<group>"; };
 		EB32D29A7FF02592B9894919 /* QuantitySelectionModal.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = QuantitySelectionModal.swift; path = Components/QuantitySelectionModal.swift; sourceTree = "<group>"; };
 		ECE3FAA42B58C68978179AFA /* SquareImageService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SquareImageService.swift; path = Core/Square/SquareImageService.swift; sourceTree = "<group>"; };
 		F32EEA3114D99A383F2B69FC /* ReorderPhotoCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderPhotoCard.swift; path = JoyLabsNative/Components/Reorder/ReorderPhotoCard.swift; sourceTree = "<group>"; };
+		F41835B4957DA654FE6627F7 /* ItemProductTypeSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemProductTypeSection.swift; path = Components/ItemProductTypeSection.swift; sourceTree = "<group>"; };
 		F730ECB41F35B30ADCEEF069 /* SimpleImageView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SimpleImageView.swift; path = Components/SimpleImageView.swift; sourceTree = "<group>"; };
 		FA4E1D926AD0EFEB747BE184 /* ReorderViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderViewModel.swift; path = JoyLabsNative/ViewModels/ReorderViewModel.swift; sourceTree = "<group>"; };
 		FCA1EEFAA8C3E62322E3ACB2 /* JoyLabsNative.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = JoyLabsNative.entitlements; path = JoyLabsNative/JoyLabsNative.entitlements; sourceTree = "<group>"; };
@@ -312,7 +320,6 @@
 				463F35C3BE9ED261FEE0206F /* ComprehensiveItemModels.swift */,
 				D96C042150C12C4387D96347 /* ItemFieldConfiguration.swift */,
 				D71532DF527344EFA478B1B3 /* FieldConfigurationManager.swift */,
-				E7E80DE7F61C9C720F968463 /* FieldConfigurationSettingsView.swift */,
 				BF8BABE731647487EFC23A76 /* FieldVisibilityModifier.swift */,
 				24FCFC0D136AEF6740D9E682 /* ItemLocationOverridesSection.swift */,
 				109D8EF3405D7C8718DCDF2B /* ItemCustomAttributesSection.swift */,
@@ -325,6 +332,11 @@
 				F730ECB41F35B30ADCEEF069 /* SimpleImageView.swift */,
 				CE43F36BB6F6797E1742AD7C /* ItemDetailsStyles.swift */,
 				02A73B5385BF767E2F503CFD /* AppLevelHIDScanner.swift */,
+				F41835B4957DA654FE6627F7 /* ItemProductTypeSection.swift */,
+				7034F57676BBD40AAF7206B6 /* ItemTaxSettingsSection.swift */,
+				97248AB2D5A526439B92B9E2 /* ItemModifiersSection.swift */,
+				2A855C7304B8B6B42B9DEF4C /* ItemSkipModifierSection.swift */,
+				7E3BCABE673B4A6579D0625F /* FieldVisibilityAndReorderingView.swift */,
 			);
 			name = Components;
 			sourceTree = "<group>";
@@ -679,7 +691,6 @@
 				21D4D3B4CE1031814FDAFCCB /* ComprehensiveItemModels.swift in Sources */,
 				99776EE3F97CD95D3C775838 /* ItemFieldConfiguration.swift in Sources */,
 				41826807649EF63DBBA03CCD /* FieldConfigurationManager.swift in Sources */,
-				EE69A41B578F628319F0F67C /* FieldConfigurationSettingsView.swift in Sources */,
 				1569B20890AD45422D438BC1 /* FieldVisibilityModifier.swift in Sources */,
 				3D033F23814EAC17F1F30659 /* ItemSettingsView.swift in Sources */,
 				F0E1858DA63A2B4ECA8E77E6 /* ItemLocationOverridesSection.swift in Sources */,
@@ -729,6 +740,11 @@
 				DC0BF75906B9902A9E9F25EE /* ItemDetailsStyles.swift in Sources */,
 				509D7C5335FB93F6B698E5D0 /* AppLevelHIDScanner.swift in Sources */,
 				0E704C1995A3979C5ED2AE88 /* FuzzySearch.swift in Sources */,
+				7049BADF1D61D0240CB1C900 /* ItemProductTypeSection.swift in Sources */,
+				4236D7318DCE1F0A794C7A50 /* ItemTaxSettingsSection.swift in Sources */,
+				37E79365D45FBBB720767A29 /* ItemModifiersSection.swift in Sources */,
+				2FFC68602BF59E53AB65E786 /* ItemSkipModifierSection.swift in Sources */,
+				EF0C03051A3F310843218395 /* FieldVisibilityAndReorderingView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

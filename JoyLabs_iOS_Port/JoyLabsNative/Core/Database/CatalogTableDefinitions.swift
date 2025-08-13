@@ -26,6 +26,9 @@ class CatalogTableDefinitions {
     static let itemReportingCategoryName = Expression<String?>("reporting_category_name")
     static let itemTaxNames = Expression<String?>("tax_names") // Comma-separated tax names for display
     static let itemModifierNames = Expression<String?>("modifier_names") // Comma-separated modifier names for display
+    static let itemPresentAtAllLocations = Expression<Bool?>("present_at_all_locations") // Location availability setting
+    static let itemPresentAtLocationIds = Expression<String?>("present_at_location_ids") // JSON array of specific location IDs where item is present
+    static let itemAbsentAtLocationIds = Expression<String?>("absent_at_location_ids") // JSON array of specific location IDs where item is absent
     static let itemIsDeleted = Expression<Bool>("is_deleted")
     static let itemUpdatedAt = Expression<String>("updated_at")
     static let itemVersion = Expression<String>("version")
@@ -42,6 +45,9 @@ class CatalogTableDefinitions {
     static let variationPricingType = Expression<String?>("pricing_type")
     static let variationPriceAmount = Expression<Int64?>("price_amount")
     static let variationPriceCurrency = Expression<String?>("price_currency")
+    static let variationPresentAtAllLocations = Expression<Bool?>("present_at_all_locations") // Variation location availability
+    static let variationPresentAtLocationIds = Expression<String?>("present_at_location_ids") // JSON array of specific location IDs for variation
+    static let variationAbsentAtLocationIds = Expression<String?>("absent_at_location_ids") // JSON array of absent location IDs for variation
     static let variationIsDeleted = Expression<Bool>("is_deleted")
     static let variationUpdatedAt = Expression<String>("updated_at")
     static let variationVersion = Expression<String>("version")
