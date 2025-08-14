@@ -40,9 +40,9 @@ struct ScanView: View {
                 // Main content area
                 if !searchManager.isDatabaseReady {
                     DatabaseInitializingView()
-                } else if searchText.isEmpty && searchManager.searchResults.isEmpty {
+                } else if searchText.isEmpty && searchManager.searchResults.isEmpty && lastScannedBarcode.isEmpty {
                     EmptySearchState()
-                } else if !searchManager.searchResults.isEmpty {
+                } else if !searchManager.searchResults.isEmpty || !lastScannedBarcode.isEmpty {
                     SearchResultsView(
                         searchManager: searchManager,
                         scannedBarcode: lastScannedBarcode
@@ -166,11 +166,18 @@ struct ScanView: View {
             // Clear any existing search state
             searchManager.clearSearch()
             
+            // Set currentSearchTerm AFTER clearing so NoResultsView can show create buttons
+            searchManager.currentSearchTerm = barcode
+            
             // Perform immediate search for barcode
             let results = await searchManager.performSearch(searchTerm: barcode, filters: filters)
             
             await MainActor.run {
                 print("✅ HID barcode search completed: \(results.count) results found")
+                // Ensure currentSearchTerm is still set in case performSearch cleared it
+                if results.isEmpty {
+                    searchManager.currentSearchTerm = barcode
+                }
             }
         }
     }
