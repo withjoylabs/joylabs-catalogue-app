@@ -29,6 +29,7 @@ class CatalogTableCreator {
             t.column(CatalogTableDefinitions.itemDescription)
             t.column(CatalogTableDefinitions.itemCategoryId)
             t.column(CatalogTableDefinitions.itemCategoryName)
+            t.column(CatalogTableDefinitions.itemReportingCategoryId)
             t.column(CatalogTableDefinitions.itemReportingCategoryName)
             t.column(CatalogTableDefinitions.itemTaxNames, defaultValue: nil) // Pre-resolved tax names for performance
             t.column(CatalogTableDefinitions.itemModifierNames, defaultValue: nil) // Pre-resolved modifier names for performance

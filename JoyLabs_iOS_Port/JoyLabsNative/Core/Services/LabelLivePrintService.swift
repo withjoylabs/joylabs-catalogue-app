@@ -177,11 +177,38 @@ class LabelLivePrintService: ObservableObject {
             throw LabelLivePrintError.invalidConfiguration("No enabled variable mappings found")
         }
         
-        let variables = enabledMappings.map { mapping in
+        // Check for discount rule for this item's category
+        let discountRule = settingsService.getActiveDiscountRule(for: data.categoryId)
+        
+        var variables: [String] = []
+        
+        // Process regular variable mappings (excluding ORIGPRICE and SALEPRICE which are handled by discount rules)
+        for mapping in enabledMappings {
+            // Skip ORIGPRICE and SALEPRICE - these are now controlled by discount rules only
+            if mapping.labelLiveVariable == "ORIGPRICE" || mapping.labelLiveVariable == "SALEPRICE" {
+                continue
+            }
+            
             let value = data.getValue(for: mapping.ourField)
-            // Escape single quotes in the value
             let escapedValue = value.replacingOccurrences(of: "'", with: "\\'")
-            return "\(mapping.labelLiveVariable):'\(escapedValue)'"
+            variables.append("\(mapping.labelLiveVariable):'\(escapedValue)'")
+        }
+        
+        // Apply discount if rule exists (discount rules always supersede variable mappings)
+        if let rule = discountRule {
+            // Add ORIGPRICE with the original price
+            let origPrice = data.price ?? ""
+            let escapedOrigPrice = origPrice.replacingOccurrences(of: "'", with: "\\'")
+            variables.append("ORIGPRICE:'\(escapedOrigPrice)'")
+            
+            // Replace PRICE with the discounted price
+            if let discountedPrice = settingsService.calculateDiscountedPrice(data.price, discountPercentage: rule.discountPercentage) {
+                // Find and replace the PRICE variable with discounted amount
+                if let priceIndex = variables.firstIndex(where: { $0.contains("PRICE:'") }) {
+                    let escapedDiscountedPrice = discountedPrice.replacingOccurrences(of: "'", with: "\\'")
+                    variables[priceIndex] = "PRICE:'\(escapedDiscountedPrice)'"
+                }
+            }
         }
         
         return "{\(variables.joined(separator: ","))}"

@@ -404,8 +404,10 @@ class SQLiteSwiftCatalogManager {
                 logger.info("🔍 SYNC: Item \(object.id) presentAtAllLocations from Square API: \(object.presentAtAllLocations?.description ?? "nil")")
 
                 // Extract both category types during sync for fast retrieval
+                let reportingCategoryId = itemData.reportingCategory?.id
                 let reportingCategoryName = extractReportingCategoryName(from: itemData, in: db)
                 let primaryCategoryName = extractPrimaryCategoryName(from: itemData, in: db)
+
 
                 // PERFORMANCE OPTIMIZATION: Extract tax and modifier names during sync for fast retrieval
                 let taxNames = extractTaxNames(from: itemData, in: db)
@@ -423,6 +425,7 @@ class SQLiteSwiftCatalogManager {
                         CatalogTableDefinitions.itemIsDeleted <- object.safeIsDeleted,
                         CatalogTableDefinitions.itemCategoryId <- itemData.categoryId,
                         CatalogTableDefinitions.itemCategoryName <- primaryCategoryName,
+                        CatalogTableDefinitions.itemReportingCategoryId <- reportingCategoryId,
                         CatalogTableDefinitions.itemReportingCategoryName <- reportingCategoryName,
                         CatalogTableDefinitions.itemTaxNames <- taxNames, // Pre-resolved tax names for performance
                         CatalogTableDefinitions.itemModifierNames <- modifierNames, // Pre-resolved modifier names for performance
@@ -445,6 +448,7 @@ class SQLiteSwiftCatalogManager {
                         CatalogTableDefinitions.itemIsDeleted <- object.safeIsDeleted,
                         CatalogTableDefinitions.itemCategoryId <- itemData.categoryId,
                         CatalogTableDefinitions.itemCategoryName <- primaryCategoryName,
+                        CatalogTableDefinitions.itemReportingCategoryId <- reportingCategoryId,
                         CatalogTableDefinitions.itemReportingCategoryName <- reportingCategoryName,
                         CatalogTableDefinitions.itemName <- itemData.name,
                         CatalogTableDefinitions.itemDescription <- itemData.description,

@@ -5,6 +5,7 @@ struct LabelLiveSettingsView: View {
     @State private var showingAddMapping = false
     @State private var newOurField = ""
     @State private var newLabelLiveVariable = ""
+    @State private var showingAddDiscountRule = false
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
@@ -144,6 +145,37 @@ struct LabelLiveSettingsView: View {
                     Text("Map your database fields to LabelLive variables. Disabled mappings will be sent as empty values.\n\nIMPORTANT: Make sure all enabled variables exist in your LabelLive design file. If a variable is not found in the design, printing will fail with an error message.")
                 }
                 
+                // Discount Rules Section
+                Section {
+                    if settingsService.settings.discountRules.isEmpty {
+                        Text("No discount rules configured")
+                            .foregroundColor(.secondary)
+                            .italic()
+                    } else {
+                        ForEach(settingsService.settings.discountRules) { rule in
+                            DiscountRuleRow(
+                                rule: rule,
+                                onUpdate: { updatedRule in
+                                    settingsService.updateDiscountRule(updatedRule)
+                                }
+                            )
+                        }
+                        .onDelete { indices in
+                            settingsService.removeDiscountRule(at: indices)
+                        }
+                    }
+                    
+                    Button("Add Discount Rule") {
+                        showingAddDiscountRule = true
+                    }
+                    .foregroundColor(.blue)
+                    
+                } header: {
+                    Text("Discount Rules")
+                } footer: {
+                    Text("Apply automatic discounts to specific categories during label printing. When an item from a discounted category is printed, ORIGPRICE and SALEPRICE variables will be automatically calculated and included.")
+                }
+                
                 // URL Preview Section
                 Section("Preview URL") {
                     Text(generatePreviewURL())
@@ -168,6 +200,22 @@ struct LabelLiveSettingsView: View {
                         newOurField = ""
                         newLabelLiveVariable = ""
                         showingAddMapping = false
+                    }
+                )
+                .nestedComponentModal()
+            }
+            .sheet(isPresented: $showingAddDiscountRule) {
+                AddDiscountRuleSheet(
+                    onAdd: { categoryId, categoryName, discountPercentage in
+                        settingsService.addDiscountRule(
+                            categoryId: categoryId,
+                            categoryName: categoryName,
+                            discountPercentage: discountPercentage
+                        )
+                        showingAddDiscountRule = false
+                    },
+                    onCancel: {
+                        showingAddDiscountRule = false
                     }
                 )
                 .nestedComponentModal()
@@ -299,6 +347,211 @@ struct AddMappingSheet: View {
                         onAdd()
                     }
                     .disabled(newOurField.isEmpty || newLabelLiveVariable.isEmpty)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Discount Rule Row
+struct DiscountRuleRow: View {
+    let rule: DiscountRule
+    let onUpdate: (DiscountRule) -> Void
+    
+    @State private var editedRule: DiscountRule
+    
+    init(rule: DiscountRule, onUpdate: @escaping (DiscountRule) -> Void) {
+        self.rule = rule
+        self.onUpdate = onUpdate
+        self._editedRule = State(initialValue: rule)
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(editedRule.categoryName)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    
+                    Text("Category ID: \(editedRule.categoryId)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("\(Int(editedRule.discountPercentage))% off")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(editedRule.isEnabled ? .green : .secondary)
+                    
+                    Toggle("", isOn: $editedRule.isEnabled)
+                        .labelsHidden()
+                }
+            }
+            
+            HStack {
+                Text("Discount:")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                Slider(value: $editedRule.discountPercentage, in: 0...100, step: 1)
+                    .frame(maxWidth: 120)
+                
+                Text("\(Int(editedRule.discountPercentage))%")
+                    .font(.caption)
+                    .frame(width: 30)
+            }
+        }
+        .onChange(of: editedRule.isEnabled) {
+            onUpdate(editedRule)
+        }
+        .onChange(of: editedRule.discountPercentage) {
+            onUpdate(editedRule)
+        }
+    }
+}
+
+// MARK: - Add Discount Rule Sheet
+struct AddDiscountRuleSheet: View {
+    let onAdd: (String, String, Double) -> Void
+    let onCancel: () -> Void
+    
+    @State private var selectedCategoryId = ""
+    @State private var selectedCategoryName = ""
+    @State private var discountPercentage: Double = 20
+    @State private var availableCategories: [(id: String, name: String)] = []
+    @State private var isLoadingCategories = false
+    
+    private let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section("Select Category") {
+                    if isLoadingCategories {
+                        HStack {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                            Text("Loading categories...")
+                                .foregroundColor(.secondary)
+                        }
+                    } else {
+                        Picker("Category", selection: $selectedCategoryId) {
+                            Text("Select Category").tag("")
+                            ForEach(availableCategories, id: \.id) { category in
+                                Text(category.name).tag(category.id)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .onChange(of: selectedCategoryId) {
+                            if let category = availableCategories.first(where: { $0.id == selectedCategoryId }) {
+                                selectedCategoryName = category.name
+                            }
+                        }
+                    }
+                }
+                
+                Section("Discount Percentage") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Discount: \(Int(discountPercentage))%")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                            
+                            Spacer()
+                            
+                            Text("Sale Price: \(calculateSalePrice())%")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Slider(value: $discountPercentage, in: 0...100, step: 1)
+                    }
+                }
+                
+                if !selectedCategoryId.isEmpty && discountPercentage > 0 {
+                    Section("Preview") {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Example: $10.00 item")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                            
+                            Text("ORIGPRICE: $10.00")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            
+                            Text("SALEPRICE: $\(String(format: "%.2f", 10.00 * (100 - discountPercentage) / 100))")
+                                .font(.caption)
+                                .foregroundColor(.green)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Add Discount Rule")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        onCancel()
+                    }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Add") {
+                        onAdd(selectedCategoryId, selectedCategoryName, discountPercentage)
+                    }
+                    .disabled(selectedCategoryId.isEmpty || discountPercentage <= 0)
+                }
+            }
+            .onAppear {
+                loadCategories()
+            }
+        }
+    }
+    
+    private func calculateSalePrice() -> Int {
+        return Int(100 - discountPercentage)
+    }
+    
+    private func loadCategories() {
+        isLoadingCategories = true
+        
+        Task {
+            do {
+                guard let db = databaseManager.getConnection() else {
+                    await MainActor.run {
+                        isLoadingCategories = false
+                    }
+                    return
+                }
+                
+                let query = """
+                    SELECT id, name
+                    FROM categories
+                    WHERE is_deleted = 0 AND name IS NOT NULL
+                    ORDER BY name ASC
+                """
+                
+                let statement = try db.prepare(query)
+                var categories: [(id: String, name: String)] = []
+                
+                for row in statement {
+                    let id = row[0] as! String
+                    let name = row[1] as! String
+                    categories.append((id: id, name: name))
+                }
+                
+                await MainActor.run {
+                    self.availableCategories = categories
+                    self.isLoadingCategories = false
+                }
+                
+            } catch {
+                await MainActor.run {
+                    print("Error loading categories: \(error)")
+                    self.isLoadingCategories = false
                 }
             }
         }

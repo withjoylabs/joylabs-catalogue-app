@@ -19,10 +19,12 @@ struct LabelLiveSettings: Codable {
         VariableMapping(ourField: "upc", labelLiveVariable: "GTIN", isEnabled: true),
         VariableMapping(ourField: "sku", labelLiveVariable: "SKU", isEnabled: true),
         VariableMapping(ourField: "category_name", labelLiveVariable: "CATEGORY", isEnabled: true),
-        VariableMapping(ourField: "original_price", labelLiveVariable: "ORIGPRICE", isEnabled: false),
         VariableMapping(ourField: "qty_for_price", labelLiveVariable: "QTYFOR", isEnabled: false),
         VariableMapping(ourField: "qty_price", labelLiveVariable: "QTYPRICE", isEnabled: false)
     ]
+    
+    // Discount rules - category-based discount settings for label printing
+    var discountRules: [DiscountRule] = []
 }
 
 struct VariableMapping: Codable, Identifiable {
@@ -33,6 +35,18 @@ struct VariableMapping: Codable, Identifiable {
     
     private enum CodingKeys: String, CodingKey {
         case ourField, labelLiveVariable, isEnabled
+    }
+}
+
+struct DiscountRule: Codable, Identifiable {
+    let id = UUID()
+    var categoryId: String
+    var categoryName: String
+    var discountPercentage: Double // 0-100 (e.g., 20 = 20% off)
+    var isEnabled: Bool
+    
+    private enum CodingKeys: String, CodingKey {
+        case categoryId, categoryName, discountPercentage, isEnabled
     }
 }
 
@@ -78,6 +92,47 @@ class LabelLiveSettingsService: ObservableObject {
             settings.variableMappings[index] = mapping
             saveSettings()
         }
+    }
+    
+    // MARK: - Discount Rule Management
+    
+    func addDiscountRule(categoryId: String, categoryName: String, discountPercentage: Double) {
+        let newRule = DiscountRule(
+            categoryId: categoryId,
+            categoryName: categoryName,
+            discountPercentage: discountPercentage,
+            isEnabled: true
+        )
+        settings.discountRules.append(newRule)
+        saveSettings()
+    }
+    
+    func removeDiscountRule(at indices: IndexSet) {
+        settings.discountRules.remove(atOffsets: indices)
+        saveSettings()
+    }
+    
+    func updateDiscountRule(_ rule: DiscountRule) {
+        if let index = settings.discountRules.firstIndex(where: { $0.id == rule.id }) {
+            settings.discountRules[index] = rule
+            saveSettings()
+        }
+    }
+    
+    func getActiveDiscountRule(for categoryId: String?) -> DiscountRule? {
+        guard let categoryId = categoryId else { return nil }
+        return settings.discountRules.first { rule in
+            rule.categoryId == categoryId && rule.isEnabled
+        }
+    }
+    
+    func calculateDiscountedPrice(_ originalPrice: String?, discountPercentage: Double) -> String? {
+        guard let originalPrice = originalPrice,
+              let price = Double(originalPrice) else { return nil }
+        
+        let discountAmount = price * (discountPercentage / 100.0)
+        let salePrice = price - discountAmount
+        return String(format: "%.2f", salePrice)
     }
 }
 

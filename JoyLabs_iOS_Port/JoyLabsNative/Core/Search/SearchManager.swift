@@ -594,6 +594,7 @@ class SearchManager: ObservableObject {
                     items[CatalogTableDefinitions.itemId],
                     items[CatalogTableDefinitions.itemName],
                     items[CatalogTableDefinitions.itemCategoryId],
+                    items[CatalogTableDefinitions.itemReportingCategoryId],
                     items[CatalogTableDefinitions.itemReportingCategoryName],
                     items[CatalogTableDefinitions.itemCategoryName],
                     // First variation data (for SKU, price, UPC)
@@ -611,7 +612,7 @@ class SearchManager: ObservableObject {
 
             // Extract all data from the unified query
             let itemName = try row.get(items[CatalogTableDefinitions.itemName])
-            let categoryId = try? row.get(items[CatalogTableDefinitions.itemCategoryId])
+            let categoryId = try? row.get(items[CatalogTableDefinitions.itemReportingCategoryId])
             let reportingCategoryName = try? row.get(items[CatalogTableDefinitions.itemReportingCategoryName])
             let regularCategoryName = try? row.get(items[CatalogTableDefinitions.itemCategoryName])
             let categoryName = reportingCategoryName ?? regularCategoryName
@@ -769,7 +770,7 @@ class SearchManager: ObservableObject {
         do {
             let itemId = try row.get(CatalogTableDefinitions.itemId)
             let itemName = try row.get(CatalogTableDefinitions.itemName)
-            let categoryId = try row.get(CatalogTableDefinitions.itemCategoryId)
+            let categoryId = try row.get(CatalogTableDefinitions.itemReportingCategoryId)
             let dataJson = try row.get(CatalogTableDefinitions.itemDataJson)
 
             // Get pre-stored category names (fast!) - prioritize reporting category over regular category
@@ -821,7 +822,7 @@ class SearchManager: ObservableObject {
             // Access columns directly - the JOIN query will have flattened the results
             let itemId = try row.get(CatalogTableDefinitions.itemId)
             let itemName = try row.get(CatalogTableDefinitions.itemName)
-            let categoryId = try row.get(CatalogTableDefinitions.itemCategoryId)
+            let categoryId = try row.get(CatalogTableDefinitions.itemReportingCategoryId)
             let sku = try row.get(CatalogTableDefinitions.variationSku)
             let upc = try row.get(CatalogTableDefinitions.variationUpc)
             let priceAmount = try row.get(CatalogTableDefinitions.variationPriceAmount)

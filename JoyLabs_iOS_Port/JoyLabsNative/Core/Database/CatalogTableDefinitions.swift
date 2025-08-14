@@ -23,6 +23,7 @@ class CatalogTableDefinitions {
     static let itemDescription = Expression<String?>("description")
     static let itemCategoryId = Expression<String?>("category_id")
     static let itemCategoryName = Expression<String?>("category_name")
+    static let itemReportingCategoryId = Expression<String?>("reporting_category_id")
     static let itemReportingCategoryName = Expression<String?>("reporting_category_name")
     static let itemTaxNames = Expression<String?>("tax_names") // Comma-separated tax names for display
     static let itemModifierNames = Expression<String?>("modifier_names") // Comma-separated modifier names for display
