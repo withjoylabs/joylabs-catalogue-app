@@ -12,22 +12,22 @@ struct SectionConfiguration: Codable, Identifiable {
     let icon: String
     var isEnabled: Bool
     var order: Int
-    var isCollapsed: Bool = true
+    var isExpanded: Bool = false
     
     static let defaultSections: [SectionConfiguration] = [
-        SectionConfiguration(id: "image", title: "Image", icon: "photo", isEnabled: true, order: 0, isCollapsed: true),
-        SectionConfiguration(id: "basicInfo", title: "Basic Information", icon: "info.circle", isEnabled: true, order: 1, isCollapsed: true),
-        SectionConfiguration(id: "productType", title: "Product Type", icon: "tag", isEnabled: true, order: 2, isCollapsed: true),
-        SectionConfiguration(id: "pricing", title: "Pricing and Variations", icon: "dollarsign.circle", isEnabled: true, order: 3, isCollapsed: true),
-        SectionConfiguration(id: "categories", title: "Categories", icon: "folder", isEnabled: true, order: 4, isCollapsed: true),
-        SectionConfiguration(id: "taxes", title: "Tax Settings", icon: "percent", isEnabled: true, order: 5, isCollapsed: true),
-        SectionConfiguration(id: "modifiers", title: "Modifiers", icon: "plus.circle", isEnabled: true, order: 6, isCollapsed: true),
-        SectionConfiguration(id: "skipModifier", title: "Skip Details Screen at Checkout", icon: "forward.circle", isEnabled: true, order: 7, isCollapsed: true),
-        SectionConfiguration(id: "availability", title: "Availability", icon: "checkmark.circle", isEnabled: true, order: 8, isCollapsed: true),
-        SectionConfiguration(id: "locations", title: "Enabled at Locations", icon: "location", isEnabled: true, order: 9, isCollapsed: true),
-        SectionConfiguration(id: "customAttributes", title: "Custom Attributes", icon: "list.bullet", isEnabled: true, order: 10, isCollapsed: true),
-        SectionConfiguration(id: "ecommerce", title: "E-Commerce Settings", icon: "globe", isEnabled: true, order: 11, isCollapsed: true),
-        SectionConfiguration(id: "measurementUnit", title: "Measurement Unit", icon: "ruler", isEnabled: true, order: 12, isCollapsed: true)
+        SectionConfiguration(id: "image", title: "Image", icon: "photo", isEnabled: true, order: 0, isExpanded: false),
+        SectionConfiguration(id: "basicInfo", title: "Basic Information", icon: "info.circle", isEnabled: true, order: 1, isExpanded: false),
+        SectionConfiguration(id: "productType", title: "Product Type", icon: "tag", isEnabled: true, order: 2, isExpanded: false),
+        SectionConfiguration(id: "pricing", title: "Pricing and Variations", icon: "dollarsign.circle", isEnabled: true, order: 3, isExpanded: false),
+        SectionConfiguration(id: "categories", title: "Categories", icon: "folder", isEnabled: true, order: 4, isExpanded: false),
+        SectionConfiguration(id: "taxes", title: "Tax Settings", icon: "percent", isEnabled: true, order: 5, isExpanded: false),
+        SectionConfiguration(id: "modifiers", title: "Modifiers", icon: "plus.circle", isEnabled: true, order: 6, isExpanded: false),
+        SectionConfiguration(id: "skipModifier", title: "Skip Details Screen at Checkout", icon: "forward.circle", isEnabled: true, order: 7, isExpanded: false),
+        SectionConfiguration(id: "availability", title: "Availability", icon: "checkmark.circle", isEnabled: true, order: 8, isExpanded: false),
+        SectionConfiguration(id: "locations", title: "Enabled at Locations", icon: "location", isEnabled: true, order: 9, isExpanded: false),
+        SectionConfiguration(id: "customAttributes", title: "Custom Attributes", icon: "list.bullet", isEnabled: true, order: 10, isExpanded: false),
+        SectionConfiguration(id: "ecommerce", title: "E-Commerce Settings", icon: "globe", isEnabled: true, order: 11, isExpanded: false),
+        SectionConfiguration(id: "measurementUnit", title: "Measurement Unit", icon: "ruler", isEnabled: true, order: 12, isExpanded: false)
     ]
 }
 
@@ -78,9 +78,9 @@ struct ItemFieldConfiguration: Codable {
         sectionConfigurations[sectionId]?.isEnabled.toggle()
     }
     
-    /// Toggle section collapsed state
-    mutating func toggleSectionCollapsed(_ sectionId: String) {
-        sectionConfigurations[sectionId]?.isCollapsed.toggle()
+    /// Toggle section expanded state
+    mutating func toggleSectionExpanded(_ sectionId: String) {
+        sectionConfigurations[sectionId]?.isExpanded.toggle()
     }
     
     /// Default configuration with commonly used fields enabled

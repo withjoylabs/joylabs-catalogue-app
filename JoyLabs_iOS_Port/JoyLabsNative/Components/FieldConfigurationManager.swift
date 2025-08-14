@@ -94,6 +94,7 @@ class FieldConfigurationManager: ObservableObject {
         logger.info("Resetting field configuration to default")
         currentConfiguration = ItemFieldConfiguration.defaultConfiguration()
         hasUnsavedChanges = true
+        saveConfiguration() // Auto-save the reset configuration
     }
     
     /// Apply a predefined configuration preset

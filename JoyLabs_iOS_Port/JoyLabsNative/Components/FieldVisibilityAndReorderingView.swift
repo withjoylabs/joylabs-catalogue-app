@@ -1,11 +1,9 @@
 import SwiftUI
-import UniformTypeIdentifiers
 
 // MARK: - Field Visibility & Reordering View
 /// Unified interface for managing field visibility and section reordering
 struct FieldVisibilityAndReorderingView: View {
     @StateObject private var configManager = FieldConfigurationManager.shared
-    @State private var draggedSection: SectionConfiguration?
     @State private var showingResetAlert = false
     
     var body: some View {
@@ -63,43 +61,42 @@ struct FieldVisibilityAndReorderingView: View {
     }
     
     private var sectionsListView: some View {
-        ScrollView {
-            LazyVStack(spacing: 0) {
-                ForEach(Array(configManager.currentConfiguration.orderedSections.enumerated()), id: \.offset) { index, section in
-                    sectionRow(section: section, index: index)
-                }
+        List {
+            ForEach(configManager.currentConfiguration.orderedSections, id: \.id) { section in
+                SectionConfigurationCard(
+                    section: section,
+                    onToggleEnabled: {
+                        configManager.updateSectionConfiguration(section.id) { $0.isEnabled.toggle() }
+                    }
+                )
+                .listRowBackground(Color.clear) // Remove List's gray background
+                .listRowSeparator(.hidden) // Remove List's separators
+                .listRowInsets(EdgeInsets()) // Remove List's padding
             }
+            .onMove(perform: moveSection)
         }
-        .background(Color(.systemGroupedBackground))
-        .cornerRadius(12)
-        .padding(.horizontal)
+        .listStyle(.plain) // Use plain style to reduce List chrome
+        .environment(\.editMode, .constant(.active)) // Always show drag handles
+        .scrollContentBackground(.hidden) // Remove List's background
+        .background(Color(.systemGroupedBackground)) // Match our original background
+        .cornerRadius(12) // Match original corner radius
+        .padding(.horizontal) // Match original padding
     }
     
-    private func sectionRow(section: SectionConfiguration, index: Int) -> some View {
-        VStack(spacing: 0) {
-            SectionConfigurationCard(
-                section: section,
-                onToggleEnabled: {
-                    configManager.updateSectionConfiguration(section.id) { $0.isEnabled.toggle() }
-                }
-            )
-            .onDrag {
-                self.draggedSection = section
-                return NSItemProvider(object: section.id as NSString)
-            }
-            .onDrop(of: [UTType.text], delegate: SectionDropDelegate(
-                destinationSection: section,
-                draggedSection: $draggedSection,
-                configManager: configManager
-            ))
-            .background(draggedSection?.id == section.id ? Color.blue.opacity(0.1) : Color.clear)
-            
-            // Divider (except for last item)
-            if index < configManager.currentConfiguration.orderedSections.count - 1 {
-                Divider()
-                    .padding(.leading, 16)
-            }
+    // MARK: - List Reordering (iOS 16+ Standard Approach)
+    
+    private func moveSection(from source: IndexSet, to destination: Int) {
+        var sections = configManager.currentConfiguration.orderedSections
+        sections.move(fromOffsets: source, toOffset: destination)
+        
+        // Update order values
+        var updatedConfigurations = [String: SectionConfiguration]()
+        for (index, var section) in sections.enumerated() {
+            section.order = index
+            updatedConfigurations[section.id] = section
         }
+        
+        configManager.updateAllSectionConfigurations(updatedConfigurations)
     }
     
     // MARK: - Helper Methods
@@ -117,17 +114,26 @@ struct FieldVisibilityAndReorderingView: View {
     
     private func resetSectionOrder() {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-            // Reset to default section order by calling resetToDefault and preserving current visibility states
+            // Preserve current visibility states
             let currentStates = configManager.currentConfiguration.orderedSections.reduce(into: [String: Bool]()) {
                 $0[$1.id] = $1.isEnabled
             }
             
-            configManager.resetToDefault()
+            // Get default section order
+            let defaultSections = SectionConfiguration.defaultSections
+            var updatedConfigurations = configManager.currentConfiguration.sectionConfigurations
             
-            // Restore the visibility states
-            for (sectionId, isEnabled) in currentStates {
-                configManager.updateSectionConfiguration(sectionId) { $0.isEnabled = isEnabled }
+            // Reset order to default while preserving enabled states
+            for (index, defaultSection) in defaultSections.enumerated() {
+                if var section = updatedConfigurations[defaultSection.id] {
+                    section.order = index
+                    section.isEnabled = currentStates[defaultSection.id] ?? defaultSection.isEnabled
+                    updatedConfigurations[defaultSection.id] = section
+                }
             }
+            
+            // Apply the changes
+            configManager.updateAllSectionConfigurations(updatedConfigurations)
         }
     }
 }
@@ -138,30 +144,25 @@ struct SectionConfigurationCard: View {
     let onToggleEnabled: () -> Void
     
     @StateObject private var configManager = FieldConfigurationManager.shared
-    @State private var isExpanded: Bool = false
     
     var body: some View {
         VStack(spacing: 0) {
-            // Main section row - wrapped in Button for native iOS feel
-            Button(action: {
-                if hasConfigurableFields {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                        isExpanded.toggle()
-                    }
-                }
-            }) {
-                HStack(spacing: 12) {
-                    // Drag handle
-                    Image(systemName: "line.3.horizontal")
-                        .foregroundColor(.secondary)
-                        .font(.system(size: 16, weight: .medium))
-                    
-                    // Section icon
-                    Image(systemName: section.icon)
-                        .foregroundColor(section.isEnabled ? .accentColor : .secondary)
-                        .font(.system(size: 16, weight: .medium))
-                        .frame(width: 20)
-                    
+            // Main section row - NO Button wrapper to avoid interaction conflicts
+            HStack(spacing: 12) {
+                // Drag handle (matching native iOS style)
+                Image(systemName: "line.3.horizontal")
+                    .foregroundColor(Color(.tertiaryLabel))
+                    .font(.system(size: 18, weight: .regular))
+                    .imageScale(.medium)
+                
+                // Section icon
+                Image(systemName: section.icon)
+                    .foregroundColor(section.isEnabled ? .accentColor : .secondary)
+                    .font(.system(size: 16, weight: .medium))
+                    .frame(width: 20)
+                
+                // Expandable content area (only this part is tappable for expand/collapse)
+                HStack(spacing: 8) {
                     // Section title
                     Text(section.title)
                         .font(.system(size: 16, weight: .medium))
@@ -169,34 +170,37 @@ struct SectionConfigurationCard: View {
                     
                     Spacer()
                     
-                    // Enabled toggle
-                    Toggle("", isOn: Binding(
-                        get: { section.isEnabled },
-                        set: { _ in onToggleEnabled() }
-                    ))
-                    .labelsHidden()
-                    .scaleEffect(0.8)
-                    
-                    // FIXED: Consistent spacing for chevron area (always 24pt width)
-                    HStack {
-                        if hasConfigurableFields {
-                            Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                                .foregroundColor(.secondary)
-                                .font(.system(size: 14, weight: .medium))
+                    // Chevron for expandable sections
+                    if hasConfigurableFields {
+                        Image(systemName: section.isExpanded ? "chevron.down" : "chevron.right")
+                            .foregroundColor(.secondary)
+                            .font(.system(size: 14, weight: .medium))
+                    }
+                }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    if hasConfigurableFields {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            configManager.updateSectionConfiguration(section.id) { $0.isExpanded.toggle() }
                         }
                     }
-                    .frame(width: 24, alignment: .center) // Fixed width ensures alignment
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(Color(.systemBackground))
-                .contentShape(Rectangle())
+                
+                // Toggle - Always interactive, never disabled
+                Toggle("", isOn: Binding(
+                    get: { section.isEnabled },
+                    set: { _ in onToggleEnabled() }
+                ))
+                .labelsHidden()
+                .scaleEffect(0.8)
+                .allowsHitTesting(true) // Ensure toggle is always interactive
             }
-            .buttonStyle(PlainButtonStyle()) // Native iOS button feel
-            .disabled(!hasConfigurableFields) // Only interactive if expandable
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color(.systemBackground))
             
             // Expanded field list (only for sections with configurable fields)
-            if isExpanded && hasConfigurableFields {
+            if section.isExpanded && hasConfigurableFields {
                 VStack(spacing: 0) {
                     Divider()
                     
@@ -495,64 +499,6 @@ struct FieldConfigurationRow: View {
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 12)
-    }
-}
-
-// MARK: - Drop Delegate (same as before)
-struct SectionDropDelegate: DropDelegate {
-    let destinationSection: SectionConfiguration
-    @Binding var draggedSection: SectionConfiguration?
-    let configManager: FieldConfigurationManager
-    
-    func performDrop(info: DropInfo) -> Bool {
-        guard let draggedSection = draggedSection else { return false }
-        
-        // Reorder sections
-        let sourceOrder = draggedSection.order
-        let destinationOrder = destinationSection.order
-        
-        if sourceOrder != destinationOrder {
-            // CRITICAL FIX: Preserve all section properties during reordering
-            let orderedSections = configManager.currentConfiguration.orderedSections
-            var reorderedSections = orderedSections
-            
-            // Find indices
-            guard let sourceIndex = reorderedSections.firstIndex(where: { $0.id == draggedSection.id }),
-                  let destinationIndex = reorderedSections.firstIndex(where: { $0.id == destinationSection.id }) else {
-                return false
-            }
-            
-            // Perform the move operation preserving all section properties
-            let movedSection = reorderedSections.remove(at: sourceIndex)
-            reorderedSections.insert(movedSection, at: destinationIndex)
-            
-            // Update orders while preserving all other properties (especially isEnabled)
-            var updatedConfigurations = configManager.currentConfiguration.sectionConfigurations
-            for (index, section) in reorderedSections.enumerated() {
-                var updatedSection = section
-                updatedSection.order = index
-                updatedConfigurations[section.id] = updatedSection
-            }
-            
-            // Apply changes
-            configManager.updateAllSectionConfigurations(updatedConfigurations)
-        }
-        
-        self.draggedSection = nil
-        return true
-    }
-    
-    func dropEntered(info: DropInfo) {
-        // Visual feedback: subtle highlighting when drag enters drop zone
-    }
-    
-    func dropExited(info: DropInfo) {
-        // Visual feedback: remove highlighting when drag exits drop zone
-    }
-    
-    func dropUpdated(info: DropInfo) -> DropProposal? {
-        // Provide feedback during drag operations
-        return DropProposal(operation: .move)
     }
 }
 
