@@ -340,9 +340,11 @@ class SquareCRUDService: ObservableObject {
 
         // WEBHOOK COMPATIBILITY: Ensure timestamps match Square's webhook system
         // This prevents conflicts when webhooks arrive for the same object
-        Task.detached { [self] in
+        // CRITICAL: Database operations must complete BEFORE function returns to ensure data consistency
+        do {
             // Insert the main item object
-            try? await self.databaseManager.insertCatalogObject(createdObject)
+            try await databaseManager.insertCatalogObject(createdObject)
+            logger.debug("✅ Main item object created in database: \(createdObject.id)")
 
             // CRITICAL: Process variations separately for scalability
             // Square returns variations as part of the item, but we need to store them separately
@@ -370,10 +372,15 @@ class SquareCRUDService: ObservableObject {
                         imageData: nil
                     )
 
-                    try? await self.databaseManager.insertCatalogObject(variationObject)
-                    logger.debug("Inserted variation: \(variation.id ?? "nil") for item \(createdObject.id)")
+                    try await databaseManager.insertCatalogObject(variationObject)
+                    logger.debug("✅ Inserted variation: \(variation.id ?? "nil") for item \(createdObject.id)")
                 }
             }
+            logger.debug("✅ All database inserts completed for item: \(createdObject.id)")
+        } catch {
+            logger.error("❌ Database insert failed for item \(createdObject.id): \(error)")
+            // Re-throw the error since this is a critical failure that should be handled by the caller
+            throw error
         }
 
         logger.debug("✅ Local database updated after create with exact Square timestamps (webhook-compatible)")
@@ -396,9 +403,11 @@ class SquareCRUDService: ObservableObject {
 
         // WEBHOOK COMPATIBILITY: These exact timestamps will match webhook notifications
         // This ensures no conflicts when catalog.version.updated webhooks arrive
-        Task.detached { [self] in
+        // CRITICAL: Database operations must complete BEFORE function returns to ensure data consistency
+        do {
             // Use upsert to handle both insert and update cases
-            try? await self.databaseManager.insertCatalogObject(updatedObject)
+            try await databaseManager.insertCatalogObject(updatedObject)
+            logger.debug("✅ Main item object updated in database: \(updatedObject.id)")
 
             // CRITICAL: Process variations separately for scalability (same as create)
             if let itemData = updatedObject.itemData, let variations = itemData.variations {
@@ -425,10 +434,15 @@ class SquareCRUDService: ObservableObject {
                         imageData: nil
                     )
 
-                    try? await self.databaseManager.insertCatalogObject(variationObject)
-                    logger.debug("Updated variation: \(variation.id ?? "nil") for item \(updatedObject.id)")
+                    try await databaseManager.insertCatalogObject(variationObject)
+                    logger.debug("✅ Updated variation: \(variation.id ?? "nil") for item \(updatedObject.id)")
                 }
             }
+            logger.debug("✅ All database updates completed for item: \(updatedObject.id)")
+        } catch {
+            logger.error("❌ Database update failed for item \(updatedObject.id): \(error)")
+            // Re-throw the error since this is a critical failure that should be handled by the caller
+            throw error
         }
 
         logger.debug("✅ Local database updated after update with exact Square timestamps (webhook-compatible)")
@@ -458,8 +472,14 @@ class SquareCRUDService: ObservableObject {
                 imageData: nil
             )
 
-            Task.detached {
-                try? await self.databaseManager.insertCatalogObject(deletedCatalogObject)
+            // CRITICAL: Database operations must complete BEFORE function returns to ensure data consistency
+            do {
+                try await databaseManager.insertCatalogObject(deletedCatalogObject)
+                logger.debug("✅ Deleted object marked in database: \(objectId)")
+            } catch {
+                logger.error("❌ Database delete failed for object \(objectId): \(error)")
+                // Re-throw the error since this is a critical failure that should be handled by the caller
+                throw error
             }
         }
 

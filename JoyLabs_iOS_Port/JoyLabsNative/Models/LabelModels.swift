@@ -43,9 +43,9 @@ struct RecentLabel: Identifiable, Codable {
 struct ReorderItem: Identifiable, Codable {
     let id: String
     let itemId: String // Reference to Square catalog item
-    let name: String
-    let sku: String?
-    let barcode: String?
+    var name: String // Made mutable to allow updates from database
+    var sku: String? // Made mutable to allow updates from database
+    var barcode: String? // Made mutable to allow updates from database
     var quantity: Int
     var status: ReorderStatus
     var addedDate: Date

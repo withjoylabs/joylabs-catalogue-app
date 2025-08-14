@@ -47,9 +47,10 @@ class ReorderDataManager: ObservableObject {
         
         for item in items {
             do {
-                // Query catalog_items table directly to get pre-computed category names
+                // Query catalog_items table to get ALL current catalog data
                 let itemQuery = CatalogTableDefinitions.catalogItems
-                    .select(CatalogTableDefinitions.itemCategoryName,
+                    .select(CatalogTableDefinitions.itemName,
+                           CatalogTableDefinitions.itemCategoryName,
                            CatalogTableDefinitions.itemReportingCategoryName,
                            CatalogTableDefinitions.itemDataJson)
                     .filter(CatalogTableDefinitions.itemId == item.itemId)
@@ -61,6 +62,9 @@ class ReorderDataManager: ObservableObject {
                     continue
                 }
                 
+                // Get current item name from database
+                let currentItemName = try? itemRow.get(CatalogTableDefinitions.itemName)
+                
                 // Get pre-computed category names
                 let reportingCategoryName = try? itemRow.get(CatalogTableDefinitions.itemReportingCategoryName)
                 let regularCategoryName = try? itemRow.get(CatalogTableDefinitions.itemCategoryName)
@@ -68,15 +72,21 @@ class ReorderDataManager: ObservableObject {
                 
                 let dataJson = try? itemRow.get(CatalogTableDefinitions.itemDataJson)
                 
-                // Get first variation data for price
+                // Get first variation data for price, SKU, and barcode
                 let variationQuery = CatalogTableDefinitions.itemVariations
-                    .select(CatalogTableDefinitions.variationPriceAmount)
+                    .select(CatalogTableDefinitions.variationPriceAmount,
+                           CatalogTableDefinitions.variationSku,
+                           CatalogTableDefinitions.variationUpc)
                     .filter(CatalogTableDefinitions.variationItemId == item.itemId)
                     .filter(CatalogTableDefinitions.variationIsDeleted == false)
                     .limit(1)
                 
                 var price: Double? = nil
+                var currentSku: String? = nil
+                var currentBarcode: String? = nil
+                
                 if let variationRow = try db.pluck(variationQuery) {
+                    // Extract price
                     let priceAmount = try? variationRow.get(CatalogTableDefinitions.variationPriceAmount)
                     if let amount = priceAmount, amount > 0 {
                         let convertedPrice = Double(amount) / 100.0
@@ -84,6 +94,10 @@ class ReorderDataManager: ObservableObject {
                             price = convertedPrice
                         }
                     }
+                    
+                    // Extract SKU and barcode
+                    currentSku = try? variationRow.get(CatalogTableDefinitions.variationSku)
+                    currentBarcode = try? variationRow.get(CatalogTableDefinitions.variationUpc)
                 }
                 
                 // Check if item has taxes
@@ -92,8 +106,13 @@ class ReorderDataManager: ObservableObject {
                 // Get primary image data using centralized SimpleImageService
                 let imageUrl = await getPrimaryImageForReorderItem(itemId: item.itemId)
                 
-                // Update reorder item with fresh data
+                // Update reorder item with fresh data from database
                 var updatedItem = item
+                
+                // Update ALL catalog fields with current database values
+                updatedItem.name = currentItemName ?? item.name // Fallback to existing name if database value is nil
+                updatedItem.sku = currentSku
+                updatedItem.barcode = currentBarcode
                 updatedItem.price = price
                 if let categoryName = categoryName {
                     updatedItem.categoryName = categoryName
@@ -109,7 +128,10 @@ class ReorderDataManager: ObservableObject {
                     // Keep existing imageId and imageUrl unchanged
                 }
                 
-                print("🔄 [ReorderRefresh] Updated ALL data for '\(item.name)'")
+                print("🔄 [ReorderRefresh] Updated ALL data for item ID: \(item.itemId)")
+                print("   - Name: '\(item.name)' → '\(updatedItem.name)'")
+                print("   - SKU: '\(item.sku ?? "nil")' → '\(updatedItem.sku ?? "nil")'")
+                print("   - Barcode: '\(item.barcode ?? "nil")' → '\(updatedItem.barcode ?? "nil")'")
                 print("   - Price: \(updatedItem.price?.description ?? "nil")")
                 print("   - Category: \(updatedItem.categoryName ?? "nil")")
                 print("   - Image URL: \(updatedItem.imageUrl ?? "nil")")

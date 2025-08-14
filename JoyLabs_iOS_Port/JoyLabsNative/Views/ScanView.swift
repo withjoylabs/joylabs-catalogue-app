@@ -322,8 +322,14 @@ struct NoResultsView: View {
                         showingItemDetails = false
                     },
                     onSave: { itemData in
-                        // TODO: Handle saved item
+                        // Dismiss the modal
                         showingItemDetails = false
+                        
+                        // Refresh search results to show the newly created item
+                        if let searchQuery = searchManager.currentSearchTerm {
+                            let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
+                            searchManager.performSearchWithDebounce(searchTerm: searchQuery, filters: filters)
+                        }
                     }
                 )
                 .fullScreenModal()
@@ -415,6 +421,9 @@ struct SearchResultsList: View {
                             },
                             onPrint: {
                                 printItem(result)
+                            },
+                            onItemUpdated: {
+                                refreshSearchResults()
                             }
                         )
                         .id(result.id)
@@ -448,6 +457,16 @@ struct SearchResultsList: View {
                     searchManager.loadMoreResults()
                 }
             }
+        }
+    }
+    
+    // MARK: - Search Refresh Function
+    
+    private func refreshSearchResults() {
+        // Get the current search term from the search manager
+        if let currentTerm = searchManager.currentSearchTerm {
+            let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
+            searchManager.performSearchWithDebounce(searchTerm: currentTerm, filters: filters)
         }
     }
     

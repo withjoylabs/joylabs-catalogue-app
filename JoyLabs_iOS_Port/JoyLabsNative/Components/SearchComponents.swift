@@ -95,6 +95,7 @@ struct SwipeableScanResultCard: View {
     let result: SearchResultItem
     let onAddToReorder: () -> Void
     let onPrint: () -> Void
+    let onItemUpdated: (() -> Void)?
     @State private var activeSheet: SearchSheet?
     @State private var offset: CGFloat = 0
     @State private var isDragging = false
@@ -350,8 +351,11 @@ struct SwipeableScanResultCard: View {
                         activeSheet = nil
                     },
                     onSave: { itemData in
-                        // TODO: Handle saved item
+                        // Dismiss the modal
                         activeSheet = nil
+                        
+                        // Trigger search refresh to show updated item data
+                        onItemUpdated?()
                     }
                 )
                 .fullScreenModal()
@@ -572,6 +576,9 @@ struct SearchBarWithClear: View {
         },
         onPrint: {
             print("Print item!")
+        },
+        onItemUpdated: {
+            print("Item updated!")
         }
     )
     .padding()
