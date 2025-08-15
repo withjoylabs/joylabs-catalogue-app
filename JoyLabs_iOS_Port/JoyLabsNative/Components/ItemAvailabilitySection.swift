@@ -12,7 +12,10 @@ struct ItemAvailabilitySection: View {
                     ItemDetailsFieldRow {
                         ItemDetailsToggleRow(
                             title: "Available for Sale",
-                            isOn: $viewModel.itemData.isAvailableForSale
+                            isOn: Binding(
+                                get: { viewModel.staticData.isAvailableForSale },
+                                set: { viewModel.staticData.isAvailableForSale = $0 }
+                            )
                         )
                     }
 
@@ -22,7 +25,10 @@ struct ItemAvailabilitySection: View {
                     ItemDetailsFieldRow {
                         ItemDetailsToggleRow(
                             title: "Available Online",
-                            isOn: $viewModel.itemData.isAvailableOnline
+                            isOn: Binding(
+                                get: { viewModel.staticData.isAvailableOnline },
+                                set: { viewModel.staticData.isAvailableOnline = $0 }
+                            )
                         )
                     }
 
@@ -32,7 +38,10 @@ struct ItemAvailabilitySection: View {
                     ItemDetailsFieldRow {
                         ItemDetailsToggleRow(
                             title: "Available for Pickup",
-                            isOn: $viewModel.itemData.isAvailableForPickup
+                            isOn: Binding(
+                                get: { viewModel.staticData.isAvailableForPickup },
+                                set: { viewModel.staticData.isAvailableForPickup = $0 }
+                            )
                         )
                     }
                 
@@ -52,7 +61,7 @@ struct ItemAvailabilitySection: View {
                                         
                                         Spacer()
                                         
-                                        if let startDate = viewModel.itemData.availabilityStartDate {
+                                        if let startDate = viewModel.staticData.availabilityStartDate {
                                             Text(startDate, style: .date)
                                                 .font(.itemDetailsBody)
                                                 .foregroundColor(.itemDetailsAccent)
@@ -70,7 +79,7 @@ struct ItemAvailabilitySection: View {
                                         
                                         Spacer()
                                         
-                                        if let endDate = viewModel.itemData.availabilityEndDate {
+                                        if let endDate = viewModel.staticData.availabilityEndDate {
                                             Text(endDate, style: .date)
                                                 .font(.itemDetailsBody)
                                                 .foregroundColor(.itemDetailsAccent)

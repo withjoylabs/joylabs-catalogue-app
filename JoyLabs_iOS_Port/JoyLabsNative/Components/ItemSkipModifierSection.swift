@@ -15,7 +15,10 @@ struct ItemSkipModifierSection: View {
                             ItemDetailsToggleRow(
                                 title: "Skip Details Screen at Checkout",
                                 description: "Don't show modifier selection when adding to cart",
-                                isOn: $viewModel.itemData.skipModifierScreen
+                                isOn: Binding(
+                                    get: { viewModel.staticData.skipModifierScreen },
+                                    set: { viewModel.staticData.skipModifierScreen = $0 }
+                                )
                             )
                         }
                     }

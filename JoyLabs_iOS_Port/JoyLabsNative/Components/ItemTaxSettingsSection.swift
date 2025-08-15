@@ -15,7 +15,7 @@ struct ItemTaxSettingsSection: View {
                         if configManager.currentConfiguration.pricingFields.taxEnabled {
                             ItemDetailsFieldRow {
                                 TaxSelector(
-                                    taxIds: $viewModel.itemData.taxIds,
+                                    taxIds: $viewModel.taxIds,
                                     viewModel: viewModel
                                 )
                             }
@@ -31,7 +31,10 @@ struct ItemTaxSettingsSection: View {
                                 ItemDetailsToggleRow(
                                     title: "Item is Taxable",
                                     description: "Apply taxes at checkout",
-                                    isOn: $viewModel.itemData.isTaxable
+                                    isOn: Binding(
+                                        get: { viewModel.staticData.isTaxable },
+                                        set: { viewModel.staticData.isTaxable = $0 }
+                                    )
                                 )
                             }
                         }

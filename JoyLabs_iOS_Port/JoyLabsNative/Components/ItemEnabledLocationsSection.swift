@@ -12,21 +12,24 @@ struct ItemEnabledLocationsSection: View {
                     ItemDetailsFieldRow {
                         ItemDetailsToggleRow(
                             title: "Present at All Locations",
-                            isOn: $viewModel.itemData.presentAtAllLocations
+                            isOn: Binding(
+                                get: { viewModel.staticData.presentAtAllLocations },
+                                set: { newValue in
+                                    viewModel.staticData.presentAtAllLocations = newValue
+                                    if newValue {
+                                        // If enabling at all locations, clear location arrays (Square uses absent list for exceptions)
+                                        viewModel.staticData.presentAtLocationIds = []
+                                        viewModel.staticData.absentAtLocationIds = []
+                                        // Legacy support: select all for UI
+                                        viewModel.staticData.enabledLocationIds = viewModel.availableLocations.map { $0.id }
+                                    } else {
+                                        // When disabling all locations, clear absent list and populate present list with current selections
+                                        viewModel.staticData.absentAtLocationIds = []
+                                        viewModel.staticData.presentAtLocationIds = viewModel.staticData.enabledLocationIds
+                                    }
+                                }
+                            )
                         )
-                        .onChange(of: viewModel.itemData.presentAtAllLocations) { _, newValue in
-                            if newValue {
-                                // If enabling at all locations, clear location arrays (Square uses absent list for exceptions)
-                                viewModel.itemData.presentAtLocationIds = []
-                                viewModel.itemData.absentAtLocationIds = []
-                                // Legacy support: select all for UI
-                                viewModel.itemData.enabledLocationIds = viewModel.availableLocations.map { $0.id }
-                            } else {
-                                // When disabling all locations, clear absent list and populate present list with current selections
-                                viewModel.itemData.absentAtLocationIds = []
-                                viewModel.itemData.presentAtLocationIds = viewModel.itemData.enabledLocationIds
-                            }
-                        }
                     }
                     
                     ItemDetailsFieldSeparator()
@@ -35,21 +38,24 @@ struct ItemEnabledLocationsSection: View {
                     ItemDetailsFieldRow {
                         ItemDetailsToggleRow(
                             title: "Available at All Future Locations",
-                            isOn: $viewModel.itemData.availableAtFutureLocations
+                            isOn: Binding(
+                                get: { viewModel.staticData.availableAtFutureLocations },
+                                set: { newValue in
+                                    viewModel.staticData.availableAtFutureLocations = newValue
+                                    if !newValue {
+                                        // If disabling future locations, must also disable present at all locations
+                                        viewModel.staticData.presentAtAllLocations = false
+                                        // Convert to specific location mode
+                                        viewModel.staticData.presentAtLocationIds = viewModel.staticData.enabledLocationIds
+                                        viewModel.staticData.absentAtLocationIds = []
+                                    }
+                                    // When enabling, the computed property sets presentAtAllLocations = true
+                                }
+                            )
                         )
-                        .onChange(of: viewModel.itemData.availableAtFutureLocations) { _, newValue in
-                            if !newValue {
-                                // If disabling future locations, must also disable present at all locations
-                                viewModel.itemData.presentAtAllLocations = false
-                                // Convert to specific location mode
-                                viewModel.itemData.presentAtLocationIds = viewModel.itemData.enabledLocationIds
-                                viewModel.itemData.absentAtLocationIds = []
-                            }
-                            // When enabling, the computed property sets presentAtAllLocations = true
-                        }
                     }
 
-                    if !viewModel.itemData.presentAtAllLocations {
+                    if !viewModel.staticData.presentAtAllLocations {
                         ItemDetailsFieldSeparator()
 
                         // Individual Location Selection
@@ -69,14 +75,14 @@ struct ItemEnabledLocationsSection: View {
                                         ForEach(viewModel.availableLocations, id: \.id) { location in
                                             LocationToggleRow(
                                                 location: location,
-                                                isEnabled: viewModel.itemData.enabledLocationIds.contains(location.id)
+                                                isEnabled: viewModel.staticData.enabledLocationIds.contains(location.id)
                                             ) { isEnabled in
                                                 if isEnabled {
-                                                    if !viewModel.itemData.enabledLocationIds.contains(location.id) {
-                                                        viewModel.itemData.enabledLocationIds.append(location.id)
+                                                    if !viewModel.staticData.enabledLocationIds.contains(location.id) {
+                                                        viewModel.staticData.enabledLocationIds.append(location.id)
                                                     }
                                                 } else {
-                                                    viewModel.itemData.enabledLocationIds.removeAll { $0 == location.id }
+                                                    viewModel.staticData.enabledLocationIds.removeAll { $0 == location.id }
                                                 }
                                             }
                                         }
@@ -87,7 +93,7 @@ struct ItemEnabledLocationsSection: View {
                     }
                     
                     // Summary
-                    if !viewModel.itemData.enabledLocationIds.isEmpty {
+                    if !viewModel.staticData.enabledLocationIds.isEmpty {
                         ItemDetailsFieldSeparator()
                         
                         ItemDetailsFieldRow {
@@ -101,7 +107,7 @@ struct ItemEnabledLocationsSection: View {
                                         .font(.itemDetailsCaption)
                                         .foregroundColor(.itemDetailsSecondaryText)
                                 } else {
-                                    Text("Enabled at \(viewModel.itemData.enabledLocationIds.count) location(s)")
+                                    Text("Enabled at \(viewModel.staticData.enabledLocationIds.count) location(s)")
                                         .font(.itemDetailsCaption)
                                         .foregroundColor(.itemDetailsSecondaryText)
                                 }

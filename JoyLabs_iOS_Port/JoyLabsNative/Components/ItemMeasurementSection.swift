@@ -17,8 +17,8 @@ struct ItemMeasurementSection: View {
                         ItemDetailsFieldRow {
                             MeasurementUnitSettings(
                                 measurementUnitId: Binding(
-                                    get: { viewModel.itemData.measurementUnitId ?? "" },
-                                    set: { viewModel.itemData.measurementUnitId = $0.isEmpty ? nil : $0 }
+                                    get: { viewModel.staticData.measurementUnitId ?? "" },
+                                    set: { viewModel.staticData.measurementUnitId = $0.isEmpty ? nil : $0 }
                                 )
                             )
                         }
@@ -36,12 +36,12 @@ struct ItemMeasurementSection: View {
                         ItemDetailsFieldRow {
                             SellableStockableSettings(
                                 sellable: Binding(
-                                    get: { viewModel.itemData.sellable },
-                                    set: { viewModel.itemData.sellable = $0 }
+                                    get: { viewModel.staticData.sellable },
+                                    set: { viewModel.staticData.sellable = $0 }
                                 ),
                                 stockable: Binding(
-                                    get: { viewModel.itemData.stockable },
-                                    set: { viewModel.itemData.stockable = $0 }
+                                    get: { viewModel.staticData.stockable },
+                                    set: { viewModel.staticData.stockable = $0 }
                                 ),
                                 sellableEnabled: configManager.currentConfiguration.advancedFields.sellableEnabled,
                                 stockableEnabled: configManager.currentConfiguration.advancedFields.stockableEnabled
@@ -59,8 +59,8 @@ struct ItemMeasurementSection: View {
                         ItemDetailsFieldRow {
                             UserDataSettings(
                                 userData: Binding(
-                                    get: { viewModel.itemData.userData ?? "" },
-                                    set: { viewModel.itemData.userData = $0.isEmpty ? nil : $0 }
+                                    get: { viewModel.staticData.userData ?? "" },
+                                    set: { viewModel.staticData.userData = $0.isEmpty ? nil : $0 }
                                 )
                             )
                         }

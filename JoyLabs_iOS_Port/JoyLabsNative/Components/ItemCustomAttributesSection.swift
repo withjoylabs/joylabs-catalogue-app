@@ -16,32 +16,32 @@ struct ItemCustomAttributesSection: View {
                     }
                 
                     // Existing attributes
-                    ForEach(Array(viewModel.itemData.customAttributes.keys.sorted()), id: \.self) { key in
+                    ForEach(Array(viewModel.staticData.customAttributes.keys.sorted()), id: \.self) { key in
                         ItemDetailsFieldSeparator()
                         
                         ItemDetailsFieldRow {
                             CustomAttributeRow(
                                 key: key,
                                 value: Binding(
-                                    get: { viewModel.itemData.customAttributes[key] ?? "" },
+                                    get: { viewModel.staticData.customAttributes[key] ?? "" },
                                     set: { newValue in
                                         if newValue.isEmpty {
-                                            viewModel.itemData.customAttributes.removeValue(forKey: key)
+                                            viewModel.staticData.customAttributes.removeValue(forKey: key)
                                         } else {
-                                            viewModel.itemData.customAttributes[key] = newValue
+                                            viewModel.staticData.customAttributes[key] = newValue
                                         }
                                     }
                                 ),
                                 onDelete: {
-                                    viewModel.itemData.customAttributes.removeValue(forKey: key)
+                                    viewModel.staticData.customAttributes.removeValue(forKey: key)
                                 }
                             )
                         }
                     }
                     
                     // Add attribute button
-                    if viewModel.itemData.customAttributes.count < 10 {
-                        if !viewModel.itemData.customAttributes.isEmpty {
+                    if viewModel.staticData.customAttributes.count < 10 {
+                        if !viewModel.staticData.customAttributes.isEmpty {
                             ItemDetailsFieldSeparator()
                         }
                         
@@ -60,7 +60,7 @@ struct ItemCustomAttributesSection: View {
         }
         .sheet(isPresented: $showingAddAttribute) {
             AddCustomAttributeSheet { key, value in
-                viewModel.itemData.customAttributes[key] = value
+                viewModel.staticData.customAttributes[key] = value
             }
             .nestedComponentModal()
         }

@@ -19,8 +19,8 @@ struct ItemDetailsAdvancedSection: View {
                                     title: "Available Online",
                                     description: "Can be ordered through online channels",
                                     isOn: Binding(
-                                        get: { viewModel.itemData.availableOnline },
-                                        set: { viewModel.itemData.availableOnline = $0 }
+                                        get: { viewModel.staticData.availableOnline },
+                                        set: { viewModel.staticData.availableOnline = $0 }
                                     )
                                 )
                                 
@@ -28,8 +28,8 @@ struct ItemDetailsAdvancedSection: View {
                                     title: "Available for Pickup",
                                     description: "Can be picked up at physical locations",
                                     isOn: Binding(
-                                        get: { viewModel.itemData.availableForPickup },
-                                        set: { viewModel.itemData.availableForPickup = $0 }
+                                        get: { viewModel.staticData.availableForPickup },
+                                        set: { viewModel.staticData.availableForPickup = $0 }
                                     )
                                 )
                                 
@@ -37,8 +37,8 @@ struct ItemDetailsAdvancedSection: View {
                                     title: "Available Electronically",
                                     description: "Digital delivery available",
                                     isOn: Binding(
-                                        get: { viewModel.itemData.availableElectronically },
-                                        set: { viewModel.itemData.availableElectronically = $0 }
+                                        get: { viewModel.staticData.availableElectronically },
+                                        set: { viewModel.staticData.availableElectronically = $0 }
                                     )
                                 )
                             }
@@ -57,20 +57,20 @@ struct ItemDetailsAdvancedSection: View {
                                     title: "Track Inventory",
                                     description: "Monitor stock levels for this item",
                                     isOn: Binding(
-                                        get: { viewModel.itemData.trackInventory },
-                                        set: { viewModel.itemData.trackInventory = $0 }
+                                        get: { viewModel.staticData.trackInventory },
+                                        set: { viewModel.staticData.trackInventory = $0 }
                                     )
                                 )
                                 
-                                if viewModel.itemData.trackInventory {
+                                if viewModel.staticData.trackInventory {
                                     VStack(spacing: ItemDetailsSpacing.minimalSpacing) {
                                         // Alert Type Picker
                                         VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
                                             ItemDetailsFieldLabel(title: "Alert Type")
                                             
                                             Picker("Alert Type", selection: Binding(
-                                                get: { viewModel.itemData.inventoryAlertType },
-                                                set: { viewModel.itemData.inventoryAlertType = $0 }
+                                                get: { viewModel.staticData.inventoryAlertType },
+                                                set: { viewModel.staticData.inventoryAlertType = $0 }
                                             )) {
                                                 ForEach(InventoryAlertType.allCases, id: \.self) { type in
                                                     Text(type.displayName).tag(type)
@@ -80,22 +80,22 @@ struct ItemDetailsAdvancedSection: View {
                                         }
                                         
                                         // Alert Threshold
-                                        if viewModel.itemData.inventoryAlertType == .lowQuantity {
+                                        if viewModel.staticData.inventoryAlertType == .lowQuantity {
                                             ItemDetailsTextField(
                                                 title: "Alert Threshold",
                                                 placeholder: "Minimum quantity",
                                                 text: Binding(
                                                     get: { 
-                                                        if let threshold = viewModel.itemData.inventoryAlertThreshold {
+                                                        if let threshold = viewModel.staticData.inventoryAlertThreshold {
                                                             return String(threshold)
                                                         }
                                                         return ""
                                                     },
                                                     set: { 
                                                         if let threshold = Int($0) {
-                                                            viewModel.itemData.inventoryAlertThreshold = threshold
+                                                            viewModel.staticData.inventoryAlertThreshold = threshold
                                                         } else {
-                                                            viewModel.itemData.inventoryAlertThreshold = nil
+                                                            viewModel.staticData.inventoryAlertThreshold = nil
                                                         }
                                                     }
                                                 ),
@@ -110,7 +110,7 @@ struct ItemDetailsAdvancedSection: View {
                     }
                     
                     // Service Settings (for appointment services)
-                    if viewModel.itemData.productType == .appointmentsService {
+                    if viewModel.staticData.productType == .appointmentsService {
                         ItemDetailsFieldSeparator()
                         
                         ItemDetailsFieldRow {
@@ -122,12 +122,12 @@ struct ItemDetailsAdvancedSection: View {
                                         title: "Available for Booking",
                                         description: "Can be booked through appointment system",
                                         isOn: Binding(
-                                            get: { viewModel.itemData.availableForBooking },
-                                            set: { viewModel.itemData.availableForBooking = $0 }
+                                            get: { viewModel.staticData.availableForBooking },
+                                            set: { viewModel.staticData.availableForBooking = $0 }
                                         )
                                     )
                                     
-                                    if viewModel.itemData.availableForBooking {
+                                    if viewModel.staticData.availableForBooking {
                                         VStack(spacing: ItemDetailsSpacing.minimalSpacing) {
                                             // Service Duration
                                             ItemDetailsTextField(
@@ -135,16 +135,16 @@ struct ItemDetailsAdvancedSection: View {
                                                 placeholder: "Duration in minutes",
                                                 text: Binding(
                                                     get: {
-                                                        if let duration = viewModel.itemData.serviceDuration {
+                                                        if let duration = viewModel.staticData.serviceDuration {
                                                             return String(duration / (60 * 1000))
                                                         }
                                                         return ""
                                                     },
                                                     set: { newValue in
                                                         if let minutes = Int(newValue) {
-                                                            viewModel.itemData.serviceDuration = minutes * 60 * 1000
+                                                            viewModel.staticData.serviceDuration = minutes * 60 * 1000
                                                         } else {
-                                                            viewModel.itemData.serviceDuration = nil
+                                                            viewModel.staticData.serviceDuration = nil
                                                         }
                                                     }
                                                 ),
@@ -159,11 +159,11 @@ struct ItemDetailsAdvancedSection: View {
                                                     // TODO: Show team member picker
                                                 }) {
                                                     HStack {
-                                                        if viewModel.itemData.teamMemberIds.isEmpty {
+                                                        if viewModel.staticData.teamMemberIds.isEmpty {
                                                             Text("Select team members")
                                                                 .foregroundColor(.itemDetailsSecondaryText)
                                                         } else {
-                                                            Text("\(viewModel.itemData.teamMemberIds.count) member(s) assigned")
+                                                            Text("\(viewModel.staticData.teamMemberIds.count) member(s) assigned")
                                                                 .foregroundColor(.itemDetailsPrimaryText)
                                                         }
                                                         
@@ -198,8 +198,8 @@ struct ItemDetailsAdvancedSection: View {
                                 title: "Skip Modifier Screen",
                                 description: "Don't show modifier selection when adding to cart",
                                 isOn: Binding(
-                                    get: { viewModel.itemData.skipModifierScreen },
-                                    set: { viewModel.itemData.skipModifierScreen = $0 }
+                                    get: { viewModel.staticData.skipModifierScreen },
+                                    set: { viewModel.staticData.skipModifierScreen = $0 }
                                 )
                             )
                         }

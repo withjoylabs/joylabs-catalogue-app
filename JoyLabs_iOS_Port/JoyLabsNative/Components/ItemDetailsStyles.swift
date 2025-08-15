@@ -231,15 +231,6 @@ struct ItemDetailsTextField: View {
                 .keyboardType(keyboardType)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-                .toolbar {
-                    ToolbarItemGroup(placement: .keyboard) {
-                        Spacer()
-                        Button("Done") {
-                            // Dismiss keyboard
-                            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                        }
-                    }
-                }
                 .overlay(
                     RoundedRectangle(cornerRadius: ItemDetailsSpacing.fieldCornerRadius)
                         .stroke(error != nil ? Color.itemDetailsDestructive : Color.clear, lineWidth: 1)
@@ -457,14 +448,6 @@ struct ItemDetailsCategorySingleSelectModal: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .focused($isSearchFieldFocused)
-                        .toolbar {
-                            ToolbarItemGroup(placement: .keyboard) {
-                                Spacer()
-                                Button("Done") {
-                                    isSearchFieldFocused = false
-                                }
-                            }
-                        }
                 }
                 .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
                 .padding(.vertical, ItemDetailsSpacing.compactSpacing)
@@ -561,14 +544,6 @@ struct ItemDetailsCategoryMultiSelectModal: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .focused($isSearchFieldFocused)
-                        .toolbar {
-                            ToolbarItemGroup(placement: .keyboard) {
-                                Spacer()
-                                Button("Done") {
-                                    isSearchFieldFocused = false
-                                }
-                            }
-                        }
                 }
                 .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
                 .padding(.vertical, ItemDetailsSpacing.compactSpacing)

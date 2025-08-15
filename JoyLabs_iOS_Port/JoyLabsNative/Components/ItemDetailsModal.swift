@@ -131,6 +131,17 @@ struct ItemDetailsModal: View {
         .frame(maxHeight: .infinity)
         .interactiveDismissDisabled(false)
         .presentationDragIndicator(.visible)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") {
+                    isAnyFieldFocused = false
+                    hideKeyboard()
+                }
+                .foregroundColor(.itemDetailsAccent)
+                .fontWeight(.semibold)
+            }
+        }
         .alert("Error", isPresented: .constant(viewModel.error != nil)) {
             Button("OK") {
                 viewModel.error = nil

@@ -15,10 +15,7 @@ struct ItemDetailsBasicSection: View {
                         ItemDetailsTextField(
                             title: "Item Name",
                             placeholder: "Enter item name",
-                            text: Binding(
-                                get: { viewModel.itemData.name },
-                                set: { viewModel.itemData.name = $0 }
-                            ),
+                            text: $viewModel.name,
                             error: viewModel.nameError,
                             isRequired: true
                         )
@@ -32,10 +29,7 @@ struct ItemDetailsBasicSection: View {
                             VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
                                 ItemDetailsFieldLabel(title: "Description", helpText: "Optional item description")
                                 
-                                TextField("Enter item description (optional)", text: Binding(
-                                    get: { viewModel.itemData.description },
-                                    set: { viewModel.itemData.description = $0 }
-                                ), axis: .vertical)
+                                TextField("Enter item description (optional)", text: $viewModel.description, axis: .vertical)
                                     .font(.itemDetailsBody)
                                     .padding(ItemDetailsSpacing.fieldPadding)
                                     .background(Color.itemDetailsFieldBackground)
@@ -54,10 +48,7 @@ struct ItemDetailsBasicSection: View {
                             ItemDetailsTextField(
                                 title: "Abbreviation",
                                 placeholder: "Short name for receipts",
-                                text: Binding(
-                                    get: { viewModel.itemData.abbreviation },
-                                    set: { viewModel.itemData.abbreviation = $0 }
-                                ),
+                                text: $viewModel.abbreviation,
                                 helpText: "Used on receipts and POS displays when space is limited"
                             )
                         }

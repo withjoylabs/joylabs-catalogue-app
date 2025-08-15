@@ -22,7 +22,7 @@ struct ItemDetailsCategoriesSection: View {
                                 }) {
                                     HStack {
                                         Text(selectedReportingCategoryName ?? "Select category")
-                                            .foregroundColor(viewModel.itemData.reportingCategoryId == nil ? .itemDetailsSecondaryText : .itemDetailsPrimaryText)
+                                            .foregroundColor(viewModel.reportingCategoryId == nil ? .itemDetailsSecondaryText : .itemDetailsPrimaryText)
                                         Spacer()
                                         Image(systemName: "chevron.right")
                                             .foregroundColor(.itemDetailsSecondaryText)
@@ -78,7 +78,7 @@ struct ItemDetailsCategoriesSection: View {
         .sheet(isPresented: $showingCategoryMultiSelect) {
             ItemDetailsCategoryMultiSelectModal(
                 isPresented: $showingCategoryMultiSelect,
-                selectedCategoryIds: $viewModel.itemData.categoryIds,
+                selectedCategoryIds: $viewModel.categoryIds,
                 categories: viewModel.availableCategories,
                 title: "Additional Categories"
             )
@@ -87,7 +87,7 @@ struct ItemDetailsCategoriesSection: View {
         .sheet(isPresented: $showingReportingCategorySelect) {
             ItemDetailsCategorySingleSelectModal(
                 isPresented: $showingReportingCategorySelect,
-                selectedCategoryId: $viewModel.itemData.reportingCategoryId,
+                selectedCategoryId: $viewModel.reportingCategoryId,
                 categories: viewModel.availableCategories,
                 title: "Reporting Category",
                 onCategorySelected: viewModel.addToRecentCategories
@@ -97,12 +97,12 @@ struct ItemDetailsCategoriesSection: View {
     }
     
     private var selectedReportingCategoryName: String? {
-        guard let categoryId = viewModel.itemData.reportingCategoryId else { return nil }
+        guard let categoryId = viewModel.reportingCategoryId else { return nil }
         return viewModel.availableCategories.first { $0.id == categoryId }?.name
     }
     
     private var categorySelectionText: String {
-        let count = viewModel.itemData.categoryIds.count
+        let count = viewModel.categoryIds.count
         return count == 0 ? "Select categories" : "\(count) selected"
     }
     
@@ -117,10 +117,10 @@ struct ItemDetailsCategoriesSection: View {
     private func toggleCategory(_ categoryId: String?) {
         guard let categoryId = categoryId else { return }
         
-        if viewModel.itemData.categoryIds.contains(categoryId) {
-            viewModel.itemData.categoryIds.removeAll { $0 == categoryId }
+        if viewModel.categoryIds.contains(categoryId) {
+            viewModel.categoryIds.removeAll { $0 == categoryId }
         } else {
-            viewModel.itemData.categoryIds.append(categoryId)
+            viewModel.categoryIds.append(categoryId)
         }
     }
 }

@@ -15,12 +15,12 @@ struct ItemEcommerceSection: View {
                         ItemDetailsFieldRow {
                             OnlineVisibilitySettings(
                                 onlineVisibility: Binding(
-                                    get: { viewModel.itemData.onlineVisibility },
-                                    set: { viewModel.itemData.onlineVisibility = $0 }
+                                    get: { viewModel.staticData.onlineVisibility },
+                                    set: { viewModel.staticData.onlineVisibility = $0 }
                                 ),
                                 ecomVisibility: Binding(
-                                    get: { viewModel.itemData.ecomVisibility },
-                                    set: { viewModel.itemData.ecomVisibility = $0 }
+                                    get: { viewModel.staticData.ecomVisibility },
+                                    set: { viewModel.staticData.ecomVisibility = $0 }
                                 )
                             )
                         }
@@ -36,16 +36,16 @@ struct ItemEcommerceSection: View {
                         ItemDetailsFieldRow {
                             SEOSettings(
                                 seoTitle: Binding(
-                                    get: { viewModel.itemData.seoTitle ?? "" },
-                                    set: { viewModel.itemData.seoTitle = $0.isEmpty ? nil : $0 }
+                                    get: { viewModel.staticData.seoTitle ?? "" },
+                                    set: { viewModel.staticData.seoTitle = $0.isEmpty ? nil : $0 }
                                 ),
                                 seoDescription: Binding(
-                                    get: { viewModel.itemData.seoDescription ?? "" },
-                                    set: { viewModel.itemData.seoDescription = $0.isEmpty ? nil : $0 }
+                                    get: { viewModel.staticData.seoDescription ?? "" },
+                                    set: { viewModel.staticData.seoDescription = $0.isEmpty ? nil : $0 }
                                 ),
                                 seoKeywords: Binding(
-                                    get: { viewModel.itemData.seoKeywords ?? "" },
-                                    set: { viewModel.itemData.seoKeywords = $0.isEmpty ? nil : $0 }
+                                    get: { viewModel.staticData.seoKeywords ?? "" },
+                                    set: { viewModel.staticData.seoKeywords = $0.isEmpty ? nil : $0 }
                                 )
                             )
                         }
@@ -60,8 +60,8 @@ struct ItemEcommerceSection: View {
                         ItemDetailsFieldRow {
                             SalesChannelsSettings(
                                 channels: Binding(
-                                    get: { viewModel.itemData.channels },
-                                    set: { viewModel.itemData.channels = $0 }
+                                    get: { viewModel.staticData.channels },
+                                    set: { viewModel.staticData.channels = $0 }
                                 )
                             )
                         }

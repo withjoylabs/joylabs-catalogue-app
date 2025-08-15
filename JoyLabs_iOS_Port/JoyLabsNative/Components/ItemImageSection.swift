@@ -18,7 +18,7 @@ struct ItemImageSection: View {
                 Button(action: {
                     showingImagePicker = true
                 }) {
-                    if let imageURL = viewModel.itemData.imageURL, !imageURL.isEmpty {
+                    if let imageURL = viewModel.imageURL, !imageURL.isEmpty {
                         // Use simple image system
                         SimpleImageView.large(
                             imageURL: imageURL,
@@ -53,7 +53,7 @@ struct ItemImageSection: View {
                     .foregroundColor(.itemDetailsAccent)
                 }
                 
-                if viewModel.itemData.imageURL != nil && !viewModel.itemData.imageURL!.isEmpty {
+                if viewModel.imageURL != nil && !viewModel.imageURL!.isEmpty {
                     Button(action: {
                         Task {
                             await handleImageRemoval()
@@ -77,7 +77,7 @@ struct ItemImageSection: View {
         .cornerRadius(12)
         .sheet(isPresented: $showingImagePicker) {
             UnifiedImagePickerModal(
-                context: .itemDetails(itemId: viewModel.itemData.id),
+                context: .itemDetails(itemId: viewModel.staticData.id),
                 onDismiss: {
                     showingImagePicker = false
                 },
@@ -87,8 +87,8 @@ struct ItemImageSection: View {
                     print("🔄 [ItemModal] New AWS URL: \(result.awsUrl)")
 
                     // Update the view model with the new image (use AWS URL for proper URLCache)
-                    viewModel.itemData.imageURL = result.awsUrl
-                    viewModel.itemData.imageId = result.squareImageId
+                    viewModel.imageURL = result.awsUrl
+                    viewModel.imageId = result.squareImageId
                     showingImagePicker = false
 
                     // SimpleImageService handles all notifications automatically
@@ -103,7 +103,7 @@ struct ItemImageSection: View {
 
     /// Handle image removal with Square API integration
     private func handleImageRemoval() async {
-        guard let imageId = viewModel.itemData.imageId, !imageId.isEmpty else {
+        guard let imageId = viewModel.imageId, !imageId.isEmpty else {
             logger.warning("No image ID found for removal")
             return
         }
@@ -117,13 +117,13 @@ struct ItemImageSection: View {
 
             // Update local data
             await MainActor.run {
-                viewModel.itemData.imageURL = nil
-                viewModel.itemData.imageId = nil
+                viewModel.imageURL = nil
+                viewModel.imageId = nil
                 isRemoving = false
             }
 
             // Trigger UI refresh across all views
-            let itemId = viewModel.itemData.id ?? ""
+            let itemId = viewModel.staticData.id ?? ""
             print("📢 Posting imageUpdated notification for deleted image, item: \(itemId)")
             NotificationCenter.default.post(name: .imageUpdated, object: nil, userInfo: [
                 "itemId": itemId,

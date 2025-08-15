@@ -22,21 +22,21 @@ struct ItemLocationOverridesSection: View {
                 .padding(.vertical, 4)
                 
                 // Existing overrides
-                ForEach(Array(viewModel.itemData.locationOverrides.enumerated()), id: \.offset) { index, override in
+                ForEach(Array(viewModel.staticData.locationOverrides.enumerated()), id: \.offset) { index, override in
                     LocationOverrideCard(
                         override: Binding(
-                            get: { viewModel.itemData.locationOverrides[index] },
-                            set: { viewModel.itemData.locationOverrides[index] = $0 }
+                            get: { viewModel.staticData.locationOverrides[index] },
+                            set: { viewModel.staticData.locationOverrides[index] = $0 }
                         ),
                         availableLocations: viewModel.availableLocations,
                         onDelete: {
-                            viewModel.itemData.locationOverrides.remove(at: index)
+                            viewModel.staticData.locationOverrides.remove(at: index)
                         }
                     )
                 }
                 
                 // Add override button
-                if viewModel.availableLocations.count > viewModel.itemData.locationOverrides.count {
+                if viewModel.availableLocations.count > viewModel.staticData.locationOverrides.count {
                     Button(action: {
                         showingAddOverride = true
                     }) {
@@ -58,10 +58,10 @@ struct ItemLocationOverridesSection: View {
         .sheet(isPresented: $showingAddOverride) {
             AddLocationOverrideSheet(
                 availableLocations: viewModel.availableLocations.filter { location in
-                    !viewModel.itemData.locationOverrides.contains { $0.locationId == location.id }
+                    !viewModel.staticData.locationOverrides.contains { $0.locationId == location.id }
                 },
                 onAdd: { newOverride in
-                    viewModel.itemData.locationOverrides.append(newOverride)
+                    viewModel.staticData.locationOverrides.append(newOverride)
                 }
             )
             .nestedComponentModal()

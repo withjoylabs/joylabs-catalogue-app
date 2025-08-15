@@ -13,7 +13,7 @@ struct ItemModifiersSection: View {
                     VStack(spacing: 0) {
                         ItemDetailsFieldRow {
                             ModifierListSelector(
-                                modifierListIds: $viewModel.itemData.modifierListIds,
+                                modifierListIds: $viewModel.modifierListIds,
                                 viewModel: viewModel
                             )
                         }

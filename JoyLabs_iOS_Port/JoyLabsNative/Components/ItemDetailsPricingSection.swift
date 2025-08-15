@@ -10,35 +10,35 @@ struct ItemDetailsPricingSection: View {
         ItemDetailsSection(title: "Pricing & Variations", icon: "dollarsign.circle") {
             ItemDetailsCard {
                 VStack(spacing: 0) {
-                    ForEach(Array(viewModel.itemData.variations.enumerated()), id: \.offset) { index, variation in
+                    ForEach(Array(viewModel.variations.enumerated()), id: \.offset) { index, variation in
                         VariationCard(
                             variation: Binding(
                                 get: {
                                     // Safe bounds checking
-                                    guard index < viewModel.itemData.variations.count else {
+                                    guard index < viewModel.variations.count else {
                                         return ItemDetailsVariationData()
                                     }
-                                    return viewModel.itemData.variations[index]
+                                    return viewModel.variations[index]
                                 },
                                 set: { newValue in
                                     // Safe bounds checking
-                                    guard index < viewModel.itemData.variations.count else { return }
-                                    viewModel.itemData.variations[index] = newValue
+                                    guard index < viewModel.variations.count else { return }
+                                    viewModel.variations[index] = newValue
                                     viewModel.hasUnsavedChanges = true
                                 }
                             ),
                             index: index,
                             onDelete: {
                                 // Safe removal with bounds checking
-                                guard index < viewModel.itemData.variations.count && viewModel.itemData.variations.count > 1 else { return }
-                                viewModel.itemData.variations.remove(at: index)
+                                guard index < viewModel.variations.count && viewModel.variations.count > 1 else { return }
+                                viewModel.variations.remove(at: index)
                                 viewModel.hasUnsavedChanges = true
                             },
                             viewModel: viewModel
                         )
                         
                         // Add black spacing between variations
-                        if index < viewModel.itemData.variations.count - 1 {
+                        if index < viewModel.variations.count - 1 {
                             Rectangle()
                                 .fill(Color.itemDetailsModalBackground)
                                 .frame(height: ItemDetailsSpacing.sectionSpacing)
@@ -47,7 +47,7 @@ struct ItemDetailsPricingSection: View {
                     }
                     
                     // Add variation button - separate section
-                    if viewModel.itemData.variations.count < 5 {
+                    if viewModel.variations.count < 5 {
                         Rectangle()
                             .fill(Color.itemDetailsModalBackground)
                             .frame(height: ItemDetailsSpacing.compactSpacing)
@@ -70,7 +70,7 @@ struct ItemDetailsPricingSection: View {
 
     private func addNewVariation() {
         let newVariation = ItemDetailsVariationData()
-        viewModel.itemData.variations.append(newVariation)
+        viewModel.variations.append(newVariation)
     }
 }
 

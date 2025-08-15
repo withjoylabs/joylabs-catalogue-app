@@ -16,8 +16,8 @@ struct ItemProductTypeSection: View {
                                 ItemDetailsFieldLabel(title: "Product Type", helpText: "Choose the type of product")
                                 
                                 Picker("Product Type", selection: Binding(
-                                    get: { viewModel.itemData.productType },
-                                    set: { viewModel.itemData.productType = $0 }
+                                    get: { viewModel.staticData.productType },
+                                    set: { viewModel.staticData.productType = $0 }
                                 )) {
                                     ForEach(ProductType.allCases, id: \.self) { type in
                                         Text(type.displayName)

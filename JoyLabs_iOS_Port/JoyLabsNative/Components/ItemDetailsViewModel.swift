@@ -260,12 +260,117 @@ struct LocationData: Identifiable {
     }
 }
 
+// MARK: - Static Data Container
+/// Contains less frequently changed item properties to reduce @Published overhead
+struct ItemDetailsStaticData {
+    // Core identification
+    var id: String?
+    var version: Int64?
+    
+    // Product classification
+    var productType: ProductType = .regular
+    var isAlcoholic: Bool = false
+    
+    // Tax and modifier settings
+    var isTaxable: Bool = true
+    
+    // Images
+    var imageIds: [String] = []
+    
+    // Advanced features
+    var skipModifierScreen: Bool = false
+    var availableOnline: Bool = true
+    var availableForPickup: Bool = true
+    var availableElectronically: Bool = false
+    
+    // Service-specific
+    var serviceDuration: Int?
+    var teamMemberIds: [String] = []
+    var availableForBooking: Bool = false
+    
+    // Inventory
+    var trackInventory: Bool = false
+    var inventoryAlertType: InventoryAlertType = .none
+    var inventoryAlertThreshold: Int?
+    
+    // Custom attributes
+    var customAttributes: [String: String] = [:]
+
+    // Location overrides
+    var locationOverrides: [LocationOverrideData] = []
+
+    // E-commerce fields
+    var onlineVisibility: OnlineVisibility = .public
+    var ecomVisibility: EcomVisibility = .unindexed
+    var seoTitle: String?
+    var seoDescription: String?
+    var seoKeywords: String?
+    var channels: [String] = []
+
+    // Measurement and units
+    var measurementUnitId: String?
+    var sellable: Bool = true
+    var stockable: Bool = true
+    var userData: String?
+
+    // Availability settings
+    var isAvailableForSale: Bool = true
+    var isAvailableOnline: Bool = true
+    var isAvailableForPickup: Bool = true
+    var availabilityStartDate: Date? = nil
+    var availabilityEndDate: Date? = nil
+
+    // Location settings
+    var presentAtAllLocations: Bool = true
+    var presentAtLocationIds: [String] = []
+    var absentAtLocationIds: [String] = []
+    var enabledLocationIds: [String] = []
+    
+    // Computed property for "Available at all future locations" toggle
+    var availableAtFutureLocations: Bool {
+        get {
+            return presentAtAllLocations
+        }
+        set {
+            if newValue {
+                presentAtAllLocations = true
+            } else {
+                presentAtAllLocations = false
+                absentAtLocationIds = []
+            }
+        }
+    }
+
+    // Metadata
+    var isDeleted: Bool = false
+    var updatedAt: String?
+    var createdAt: String?
+
+    // Team Data
+    var teamData: TeamItemData?
+}
+
 // MARK: - Item Details View Model
 /// Manages the business logic and state for the item details modal
 @MainActor
 class ItemDetailsViewModel: ObservableObject {
-    // MARK: - Published Properties
-    @Published var itemData = ItemDetailsData()
+    // MARK: - Granular Published Properties (Performance Optimized)
+    // Frequently changed fields get individual @Published properties to avoid full hierarchy updates
+    @Published var name: String = ""
+    @Published var description: String = ""
+    @Published var abbreviation: String = ""
+    @Published var reportingCategoryId: String?
+    @Published var categoryIds: [String] = []
+    @Published var variations: [ItemDetailsVariationData] = []
+    @Published var taxIds: [String] = []
+    @Published var modifierListIds: [String] = []
+    @Published var imageURL: String?
+    @Published var imageId: String?
+    
+    // Less frequently changed fields remain in a struct to reduce @Published overhead
+    @Published var staticData = ItemDetailsStaticData()
+    
+    // System state
     @Published var isLoading = false
     @Published var isSaving = false
     @Published var error: String?
@@ -306,9 +411,74 @@ class ItemDetailsViewModel: ObservableObject {
     @Published var variationErrors: [String: String] = [:]
     
     // MARK: - Computed Properties
+    
+    /// Computed property that assembles complete ItemDetailsData from granular properties
+    var itemData: ItemDetailsData {
+        var data = ItemDetailsData()
+        
+        // Core identification from static data
+        data.id = staticData.id
+        data.version = staticData.version
+        
+        // Frequently changed fields from individual @Published properties
+        data.name = name
+        data.description = description
+        data.abbreviation = abbreviation
+        data.reportingCategoryId = reportingCategoryId
+        data.categoryIds = categoryIds
+        data.variations = variations
+        data.taxIds = taxIds
+        data.modifierListIds = modifierListIds
+        data.imageURL = imageURL
+        data.imageId = imageId
+        
+        // Less frequently changed fields from static data
+        data.productType = staticData.productType
+        data.isAlcoholic = staticData.isAlcoholic
+        data.isTaxable = staticData.isTaxable
+        data.imageIds = staticData.imageIds
+        data.skipModifierScreen = staticData.skipModifierScreen
+        data.availableOnline = staticData.availableOnline
+        data.availableForPickup = staticData.availableForPickup
+        data.availableElectronically = staticData.availableElectronically
+        data.serviceDuration = staticData.serviceDuration
+        data.teamMemberIds = staticData.teamMemberIds
+        data.availableForBooking = staticData.availableForBooking
+        data.trackInventory = staticData.trackInventory
+        data.inventoryAlertType = staticData.inventoryAlertType
+        data.inventoryAlertThreshold = staticData.inventoryAlertThreshold
+        data.customAttributes = staticData.customAttributes
+        data.locationOverrides = staticData.locationOverrides
+        data.onlineVisibility = staticData.onlineVisibility
+        data.ecomVisibility = staticData.ecomVisibility
+        data.seoTitle = staticData.seoTitle
+        data.seoDescription = staticData.seoDescription
+        data.seoKeywords = staticData.seoKeywords
+        data.channels = staticData.channels
+        data.measurementUnitId = staticData.measurementUnitId
+        data.sellable = staticData.sellable
+        data.stockable = staticData.stockable
+        data.userData = staticData.userData
+        data.isAvailableForSale = staticData.isAvailableForSale
+        data.isAvailableOnline = staticData.isAvailableOnline
+        data.isAvailableForPickup = staticData.isAvailableForPickup
+        data.availabilityStartDate = staticData.availabilityStartDate
+        data.availabilityEndDate = staticData.availabilityEndDate
+        data.presentAtAllLocations = staticData.presentAtAllLocations
+        data.presentAtLocationIds = staticData.presentAtLocationIds
+        data.absentAtLocationIds = staticData.absentAtLocationIds
+        data.enabledLocationIds = staticData.enabledLocationIds
+        data.isDeleted = staticData.isDeleted
+        data.updatedAt = staticData.updatedAt
+        data.createdAt = staticData.createdAt
+        data.teamData = staticData.teamData
+        
+        return data
+    }
+    
     var canSave: Bool {
-        !itemData.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        !itemData.variations.isEmpty &&
+        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !variations.isEmpty &&
         !isSaving &&
         nameError == nil &&
         allUPCsValid
@@ -318,7 +488,7 @@ class ItemDetailsViewModel: ObservableObject {
     private var allUPCsValid: Bool {
         let duplicateService = DuplicateDetectionService()
 
-        for variation in itemData.variations {
+        for variation in variations {
             if let upc = variation.upc, !upc.isEmpty {
                 let validationResult = duplicateService.validateUPC(upc)
                 if !validationResult.isValid {
@@ -333,9 +503,9 @@ class ItemDetailsViewModel: ObservableObject {
     var hasChanges: Bool {
         guard let original = originalItemData else {
             // For new items, check if any meaningful data has been entered
-            let hasData = !itemData.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-                   !itemData.description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-                   itemData.variations.contains { variation in
+            let hasData = !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                   !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                   variations.contains { variation in
                        !(variation.name ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
                        !(variation.sku ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
                        !(variation.upc ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
@@ -408,27 +578,30 @@ class ItemDetailsViewModel: ObservableObject {
         do {
             let savedObject: CatalogObject
 
-            let wasNewItem = itemData.id == nil || itemData.id?.isEmpty == true
+            let wasNewItem = staticData.id == nil || staticData.id?.isEmpty == true
+            
+            // Get current complete item data for API call
+            let currentItemData = itemData
             
             if wasNewItem {
                 // CREATE: New item
                 print("Creating new item via Square API")
-                savedObject = try await crudService.createItem(itemData)
+                savedObject = try await crudService.createItem(currentItemData)
                 print("✅ Item created successfully: \(savedObject.id)")
                 
                 // Process deferred image upload if needed
-                if DeferredImageUploadManager.shared.isDeferredUpload(itemData.imageURL) {
+                if DeferredImageUploadManager.shared.isDeferredUpload(imageURL) {
                     print("🔄 Processing deferred image upload for new item: \(savedObject.id)")
                     
                     do {
                         let finalImageURL = try await DeferredImageUploadManager.shared.processDeferredUploads(
                             for: savedObject.id,
-                            base64ImageURL: itemData.imageURL
+                            base64ImageURL: imageURL
                         )
                         
-                        // Update itemData with final image URL before transformation
+                        // Update imageURL with final image URL
                         await MainActor.run {
-                            self.itemData.imageURL = finalImageURL
+                            self.imageURL = finalImageURL
                         }
                         
                         print("✅ Deferred image upload completed successfully")
@@ -436,21 +609,22 @@ class ItemDetailsViewModel: ObservableObject {
                         print("⚠️ Deferred image upload failed, but item was created: \(error)")
                         // Don't fail the entire save operation, just log the error
                         await MainActor.run {
-                            self.itemData.imageURL = nil // Clear the invalid temp URL
+                            self.imageURL = nil // Clear the invalid temp URL
                         }
                     }
                 }
             } else {
                 // UPDATE: Existing item
-                print("Updating existing item via Square API: \(itemData.id!)")
-                savedObject = try await crudService.updateItem(itemData)
+                print("Updating existing item via Square API: \(staticData.id!)")
+                savedObject = try await crudService.updateItem(currentItemData)
                 print("✅ Item updated successfully: \(savedObject.id) (version: \(savedObject.safeVersion))")
             }
 
             // Update local data with Square API response
             let updatedItemData = ItemDataTransformers.transformCatalogObjectToItemDetails(savedObject)
+            // Load the updated data back into our granular properties
+            await loadItemDataFromCatalogObject(savedObject)
             await MainActor.run {
-                self.itemData = updatedItemData
                 self.originalItemData = updatedItemData
                 self.hasUnsavedChanges = false
                 self.error = nil // Clear any previous errors
@@ -479,7 +653,7 @@ class ItemDetailsViewModel: ObservableObject {
 
     /// Delete the current item using SquareCRUDService
     func deleteItem() async -> Bool {
-        guard let itemId = itemData.id, !itemId.isEmpty else {
+        guard let itemId = staticData.id, !itemId.isEmpty else {
             print("Cannot delete - no item ID")
             return false
         }
@@ -494,7 +668,7 @@ class ItemDetailsViewModel: ObservableObject {
 
             // Mark as deleted locally
             await MainActor.run {
-                self.itemData.isDeleted = true
+                self.staticData.isDeleted = true
                 self.hasUnsavedChanges = false
             }
 
@@ -510,8 +684,7 @@ class ItemDetailsViewModel: ObservableObject {
     
     private func setupValidation() {
         // Validate name changes
-        $itemData
-            .map(\.name)
+        $name
             .removeDuplicates()
             .sink { [weak self] name in
                 self?.validateName(name)
@@ -520,7 +693,22 @@ class ItemDetailsViewModel: ObservableObject {
     }
     
     private func setupChangeTracking() {
-        $itemData
+        // Track changes on individual properties instead of the whole itemData
+        Publishers.CombineLatest4($name, $description, $abbreviation, $reportingCategoryId)
+            .dropFirst()
+            .sink { [weak self] _ in
+                self?.hasUnsavedChanges = true
+            }
+            .store(in: &cancellables)
+            
+        Publishers.CombineLatest3($categoryIds, $variations, $taxIds)
+            .dropFirst()
+            .sink { [weak self] _ in
+                self?.hasUnsavedChanges = true
+            }
+            .store(in: &cancellables)
+            
+        Publishers.CombineLatest3($modifierListIds, $imageURL, $staticData)
             .dropFirst()
             .sink { [weak self] _ in
                 self?.hasUnsavedChanges = true
@@ -549,8 +737,8 @@ class ItemDetailsViewModel: ObservableObject {
         do {
             if let catalogObject = try catalogManager.fetchItemById(itemId) {
                 // Successfully loaded item from database
-                itemData = await transformCatalogObjectToItemDetails(catalogObject)
-                print("[ItemDetailsModal] Successfully loaded item from database: \(itemData.name)")
+                await loadItemDataFromCatalogObject(catalogObject)
+                print("[ItemDetailsModal] Successfully loaded item from database: \(name)")
 
             } else {
                 // Item not found in database
@@ -559,7 +747,7 @@ class ItemDetailsViewModel: ObservableObject {
 
                 // Create a new item with the provided ID as fallback
                 setupNewItem()
-                itemData.id = itemId
+                staticData.id = itemId
             }
 
         } catch {
@@ -569,7 +757,7 @@ class ItemDetailsViewModel: ObservableObject {
 
             // Create a new item as fallback
             setupNewItem()
-            itemData.id = itemId
+            staticData.id = itemId
         }
     }
 
@@ -591,12 +779,11 @@ class ItemDetailsViewModel: ObservableObject {
         do {
             if let catalogObject = try catalogManager.fetchItemById(itemId) {
                 // Transform and update the item data
-                let refreshedData = await transformCatalogObjectToItemDetails(catalogObject)
+                await loadItemDataFromCatalogObject(catalogObject)
                 
                 await MainActor.run {
-                    self.itemData = refreshedData
                     // Update original data to reflect the refreshed state
-                    self.originalItemData = refreshedData
+                    self.originalItemData = self.itemData
                 }
                 
                 logger.info("Successfully refreshed item data for \(itemId)")
@@ -610,16 +797,14 @@ class ItemDetailsViewModel: ObservableObject {
 
     // MARK: - Data Transformation
 
-    /// Transform a CatalogObject from database to ItemDetailsData for UI
-    private func transformCatalogObjectToItemDetails(_ catalogObject: CatalogObject) async -> ItemDetailsData {
-        var itemDetails = ItemDetailsData()
-
+    /// Load item data from CatalogObject into granular properties for performance
+    private func loadItemDataFromCatalogObject(_ catalogObject: CatalogObject) async {
         // Basic identification
-        itemDetails.id = catalogObject.id
-        itemDetails.version = catalogObject.version
-        itemDetails.updatedAt = catalogObject.updatedAt
-        itemDetails.isDeleted = catalogObject.safeIsDeleted
-        itemDetails.presentAtAllLocations = catalogObject.presentAtAllLocations ?? true
+        staticData.id = catalogObject.id
+        staticData.version = catalogObject.version
+        staticData.updatedAt = catalogObject.updatedAt
+        staticData.isDeleted = catalogObject.safeIsDeleted
+        staticData.presentAtAllLocations = catalogObject.presentAtAllLocations ?? true
 
         // Extract item data
         if let itemData = catalogObject.itemData {
@@ -636,13 +821,13 @@ class ItemDetailsViewModel: ObservableObject {
             }
             logger.info("🔍 ITEM MODAL: Full itemData structure available fields: name=\(itemData.name != nil), description=\(itemData.description != nil), categoryId=\(itemData.categoryId != nil), taxIds=\(itemData.taxIds != nil), variations=\(itemData.variations != nil), modifierListInfo=\(itemData.modifierListInfo != nil)")
 
-            // Basic information
-            itemDetails.name = itemData.name ?? ""
-            itemDetails.description = itemData.description ?? ""
-            itemDetails.abbreviation = itemData.abbreviation ?? ""
+            // Basic information - set individual @Published properties
+            self.name = itemData.name ?? ""
+            self.description = itemData.description ?? ""
+            self.abbreviation = itemData.abbreviation ?? ""
 
             // Product classification
-            itemDetails.productType = transformProductType(itemData.productType)
+            staticData.productType = transformProductType(itemData.productType)
 
             // CRITICAL: Extract categories following Square's logic and user requirements
             let allCategories = itemData.categories ?? []
@@ -651,83 +836,81 @@ class ItemDetailsViewModel: ObservableObject {
             if allCategories.count == 1 {
                 // Rule 1: If item has only 1 category, it should be treated as the reporting category
                 let singleCategory = allCategories.first!
-                itemDetails.reportingCategoryId = singleCategory.id
-                itemDetails.categoryIds = [] // No additional categories
+                self.reportingCategoryId = singleCategory.id
+                self.categoryIds = [] // No additional categories
                 logger.info("Single category found - treating as reporting category: \(singleCategory.id)")
 
             } else if allCategories.count > 1 {
                 // Rule 2: If there are multiple categories, use Square's explicit reporting_category field
                 if let reportingCategory = explicitReportingCategory {
-                    itemDetails.reportingCategoryId = reportingCategory.id
+                    self.reportingCategoryId = reportingCategory.id
                     // Additional categories are all categories except the reporting category
-                    itemDetails.categoryIds = allCategories.compactMap { category in
+                    self.categoryIds = allCategories.compactMap { category in
                         category.id != reportingCategory.id ? category.id : nil
                     }
-                    logger.info("Multiple categories found - using explicit reporting category: \(reportingCategory.id), additional: \(itemDetails.categoryIds)")
+                    logger.info("Multiple categories found - using explicit reporting category: \(reportingCategory.id), additional: \(self.categoryIds)")
                 } else {
                     // Fallback: Use first category as reporting category if no explicit one is set
                     let firstCategory = allCategories.first!
-                    itemDetails.reportingCategoryId = firstCategory.id
-                    itemDetails.categoryIds = Array(allCategories.dropFirst()).map { $0.id }
+                    self.reportingCategoryId = firstCategory.id
+                    self.categoryIds = Array(allCategories.dropFirst()).map { $0.id }
                     logger.warning("Multiple categories but no explicit reporting category - using first as reporting: \(firstCategory.id)")
                 }
 
             } else {
                 // No categories at all - check legacy categoryId field
                 if let legacyCategoryId = itemData.categoryId {
-                    itemDetails.reportingCategoryId = legacyCategoryId
-                    itemDetails.categoryIds = []
+                    self.reportingCategoryId = legacyCategoryId
+                    self.categoryIds = []
                     logger.info("No categories array - using legacy categoryId as reporting category: \(legacyCategoryId)")
                 } else {
-                    itemDetails.reportingCategoryId = nil
-                    itemDetails.categoryIds = []
-                    logger.info("No categories found for item: \(itemDetails.id ?? "no-id")")
+                    self.reportingCategoryId = nil
+                    self.categoryIds = []
+                    logger.info("No categories found for item: \(self.staticData.id ?? "no-id")")
                 }
             }
 
             // CRITICAL: Extract modifier lists (from modifierListInfo)
             if let modifierListInfo = itemData.modifierListInfo {
-                itemDetails.modifierListIds = modifierListInfo.compactMap { $0.modifierListId }
-                logger.info("Loaded \(itemDetails.modifierListIds.count) modifier lists for item: \(itemDetails.modifierListIds)")
+                self.modifierListIds = modifierListInfo.compactMap { $0.modifierListId }
+                logger.info("Loaded \(self.modifierListIds.count) modifier lists for item: \(self.modifierListIds)")
             } else {
-                itemDetails.modifierListIds = []
-                logger.info("No modifier lists found for item: \(itemDetails.id ?? "no-id")")
+                self.modifierListIds = []
+                logger.info("No modifier lists found for item: \(self.staticData.id ?? "no-id")")
             }
 
             // Load actual variations from database
-            await loadVariations(for: &itemDetails)
+            await loadVariationsForCurrentItem()
 
             // Availability and visibility
-            itemDetails.availableOnline = itemData.availableOnline ?? false
-            itemDetails.availableForPickup = itemData.availableForPickup ?? false
-            itemDetails.skipModifierScreen = itemData.skipModifierScreen ?? false
+            self.staticData.availableOnline = itemData.availableOnline ?? false
+            self.staticData.availableForPickup = itemData.availableForPickup ?? false
+            self.staticData.skipModifierScreen = itemData.skipModifierScreen ?? false
 
             // Tax information (already working correctly)
-            itemDetails.taxIds = itemData.taxIds ?? []
-            logger.info("Loaded \(itemDetails.taxIds.count) taxes for item: \(itemDetails.taxIds)")
+            self.taxIds = itemData.taxIds ?? []
+            logger.info("Loaded \(self.taxIds.count) taxes for item: \(self.taxIds)")
             
             // CRITICAL SQUARE API FIELDS - Previously missing extraction
-            itemDetails.isTaxable = itemData.isTaxable ?? true // Square API default
-            itemDetails.isAlcoholic = itemData.isAlcoholic ?? false // Square API default
-            logger.info("Extracted Square API fields: isTaxable=\(itemDetails.isTaxable), isAlcoholic=\(itemDetails.isAlcoholic)")
+            self.staticData.isTaxable = itemData.isTaxable ?? true // Square API default
+            self.staticData.isAlcoholic = itemData.isAlcoholic ?? false // Square API default
+            logger.info("Extracted Square API fields: isTaxable=\(self.staticData.isTaxable), isAlcoholic=\(self.staticData.isAlcoholic)")
 
             // PERFORMANCE OPTIMIZATION: Load pre-resolved tax and modifier names from database
-            await loadPreResolvedNames(for: &itemDetails)
+            await loadPreResolvedNamesForCurrentItem()
 
             // Images - use unified image service
-            if let itemId = itemDetails.id {
+            if let itemId = self.staticData.id {
                 let primaryImageInfo = getPrimaryImageInfo(for: itemId)
                 if let imageInfo = primaryImageInfo {
-                    itemDetails.imageURL = imageInfo.imageURL
-                    itemDetails.imageId = imageInfo.imageId // Use actual Square Image ID
+                    self.imageURL = imageInfo.imageURL
+                    self.imageId = imageInfo.imageId // Use actual Square Image ID
                     logger.info("Loaded image for item modal: \(imageInfo.imageURL) (ID: \(imageInfo.imageId))")
                 } else {
                     logger.info("No images found for item: \(itemId)")
                 }
             }
         }
-
-        return itemDetails
     }
 
     // MARK: - Helper Transformation Methods
@@ -762,37 +945,49 @@ class ItemDetailsViewModel: ObservableObject {
     }
     
     private func setupNewItem() {
-        itemData = ItemDetailsData()
+        // Clear all individual properties
+        self.name = ""
+        self.description = ""
+        self.abbreviation = ""
+        self.reportingCategoryId = nil
+        self.categoryIds = []
+        self.taxIds = []
+        self.modifierListIds = []
+        self.imageURL = nil
+        self.imageId = nil
+        
+        // Reset static data with defaults
+        self.staticData = ItemDetailsStaticData()
         
         // Apply field configuration defaults
         let config = FieldConfigurationManager.shared.currentConfiguration
         
         // Basic field defaults
-        itemData.presentAtAllLocations = config.basicFields.defaultPresentAtAllLocations
+        staticData.presentAtAllLocations = config.basicFields.defaultPresentAtAllLocations
         
         // Product classification defaults
-        itemData.productType = config.classificationFields.defaultProductType
-        itemData.isAlcoholic = config.classificationFields.defaultIsAlcoholic
+        staticData.productType = config.classificationFields.defaultProductType
+        staticData.isAlcoholic = config.classificationFields.defaultIsAlcoholic
         
         // Pricing and modifier defaults
-        itemData.skipModifierScreen = config.pricingFields.defaultSkipModifierScreen
-        itemData.isTaxable = config.pricingFields.defaultIsTaxable
+        staticData.skipModifierScreen = config.pricingFields.defaultSkipModifierScreen
+        staticData.isTaxable = config.pricingFields.defaultIsTaxable
         
         // E-commerce availability defaults
-        itemData.availableOnline = config.ecommerceFields.defaultAvailableOnline
-        itemData.availableForPickup = config.ecommerceFields.defaultAvailableForPickup
-        itemData.availableElectronically = config.ecommerceFields.defaultAvailableElectronically
+        staticData.availableOnline = config.ecommerceFields.defaultAvailableOnline
+        staticData.availableForPickup = config.ecommerceFields.defaultAvailableForPickup
+        staticData.availableElectronically = config.ecommerceFields.defaultAvailableElectronically
         
         // Availability section defaults (for ItemAvailabilitySection)
-        itemData.isAvailableForSale = true // Always default to true
-        itemData.isAvailableOnline = config.ecommerceFields.defaultAvailableOnline
-        itemData.isAvailableForPickup = config.ecommerceFields.defaultAvailableForPickup
+        staticData.isAvailableForSale = true // Always default to true
+        staticData.isAvailableOnline = config.ecommerceFields.defaultAvailableOnline
+        staticData.isAvailableForPickup = config.ecommerceFields.defaultAvailableForPickup
 
         // Create variation with configurable defaults
         var variation = ItemDetailsVariationData()
         variation.name = config.pricingFields.defaultVariationName
         variation.trackInventory = config.inventoryFields.defaultTrackInventory
-        itemData.variations = [variation]
+        self.variations = [variation]
     }
     
     private func setupNewItemFromSearch(query: String, queryType: SearchQueryType) {
@@ -800,15 +995,15 @@ class ItemDetailsViewModel: ObservableObject {
 
         switch queryType {
         case .upc:
-            if !itemData.variations.isEmpty {
-                itemData.variations[0].upc = query
+            if !self.variations.isEmpty {
+                self.variations[0].upc = query
             }
         case .sku:
-            if !itemData.variations.isEmpty {
-                itemData.variations[0].sku = query
+            if !self.variations.isEmpty {
+                self.variations[0].sku = query
             }
         case .name:
-            itemData.name = query
+            self.name = query
         }
     }
 
@@ -896,13 +1091,13 @@ class ItemDetailsViewModel: ObservableObject {
         }
     }
 
-    /// Load variations from database for an item
-    private func loadVariations(for itemDetails: inout ItemDetailsData) async {
+    /// Load variations from database for the current item
+    private func loadVariationsForCurrentItem() async {
         guard let db = databaseManager.getConnection() else {
             // Fallback to default variation if no database connection
             var variation = ItemDetailsVariationData()
             variation.name = ItemFieldConfiguration.defaultConfiguration().pricingFields.defaultVariationName
-            itemDetails.variations = [variation]
+            variations = [variation]
             return
         }
 
@@ -914,9 +1109,9 @@ class ItemDetailsViewModel: ObservableObject {
                 ORDER BY ordinal ASC
             """
             let statement = try db.prepare(sql)
-            var variations: [ItemDetailsVariationData] = []
+            var loadedVariations: [ItemDetailsVariationData] = []
 
-            for row in try statement.run(itemDetails.id ?? "") {
+            for row in try statement.run(self.staticData.id ?? "") {
                 var variation = ItemDetailsVariationData()
                 variation.id = row[0] as? String
                 variation.name = row[1] as? String
@@ -935,26 +1130,26 @@ class ItemDetailsViewModel: ObservableObject {
                     variation.priceMoney = MoneyData(amount: Int(priceAmount), currency: priceCurrency)
                 }
 
-                variations.append(variation)
+                loadedVariations.append(variation)
                 logger.info("Loaded variation: \(variation.name ?? "unnamed") - SKU: \(variation.sku ?? "none") - UPC: \(variation.upc ?? "none")")
             }
 
             // If no variations found, create default one
-            if variations.isEmpty {
+            if loadedVariations.isEmpty {
                 var variation = ItemDetailsVariationData()
                 variation.name = ItemFieldConfiguration.defaultConfiguration().pricingFields.defaultVariationName
-                variations = [variation]
+                loadedVariations = [variation]
                 logger.info("No variations found, created default variation")
             }
 
-            itemDetails.variations = variations
+            self.variations = loadedVariations
 
         } catch {
             logger.error("Failed to load variations: \(error)")
             // Fallback to default variation
             var variation = ItemDetailsVariationData()
             variation.name = ItemFieldConfiguration.defaultConfiguration().pricingFields.defaultVariationName
-            itemDetails.variations = [variation]
+            self.variations = [variation]
         }
     }
 
@@ -1145,8 +1340,8 @@ class ItemDetailsViewModel: ObservableObject {
 
     /// PERFORMANCE OPTIMIZATION: Load pre-resolved tax and modifier names from database
     /// This avoids the need to do lookups every time the item modal is opened
-    private func loadPreResolvedNames(for itemDetails: inout ItemDetailsData) async {
-        guard let itemId = itemDetails.id else { return }
+    private func loadPreResolvedNamesForCurrentItem() async {
+        guard let itemId = staticData.id else { return }
 
         do {
             guard let db = databaseManager.getConnection() else {
