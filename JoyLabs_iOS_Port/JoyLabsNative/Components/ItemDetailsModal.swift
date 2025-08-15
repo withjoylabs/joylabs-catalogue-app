@@ -49,7 +49,11 @@ struct ItemDetailsModal: View {
     let onSave: (ItemDetailsData) -> Void
 
     @State private var showingCancelConfirmation = false
-    @FocusState private var isAnyFieldFocused: Bool
+    @FocusState private var focusedField: FocusedField?
+    
+    enum FocusedField: Hashable {
+        case name, description, abbreviation
+    }
     
     @StateObject private var viewModel = ItemDetailsViewModel()
     
@@ -131,17 +135,6 @@ struct ItemDetailsModal: View {
         .frame(maxHeight: .infinity)
         .interactiveDismissDisabled(false)
         .presentationDragIndicator(.visible)
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("Done") {
-                    isAnyFieldFocused = false
-                    hideKeyboard()
-                }
-                .foregroundColor(.itemDetailsAccent)
-                .fontWeight(.semibold)
-            }
-        }
         .alert("Error", isPresented: .constant(viewModel.error != nil)) {
             Button("OK") {
                 viewModel.error = nil

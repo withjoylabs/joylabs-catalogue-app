@@ -231,6 +231,11 @@ struct ItemDetailsTextField: View {
                 .keyboardType(keyboardType)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+                .submitLabel(.done)
+                .onSubmit {
+                    // Dismiss keyboard when Return/Done is pressed
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                }
                 .overlay(
                     RoundedRectangle(cornerRadius: ItemDetailsSpacing.fieldCornerRadius)
                         .stroke(error != nil ? Color.itemDetailsDestructive : Color.clear, lineWidth: 1)
@@ -448,6 +453,10 @@ struct ItemDetailsCategorySingleSelectModal: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .focused($isSearchFieldFocused)
+                        .submitLabel(.done)
+                        .onSubmit {
+                            isSearchFieldFocused = false
+                        }
                 }
                 .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
                 .padding(.vertical, ItemDetailsSpacing.compactSpacing)
@@ -544,6 +553,10 @@ struct ItemDetailsCategoryMultiSelectModal: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .focused($isSearchFieldFocused)
+                        .submitLabel(.done)
+                        .onSubmit {
+                            isSearchFieldFocused = false
+                        }
                 }
                 .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
                 .padding(.vertical, ItemDetailsSpacing.compactSpacing)

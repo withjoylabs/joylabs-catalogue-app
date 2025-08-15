@@ -36,6 +36,11 @@ struct ItemDetailsBasicSection: View {
                                     .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
                                     .lineLimit(3...6)
                                     .autocorrectionDisabled()
+                                    .submitLabel(.done)
+                                    .onSubmit {
+                                        // Dismiss keyboard when Return/Done is pressed
+                                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                                    }
                             }
                         }
                     }
