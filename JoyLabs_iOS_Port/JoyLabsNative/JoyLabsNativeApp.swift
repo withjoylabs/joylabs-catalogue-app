@@ -12,6 +12,10 @@ struct JoyLabsNativeApp: App {
         // Initialize critical services SYNCHRONOUSLY first to prevent race conditions
         initializeCriticalServicesSync()
         
+        // FIX: Enable global InputAccessoryView swizzling to prevent constraint conflicts
+        // This affects ALL TextFields in the app, preventing InputAccessoryGenerator creation
+        UITextField.swizzleInputAccessoryView()
+        
         // Then initialize remaining services asynchronously
         initializeRemainingServicesAsync()
     }

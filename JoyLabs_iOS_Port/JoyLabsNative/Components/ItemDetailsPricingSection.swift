@@ -147,16 +147,16 @@ struct VariationCard: View {
                 VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
                     ItemDetailsFieldLabel(title: "Variation Name")
                     
-                    CustomTextField(placeholder: "e.g., Small, Medium, Large", text: Binding(
+                    TextField("e.g., Small, Medium, Large", text: Binding(
                         get: { variation.name ?? "" },
                         set: { variation.name = $0.isEmpty ? nil : $0 }
                     ))
                     .font(.itemDetailsBody)
-                    .foregroundColor(.itemDetailsPrimaryText)
                     .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
                     .padding(.vertical, ItemDetailsSpacing.compactSpacing)
                     .background(Color.itemDetailsFieldBackground)
                     .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
+                    .autocorrectionDisabled()
                     .autocorrectionDisabled()
                 }
                 .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
@@ -172,7 +172,7 @@ struct VariationCard: View {
                     VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
                         ItemDetailsFieldLabel(title: "UPC")
                         
-                        CustomTextField(placeholder: "Barcode number", text: Binding(
+                        TextField("Barcode number", text: Binding(
                             get: { variation.upc ?? "" },
                             set: {
                                 variation.upc = $0.isEmpty ? nil : $0
@@ -182,20 +182,21 @@ struct VariationCard: View {
                                     excludeItemId: viewModel.itemData.id
                                 )
                             }
-                        ), keyboardType: .numbersAndPunctuation)
+                        ))
                         .font(.itemDetailsBody)
-                        .foregroundColor(.itemDetailsPrimaryText)
                         .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
                     .padding(.vertical, ItemDetailsSpacing.compactSpacing)
                         .background(Color.itemDetailsFieldBackground)
                         .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
+                        .keyboardType(.numbersAndPunctuation)
+                        .autocorrectionDisabled()
                         .autocorrectionDisabled()
                     }
 
                     VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
                         ItemDetailsFieldLabel(title: "SKU")
                         
-                        CustomTextField(placeholder: "Internal SKU", text: Binding(
+                        TextField("Internal SKU", text: Binding(
                             get: { variation.sku ?? "" },
                             set: {
                                 variation.sku = $0.isEmpty ? nil : $0
@@ -207,11 +208,11 @@ struct VariationCard: View {
                             }
                         ))
                         .font(.itemDetailsBody)
-                        .foregroundColor(.itemDetailsPrimaryText)
                         .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
                     .padding(.vertical, ItemDetailsSpacing.compactSpacing)
                         .background(Color.itemDetailsFieldBackground)
                         .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
+                        .autocorrectionDisabled()
                     }
                 }
                 .padding(.horizontal, ItemDetailsSpacing.compactSpacing)

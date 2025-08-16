@@ -222,13 +222,14 @@ struct ItemDetailsTextField: View {
         VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
             ItemDetailsFieldLabel(title: title, isRequired: isRequired, helpText: helpText)
             
-            CustomTextField(placeholder: placeholder, text: $text, keyboardType: keyboardType)
+            TextField(placeholder, text: $text)
                 .font(.itemDetailsBody)
-                .foregroundColor(.itemDetailsPrimaryText)
                 .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
                 .padding(.vertical, ItemDetailsSpacing.compactSpacing)
                 .background(Color.itemDetailsFieldBackground)
                 .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
+                .keyboardType(keyboardType)
+                .autocorrectionDisabled()
                 .overlay(
                     RoundedRectangle(cornerRadius: ItemDetailsSpacing.fieldCornerRadius)
                         .stroke(error != nil ? Color.itemDetailsDestructive : Color.clear, lineWidth: 1)

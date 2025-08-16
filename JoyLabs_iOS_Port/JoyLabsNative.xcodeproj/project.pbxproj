@@ -115,6 +115,7 @@
 		F734B51CB83D78322A781674 /* QuantitySelectionModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB32D29A7FF02592B9894919 /* QuantitySelectionModal.swift */; };
 		FB639BE785F378A20A1A5252 /* ItemMeasurementSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E3B3F77BC194AF2CF9CED6F /* ItemMeasurementSection.swift */; };
 		FBD9A264FF0F76391E23E3E1 /* DuplicateWarningView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84F97B5C958182F299BA523E /* DuplicateWarningView.swift */; };
+		FBE6EC39B347843F2D356399 /* UITextField+NoInputAccessory.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA65834124AA651116B2DF7A /* UITextField+NoInputAccessory.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -221,6 +222,7 @@
 		E05265C6905F14EE507527F2 /* ItemEnabledLocationsSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemEnabledLocationsSection.swift; path = Components/ItemEnabledLocationsSection.swift; sourceTree = "<group>"; };
 		E2D5FAE44721EA24C8E50126 /* ItemImageSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemImageSection.swift; path = Components/ItemImageSection.swift; sourceTree = "<group>"; };
 		E7C7A71E405D29DA8DA233CD /* ItemDetailsAdvancedSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsAdvancedSection.swift; path = Components/ItemDetailsAdvancedSection.swift; sourceTree = "<group>"; };
+		EA65834124AA651116B2DF7A /* UITextField+NoInputAccessory.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "UITextField+NoInputAccessory.swift"; path = "Core/UITextField+NoInputAccessory.swift"; sourceTree = "<group>"; };
 		EB32D29A7FF02592B9894919 /* QuantitySelectionModal.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = QuantitySelectionModal.swift; path = Components/QuantitySelectionModal.swift; sourceTree = "<group>"; };
 		ECE3FAA42B58C68978179AFA /* SquareImageService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SquareImageService.swift; path = Core/Square/SquareImageService.swift; sourceTree = "<group>"; };
 		F32EEA3114D99A383F2B69FC /* ReorderPhotoCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderPhotoCard.swift; path = JoyLabsNative/Components/Reorder/ReorderPhotoCard.swift; sourceTree = "<group>"; };
@@ -520,6 +522,7 @@
 				13B11C36BFD1E2EFD506D8BE /* Notifications */,
 				A32330C34ABEC2315839317A /* Images */,
 				43FD6C830C31A54BB2A3E6CC /* Search */,
+				EA65834124AA651116B2DF7A /* UITextField+NoInputAccessory.swift */,
 			);
 			name = Core;
 			sourceTree = "<group>";
@@ -749,6 +752,7 @@
 				2FFC68602BF59E53AB65E786 /* ItemSkipModifierSection.swift in Sources */,
 				EF0C03051A3F310843218395 /* FieldVisibilityAndReorderingView.swift in Sources */,
 				69B5DA03BDC97B80E01D4848 /* CustomTextField.swift in Sources */,
+				FBE6EC39B347843F2D356399 /* UITextField+NoInputAccessory.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -29,12 +29,13 @@ struct ItemDetailsBasicSection: View {
                             VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
                                 ItemDetailsFieldLabel(title: "Description", helpText: "Optional item description")
                                 
-                                CustomTextField(placeholder: "Enter item description (optional)", text: $viewModel.description)
+                                TextField("Enter item description (optional)", text: $viewModel.description, axis: .vertical)
                                     .font(.itemDetailsBody)
-                                    .foregroundColor(.itemDetailsPrimaryText)
                                     .padding(ItemDetailsSpacing.fieldPadding)
                                     .background(Color.itemDetailsFieldBackground)
                                     .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
+                                    .lineLimit(3...6)
+                                    .autocorrectionDisabled()
                             }
                         }
                     }
