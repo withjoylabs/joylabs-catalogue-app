@@ -29,18 +29,12 @@ struct ItemDetailsBasicSection: View {
                             VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
                                 ItemDetailsFieldLabel(title: "Description", helpText: "Optional item description")
                                 
-                                TextField("Enter item description (optional)", text: $viewModel.description, axis: .vertical)
+                                CustomTextField(placeholder: "Enter item description (optional)", text: $viewModel.description)
                                     .font(.itemDetailsBody)
+                                    .foregroundColor(.itemDetailsPrimaryText)
                                     .padding(ItemDetailsSpacing.fieldPadding)
                                     .background(Color.itemDetailsFieldBackground)
                                     .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
-                                    .lineLimit(3...6)
-                                    .autocorrectionDisabled()
-                                    .submitLabel(.done)
-                                    .onSubmit {
-                                        // Dismiss keyboard when Return/Done is pressed
-                                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                                    }
                             }
                         }
                     }

@@ -234,14 +234,6 @@ struct HIDScannerIntegratedSearchField: View {
                 .autocorrectionDisabled()
                 .keyboardType(.default)
                 .focused($isSearchFieldFocused)
-                .submitLabel(.done)
-                .onSubmit {
-                    // Handle manual search submission
-                    if !searchText.isEmpty {
-                        onBarcodeScanned(searchText)
-                    }
-                    isSearchFieldFocused = false
-                }
                 // REMOVED: .onChange detectHIDInput to prevent recursive barcode processing
                 // The HID scanner service already handles barcode detection through onBarcodeScanned callback
 

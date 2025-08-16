@@ -201,7 +201,7 @@ struct AddCustomAttributeSheet: View {
                             .lineLimit(3...6)
                     case .number:
                         TextField("Enter number", text: $attributeValue)
-                            .keyboardType(.decimalPad)
+                            .keyboardType(.numbersAndPunctuation)
                     case .boolean:
                         Toggle("Value", isOn: Binding(
                             get: { attributeValue.lowercased() == "true" },

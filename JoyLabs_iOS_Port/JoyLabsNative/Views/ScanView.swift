@@ -26,6 +26,10 @@ struct ScanView: View {
     @FocusState private var isSearchFieldFocused: Bool
     @State private var searchDebounceTimer: Timer?
     
+    // Computed property to track if any modal is presented
+    private var isAnyModalPresented: Bool {
+        return showingHistory
+    }
 
     var body: some View {
         ZStack {
@@ -67,7 +71,8 @@ struct ScanView: View {
                     }
                 },
                 context: .scanView,
-                isTextFieldFocused: isSearchFieldFocused
+                isTextFieldFocused: isSearchFieldFocused,
+                isModalPresented: isAnyModalPresented
             )
             .frame(width: 0, height: 0)
             .opacity(0)

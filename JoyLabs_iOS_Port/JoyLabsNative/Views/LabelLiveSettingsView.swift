@@ -41,7 +41,7 @@ struct LabelLiveSettingsView: View {
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                         TextField("11180", value: $settingsService.settings.port, format: .number)
-                            .keyboardType(.numberPad)
+                            .keyboardType(.numbersAndPunctuation)
                             .onChange(of: settingsService.settings.port) {
                                 settingsService.saveSettings()
                             }

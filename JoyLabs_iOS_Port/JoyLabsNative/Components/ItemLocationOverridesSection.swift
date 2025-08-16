@@ -122,7 +122,7 @@ struct LocationOverrideCard: View {
                                     override.priceMoney = MoneyData(dollars: newValue)
                                 }
                             ), format: .number.precision(.fractionLength(2)))
-                            .keyboardType(.decimalPad)
+                            .keyboardType(.numbersAndPunctuation)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
                         }
                     }
@@ -137,7 +137,7 @@ struct LocationOverrideCard: View {
                             .foregroundColor(.primary)
                         
                         TextField("Quantity", value: $override.stockOnHand, format: .number)
-                            .keyboardType(.numberPad)
+                            .keyboardType(.numbersAndPunctuation)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
                     }
                 }
@@ -217,7 +217,7 @@ struct AddLocationOverrideSheet: View {
                             Spacer()
                             Text("$")
                             TextField("0.00", value: $priceAmount, format: .number.precision(.fractionLength(2)))
-                                .keyboardType(.decimalPad)
+                                .keyboardType(.numbersAndPunctuation)
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
                                 .frame(width: 100)
                         }
@@ -230,7 +230,7 @@ struct AddLocationOverrideSheet: View {
                             Text("Stock on Hand")
                             Spacer()
                             TextField("0", value: $stockOnHand, format: .number)
-                                .keyboardType(.numberPad)
+                                .keyboardType(.numbersAndPunctuation)
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
                                 .frame(width: 100)
                         }

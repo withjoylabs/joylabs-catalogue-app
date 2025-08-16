@@ -16,8 +16,9 @@ class AppLevelHIDScannerViewController: UIViewController {
     private let barcodeTimeout: TimeInterval = 0.15  // 150ms timeout
     private let maxHumanTypingSpeed: TimeInterval = 0.08  // 80ms between chars (fast human)
     
-    // Focus monitoring
+    // Focus and modal monitoring
     private var isAnyTextFieldFocused = false
+    private var isModalPresented = false
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -40,8 +41,8 @@ class AppLevelHIDScannerViewController: UIViewController {
     
     // MARK: - UIKeyCommand Implementation (No TextField Needed)
     override var keyCommands: [UIKeyCommand]? {
-        // Don't process keys if a text field is focused
-        guard !isAnyTextFieldFocused else { return [] }
+        // Don't process keys if a text field is focused OR a modal is presented
+        guard !isAnyTextFieldFocused && !isModalPresented else { return [] }
         
         var commands: [UIKeyCommand] = []
         
@@ -212,6 +213,16 @@ class AppLevelHIDScannerViewController: UIViewController {
             clearBuffer()
         }
     }
+    
+    func updateModalPresentation(_ isPresented: Bool) {
+        isModalPresented = isPresented
+        print("[AppLevelHIDScanner] Modal presentation: \(isPresented)")
+        
+        if isPresented {
+            // Clear any accumulated input when a modal is presented
+            clearBuffer()
+        }
+    }
 }
 
 // MARK: - SwiftUI Wrapper for App-Level Scanner
@@ -219,6 +230,7 @@ struct AppLevelHIDScanner: UIViewControllerRepresentable {
     let onBarcodeScanned: (String, HIDScannerContext) -> Void
     let context: HIDScannerContext
     let isTextFieldFocused: Bool
+    let isModalPresented: Bool
     
     func makeUIViewController(context: Context) -> AppLevelHIDScannerViewController {
         let controller = AppLevelHIDScannerViewController()
@@ -229,6 +241,7 @@ struct AppLevelHIDScanner: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: AppLevelHIDScannerViewController, context: Context) {
         uiViewController.updateContext(self.context)
         uiViewController.updateTextFieldFocus(isTextFieldFocused)
+        uiViewController.updateModalPresentation(isModalPresented)
     }
 }
 

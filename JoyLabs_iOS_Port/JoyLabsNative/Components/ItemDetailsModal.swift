@@ -49,11 +49,7 @@ struct ItemDetailsModal: View {
     let onSave: (ItemDetailsData) -> Void
 
     @State private var showingCancelConfirmation = false
-    @FocusState private var focusedField: FocusedField?
-    
-    enum FocusedField: Hashable {
-        case name, description, abbreviation
-    }
+    @FocusState private var isAnyFieldFocused: Bool
     
     @StateObject private var viewModel = ItemDetailsViewModel()
     
@@ -109,12 +105,6 @@ struct ItemDetailsModal: View {
                     viewModel: viewModel,
                     onSave: handleSave
                 )
-                .focused($isAnyFieldFocused)
-                .onTapGesture {
-                    // Dismiss keyboard when tapping outside text fields
-                    isAnyFieldFocused = false
-                    hideKeyboard()
-                }
 
                 // Floating Action Buttons (hidden during confirmation with animation)
                 VStack {
@@ -182,7 +172,6 @@ struct ItemDetailsModal: View {
                 ]
             )
         }
-        .scrollDismissesKeyboard(.immediately)
     }
     
     // MARK: - Private Methods

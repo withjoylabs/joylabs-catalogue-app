@@ -51,11 +51,7 @@ struct SearchTextField: View {
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .focused($isSearchFieldFocused)
-                .submitLabel(.done)
-                .onSubmit {
-                    isSearchFieldFocused = false
-                }
-
+                
             // Clear button - only show when there's text
             if !searchText.isEmpty {
                 Button(action: {
@@ -524,11 +520,7 @@ struct SearchBarWithClear: View {
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .focused($isSearchFieldFocused)
-                .submitLabel(.done)
-                .onSubmit {
-                    isSearchFieldFocused = false
-                }
-            
+                            
             if !searchText.isEmpty {
                 Button(action: {
                     searchText = ""

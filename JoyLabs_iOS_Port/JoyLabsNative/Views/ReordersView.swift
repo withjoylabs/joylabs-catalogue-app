@@ -60,6 +60,14 @@ struct ReordersView: SwiftUI.View {
     // Remove focus monitor - using direct focus state instead
     
     @FocusState private var isScannerFieldFocused: Bool
+    
+    // Computed property to track if any modal is presented
+    private var isAnyModalPresented: Bool {
+        return viewModel.activeSheet != nil || 
+               viewModel.showingExportOptions || 
+               viewModel.showingClearAlert || 
+               viewModel.showingMarkAllReceivedAlert
+    }
 
     var body: some SwiftUI.View {
         NavigationStack {
@@ -101,7 +109,8 @@ struct ReordersView: SwiftUI.View {
                         }
                     },
                     context: .reordersView,
-                    isTextFieldFocused: false  // No visible text fields in ReordersView
+                    isTextFieldFocused: false,  // No visible text fields in ReordersView
+                    isModalPresented: isAnyModalPresented
                 )
                 .frame(width: 0, height: 0)
                 .opacity(0)
