@@ -36,6 +36,15 @@ Before writing ANY new code, complete this checklist:
 - **Solution**: Use `ScrollView` + `LazyVStack` + scroll-based pagination instead of per-item `.onAppear` triggers
 - **Industry Pattern**: Major apps use `GeometryReader` + `PreferenceKey` for pagination, not per-item lifecycle hooks
 
+### INPUTACCESSORYGENERATOR CONSTRAINT CONFLICTS (ALL TEXTFIELDS + BLUETOOTH KEYBOARD)
+
+❌ **ALL SwiftUI TextFields cause constraint conflicts with external Bluetooth keyboards on iPad**
+- **Problem**: SwiftUI's `PlatformTextFieldAdaptor` automatically creates `InputAccessoryGenerator` with 69-point constraint that conflicts with 0-height `_UIRemoteKeyboardPlaceholderView`
+- **Symptom**: Console flooded with "Unable to simultaneously satisfy constraints" involving InputAccessoryGenerator for every TextField
+- **Root Cause**: SwiftUI assumes on-screen keyboard but external keyboards use different layout system
+- **Fix**: Method swizzling in `UITextField+NoInputAccessory.swift` prevents ALL inputAccessoryView assignments app-wide
+- **Result**: Single line `UITextField.swizzleInputAccessoryView()` in app init fixes entire app permanently
+
 ## Development Commands
 
 # IMPORTANT: Always use iPhone 16 iOS 18.5 simulator for builds

@@ -34,13 +34,23 @@ extension UITextField {
         // ALWAYS set nil to prevent InputAccessoryGenerator creation
         // This fixes the 69-point constraint conflict with external keyboards
         
-        if view != nil {
-            print("🛡️ [UITextField+Swizzle] Blocked inputAccessoryView assignment for \(self)")
-            print("🛡️ [UITextField+Swizzle] Prevented InputAccessoryGenerator creation")
+        // Silent operation - only log if debug logging is enabled
+        #if DEBUG
+        if view != nil && Self.debugLogging {
+            print("🛡️ [UITextField+Swizzle] Blocked inputAccessoryView for \(self.placeholder ?? "TextField")")
         }
+        #endif
         
         // Call original method with nil instead of the provided view
         self.swizzled_setInputAccessoryView(nil)
+    }
+    
+    /// Enable/disable debug logging for swizzling (off by default)
+    private static var debugLogging = false
+    
+    /// Enable debug logging for development/troubleshooting
+    static func enableSwizzleDebugLogging() {
+        debugLogging = true
     }
 }
 

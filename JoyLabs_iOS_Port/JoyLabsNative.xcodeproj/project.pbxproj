@@ -38,7 +38,6 @@
 		633EAA03A1AACAFBDA6DCEC6 /* WebhookService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CB9D6E0060770E50822CE1D /* WebhookService.swift */; };
 		65577A06B7D6A9FED610402A /* ReorderPhotoCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F32EEA3114D99A383F2B69FC /* ReorderPhotoCard.swift */; };
 		690DEB5BE22908836C5ABF87 /* SimpleImageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BF09157ED1FEE7951EC8474 /* SimpleImageService.swift */; };
-		69B5DA03BDC97B80E01D4848 /* CustomTextField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D1EFABED58CED93CAB50072 /* CustomTextField.swift */; };
 		6EA41FDD40E6B3236E5DC902 /* FloatingActionButtons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3773602C0EF0A589CED63975 /* FloatingActionButtons.swift */; };
 		6F5DE98B1CAA89726CC9FF2D /* NotificationSettingsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94D98163B152C53C35F66FD4 /* NotificationSettingsService.swift */; };
 		7049BADF1D61D0240CB1C900 /* ItemProductTypeSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F41835B4957DA654FE6627F7 /* ItemProductTypeSection.swift */; };
@@ -124,7 +123,6 @@
 		099140CF4DCC3454A9EC9A5C /* ItemDetailsModal.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsModal.swift; path = Components/ItemDetailsModal.swift; sourceTree = "<group>"; };
 		09BFF04263C6393A3C5DD86A /* WebhookIntegrationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WebhookIntegrationTests.swift; path = Testing/WebhookIntegrationTests.swift; sourceTree = "<group>"; };
 		0B4067D357704001C7A0D307 /* QuantityNumpad.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QuantityNumpad.swift; sourceTree = "<group>"; };
-		0D1EFABED58CED93CAB50072 /* CustomTextField.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CustomTextField.swift; path = Components/CustomTextField.swift; sourceTree = "<group>"; };
 		0E3B3F77BC194AF2CF9CED6F /* ItemMeasurementSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemMeasurementSection.swift; path = Components/ItemMeasurementSection.swift; sourceTree = "<group>"; };
 		109D8EF3405D7C8718DCDF2B /* ItemCustomAttributesSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemCustomAttributesSection.swift; path = Components/ItemCustomAttributesSection.swift; sourceTree = "<group>"; };
 		11C6F817152E7F615D5CB415 /* LabelLiveSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LabelLiveSettingsView.swift; path = Views/LabelLiveSettingsView.swift; sourceTree = "<group>"; };
@@ -341,7 +339,6 @@
 				97248AB2D5A526439B92B9E2 /* ItemModifiersSection.swift */,
 				2A855C7304B8B6B42B9DEF4C /* ItemSkipModifierSection.swift */,
 				7E3BCABE673B4A6579D0625F /* FieldVisibilityAndReorderingView.swift */,
-				0D1EFABED58CED93CAB50072 /* CustomTextField.swift */,
 			);
 			name = Components;
 			sourceTree = "<group>";
@@ -751,7 +748,6 @@
 				37E79365D45FBBB720767A29 /* ItemModifiersSection.swift in Sources */,
 				2FFC68602BF59E53AB65E786 /* ItemSkipModifierSection.swift in Sources */,
 				EF0C03051A3F310843218395 /* FieldVisibilityAndReorderingView.swift in Sources */,
-				69B5DA03BDC97B80E01D4848 /* CustomTextField.swift in Sources */,
 				FBE6EC39B347843F2D356399 /* UITextField+NoInputAccessory.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
