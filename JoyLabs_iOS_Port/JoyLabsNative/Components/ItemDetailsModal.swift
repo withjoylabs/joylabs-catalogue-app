@@ -48,10 +48,10 @@ struct ItemDetailsModal: View {
     let onDismiss: () -> Void
     let onSave: (ItemDetailsData) -> Void
 
-    @State private var showingCancelConfirmation = false
     @FocusState private var isAnyFieldFocused: Bool
     
     @StateObject private var viewModel = ItemDetailsViewModel()
+    @StateObject private var dialogService = ConfirmationDialogService.shared
     
     private let logger = Logger(subsystem: "com.joylabs.native", category: "ItemDetailsModal")
 
@@ -117,8 +117,8 @@ struct ItemDetailsModal: View {
                         onSaveAndPrint: handleSaveAndPrint,
                         canSave: viewModel.canSave
                     )
-                    .opacity(showingCancelConfirmation ? 0 : 1)
-                    .animation(.easeInOut(duration: 0.1), value: showingCancelConfirmation)
+                    .opacity(dialogService.isShowing ? 0 : 1)
+                    .animation(.easeInOut(duration: 0.1), value: dialogService.isShowing)
                 }
             }
         }
@@ -160,18 +160,7 @@ struct ItemDetailsModal: View {
                 }
             }
         }
-        .actionSheet(isPresented: $showingCancelConfirmation) {
-            ActionSheet(
-                title: Text("Discard Changes?"),
-                message: Text("You have unsaved changes. Are you sure you want to discard them?"),
-                buttons: [
-                    .destructive(Text("Discard Changes")) {
-                        onDismiss()
-                    },
-                    .cancel(Text("Keep Editing"))
-                ]
-            )
-        }
+        .withConfirmationDialog()
     }
     
     // MARK: - Private Methods
@@ -206,10 +195,17 @@ struct ItemDetailsModal: View {
 
         if viewModel.hasChanges {
             print("User has unsaved changes - showing confirmation")
-            // Small delay to ensure keyboard dismissal completes
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                showingCancelConfirmation = true
-            }
+            let config = ConfirmationDialogConfig(
+                title: "Discard Changes?",
+                message: "You have unsaved changes. Are you sure you want to discard them?",
+                confirmButtonText: "Discard Changes",
+                cancelButtonText: "Keep Editing",
+                isDestructive: true,
+                onConfirm: {
+                    onDismiss()
+                }
+            )
+            dialogService.show(config)
         } else {
             onDismiss()
         }

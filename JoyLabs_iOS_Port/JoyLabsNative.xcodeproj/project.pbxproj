@@ -103,12 +103,14 @@
 		DC0BF75906B9902A9E9F25EE /* ItemDetailsStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE43F36BB6F6797E1742AD7C /* ItemDetailsStyles.swift */; };
 		DE9B0804171D8F8469343090 /* SquareImageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECE3FAA42B58C68978179AFA /* SquareImageService.swift */; };
 		E0A4C587E31A4D97E9D4D827 /* ItemDetailsCategoriesSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36FF7B27B9EC548A6363CA3B /* ItemDetailsCategoriesSection.swift */; };
+		E77F480F2ACB4170199D8A95 /* CustomConfirmationDialog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A51CB94E5784E7C6B6DF51E /* CustomConfirmationDialog.swift */; };
 		E96B947FD6602A6362924F1C /* ReorderDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D65BFF8B1281F6313E2EAA1 /* ReorderDataManager.swift */; };
 		E9A6D95E709090B8AEE36C79 /* NotificationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 522EA5712FAC74516DFC29CF /* NotificationsView.swift */; };
 		EAF11475F8FA6178769828DA /* ItemEnabledLocationsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E05265C6905F14EE507527F2 /* ItemEnabledLocationsSection.swift */; };
 		ECF91328F9AC5D2B917E3F1B /* WebhookNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6ECE051541206A85FCA7DCFC /* WebhookNotificationService.swift */; };
 		EDE038AD6E5EFB5420A06F61 /* NotificationExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49800521F9B080A23DC72541 /* NotificationExtensions.swift */; };
 		EF0C03051A3F310843218395 /* FieldVisibilityAndReorderingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E3BCABE673B4A6579D0625F /* FieldVisibilityAndReorderingView.swift */; };
+		EF1ED1F1B0F29A02EF984D10 /* ConfirmationDialogService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0306C22956C0D740D67567F /* ConfirmationDialogService.swift */; };
 		F0E1858DA63A2B4ECA8E77E6 /* ItemLocationOverridesSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24FCFC0D136AEF6740D9E682 /* ItemLocationOverridesSection.swift */; };
 		F691E68C7ADFDA1137A12D8D /* ItemDeleteSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68CAE024F232AEDA149CF627 /* ItemDeleteSection.swift */; };
 		F734B51CB83D78322A781674 /* QuantitySelectionModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB32D29A7FF02592B9894919 /* QuantitySelectionModal.swift */; };
@@ -160,6 +162,7 @@
 		7EFA46CC1207E812F353D29F /* ViewExtensions+ModalPresentation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "ViewExtensions+ModalPresentation.swift"; path = "Extensions/ViewExtensions+ModalPresentation.swift"; sourceTree = "<group>"; };
 		7F37514B9AC1E1E45F886FEB /* WebhookSignatureValidator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WebhookSignatureValidator.swift; path = Core/Services/WebhookSignatureValidator.swift; sourceTree = "<group>"; };
 		84F97B5C958182F299BA523E /* DuplicateWarningView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DuplicateWarningView.swift; path = Components/DuplicateWarningView.swift; sourceTree = "<group>"; };
+		8A51CB94E5784E7C6B6DF51E /* CustomConfirmationDialog.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CustomConfirmationDialog.swift; path = Components/CustomConfirmationDialog.swift; sourceTree = "<group>"; };
 		93826EA70F24FEB3F6F59BD6 /* AppDelegate.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = JoyLabsNative/AppDelegate.swift; sourceTree = "<group>"; };
 		94D98163B152C53C35F66FD4 /* NotificationSettingsService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Core/Services/NotificationSettingsService.swift; sourceTree = "<group>"; };
 		9656EA400096ADC30614CEB4 /* SwipeableReorderCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SwipeableReorderCard.swift; path = JoyLabsNative/Components/Reorder/SwipeableReorderCard.swift; sourceTree = "<group>"; };
@@ -212,6 +215,7 @@
 		CC109DD4E71A09E72CF6F0D3 /* ReorderHeaderSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderHeaderSection.swift; path = JoyLabsNative/Views/Reorders/ReorderHeaderSection.swift; sourceTree = "<group>"; };
 		CE43F36BB6F6797E1742AD7C /* ItemDetailsStyles.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsStyles.swift; path = Components/ItemDetailsStyles.swift; sourceTree = "<group>"; };
 		D011F99665AC02112E587409 /* FuzzySearch.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FuzzySearch.swift; path = Core/Search/FuzzySearch.swift; sourceTree = "<group>"; };
+		D0306C22956C0D740D67567F /* ConfirmationDialogService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ConfirmationDialogService.swift; path = Core/Services/ConfirmationDialogService.swift; sourceTree = "<group>"; };
 		D583607765D3CA494A3F396E /* ItemDetailsViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsViewModel.swift; path = Components/ItemDetailsViewModel.swift; sourceTree = "<group>"; };
 		D71532DF527344EFA478B1B3 /* FieldConfigurationManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FieldConfigurationManager.swift; path = Components/FieldConfigurationManager.swift; sourceTree = "<group>"; };
 		D7606A3222698687642B402D /* LabelLivePrintService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LabelLivePrintService.swift; path = Core/Services/LabelLivePrintService.swift; sourceTree = "<group>"; };
@@ -339,6 +343,7 @@
 				97248AB2D5A526439B92B9E2 /* ItemModifiersSection.swift */,
 				2A855C7304B8B6B42B9DEF4C /* ItemSkipModifierSection.swift */,
 				7E3BCABE673B4A6579D0625F /* FieldVisibilityAndReorderingView.swift */,
+				8A51CB94E5784E7C6B6DF51E /* CustomConfirmationDialog.swift */,
 			);
 			name = Components;
 			sourceTree = "<group>";
@@ -549,6 +554,7 @@
 				5BF09157ED1FEE7951EC8474 /* SimpleImageService.swift */,
 				D7606A3222698687642B402D /* LabelLivePrintService.swift */,
 				7CCA9B512044EB597E9B73C7 /* DeferredImageUploadManager.swift */,
+				D0306C22956C0D740D67567F /* ConfirmationDialogService.swift */,
 			);
 			name = Services;
 			sourceTree = "<group>";
@@ -749,6 +755,8 @@
 				2FFC68602BF59E53AB65E786 /* ItemSkipModifierSection.swift in Sources */,
 				EF0C03051A3F310843218395 /* FieldVisibilityAndReorderingView.swift in Sources */,
 				FBE6EC39B347843F2D356399 /* UITextField+NoInputAccessory.swift in Sources */,
+				EF1ED1F1B0F29A02EF984D10 /* ConfirmationDialogService.swift in Sources */,
+				E77F480F2ACB4170199D8A95 /* CustomConfirmationDialog.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

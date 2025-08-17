@@ -80,8 +80,8 @@ struct VariationCard: View {
     let index: Int
     let onDelete: () -> Void
 
-    @State private var showingDeleteConfirmation = false
     @StateObject private var duplicateDetection = DuplicateDetectionService()
+    @StateObject private var dialogService = ConfirmationDialogService.shared
     @ObservedObject var viewModel: ItemDetailsViewModel
 
     // Check if variation has meaningful data
@@ -127,7 +127,17 @@ struct VariationCard: View {
                     Button(action: {
                         // Check if variation has data before showing confirmation
                         if variationHasData {
-                            showingDeleteConfirmation = true
+                            let config = ConfirmationDialogConfig(
+                                title: "Delete Variation",
+                                message: "Are you sure you want to delete this variation? This action cannot be undone.",
+                                confirmButtonText: "Delete",
+                                cancelButtonText: "Cancel",
+                                isDestructive: true,
+                                onConfirm: {
+                                    onDelete()
+                                }
+                            )
+                            dialogService.show(config)
                         } else {
                             onDelete()
                         }
@@ -279,18 +289,6 @@ struct VariationCard: View {
         }
         .background(Color.itemDetailsSectionBackground)
         .cornerRadius(ItemDetailsSpacing.sectionCornerRadius)
-        .confirmationDialog(
-            "Delete Variation",
-            isPresented: $showingDeleteConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Delete", role: .destructive) {
-                onDelete()
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Are you sure you want to delete this variation? This action cannot be undone.")
-        }
     }
 }
 
@@ -478,7 +476,7 @@ struct PriceOverrideRow: View {
     let availableLocations: [LocationData]
     let onDelete: () -> Void
     
-    @State private var showingDeleteConfirmation = false
+    @StateObject private var dialogService = ConfirmationDialogService.shared
     @State private var priceInCents: Int = 0
     @State private var digitString: String = "0.00"
     
@@ -546,7 +544,17 @@ struct PriceOverrideRow: View {
                         
                         // Delete button
                         Button(action: {
-                            showingDeleteConfirmation = true
+                            let config = ConfirmationDialogConfig(
+                                title: "Delete Price Override",
+                                message: "Are you sure you want to delete this price override for \(locationName)?",
+                                confirmButtonText: "Delete",
+                                cancelButtonText: "Cancel",
+                                isDestructive: true,
+                                onConfirm: {
+                                    onDelete()
+                                }
+                            )
+                            dialogService.show(config)
                         }) {
                             Image(systemName: "trash")
                                 .foregroundColor(.itemDetailsDestructive)
@@ -581,18 +589,6 @@ struct PriceOverrideRow: View {
                     }
                 }
             }
-        }
-        .confirmationDialog(
-            "Delete Price Override",
-            isPresented: $showingDeleteConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Delete", role: .destructive) {
-                onDelete()
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Are you sure you want to delete this price override for \(locationName)?")
         }
         .onAppear {
             // Initialize from existing price
