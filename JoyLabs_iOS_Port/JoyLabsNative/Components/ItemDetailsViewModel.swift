@@ -207,7 +207,7 @@ enum PricingType: String, CaseIterable {
 }
 
 // MARK: - Money Data
-struct MoneyData {
+struct MoneyData: Equatable {
     var amount: Int // in cents
     var currency: String = "USD"
     
@@ -221,7 +221,7 @@ struct MoneyData {
     }
     
     init(dollars: Double, currency: String = "USD") {
-        self.amount = Int(dollars * 100)
+        self.amount = Int(round(dollars * 100))
         self.currency = currency
     }
 }

@@ -143,81 +143,59 @@ struct VariationCard: View {
             .background(Color.itemDetailsSectionBackground)
             
             VStack(spacing: 0) {
-                // Variation name - reduced spacing
-                VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
-                    ItemDetailsFieldLabel(title: "Variation Name")
-                    
-                    TextField("e.g., Small, Medium, Large", text: Binding(
-                        get: { variation.name ?? "" },
-                        set: { variation.name = $0.isEmpty ? nil : $0 }
-                    ))
-                    .font(.itemDetailsBody)
-                    .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
-                    .padding(.vertical, ItemDetailsSpacing.compactSpacing)
-                    .background(Color.itemDetailsFieldBackground)
-                    .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
-                    .autocorrectionDisabled()
-                    .autocorrectionDisabled()
+                // Variation name - using centralized component for touch targets
+                ItemDetailsFieldRow {
+                    ItemDetailsTextField(
+                        title: "Variation Name",
+                        placeholder: "e.g., Small, Medium, Large",
+                        text: Binding(
+                            get: { variation.name ?? "" },
+                            set: { variation.name = $0.isEmpty ? nil : $0 }
+                        )
+                    )
                 }
-                .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
-                .padding(.vertical, ItemDetailsSpacing.minimalSpacing)
-                .background(Color.itemDetailsSectionBackground)
                 
                 Rectangle()
                     .fill(Color.itemDetailsSeparator)
                     .frame(height: 0.5)
                 
-                // UPC and SKU row - reduced spacing
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
-                        ItemDetailsFieldLabel(title: "UPC")
-                        
-                        TextField("Barcode number", text: Binding(
-                            get: { variation.upc ?? "" },
-                            set: {
-                                variation.upc = $0.isEmpty ? nil : $0
-                                duplicateDetection.checkForDuplicates(
-                                    sku: variation.sku ?? "",
-                                    upc: $0,
-                                    excludeItemId: viewModel.itemData.id
-                                )
-                            }
-                        ))
-                        .font(.itemDetailsBody)
-                        .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
-                    .padding(.vertical, ItemDetailsSpacing.compactSpacing)
-                        .background(Color.itemDetailsFieldBackground)
-                        .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
-                        .keyboardType(.numbersAndPunctuation)
-                        .autocorrectionDisabled()
-                        .autocorrectionDisabled()
-                    }
+                // UPC and SKU row - using centralized components
+                ItemDetailsFieldRow {
+                    HStack(spacing: 12) {
+                        ItemDetailsTextField(
+                            title: "UPC",
+                            placeholder: "Barcode number",
+                            text: Binding(
+                                get: { variation.upc ?? "" },
+                                set: {
+                                    variation.upc = $0.isEmpty ? nil : $0
+                                    duplicateDetection.checkForDuplicates(
+                                        sku: variation.sku ?? "",
+                                        upc: $0,
+                                        excludeItemId: viewModel.itemData.id
+                                    )
+                                }
+                            ),
+                            keyboardType: .numbersAndPunctuation
+                        )
 
-                    VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
-                        ItemDetailsFieldLabel(title: "SKU")
-                        
-                        TextField("Internal SKU", text: Binding(
-                            get: { variation.sku ?? "" },
-                            set: {
-                                variation.sku = $0.isEmpty ? nil : $0
-                                duplicateDetection.checkForDuplicates(
-                                    sku: $0,
-                                    upc: variation.upc ?? "",
-                                    excludeItemId: viewModel.itemData.id
-                                )
-                            }
-                        ))
-                        .font(.itemDetailsBody)
-                        .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
-                    .padding(.vertical, ItemDetailsSpacing.compactSpacing)
-                        .background(Color.itemDetailsFieldBackground)
-                        .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
-                        .autocorrectionDisabled()
+                        ItemDetailsTextField(
+                            title: "SKU",
+                            placeholder: "Internal SKU",
+                            text: Binding(
+                                get: { variation.sku ?? "" },
+                                set: {
+                                    variation.sku = $0.isEmpty ? nil : $0
+                                    duplicateDetection.checkForDuplicates(
+                                        sku: $0,
+                                        upc: variation.upc ?? "",
+                                        excludeItemId: viewModel.itemData.id
+                                    )
+                                }
+                            )
+                        )
                     }
                 }
-                .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
-                .padding(.vertical, ItemDetailsSpacing.minimalSpacing)
-                .background(Color.itemDetailsSectionBackground)
 
                 // Duplicate detection - only show when needed
                 if !duplicateDetection.duplicateWarnings.isEmpty || 
@@ -241,48 +219,9 @@ struct VariationCard: View {
                 
                 // Price and pricing type - reduced spacing
                 HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
-                        ItemDetailsFieldLabel(title: "Price")
-                        
-                        HStack {
-                            Text("$")
-                                .foregroundColor(.itemDetailsSecondaryText)
-                            
-                            if variation.pricingType == .variablePricing {
-                                Text("Variable")
-                                    .foregroundColor(.itemDetailsSecondaryText)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 8)
-                                    .background(Color.itemDetailsFieldBackground)
-                                    .cornerRadius(6)
-                            } else {
-                                TextField("0.00", text: Binding(
-                                    get: { 
-                                        if let price = variation.priceMoney {
-                                            return String(format: "%.2f", price.displayAmount)
-                                        }
-                                        return ""
-                                    },
-                                    set: { text in
-                                        if let amount = Double(text) {
-                                            variation.priceMoney = MoneyData(dollars: amount)
-                                        } else if text.isEmpty {
-                                            variation.priceMoney = nil
-                                        }
-                                    }
-                                ))
-                                .keyboardType(.numbersAndPunctuation)
-                                .font(.itemDetailsBody)
-                                .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
-                    .padding(.vertical, ItemDetailsSpacing.compactSpacing)
-                                .background(Color.itemDetailsFieldBackground)
-                                .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
-                            }
-                        }
-                    }
+                    PriceFieldWithTouchTarget(
+                        variation: $variation
+                    )
                     
                     VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
                         ItemDetailsFieldLabel(title: "Pricing Type")
@@ -540,6 +479,8 @@ struct PriceOverrideRow: View {
     let onDelete: () -> Void
     
     @State private var showingDeleteConfirmation = false
+    @State private var priceInCents: Int = 0
+    @State private var digitString: String = "0.00"
     
     private var locationName: String {
         availableLocations.first { $0.id == override.locationId }?.name ?? "Unknown Location"
@@ -557,22 +498,35 @@ struct PriceOverrideRow: View {
                         Text("$")
                             .foregroundColor(.itemDetailsSecondaryText)
                         
-                        TextField("0.00", text: Binding(
-                            get: {
-                                if let price = override.priceMoney {
-                                    return String(format: "%.2f", price.displayAmount)
-                                }
-                                return ""
-                            },
-                            set: { text in
-                                if let amount = Double(text) {
-                                    override.priceMoney = MoneyData(dollars: amount)
-                                } else if text.isEmpty {
+                        TextField("0.00", text: $digitString)
+                            .onChange(of: digitString) { oldValue, newValue in
+                                // Only keep digits
+                                let digitsOnly = newValue.filter { $0.isNumber }
+                                
+                                // Limit to 7 digits max
+                                let limited = String(digitsOnly.prefix(7))
+                                
+                                // Update the stored digits
+                                digitString = limited
+                                
+                                // Convert to cents
+                                if let cents = Int(limited) {
+                                    priceInCents = cents
+                                    
+                                    // Format back to display with decimal
+                                    let dollars = cents / 100
+                                    let remainingCents = cents % 100
+                                    digitString = String(format: "%d.%02d", dollars, remainingCents)
+                                    
+                                    // Update the binding
+                                    override.priceMoney = cents > 0 ? MoneyData(amount: cents) : nil
+                                } else if limited.isEmpty {
+                                    priceInCents = 0
+                                    digitString = "0.00"
                                     override.priceMoney = nil
                                 }
                             }
-                        ))
-                        .keyboardType(.numbersAndPunctuation)
+                        .keyboardType(.numberPad)
                         .font(.itemDetailsBody)
                         .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
                         .padding(.vertical, ItemDetailsSpacing.compactSpacing)
@@ -639,6 +593,124 @@ struct PriceOverrideRow: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Are you sure you want to delete this price override for \(locationName)?")
+        }
+        .onAppear {
+            // Initialize from existing price
+            priceInCents = override.priceMoney?.amount ?? 0
+            let dollars = priceInCents / 100
+            let cents = priceInCents % 100
+            digitString = String(format: "%d.%02d", dollars, cents)
+        }
+        .onChange(of: override.priceMoney) { _, newValue in
+            // Update display when external changes occur
+            if let newAmount = newValue?.amount, newAmount != priceInCents {
+                priceInCents = newAmount
+                let dollars = priceInCents / 100
+                let cents = priceInCents % 100
+                digitString = String(format: "%d.%02d", dollars, cents)
+            }
+        }
+    }
+}
+
+// MARK: - Price Field With Touch Target
+/// Price field with expanded touch target and calculator-style input
+struct PriceFieldWithTouchTarget: View {
+    @Binding var variation: ItemDetailsVariationData
+    @FocusState private var isFocused: Bool
+    @State private var priceInCents: Int = 0
+    
+    // Format cents to display string
+    private var displayPrice: String {
+        let dollars = priceInCents / 100
+        let cents = priceInCents % 100
+        return String(format: "%d.%02d", dollars, cents)
+    }
+    
+    // Store raw digit string for proper calculator-style input
+    @State private var digitString: String = ""
+    
+    var body: some View {
+        Button(action: {
+            if variation.pricingType != .variablePricing {
+                isFocused = true
+            }
+        }) {
+            VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
+                ItemDetailsFieldLabel(title: "Price")
+                
+                HStack {
+                    Text("$")
+                        .foregroundColor(.itemDetailsSecondaryText)
+                    
+                    if variation.pricingType == .variablePricing {
+                        Text("Variable")
+                            .foregroundColor(.itemDetailsSecondaryText)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 8)
+                            .background(Color.itemDetailsFieldBackground)
+                            .cornerRadius(6)
+                    } else {
+                        TextField("0.00", text: $digitString)
+                            .onChange(of: digitString) { oldValue, newValue in
+                                // Only keep digits
+                                let digitsOnly = newValue.filter { $0.isNumber }
+                                
+                                // Limit to 7 digits max
+                                let limited = String(digitsOnly.prefix(7))
+                                
+                                // Update the stored digits
+                                digitString = limited
+                                
+                                // Convert to cents
+                                if let cents = Int(limited) {
+                                    priceInCents = cents
+                                    
+                                    // Format back to display with decimal
+                                    let dollars = cents / 100
+                                    let remainingCents = cents % 100
+                                    digitString = String(format: "%d.%02d", dollars, remainingCents)
+                                } else if limited.isEmpty {
+                                    priceInCents = 0
+                                    digitString = "0.00"
+                                }
+                            }
+                        .keyboardType(.numberPad)
+                        .font(.itemDetailsBody)
+                        .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
+                        .padding(.vertical, ItemDetailsSpacing.compactSpacing)
+                        .background(Color.itemDetailsFieldBackground)
+                        .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .focused($isFocused)
+                        .onChange(of: priceInCents) { _, newValue in
+                            // Update the variation's price immediately
+                            variation.priceMoney = newValue > 0 ? MoneyData(amount: newValue) : nil
+                        }
+                    }
+                }
+            }
+        }
+        .buttonStyle(PlainButtonStyle())
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .disabled(variation.pricingType == .variablePricing)
+        .onAppear {
+            // Initialize from existing price
+            priceInCents = variation.priceMoney?.amount ?? 0
+            let dollars = priceInCents / 100
+            let cents = priceInCents % 100
+            digitString = String(format: "%d.%02d", dollars, cents)
+        }
+        .onChange(of: variation.priceMoney) { _, newValue in
+            // Update display when external changes occur
+            if let newAmount = newValue?.amount, newAmount != priceInCents {
+                priceInCents = newAmount
+                let dollars = priceInCents / 100
+                let cents = priceInCents % 100
+                digitString = String(format: "%d.%02d", dollars, cents)
+            }
         }
     }
 }

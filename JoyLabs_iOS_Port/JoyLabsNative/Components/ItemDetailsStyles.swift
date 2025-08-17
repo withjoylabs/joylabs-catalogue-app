@@ -190,7 +190,7 @@ struct ItemDetailsCard<Content: View>: View {
     }
 }
 
-/// iOS-style text field with proper styling
+/// iOS-style text field with proper styling and expanded touch targets
 struct ItemDetailsTextField: View {
     let title: String
     let placeholder: String
@@ -199,6 +199,8 @@ struct ItemDetailsTextField: View {
     let error: String?
     let isRequired: Bool
     let keyboardType: UIKeyboardType
+    
+    @FocusState private var isFocused: Bool
     
     init(
         title: String,
@@ -219,28 +221,35 @@ struct ItemDetailsTextField: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
-            ItemDetailsFieldLabel(title: title, isRequired: isRequired, helpText: helpText)
-            
-            TextField(placeholder, text: $text)
-                .font(.itemDetailsBody)
-                .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
-                .padding(.vertical, ItemDetailsSpacing.compactSpacing)
-                .background(Color.itemDetailsFieldBackground)
-                .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
-                .keyboardType(keyboardType)
-                .autocorrectionDisabled()
-                .overlay(
-                    RoundedRectangle(cornerRadius: ItemDetailsSpacing.fieldCornerRadius)
-                        .stroke(error != nil ? Color.itemDetailsDestructive : Color.clear, lineWidth: 1)
-                )
-            
-            if let error = error {
-                Text(error)
-                    .font(.itemDetailsCaption)
-                    .foregroundColor(.itemDetailsDestructive)
+        Button(action: {
+            isFocused = true
+        }) {
+            VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
+                ItemDetailsFieldLabel(title: title, isRequired: isRequired, helpText: helpText)
+                
+                TextField(placeholder, text: $text)
+                    .font(.itemDetailsBody)
+                    .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
+                    .padding(.vertical, ItemDetailsSpacing.compactSpacing)
+                    .background(Color.itemDetailsFieldBackground)
+                    .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
+                    .keyboardType(keyboardType)
+                    .autocorrectionDisabled()
+                    .focused($isFocused)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: ItemDetailsSpacing.fieldCornerRadius)
+                            .stroke(error != nil ? Color.itemDetailsDestructive : Color.clear, lineWidth: 1)
+                    )
+                
+                if let error = error {
+                    Text(error)
+                        .font(.itemDetailsCaption)
+                        .foregroundColor(.itemDetailsDestructive)
+                }
             }
         }
+        .buttonStyle(PlainButtonStyle())
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
