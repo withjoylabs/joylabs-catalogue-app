@@ -98,26 +98,26 @@ struct ScanView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .catalogSyncCompleted)) { _ in
             // Refresh search results when catalog sync completes (for webhook updates)
-            if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                print("🔄 Catalog sync completed - refreshing search results for: '\(searchText)'")
+            if let currentTerm = searchManager.currentSearchTerm {
+                print("🔄 Catalog sync completed - refreshing search results for: '\(currentTerm)'")
                 let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
-                searchManager.performSearchWithDebounce(searchTerm: searchText, filters: filters)
+                searchManager.performSearchWithDebounce(searchTerm: currentTerm, filters: filters)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .imageUpdated)) { notification in
             // Refresh search results when image is updated (for real-time image updates)
-            if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                print("🔄 Image updated - refreshing search results for: '\(searchText)'")
+            if let currentTerm = searchManager.currentSearchTerm {
+                print("🔄 Image updated - refreshing search results for: '\(currentTerm)'")
                 let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
-                searchManager.performSearchWithDebounce(searchTerm: searchText, filters: filters)
+                searchManager.performSearchWithDebounce(searchTerm: currentTerm, filters: filters)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .forceImageRefresh)) { notification in
             // Force refresh of search results when images need to be refreshed
-            if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                print("🔄 Force image refresh - refreshing search results for: '\(searchText)'")
+            if let currentTerm = searchManager.currentSearchTerm {
+                print("🔄 Force image refresh - refreshing search results for: '\(currentTerm)'")
                 let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
-                searchManager.performSearchWithDebounce(searchTerm: searchText, filters: filters)
+                searchManager.performSearchWithDebounce(searchTerm: currentTerm, filters: filters)
             }
         }
         .onChange(of: searchText) { oldValue, newValue in
