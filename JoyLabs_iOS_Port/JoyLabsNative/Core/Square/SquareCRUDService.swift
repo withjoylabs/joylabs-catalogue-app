@@ -401,16 +401,84 @@ class SquareCRUDService: ObservableObject {
             }
         }
 
+        // CRITICAL: Preserve existing image data before database update
+        // When we omit image_ids from Square request, the response also omits images
+        // We need to restore existing image data to prevent losing images during item updates
+        var objectToStore = updatedObject
+        if updatedObject.type == "ITEM" {
+            do {
+                // Get current image data from database
+                let existingImageIds = try await getCurrentImageIds(for: updatedObject.id)
+                if !existingImageIds.isEmpty {
+                    logger.debug("🔄 Preserving \(existingImageIds.count) existing images for item: \(updatedObject.id)")
+                    
+                    // Create updated ItemData with preserved image IDs
+                    if let itemData = updatedObject.itemData {
+                        let preservedItemData = ItemData(
+                            name: itemData.name,
+                            description: itemData.description,
+                            categoryId: itemData.categoryId,
+                            taxIds: itemData.taxIds,
+                            variations: itemData.variations,
+                            productType: itemData.productType,
+                            skipModifierScreen: itemData.skipModifierScreen,
+                            itemOptions: itemData.itemOptions,
+                            modifierListInfo: itemData.modifierListInfo,
+                            images: itemData.images,
+                            labelColor: itemData.labelColor,
+                            availableOnline: itemData.availableOnline,
+                            availableForPickup: itemData.availableForPickup,
+                            availableElectronically: itemData.availableElectronically,
+                            abbreviation: itemData.abbreviation,
+                            categories: itemData.categories,
+                            reportingCategory: itemData.reportingCategory,
+                            imageIds: existingImageIds, // PRESERVE existing images
+                            isTaxable: itemData.isTaxable,
+                            isAlcoholic: itemData.isAlcoholic,
+                            sortName: itemData.sortName,
+                            taxNames: itemData.taxNames,
+                            modifierNames: itemData.modifierNames
+                        )
+                        
+                        // Create updated CatalogObject with preserved images
+                        objectToStore = CatalogObject(
+                            id: updatedObject.id,
+                            type: updatedObject.type,
+                            updatedAt: updatedObject.updatedAt,
+                            version: updatedObject.version,
+                            isDeleted: updatedObject.isDeleted,
+                            presentAtAllLocations: updatedObject.presentAtAllLocations,
+                            presentAtLocationIds: updatedObject.presentAtLocationIds,
+                            absentAtLocationIds: updatedObject.absentAtLocationIds,
+                            itemData: preservedItemData,
+                            categoryData: updatedObject.categoryData,
+                            itemVariationData: updatedObject.itemVariationData,
+                            modifierData: updatedObject.modifierData,
+                            modifierListData: updatedObject.modifierListData,
+                            taxData: updatedObject.taxData,
+                            discountData: updatedObject.discountData,
+                            imageData: updatedObject.imageData
+                        )
+                        
+                        logger.debug("✅ Enhanced item with preserved image IDs: \(existingImageIds)")
+                    }
+                }
+            } catch {
+                logger.warning("⚠️ Could not retrieve existing images for item \(updatedObject.id): \(error)")
+                // Continue with original object if image preservation fails
+            }
+        }
+
         // WEBHOOK COMPATIBILITY: These exact timestamps will match webhook notifications
         // This ensures no conflicts when catalog.version.updated webhooks arrive
         // CRITICAL: Database operations must complete BEFORE function returns to ensure data consistency
         do {
             // Use upsert to handle both insert and update cases
-            try await databaseManager.insertCatalogObject(updatedObject)
+            try await databaseManager.insertCatalogObject(objectToStore)
             logger.debug("✅ Main item object updated in database: \(updatedObject.id)")
 
             // CRITICAL: Process variations separately for scalability (same as create)
-            if let itemData = updatedObject.itemData, let variations = itemData.variations {
+            if let itemData = objectToStore.itemData, let variations = itemData.variations {
                 logger.debug("Processing \(variations.count) variations for updated item \(updatedObject.id)")
 
                 for variation in variations {
@@ -588,5 +656,47 @@ extension SquareCRUDService {
             taxNames: itemData.taxNames,
             modifierNames: itemData.modifierNames
         )
+    }
+    
+    /// Get current image IDs for an item from the database
+    /// Used to preserve existing images during item updates
+    private func getCurrentImageIds(for itemId: String) async throws -> [String] {
+        guard let db = databaseManager.getConnection() else {
+            throw SquareCRUDError.syncFailed("Database not connected")
+        }
+        
+        do {
+            let selectQuery = "SELECT data_json FROM catalog_items WHERE id = ? AND is_deleted = 0"
+            
+            for row in try db.prepare(selectQuery, itemId) {
+                guard let dataJson = row[0] as? String,
+                      let data = dataJson.data(using: .utf8) else {
+                    continue
+                }
+                
+                // Parse JSON to extract image_ids
+                if let catalogData = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    // Try nested under item_data first (current format)
+                    if let itemData = catalogData["item_data"] as? [String: Any],
+                       let imageIds = itemData["image_ids"] as? [String] {
+                        logger.debug("📷 Found \(imageIds.count) existing images in item_data for: \(itemId)")
+                        return imageIds
+                    }
+                    
+                    // Fallback to root level (legacy format)
+                    if let imageIds = catalogData["image_ids"] as? [String] {
+                        logger.debug("📷 Found \(imageIds.count) existing images at root level for: \(itemId)")
+                        return imageIds
+                    }
+                }
+            }
+        } catch {
+            logger.error("❌ Failed to get existing image IDs for item \(itemId): \(error)")
+            throw error
+        }
+        
+        // No images found
+        logger.debug("📷 No existing images found for item: \(itemId)")
+        return []
     }
 }

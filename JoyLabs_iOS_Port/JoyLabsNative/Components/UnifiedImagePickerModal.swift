@@ -84,8 +84,12 @@ struct UnifiedImagePickerModal: View {
                 )
                 .zIndex(1) // Ensure header is above other content
                 
-                // Responsive image preview - uses full modal width, 1:1 aspect ratio
-                cropPreviewSection(containerWidth: geometry.size.width)
+                // Responsive image preview - uses 70% of modal width, 1:1 aspect ratio (30% narrower)
+                HStack {
+                    Spacer()
+                    cropPreviewSection(containerWidth: geometry.size.width * 0.7)
+                    Spacer()
+                }
 
                 // Divider
                 Divider()

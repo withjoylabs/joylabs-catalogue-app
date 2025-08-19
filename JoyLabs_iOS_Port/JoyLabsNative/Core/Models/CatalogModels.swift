@@ -237,6 +237,43 @@ struct ItemData: Codable {
         case taxNames = "tax_names"
         case modifierNames = "modifier_names"
     }
+    
+    // CRITICAL: Custom encoding to completely omit imageIds field when nil
+    // This prevents Square API from receiving "image_ids": null which would overwrite existing images
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        
+        try container.encodeIfPresent(name, forKey: .name)
+        try container.encodeIfPresent(description, forKey: .description)
+        try container.encodeIfPresent(categoryId, forKey: .categoryId)
+        try container.encodeIfPresent(taxIds, forKey: .taxIds)
+        try container.encodeIfPresent(variations, forKey: .variations)
+        try container.encodeIfPresent(productType, forKey: .productType)
+        try container.encodeIfPresent(skipModifierScreen, forKey: .skipModifierScreen)
+        try container.encodeIfPresent(itemOptions, forKey: .itemOptions)
+        try container.encodeIfPresent(modifierListInfo, forKey: .modifierListInfo)
+        try container.encodeIfPresent(images, forKey: .images)
+        try container.encodeIfPresent(labelColor, forKey: .labelColor)
+        try container.encodeIfPresent(availableOnline, forKey: .availableOnline)
+        try container.encodeIfPresent(availableForPickup, forKey: .availableForPickup)
+        try container.encodeIfPresent(availableElectronically, forKey: .availableElectronically)
+        try container.encodeIfPresent(abbreviation, forKey: .abbreviation)
+        try container.encodeIfPresent(categories, forKey: .categories)
+        try container.encodeIfPresent(reportingCategory, forKey: .reportingCategory)
+        
+        // CRITICAL: Only encode imageIds if it has actual content (not nil or empty)
+        // This completely omits the field from JSON when nil, preventing Square from overwriting images
+        if let imageIds = imageIds, !imageIds.isEmpty {
+            try container.encode(imageIds, forKey: .imageIds)
+        }
+        // If imageIds is nil or empty, the field is completely omitted from JSON
+        
+        try container.encodeIfPresent(isTaxable, forKey: .isTaxable)
+        try container.encodeIfPresent(isAlcoholic, forKey: .isAlcoholic)
+        try container.encodeIfPresent(sortName, forKey: .sortName)
+        try container.encodeIfPresent(taxNames, forKey: .taxNames)
+        try container.encodeIfPresent(modifierNames, forKey: .modifierNames)
+    }
 }
 
 struct CategoryReference: Codable {

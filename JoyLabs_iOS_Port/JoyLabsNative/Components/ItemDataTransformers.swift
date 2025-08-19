@@ -162,7 +162,7 @@ class ItemDataTransformers {
             abbreviation: itemDetails.abbreviation.isEmpty ? nil : itemDetails.abbreviation,
             categories: transformCategoriesToAPI(itemDetails.categoryIds), // Map additional categories
             reportingCategory: itemDetails.reportingCategoryId != nil ? ReportingCategory(id: itemDetails.reportingCategoryId!) : nil, // Map reporting category
-            imageIds: nil, // CRITICAL: Images handled separately via SimpleImageService - never include in item CRUD operations
+            imageIds: nil, // CRITICAL: Set to nil so field is omitted from JSON - images handled separately via SimpleImageService
             
             // CRITICAL SQUARE API FIELDS - Previously missing
             isTaxable: itemDetails.isTaxable,
@@ -222,7 +222,7 @@ class ItemDataTransformers {
             abbreviation: itemDetails.abbreviation.isEmpty ? nil : itemDetails.abbreviation,
             categories: nil, // Use categoryId instead of categories array
             reportingCategory: nil, // Use categoryId instead of reportingCategory
-            imageIds: nil, // CRITICAL: Images handled separately via SimpleImageService - never include in item CRUD operations
+            imageIds: nil, // CRITICAL: Set to nil so field is omitted from JSON - images handled separately via SimpleImageService
             
             // CRITICAL SQUARE API FIELDS - Previously missing (legacy version)
             isTaxable: itemDetails.isTaxable,
