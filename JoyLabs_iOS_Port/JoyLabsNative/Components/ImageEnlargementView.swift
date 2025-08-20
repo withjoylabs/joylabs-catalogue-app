@@ -153,6 +153,7 @@ struct DetailItem: View {
         name: "Premium Coffee Beans - Dark Roast Blend",
         sku: "COF001",
         barcode: "1234567890123",
+        variationName: "Dark Roast",
         quantity: 3,
         status: .added
     )

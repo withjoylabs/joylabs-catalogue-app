@@ -262,7 +262,7 @@ extension LabelLivePrintService {
     func printFromReorderItem(item: ReorderItem) async throws {
         let printData = PrintData(
             itemName: item.name,
-            variationName: nil, // ReorderItem doesn't store variation name separately
+            variationName: item.variationName,
             price: item.unitCost?.description, // Use unitCost as price
             originalPrice: nil,
             upc: item.barcode,

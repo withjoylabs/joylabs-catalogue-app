@@ -277,6 +277,7 @@ struct ReorderItemsContent: View {
             barcode: item.barcode,
             categoryId: nil,
             categoryName: item.categoryName,
+            variationName: item.variationName,
             images: images,
             matchType: "reorder",
             matchContext: item.name,

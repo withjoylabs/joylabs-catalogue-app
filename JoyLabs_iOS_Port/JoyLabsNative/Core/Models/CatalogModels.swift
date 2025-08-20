@@ -78,6 +78,7 @@ struct SearchResultItem: Identifiable, Hashable {
     let barcode: String?
     let categoryId: String?
     let categoryName: String?
+    let variationName: String?
     let images: [CatalogImage]?
     let matchType: String
     let matchContext: String?

@@ -597,10 +597,11 @@ class SearchManager: ObservableObject {
                     items[CatalogTableDefinitions.itemReportingCategoryId],
                     items[CatalogTableDefinitions.itemReportingCategoryName],
                     items[CatalogTableDefinitions.itemCategoryName],
-                    // First variation data (for SKU, price, UPC)
+                    // First variation data (for SKU, price, UPC, name)
                     variations[CatalogTableDefinitions.variationSku],
                     variations[CatalogTableDefinitions.variationUpc],
-                    variations[CatalogTableDefinitions.variationPriceAmount]
+                    variations[CatalogTableDefinitions.variationPriceAmount],
+                    variations[CatalogTableDefinitions.variationName]
                 )
                 .join(.leftOuter, variations, on: items[CatalogTableDefinitions.itemId] == variations[CatalogTableDefinitions.variationItemId] && variations[CatalogTableDefinitions.variationIsDeleted] == false)
                 .filter(items[CatalogTableDefinitions.itemId] == itemId && items[CatalogTableDefinitions.itemIsDeleted] == false)
@@ -620,6 +621,7 @@ class SearchManager: ObservableObject {
             let sku = try? row.get(variations[CatalogTableDefinitions.variationSku])
             let upc = try? row.get(variations[CatalogTableDefinitions.variationUpc])
             let priceAmount = try? row.get(variations[CatalogTableDefinitions.variationPriceAmount])
+            let variationName = try? row.get(variations[CatalogTableDefinitions.variationName])
 
             // Get case UPC data separately if needed (for case UPC match type)
             var caseUpc: String? = nil
@@ -678,6 +680,7 @@ class SearchManager: ObservableObject {
                 barcode: barcode,
                 categoryId: categoryId,
                 categoryName: categoryName,
+                variationName: variationName,
                 images: images,
                 matchType: matchType,
                 matchContext: matchContext,
@@ -804,6 +807,7 @@ class SearchManager: ObservableObject {
                 barcode: variationData.barcode,
                 categoryId: categoryId,
                 categoryName: categoryName,
+                variationName: variationData.name,
                 images: images,
                 matchType: matchType,
                 matchContext: matchType == "category" ? categoryName : itemName,
@@ -870,6 +874,7 @@ class SearchManager: ObservableObject {
                 barcode: upc,
                 categoryId: categoryId,
                 categoryName: categoryName,
+                variationName: nil, // Will add variation name separately for variation-based searches
                 images: images,
                 matchType: matchType,
                 matchContext: matchContext,
@@ -1141,16 +1146,17 @@ class SearchManager: ObservableObject {
 
 
 
-    private func getFirstVariationForItem(itemId: String) -> (sku: String?, price: Double?, barcode: String?) {
+    private func getFirstVariationForItem(itemId: String) -> (sku: String?, price: Double?, barcode: String?, name: String?) {
         guard let db = databaseManager.getConnection() else {
-            return (nil, nil, nil)
+            return (nil, nil, nil, nil)
         }
 
         do {
             let query = CatalogTableDefinitions.itemVariations
                 .select(CatalogTableDefinitions.variationSku,
                        CatalogTableDefinitions.variationPriceAmount,
-                       CatalogTableDefinitions.variationUpc)
+                       CatalogTableDefinitions.variationUpc,
+                       CatalogTableDefinitions.variationName)
                 .filter(CatalogTableDefinitions.variationItemId == itemId &&
                        CatalogTableDefinitions.variationIsDeleted == false)
                 .limit(1)
@@ -1159,6 +1165,7 @@ class SearchManager: ObservableObject {
                 let sku = try row.get(CatalogTableDefinitions.variationSku)
                 let priceAmount = try row.get(CatalogTableDefinitions.variationPriceAmount)
                 let upc = try row.get(CatalogTableDefinitions.variationUpc)
+                let name = try row.get(CatalogTableDefinitions.variationName)
 
                 // Convert price from cents to dollars
                 let price: Double?
@@ -1173,13 +1180,13 @@ class SearchManager: ObservableObject {
                     price = nil
                 }
 
-                return (sku, price, upc)
+                return (sku, price, upc, name)
             }
         } catch {
             logger.debug("Failed to get variation data for item \(itemId): \(error)")
         }
 
-        return (nil, nil, nil)
+        return (nil, nil, nil, nil)
     }
 
 }

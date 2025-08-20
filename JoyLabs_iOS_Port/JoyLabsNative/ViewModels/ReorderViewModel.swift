@@ -190,6 +190,7 @@ class ReorderViewModel: ObservableObject {
                 name: foundItem.name ?? "Unknown Item",
                 sku: foundItem.sku,
                 barcode: foundItem.barcode,
+                variationName: foundItem.variationName,
                 quantity: quantity,
                 status: .added
             )
@@ -359,6 +360,7 @@ class ReorderViewModel: ObservableObject {
             barcode: item.barcode,
             categoryId: nil,
             categoryName: item.categoryName,
+            variationName: item.variationName,
             images: images,
             matchType: "reorder",
             matchContext: item.name,

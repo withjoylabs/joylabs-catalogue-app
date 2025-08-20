@@ -1,5 +1,14 @@
 import SwiftUI
 
+// MARK: - Display Name Formatting
+private func formatDisplayName(itemName: String?, variationName: String?) -> String {
+    let name = itemName ?? "Unknown Item"
+    if let variation = variationName, !variation.isEmpty {
+        return "\(name) • \(variation)"
+    }
+    return name
+}
+
 struct ReorderPhotoCard: View {
     let item: ReorderItem
     let displayMode: ReorderDisplayMode
@@ -73,7 +82,7 @@ struct ReorderPhotoCard: View {
                     HStack(alignment: .top, spacing: 6) {
                         // COLUMN 1: Item name only (rows 1-4)
                         VStack(alignment: .leading, spacing: 0) {
-                            Text(item.name)
+                            Text(formatDisplayName(itemName: item.name, variationName: item.variationName))
                                 .font(.system(size: 11, weight: .medium)) // 2 steps smaller than medium
                                 .multilineTextAlignment(.leading)
                                 .lineLimit(4) // Use all 4 rows for item name
@@ -103,7 +112,7 @@ struct ReorderPhotoCard: View {
                         VStack(alignment: .leading, spacing: itemDetailSpacing) {
                             // Column 1, Rows 1-3: Item Name (for medium photos)
                             if displayMode == .photosMedium {
-                                Text(item.name)
+                                Text(formatDisplayName(itemName: item.name, variationName: item.variationName))
                                     .font(itemNameFont)
                                     .fontWeight(.medium)
                                     .multilineTextAlignment(.leading)
@@ -111,7 +120,7 @@ struct ReorderPhotoCard: View {
                                     .foregroundColor(.primary)
                                     .frame(maxWidth: .infinity, minHeight: 54, alignment: .topLeading) // Fixed height for 3 lines + spacing
                             } else {
-                                Text(item.name)
+                                Text(formatDisplayName(itemName: item.name, variationName: item.variationName))
                                     .font(itemNameFont)
                                     .fontWeight(.medium)
                                     .multilineTextAlignment(.leading)

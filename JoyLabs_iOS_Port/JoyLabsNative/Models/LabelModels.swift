@@ -46,6 +46,7 @@ struct ReorderItem: Identifiable, Codable {
     var name: String // Made mutable to allow updates from database
     var sku: String? // Made mutable to allow updates from database
     var barcode: String? // Made mutable to allow updates from database
+    var variationName: String? // Made mutable to allow updates from database
     var quantity: Int
     var status: ReorderStatus
     var addedDate: Date
@@ -68,12 +69,13 @@ struct ReorderItem: Identifiable, Codable {
     var imageId: String?
     var hasTax: Bool = false
 
-    init(id: String, itemId: String, name: String, sku: String? = nil, barcode: String? = nil, quantity: Int, status: ReorderStatus = .added, addedDate: Date = Date(), notes: String? = nil) {
+    init(id: String, itemId: String, name: String, sku: String? = nil, barcode: String? = nil, variationName: String? = nil, quantity: Int, status: ReorderStatus = .added, addedDate: Date = Date(), notes: String? = nil) {
         self.id = id
         self.itemId = itemId
         self.name = name
         self.sku = sku
         self.barcode = barcode
+        self.variationName = variationName
         self.quantity = quantity
         self.status = status
         self.addedDate = addedDate
@@ -243,6 +245,6 @@ enum ReorderDisplayMode: String, CaseIterable {
 }
 
 #Preview("Reorder Item") {
-    let item = ReorderItem(id: "1", itemId: "square-item-1", name: "Coffee Beans", sku: "COF001", quantity: 5, status: .added)
+    let item = ReorderItem(id: "1", itemId: "square-item-1", name: "Coffee Beans", sku: "COF001", variationName: "Dark Roast", quantity: 5, status: .added)
     Text("Item: \(item.name) - Qty: \(item.quantity) - Status: \(item.status.displayName)")
 }

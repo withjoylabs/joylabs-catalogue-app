@@ -522,6 +522,7 @@ class FuzzySearch {
             barcode: candidate.barcode,
             categoryId: candidate.categoryId,
             categoryName: candidate.categoryName,
+            variationName: nil, // FuzzySearch doesn't currently include variation names
             images: candidate.images,
             matchType: "fuzzy",
             matchContext: candidate.name,

@@ -1,5 +1,14 @@
 import SwiftUI
 
+// MARK: - Display Name Formatting
+private func formatDisplayName(itemName: String?, variationName: String?) -> String {
+    let name = itemName ?? "Unknown Item"
+    if let variation = variationName, !variation.isEmpty {
+        return "\(name) • \(variation)"
+    }
+    return name
+}
+
 // MARK: - Search Sheet Management
 enum SearchSheet: Identifiable {
     case itemDetails(SearchResultItem)
@@ -251,12 +260,13 @@ struct SwipeableScanResultCard: View {
 
             // Main content section
             VStack(alignment: .leading, spacing: 6) {
-                // Item name - allow wrapping to full available width
-                Text(result.name ?? "Unknown Item")
+                // Item name with variation - allow wrapping to full available width
+                Text(formatDisplayName(itemName: result.name, variationName: result.variationName))
                     .font(.system(size: 16, weight: .medium))
                     .foregroundColor(.primary)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true) // Force proper wrapping on iPhone
 
                 // Category, UPC, SKU row - prevent overflow with SKU truncation
                 HStack(spacing: 8) {
@@ -422,7 +432,7 @@ struct ProductInfoView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(result.name ?? "Unknown Item")
+            Text(formatDisplayName(itemName: result.name, variationName: result.variationName))
                 .font(.headline)
                 .foregroundColor(.primary)
                 .lineLimit(2)
@@ -553,6 +563,7 @@ struct SearchBarWithClear: View {
         barcode: "1234567890",
         categoryId: "coffee",
         categoryName: "Coffee & Tea",
+        variationName: "Dark Roast",
         images: [],
         matchType: "name",
         matchContext: "",

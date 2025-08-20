@@ -1,5 +1,14 @@
 import SwiftUI
 
+// MARK: - Display Name Formatting
+private func formatDisplayName(itemName: String?, variationName: String?) -> String {
+    let name = itemName ?? "Unknown Item"
+    if let variation = variationName, !variation.isEmpty {
+        return "\(name) • \(variation)"
+    }
+    return name
+}
+
 struct SwipeableReorderCard: View {
     let item: ReorderItem
     let displayMode: ReorderDisplayMode
@@ -97,12 +106,13 @@ struct SwipeableReorderCard: View {
 
                 // Main content section - with isolated touch target for item details long press
                 VStack(alignment: .leading, spacing: 6) {
-                    // Item name - allow wrapping to full available width
-                    Text(item.name)
+                    // Item name with variation - allow wrapping to full available width
+                    Text(formatDisplayName(itemName: item.name, variationName: item.variationName))
                         .font(.system(size: 16, weight: .medium))
                         .foregroundColor(.primary)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true) // Force proper wrapping on iPhone
 
                     // Category, UPC, SKU, price row - prevent overflow with SKU truncation
                     HStack(spacing: 8) {

@@ -1,5 +1,14 @@
 import SwiftUI
 
+// MARK: - Display Name Formatting
+private func formatDisplayName(itemName: String?, variationName: String?) -> String {
+    let name = itemName ?? "Unknown Item"
+    if let variation = variationName, !variation.isEmpty {
+        return "\(name) • \(variation)"
+    }
+    return name
+}
+
 struct EmbeddedQuantitySelectionModal: View {
     let item: SearchResultItem
     let initialQuantity: Int
@@ -125,8 +134,8 @@ struct EmbeddedQuantitySelectionModal: View {
 
     private var itemDetailsSection: some View {
         VStack(spacing: 6) {
-            // ITEM NAME WITH WORD WRAPPING
-            Text(item.name ?? "Unknown Item")
+            // ITEM NAME WITH VARIATION AND WORD WRAPPING
+            Text(formatDisplayName(itemName: item.name, variationName: item.variationName))
                 .font(.headline)
                 .fontWeight(.bold)
                 .multilineTextAlignment(.center)

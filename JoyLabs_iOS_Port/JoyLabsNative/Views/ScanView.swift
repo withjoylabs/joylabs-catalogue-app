@@ -497,6 +497,7 @@ struct SearchResultsList: View {
                 name: item.name ?? "Unknown Item",
                 sku: item.sku,
                 barcode: item.barcode,
+                variationName: item.variationName,
                 quantity: quantity,
                 status: .added,
                 addedDate: Date(),
@@ -530,7 +531,7 @@ struct SearchResultsList: View {
                 // Create print data directly from SearchResultItem
                 let printData = PrintData(
                     itemName: item.name,
-                    variationName: nil, // SearchResultItem doesn't have variation name
+                    variationName: item.variationName,
                     price: item.price?.description,
                     originalPrice: nil,
                     upc: item.barcode,
