@@ -196,7 +196,7 @@ struct ReordersView: SwiftUI.View {
                             viewModel.currentModalQuantity = newQuantity
                         }
                     )
-                    .fullScreenModal()
+                    .imagePickerModal()
                 }
             }
         }
