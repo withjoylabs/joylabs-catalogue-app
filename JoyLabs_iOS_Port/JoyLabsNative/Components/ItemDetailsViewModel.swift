@@ -644,6 +644,10 @@ class ItemDetailsViewModel: ObservableObject {
                     self.error = "Request timed out. Please check your internet connection and try again."
                 } else if error.localizedDescription.contains("authentication") {
                     self.error = "Authentication failed. Please reconnect to Square in Profile settings."
+                } else if error.localizedDescription.contains("out of sync with Square") {
+                    // Sync error from strict validation
+                    self.error = "Data is out of sync with Square. Please perform a full catalog sync and try again."
+                    logger.error("Sync error detected: \(error.localizedDescription)")
                 } else {
                     self.error = "Failed to save: \(error.localizedDescription)"
                 }
@@ -1113,7 +1117,7 @@ class ItemDetailsViewModel: ObservableObject {
 
         do {
             let sql = """
-                SELECT id, name, sku, upc, ordinal, pricing_type, price_amount, price_currency, data_json
+                SELECT id, name, sku, upc, ordinal, pricing_type, price_amount, price_currency, version, data_json
                 FROM item_variations
                 WHERE item_id = ? AND is_deleted = 0
                 ORDER BY ordinal ASC
@@ -1139,9 +1143,14 @@ class ItemDetailsViewModel: ObservableObject {
                    let priceCurrency = row[7] as? String {
                     variation.priceMoney = MoneyData(amount: Int(priceAmount), currency: priceCurrency)
                 }
+                
+                // Parse version (stored as TEXT in database)
+                if let versionStr = row[8] as? String {
+                    variation.version = Int64(versionStr)
+                }
 
                 loadedVariations.append(variation)
-                logger.info("Loaded variation: \(variation.name ?? "unnamed") - SKU: \(variation.sku ?? "none") - UPC: \(variation.upc ?? "none")")
+                logger.info("Loaded variation: \(variation.name ?? "unnamed") - SKU: \(variation.sku ?? "none") - UPC: \(variation.upc ?? "none") - Version: \(variation.version?.description ?? "nil")")
             }
 
             // If no variations found, create default one

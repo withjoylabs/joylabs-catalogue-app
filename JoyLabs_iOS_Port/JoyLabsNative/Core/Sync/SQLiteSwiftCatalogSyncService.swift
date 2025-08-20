@@ -430,6 +430,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
                 throw SyncError.cancelled
             }
 
+
             // Update sync status based on object type being processed
             updateSyncStatusForObjectType(object.type, index: index, total: totalObjects)
 

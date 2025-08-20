@@ -154,7 +154,7 @@ class SquareCRUDService: ObservableObject {
                 presentAtAllLocations: catalogObject.presentAtAllLocations,
                 presentAtLocationIds: catalogObject.presentAtLocationIds,
                 absentAtLocationIds: catalogObject.absentAtLocationIds,
-                itemData: updateItemDataWithCurrentVersions(catalogObject.itemData, currentItem: currentObject),
+                itemData: try updateItemDataWithCurrentVersions(catalogObject.itemData, currentItem: currentObject),
                 categoryData: catalogObject.categoryData,
                 itemVariationData: catalogObject.itemVariationData,
                 modifierData: catalogObject.modifierData,
@@ -480,6 +480,20 @@ class SquareCRUDService: ObservableObject {
             // CRITICAL: Process variations separately for scalability (same as create)
             if let itemData = objectToStore.itemData, let variations = itemData.variations {
                 logger.debug("Processing \(variations.count) variations for updated item \(updatedObject.id)")
+                
+                // Get current variation IDs that exist in Square's response
+                let currentVariationIds = Set(variations.compactMap { $0.id })
+                
+                // Mark removed variations as deleted in database
+                do {
+                    try await markRemovedVariationsAsDeleted(
+                        itemId: updatedObject.id, 
+                        currentVariationIds: currentVariationIds,
+                        timestamp: updatedObject.safeUpdatedAt
+                    )
+                } catch {
+                    logger.warning("⚠️ Failed to mark removed variations as deleted: \(error)")
+                }
 
                 for variation in variations {
                     // Create a separate CatalogObject for each variation
@@ -603,23 +617,51 @@ enum CRUDOperation: String, CaseIterable {
 // MARK: - SquareCRUDService Helper Methods Extension
 extension SquareCRUDService {
     /// Update ItemData variations with current versions from Square API
-    private func updateItemDataWithCurrentVersions(_ itemData: ItemData?, currentItem: CatalogObject) -> ItemData? {
+    private func updateItemDataWithCurrentVersions(_ itemData: ItemData?, currentItem: CatalogObject) throws -> ItemData? {
         guard let itemData = itemData else { return nil }
         
         // Get current variations from Square's response to extract their versions
         let currentVariations = currentItem.itemData?.variations ?? []
         
+        // Log variations being removed (present in Square but not in update)
+        let updateVariationIds = Set(itemData.variations?.compactMap { $0.id } ?? [])
+        for currentVar in currentVariations {
+            if let varId = currentVar.id, !updateVariationIds.contains(varId) && !varId.hasPrefix("#") {
+                logger.info("📝 Variation \(varId) will be removed (not included in update)")
+            }
+        }
+        
         // Update variations with current versions
-        let updatedVariations = itemData.variations?.map { variation in
+        let updatedVariations = try itemData.variations?.map { variation in
             // Find matching current variation by ID
             let currentVariation = currentVariations.first { $0.id == variation.id }
             
-            // For existing variations: use current version from Square API
-            // For new variations (no matching ID): use nil (Square will assign version)
-            let currentVersion = currentVariation?.safeVersion
+            var effectiveId = variation.id
+            var currentVersion: Int64? = nil
+            
+            if let varId = variation.id, !varId.hasPrefix("#") {
+                // This variation claims to have a Square ID - it MUST exist in Square
+                guard let found = currentVariation else {
+                    // This is a critical sync error - variation has ID but doesn't exist in Square
+                    logger.error("❌ Critical sync error: Variation \(varId) not found in Square")
+                    throw SquareCRUDError.invalidData("Variation \(varId) is out of sync with Square. Please perform a full sync and try again.")
+                }
+                
+                // Variation exists in Square - use its current version
+                currentVersion = found.safeVersion
+                logger.debug("Variation \(varId) found in Square with version \(currentVersion ?? 0)")
+                
+            } else {
+                // New variation with temporary ID or nil ID (intentionally created)
+                if effectiveId == nil {
+                    effectiveId = "#\(UUID().uuidString)"
+                }
+                currentVersion = nil
+                logger.debug("New variation will be created with temp ID: \(effectiveId ?? "nil")")
+            }
             
             return ItemVariation(
-                id: variation.id,
+                id: effectiveId,
                 type: variation.type,
                 updatedAt: variation.updatedAt,
                 version: currentVersion, // Use current version from Square, or nil for new variations
@@ -656,6 +698,54 @@ extension SquareCRUDService {
             taxNames: itemData.taxNames,
             modifierNames: itemData.modifierNames
         )
+    }
+    
+    /// Mark variations as deleted in the database if they no longer exist in Square
+    private func markRemovedVariationsAsDeleted(
+        itemId: String, 
+        currentVariationIds: Set<String>, 
+        timestamp: String
+    ) async throws {
+        guard let db = databaseManager.getConnection() else {
+            throw SquareCRUDError.syncFailed("Database not connected")
+        }
+        
+        do {
+            // Find all variations in database for this item that are not in Square's current response
+            let selectQuery = """
+                SELECT id FROM item_variations 
+                WHERE item_id = ? AND is_deleted = 0
+            """
+            
+            var variationsToDelete: [String] = []
+            
+            for row in try db.prepare(selectQuery, itemId) {
+                if let variationId = row[0] as? String {
+                    // If this variation ID is not in Square's current response, it was removed
+                    if !currentVariationIds.contains(variationId) {
+                        variationsToDelete.append(variationId)
+                    }
+                }
+            }
+            
+            // Mark removed variations as deleted
+            if !variationsToDelete.isEmpty {
+                for variationId in variationsToDelete {
+                    let updateQuery = """
+                        UPDATE item_variations 
+                        SET is_deleted = 1, updated_at = ? 
+                        WHERE id = ?
+                    """
+                    try db.run(updateQuery, timestamp, variationId)
+                    logger.info("🗑️ Marked variation \(variationId) as deleted in database")
+                }
+                logger.info("🗑️ Marked \(variationsToDelete.count) removed variations as deleted")
+            }
+            
+        } catch {
+            logger.error("❌ Failed to mark removed variations as deleted for item \(itemId): \(error)")
+            throw error
+        }
     }
     
     /// Get current image IDs for an item from the database
