@@ -20,6 +20,7 @@
 		2FFC68602BF59E53AB65E786 /* ItemSkipModifierSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A855C7304B8B6B42B9DEF4C /* ItemSkipModifierSection.swift */; };
 		33ACA92EB8376CDDB719088F /* QuantityNumpad.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B4067D357704001C7A0D307 /* QuantityNumpad.swift */; };
 		343A5BEB820EB07235EEFE35 /* ItemDetailsPricingSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65695EAA6350279F084BF63B /* ItemDetailsPricingSection.swift */; };
+		365F26C4447BAB5ECB3E7AB8 /* ZoomableImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F87ABC339104C2473194A151 /* ZoomableImageView.swift */; };
 		37E79365D45FBBB720767A29 /* ItemModifiersSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97248AB2D5A526439B92B9E2 /* ItemModifiersSection.swift */; };
 		3D033F23814EAC17F1F30659 /* ItemSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DC776666D9E1A98076720A2 /* ItemSettingsView.swift */; };
 		4017A953F9FBBE7E588A972C /* TokenService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B48CACD7CFD81508BCDBFB9 /* TokenService.swift */; };
@@ -230,6 +231,7 @@
 		F32EEA3114D99A383F2B69FC /* ReorderPhotoCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderPhotoCard.swift; path = JoyLabsNative/Components/Reorder/ReorderPhotoCard.swift; sourceTree = "<group>"; };
 		F41835B4957DA654FE6627F7 /* ItemProductTypeSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemProductTypeSection.swift; path = Components/ItemProductTypeSection.swift; sourceTree = "<group>"; };
 		F730ECB41F35B30ADCEEF069 /* SimpleImageView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SimpleImageView.swift; path = Components/SimpleImageView.swift; sourceTree = "<group>"; };
+		F87ABC339104C2473194A151 /* ZoomableImageView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ZoomableImageView.swift; path = Components/ZoomableImageView.swift; sourceTree = "<group>"; };
 		FA4E1D926AD0EFEB747BE184 /* ReorderViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderViewModel.swift; path = JoyLabsNative/ViewModels/ReorderViewModel.swift; sourceTree = "<group>"; };
 		FCA1EEFAA8C3E62322E3ACB2 /* JoyLabsNative.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = JoyLabsNative.entitlements; path = JoyLabsNative/JoyLabsNative.entitlements; sourceTree = "<group>"; };
 		FFC3BC89DCE156954A61833A /* NotificationPermissionView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NotificationPermissionView.swift; path = JoyLabsNative/Views/NotificationPermissionView.swift; sourceTree = "<group>"; };
@@ -344,6 +346,7 @@
 				2A855C7304B8B6B42B9DEF4C /* ItemSkipModifierSection.swift */,
 				7E3BCABE673B4A6579D0625F /* FieldVisibilityAndReorderingView.swift */,
 				8A51CB94E5784E7C6B6DF51E /* CustomConfirmationDialog.swift */,
+				F87ABC339104C2473194A151 /* ZoomableImageView.swift */,
 			);
 			name = Components;
 			sourceTree = "<group>";
@@ -757,6 +760,7 @@
 				FBE6EC39B347843F2D356399 /* UITextField+NoInputAccessory.swift in Sources */,
 				EF1ED1F1B0F29A02EF984D10 /* ConfirmationDialogService.swift in Sources */,
 				E77F480F2ACB4170199D8A95 /* CustomConfirmationDialog.swift in Sources */,
+				365F26C4447BAB5ECB3E7AB8 /* ZoomableImageView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

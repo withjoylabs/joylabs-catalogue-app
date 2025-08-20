@@ -111,14 +111,13 @@ struct EmbeddedQuantitySelectionModal: View {
             let padding: CGFloat = 32 // 16 on each side
             let imageSize = isIPad ? geometry.size.width * 0.7 : geometry.size.width - padding
 
-            // Use image data from SearchResultItem if available
-            SimpleImageView.large(
+            // Use zoomable image with pinch-to-zoom functionality
+            ZoomableImageView(
                 imageURL: imageURL,
                 size: imageSize
             )
-                .frame(width: imageSize, height: imageSize) // Perfect 1:1 square
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
         }
         .padding(.horizontal, 16) // Standard padding to match other elements
         .padding(.top, 16)
