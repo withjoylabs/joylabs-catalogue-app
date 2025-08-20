@@ -387,6 +387,9 @@ class ItemDetailsViewModel: ObservableObject {
     @Published var availableTaxes: [TaxData] = []
     @Published var availableModifierLists: [ModifierListData] = []
     @Published var recentCategories: [CategoryData] = []
+    
+    // Private state for applying defaults
+    private var shouldApplyTaxDefaults = false
 
     // Service dependencies
     private let databaseManager: SQLiteSwiftCatalogManager
@@ -988,6 +991,13 @@ class ItemDetailsViewModel: ObservableObject {
         variation.name = config.pricingFields.defaultVariationName
         variation.trackInventory = config.inventoryFields.defaultTrackInventory
         self.variations = [variation]
+        
+        // Apply tax defaults - auto-select all taxes if default is taxable
+        if config.pricingFields.defaultIsTaxable {
+            // Tax selection will be applied after availableTaxes is loaded in loadCriticalData()
+            // Mark that we need to apply tax defaults
+            shouldApplyTaxDefaults = true
+        }
     }
     
     private func setupNewItemFromSearch(query: String, queryType: SearchQueryType) {
@@ -1163,6 +1173,14 @@ class ItemDetailsViewModel: ObservableObject {
             group.addTask { await self.loadModifierLists() }
             group.addTask { await self.loadLocations() }
             group.addTask { await self.loadRecentCategories() }
+        }
+        
+        // Apply tax defaults after data is loaded
+        if shouldApplyTaxDefaults {
+            await MainActor.run {
+                self.taxIds = self.availableTaxes.compactMap { $0.id }
+                self.shouldApplyTaxDefaults = false
+            }
         }
     }
 

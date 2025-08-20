@@ -487,6 +487,9 @@ struct ItemDetailsCategorySingleSelectModal: View {
                             .contentShape(Rectangle())
                             .onTapGesture {
                                 tempSelectedId = categoryId
+                                selectedCategoryId = tempSelectedId
+                                onCategorySelected?(tempSelectedId)
+                                isPresented = false
                             }
                         }
                     }

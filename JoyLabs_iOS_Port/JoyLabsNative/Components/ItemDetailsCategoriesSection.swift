@@ -148,8 +148,10 @@ struct TaxSelector: View {
                     Button(action: {
                         if allTaxesSelected {
                             taxIds.removeAll()
+                            viewModel.staticData.isTaxable = false
                         } else {
                             taxIds = viewModel.availableTaxes.compactMap { $0.id }
+                            viewModel.staticData.isTaxable = true
                         }
                     }) {
                         HStack(spacing: 4) {
