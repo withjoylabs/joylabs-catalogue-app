@@ -1167,13 +1167,16 @@ class ItemDetailsViewModel: ObservableObject {
 
     /// Load all critical dropdown data from local database using same patterns as search
     private func loadCriticalData() async {
+        // Load main data in parallel
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.loadCategories() }
             group.addTask { await self.loadTaxes() }
             group.addTask { await self.loadModifierLists() }
             group.addTask { await self.loadLocations() }
-            group.addTask { await self.loadRecentCategories() }
         }
+        
+        // Load recent categories after categories are available
+        await loadRecentCategories()
         
         // Apply tax defaults after data is loaded
         if shouldApplyTaxDefaults {
@@ -1417,7 +1420,7 @@ class ItemDetailsViewModel: ObservableObject {
         }
         
         await MainActor.run {
-            self.recentCategories = Array(orderedRecent.prefix(5)) // Keep only 5 most recent
+            self.recentCategories = Array(orderedRecent.prefix(15)) // Keep only 15 most recent
         }
     }
     
@@ -1432,8 +1435,8 @@ class ItemDetailsViewModel: ObservableObject {
         // Add to beginning
         recentIds.insert(categoryId, at: 0)
         
-        // Keep only 5 most recent
-        recentIds = Array(recentIds.prefix(5))
+        // Keep only 15 most recent
+        recentIds = Array(recentIds.prefix(15))
         
         UserDefaults.standard.set(recentIds, forKey: "recentCategoryIds")
         
