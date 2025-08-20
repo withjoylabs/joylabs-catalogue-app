@@ -50,7 +50,38 @@ extension View {
         self.presentationDetents([.fraction(fraction), .medium])
     }
     
-    /// Pattern 4: iPad Force Full Screen
+    /// Pattern 4: Image Picker Modal
+    /// Usage: UnifiedImagePickerModal with 70% width for better UX
+    /// Applied to: All UnifiedImagePickerModal presentations
+    func imagePickerModal() -> some View {
+        // Make the modal exactly the width needed for a good-sized square preview
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            // Calculate ideal square preview size (smaller than full width)
+            let idealPreviewSize: CGFloat = min(UIScreen.main.bounds.width * 0.6, 400)
+            if #available(iOS 18.0, *) {
+                return AnyView(
+                    self
+                        .frame(width: idealPreviewSize)
+                        .presentationSizing(.fitted)
+                        .presentationBackground(.regularMaterial)
+                        .presentationCornerRadius(12)
+                        .presentationCompactAdaptation(.popover)
+                )
+            } else {
+                return AnyView(
+                    self
+                        .frame(width: idealPreviewSize)
+                        .presentationDetents([.large])
+                        .presentationBackground(.regularMaterial)
+                        .presentationCompactAdaptation(.popover)
+                )
+            }
+        } else {
+            return AnyView(self.presentationDetents([.large]))
+        }
+    }
+    
+    /// Pattern 5: iPad Force Full Screen
     /// Usage: Complex flows that must override iPad compact adaptation
     /// Applied to: ReordersView to maintain chain scanning functionality
     func iPadForceFullScreen() -> some View {

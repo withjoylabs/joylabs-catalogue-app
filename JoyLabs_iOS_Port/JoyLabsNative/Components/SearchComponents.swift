@@ -369,7 +369,7 @@ struct SwipeableScanResultCard: View {
                         activeSheet = nil
                     }
                 )
-                .nestedComponentModal()
+                .imagePickerModal()
             }
         }
     }

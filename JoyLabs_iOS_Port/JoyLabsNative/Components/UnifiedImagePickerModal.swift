@@ -28,14 +28,14 @@ struct UnifiedImagePickerModal: View {
 
     private let logger = Logger(subsystem: "com.joylabs.native", category: "UnifiedImagePickerModal")
 
-    // Responsive columns: 6 on iPad, 4 on iPhone
+    // Responsive columns: 4 on iPad, 4 on iPhone (optimized for narrower modal)
     private var columns: [GridItem] {
-        let columnCount = UIDevice.current.userInterfaceIdiom == .pad ? 6 : 4
+        let columnCount = 4
         return Array(repeating: GridItem(.flexible(), spacing: 1), count: columnCount)
     }
 
     private func thumbnailSize(containerWidth: CGFloat) -> CGFloat {
-        let columnCount: CGFloat = UIDevice.current.userInterfaceIdiom == .pad ? 6 : 4
+        let columnCount: CGFloat = 4
         let spacing = columnCount - 1 // 1pt spacing between columns
         return (containerWidth - spacing) / columnCount
     }
@@ -46,8 +46,11 @@ struct UnifiedImagePickerModal: View {
     }
     
     var body: some View {
-        GeometryReader { geometry in
-            VStack(spacing: 0) {
+        // Calculate modal width directly (matches the presentation modifier)
+        let modalWidth = UIDevice.current.userInterfaceIdiom == .pad ? 
+            min(UIScreen.main.bounds.width * 0.6, 400) : UIScreen.main.bounds.width
+        
+        VStack(spacing: 0) {
                 // Header with title and buttons
                 HStack {
                     Button("Cancel") {
@@ -73,7 +76,8 @@ struct UnifiedImagePickerModal: View {
                     .contentShape(Rectangle())
                     .buttonStyle(PlainButtonStyle())
                 }
-                .padding()
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
                 .background(Color(.systemBackground))
                 .overlay(
                     Divider()
@@ -84,22 +88,20 @@ struct UnifiedImagePickerModal: View {
                 )
                 .zIndex(1) // Ensure header is above other content
                 
-                // Responsive image preview - uses 70% of modal width, 1:1 aspect ratio (30% narrower)
-                HStack {
-                    Spacer()
-                    cropPreviewSection(containerWidth: geometry.size.width * 0.7)
-                    Spacer()
-                }
+            // Responsive image preview - uses full modal width, 1:1 aspect ratio (borderless)
+            cropPreviewSection(containerWidth: modalWidth)
 
-                // Divider
-                Divider()
+            // Divider
+            Divider()
 
-                // iOS Photo Library Grid (Bottom) - matches modal width exactly
-                photoLibrarySectionWithPermissions(containerWidth: geometry.size.width)
-                    .frame(maxHeight: .infinity) // Ensure photo library gets remaining space
-            }
-            .frame(maxHeight: .infinity)
+            // iOS Photo Library Grid (Bottom) - matches modal width exactly
+            photoLibrarySectionWithPermissions(containerWidth: modalWidth)
+                .frame(minHeight: 250) // Give photo library minimum height (accounting for header + preview)
         }
+        .frame(
+            minHeight: min(600, UIScreen.main.bounds.height * 0.9),
+            maxHeight: UIScreen.main.bounds.height * 0.9
+        ) // Responsive to orientation - shrinks in landscape
         .interactiveDismissDisabled(false)
         .presentationDragIndicator(.visible)
         .onAppear {
@@ -193,7 +195,7 @@ struct UnifiedImagePickerModal: View {
             } else {
                 // Photo grid with camera button + pagination
                 let currentThumbnailSize = thumbnailSize(containerWidth: containerWidth)
-                let columnCount = UIDevice.current.userInterfaceIdiom == .pad ? 6 : 4
+                let columnCount = 4
                 
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: 1) {
@@ -453,7 +455,7 @@ struct UnifiedImagePickerModal: View {
             var photoAssets: [PhotoAsset] = []
             // Calculate proper thumbnail size based on screen and column count
             let screenWidth = UIScreen.main.bounds.width
-            let columnCount: CGFloat = UIDevice.current.userInterfaceIdiom == .pad ? 6 : 4
+            let columnCount: CGFloat = 4
             let spacing = columnCount - 1
             let itemWidth = (screenWidth - spacing) / columnCount
             // Use 2x scale for retina quality thumbnails

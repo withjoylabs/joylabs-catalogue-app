@@ -166,7 +166,7 @@ struct ReordersView: SwiftUI.View {
                         viewModel.dismissActiveSheet()
                     }
                 )
-                .nestedComponentModal()
+                .imagePickerModal()
             case .itemDetails(let item):
                 ItemDetailsModal(
                     context: .editExisting(itemId: item.itemId),
