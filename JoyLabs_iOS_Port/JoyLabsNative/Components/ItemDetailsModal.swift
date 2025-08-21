@@ -53,6 +53,10 @@ struct ItemDetailsModal: View {
     @StateObject private var viewModel = ItemDetailsViewModel()
     @StateObject private var dialogService = ConfirmationDialogService.shared
     
+    // Price selection data for FAB buttons
+    @State private var availablePrices: [(variationIndex: Int, variationName: String, price: String)] = []
+    
+    
     private let logger = Logger(subsystem: "com.joylabs.native", category: "ItemDetailsModal")
 
     // Dynamic title showing item name or fallback
@@ -103,7 +107,8 @@ struct ItemDetailsModal: View {
                 ItemDetailsContent(
                     context: context,
                     viewModel: viewModel,
-                    onSave: handleSave
+                    onSave: handleSave,
+                    onVariationPrint: handleVariationPrint
                 )
 
                 // Floating Action Buttons (hidden during confirmation with animation)
@@ -115,11 +120,14 @@ struct ItemDetailsModal: View {
                         onPrint: handlePrint,
                         onSave: handleSave,
                         onSaveAndPrint: handleSaveAndPrint,
-                        canSave: viewModel.canSave
+                        canSave: viewModel.canSave,
+                        availablePrices: availablePrices,
+                        onPriceSelected: handlePrintWithSelectedPrice
                     )
                     .opacity(dialogService.isShowing ? 0 : 1)
                     .animation(.easeInOut(duration: 0.1), value: dialogService.isShowing)
                 }
+                .ignoresSafeArea(.keyboard)
             }
         }
         .frame(maxHeight: .infinity)
@@ -216,48 +224,220 @@ struct ItemDetailsModal: View {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
     
-    private func createPrintData(from itemData: ItemDetailsData) -> PrintData {
-        let firstVariation = itemData.variations.first
-        let priceAmount = firstVariation?.priceMoney?.amount
-        let priceString = priceAmount.map { String(format: "%.2f", Double($0) / 100.0) }
+    
+    // MARK: - Smart Print Logic
+    
+    /// Creates print data for generic item labels (main print buttons)
+    /// Handles both saved and unsaved items gracefully
+    /// Returns nil if price selection modal is needed
+    private func createGenericPrintData() -> PrintData? {
+        let variations = viewModel.itemData.variations
         
+        if variations.count == 1 {
+            // Single variation: include variation name if not nil/empty
+            let variation = variations[0]
+            let hasVariationName = variation.name?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            
+            return PrintData(
+                itemName: viewModel.itemData.name.isEmpty ? "New Item" : viewModel.itemData.name,
+                variationName: hasVariationName ? variation.name : nil,
+                price: formatPrice(variation.priceMoney),
+                originalPrice: nil,
+                upc: variation.upc,
+                sku: variation.sku,
+                categoryName: nil,
+                categoryId: viewModel.itemData.reportingCategoryId,
+                description: viewModel.itemData.description,
+                createdAt: nil,
+                updatedAt: nil,
+                qtyForPrice: nil,
+                qtyPrice: nil
+            )
+        } else {
+            // Multiple variations: check if we can print generically
+            let allPricesSet = variations.allSatisfy { formatPrice($0.priceMoney) != nil }
+            let uniquePrices = getUniquePrices()
+            
+            if allPricesSet && uniquePrices.count > 1 {
+                // All variations have prices and they differ - show price selection modal
+                preparePriceSelectionModal()
+                return nil // Return nil to indicate modal is needed
+            } else {
+                // Either not all prices are set, or all prices are the same
+                // Use generic format with best available data
+                let firstVariation = variations[0]
+                let bestPrice = uniquePrices.first ?? formatPrice(firstVariation.priceMoney)
+                
+                return PrintData(
+                    itemName: viewModel.itemData.name.isEmpty ? "New Item" : viewModel.itemData.name,
+                    variationName: nil, // No variation name for generic multi-variation label
+                    price: bestPrice,
+                    originalPrice: nil,
+                    upc: firstVariation.upc,
+                    sku: firstVariation.sku,
+                    categoryName: nil,
+                    categoryId: viewModel.itemData.reportingCategoryId,
+                    description: viewModel.itemData.description,
+                    createdAt: nil,
+                    updatedAt: nil,
+                    qtyForPrice: nil,
+                    qtyPrice: nil
+                )
+            }
+        }
+    }
+    
+    /// Creates fallback print data when price selection modal is triggered
+    private func createFallbackPrintData() -> PrintData {
+        let firstVariation = viewModel.itemData.variations[0]
         return PrintData(
-            itemName: itemData.name,
-            variationName: firstVariation?.name,
-            price: priceString,
+            itemName: viewModel.itemData.name.isEmpty ? "New Item" : viewModel.itemData.name,
+            variationName: nil,
+            price: formatPrice(firstVariation.priceMoney),
             originalPrice: nil,
-            upc: firstVariation?.upc,
-            sku: firstVariation?.sku,
-            categoryName: nil, // Would need to look up category name from ID
-            categoryId: itemData.reportingCategoryId,
-            description: itemData.description,
+            upc: firstVariation.upc,
+            sku: firstVariation.sku,
+            categoryName: nil,
+            categoryId: viewModel.itemData.reportingCategoryId,
+            description: viewModel.itemData.description,
             createdAt: nil,
             updatedAt: nil,
             qtyForPrice: nil,
             qtyPrice: nil
         )
     }
-
-    private func handlePrint() {
-        print("Print button tapped")
+    
+    /// Creates print data for specific variation (variation print buttons)
+    /// Handles both saved and unsaved variations gracefully
+    private func createVariationPrintData(variation: ItemDetailsVariationData) -> PrintData {
+        return PrintData(
+            itemName: viewModel.itemData.name.isEmpty ? "New Item" : viewModel.itemData.name,
+            variationName: variation.name?.isEmpty == false ? variation.name : nil,
+            price: formatPrice(variation.priceMoney),
+            originalPrice: nil,
+            upc: variation.upc,
+            sku: variation.sku,
+            categoryName: nil,
+            categoryId: viewModel.itemData.reportingCategoryId,
+            description: viewModel.itemData.description,
+            createdAt: nil,
+            updatedAt: nil,
+            qtyForPrice: nil,
+            qtyPrice: nil
+        )
+    }
+    
+    /// Helper to format price from MoneyData
+    private func formatPrice(_ priceMoney: MoneyData?) -> String? {
+        guard let amount = priceMoney?.amount, amount > 0 else { return nil }
+        return String(format: "%.2f", Double(amount) / 100.0)
+    }
+    
+    /// Gets unique prices across all variations
+    private func getUniquePrices() -> [String] {
+        let prices = viewModel.itemData.variations.compactMap { formatPrice($0.priceMoney) }
+        return Array(Set(prices)).sorted()
+    }
+    
+    /// Prepares data for price selection modal
+    private func preparePriceSelectionModal() {
+        var priceOptions: [(variationIndex: Int, variationName: String, price: String)] = []
         
+        print("[PriceModal] Preparing price selection for \(viewModel.itemData.variations.count) variations")
+        
+        for (index, variation) in viewModel.itemData.variations.enumerated() {
+            let price = formatPrice(variation.priceMoney) ?? "0.00"
+            let variationName = variation.name?.isEmpty == false ? variation.name! : "Unnamed"
+            
+            print("[PriceModal] Variation \(index + 1): name='\(variationName)', price='$\(price)'")
+            
+            priceOptions.append((variationIndex: index, variationName: variationName, price: price))
+        }
+        
+        // Sort by variation index to maintain original order
+        availablePrices = priceOptions.sorted { $0.variationIndex < $1.variationIndex }
+        
+        print("[PriceModal] Available prices: \(availablePrices.count) options")
+    }
+    
+    /// Handles print for specific variation
+    func handleVariationPrint(_ variation: ItemDetailsVariationData) {
         Task {
             do {
-                let printData = createPrintData(from: viewModel.itemData)
+                let printData = createVariationPrintData(variation: variation)
                 try await LabelLivePrintService.shared.printLabel(with: printData)
                 
                 await MainActor.run {
-                    print("Print completed successfully")
+                    print("Variation print completed successfully")
                 }
             } catch LabelLivePrintError.printSuccess {
                 await MainActor.run {
-                    print("Print completed successfully")
+                    print("Variation print completed successfully")
                 }
             } catch {
                 await MainActor.run {
                     viewModel.error = error.localizedDescription
                 }
             }
+        }
+    }
+    
+    /// Handles print with user-selected price from ActionSheet
+    private func handlePrintWithSelectedPrice(_ selectedPrice: String) {
+        let firstVariation = viewModel.itemData.variations[0]
+        let printData = PrintData(
+            itemName: viewModel.itemData.name,
+            variationName: nil, // No variation name for generic multi-variation label
+            price: selectedPrice,
+            originalPrice: nil,
+            upc: firstVariation.upc,
+            sku: firstVariation.sku,
+            categoryName: nil,
+            categoryId: viewModel.itemData.reportingCategoryId,
+            description: viewModel.itemData.description,
+            createdAt: nil,
+            updatedAt: nil,
+            qtyForPrice: nil,
+            qtyPrice: nil
+        )
+        
+        performPrint(with: printData)
+    }
+    
+    /// Performs the actual print operation
+    private func performPrint(with printData: PrintData) {
+        Task {
+            do {
+                try await LabelLivePrintService.shared.printLabel(with: printData)
+                
+                await MainActor.run {
+                    print("Print completed successfully")
+                    ToastNotificationService.shared.showSuccess("Label printed successfully")
+                }
+            } catch LabelLivePrintError.printSuccess {
+                await MainActor.run {
+                    print("Print completed successfully")
+                    ToastNotificationService.shared.showSuccess("Label printed successfully")
+                }
+            } catch {
+                await MainActor.run {
+                    viewModel.error = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    private func handlePrint() -> Bool {
+        print("Print button tapped")
+        
+        // Create print data - if price selection needed, data will be prepared for ActionSheet
+        if let printData = createGenericPrintData() {
+            // Direct print (single variation or same prices)
+            performPrint(with: printData)
+            return false // No ActionSheet needed
+        } else {
+            // Price selection needed - availablePrices is set
+            return true // ActionSheet needed
         }
     }
 
@@ -271,30 +451,18 @@ struct ItemDetailsModal: View {
                     onSave(itemData)
                 }
                 
-                // Then print after successful save
-                do {
-                    let printData = createPrintData(from: itemData)
-                    try await LabelLivePrintService.shared.printLabel(with: printData)
-                    
-                    await MainActor.run {
-                        print("Item saved and printed successfully")
-                        onDismiss()
+                // Then print after successful save using smart logic
+                await MainActor.run {
+                    // Create print data - if price selection needed, data will be prepared for ActionSheet
+                    if let printData = createGenericPrintData() {
+                        // Direct print (single variation or same prices)
+                        performPrint(with: printData)
+                        onDismiss() // Dismiss after successful save and print
                     }
-                } catch LabelLivePrintError.printSuccess {
-                    await MainActor.run {
-                        print("Item saved and printed successfully")
-                        onDismiss()
-                    }
-                } catch {
-                    await MainActor.run {
-                        // Item was saved but print failed
-                        viewModel.error = "Item saved but print failed: \(error.localizedDescription)"
-                        // Don't dismiss modal so user can retry or manually print
-                    }
+                    // If createGenericPrintData returns nil, availablePrices is set and ActionSheet will handle it
                 }
             }
         }
-    }
 }
 
 // MARK: - Item Details Content
@@ -303,6 +471,7 @@ struct ItemDetailsContent: View {
     let context: ItemDetailsContext
     @ObservedObject var viewModel: ItemDetailsViewModel
     let onSave: () -> Void
+    let onVariationPrint: (ItemDetailsVariationData) -> Void
     @StateObject private var configManager = FieldConfigurationManager.shared
     
     var body: some View {
@@ -346,7 +515,7 @@ struct ItemDetailsContent: View {
             
         case "pricing":
             if shouldShowPricingSection {
-                ItemDetailsPricingSection(viewModel: viewModel)
+                ItemDetailsPricingSection(viewModel: viewModel, onVariationPrint: onVariationPrint)
             }
             
         case "categories":
@@ -452,18 +621,5 @@ struct CreateFromSearchHeader: View {
     }
 }
 
-#Preview("Create New Item") {
-    ItemDetailsModal(
-        context: .createNew,
-        onDismiss: {},
-        onSave: { _ in }
-    )
-}
-
-#Preview("Create From Search") {
-    ItemDetailsModal(
-        context: .createFromSearch(query: "1234567890123", queryType: .upc),
-        onDismiss: {},
-        onSave: { _ in }
-    )
+// Preview removed due to complexity - test in app instead
 }
