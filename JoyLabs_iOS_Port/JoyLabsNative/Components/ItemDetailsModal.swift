@@ -55,6 +55,7 @@ struct ItemDetailsModal: View {
     
     // Price selection data for FAB buttons
     @State private var availablePrices: [(variationIndex: Int, variationName: String, price: String)] = []
+    @State private var needsSaveAfterPrint = false
     
     
     private let logger = Logger(subsystem: "com.joylabs.native", category: "ItemDetailsModal")
@@ -71,13 +72,8 @@ struct ItemDetailsModal: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Custom header
+            // Simplified header - title only
             HStack {
-                Button("Cancel") {
-                    handleCancel()
-                }
-                .foregroundColor(.itemDetailsDestructive)
-                
                 Spacer()
                 
                 Text(dynamicTitle)
@@ -85,13 +81,6 @@ struct ItemDetailsModal: View {
                     .fontWeight(.semibold)
                 
                 Spacer()
-                
-                Button("Save") {
-                    handleSave()
-                }
-                .disabled(!viewModel.canSave)
-                .foregroundColor(viewModel.canSave ? .itemDetailsAccent : .itemDetailsSecondaryText)
-                .fontWeight(.semibold)
             }
             .padding()
             .background(Color.itemDetailsModalBackground)
@@ -122,7 +111,9 @@ struct ItemDetailsModal: View {
                         onSaveAndPrint: handleSaveAndPrint,
                         canSave: viewModel.canSave,
                         availablePrices: availablePrices,
-                        onPriceSelected: handlePrintWithSelectedPrice
+                        onPriceSelected: handlePrintWithSelectedPrice,
+                        hasChanges: viewModel.hasChanges,
+                        onForceClose: { onDismiss() }
                     )
                     .opacity(dialogService.isShowing ? 0 : 1)
                     .animation(.easeInOut(duration: 0.1), value: dialogService.isShowing)
@@ -131,7 +122,7 @@ struct ItemDetailsModal: View {
             }
         }
         .frame(maxHeight: .infinity)
-        .interactiveDismissDisabled(false)
+        .interactiveDismissDisabled(viewModel.hasChanges)
         .presentationDragIndicator(.visible)
         .alert("Error", isPresented: .constant(viewModel.error != nil)) {
             Button("OK") {
@@ -201,22 +192,9 @@ struct ItemDetailsModal: View {
         isAnyFieldFocused = false
         hideKeyboard()
 
-        if viewModel.hasChanges {
-            print("User has unsaved changes - showing confirmation")
-            let config = ConfirmationDialogConfig(
-                title: "Discard Changes?",
-                message: "You have unsaved changes. Are you sure you want to discard them?",
-                confirmButtonText: "Discard Changes",
-                cancelButtonText: "Keep Editing",
-                isDestructive: true,
-                onConfirm: {
-                    onDismiss()
-                }
-            )
-            dialogService.show(config)
-        } else {
-            onDismiss()
-        }
+        // This is called from FAB when hasChanges is false
+        // If hasChanges is true, FAB handles the confirmation
+        onDismiss()
     }
 
 
@@ -401,7 +379,34 @@ struct ItemDetailsModal: View {
             qtyPrice: nil
         )
         
-        performPrint(with: printData)
+        // Check if this came from Save & Print button
+        if needsSaveAfterPrint {
+            Task {
+                // Print first
+                do {
+                    try await LabelLivePrintService.shared.printLabel(with: printData)
+                    print("Print completed successfully")
+                    ToastNotificationService.shared.showSuccess("Label printed successfully")
+                } catch LabelLivePrintError.printSuccess {
+                    print("Print completed successfully")
+                    ToastNotificationService.shared.showSuccess("Label printed successfully")
+                } catch {
+                    print("Print failed but continuing to save: \(error)")
+                }
+                
+                // Then save
+                if let itemData = await viewModel.saveItem() {
+                    await MainActor.run {
+                        onSave(itemData)
+                        onDismiss() // Dismiss after save
+                    }
+                }
+                needsSaveAfterPrint = false
+            }
+        } else {
+            // Just print (from Print button)
+            performPrint(with: printData)
+        }
     }
     
     /// Performs the actual print operation
@@ -444,24 +449,35 @@ struct ItemDetailsModal: View {
     private func handleSaveAndPrint() {
         print("Save & Print button tapped")
 
-        Task {
-            // First save the item
-            if let itemData = await viewModel.saveItem() {
-                await MainActor.run {
-                    onSave(itemData)
+        // Check if we need price selection first
+        if let printData = createGenericPrintData() {
+            // No price selection needed - print first, then save, then dismiss
+            Task {
+                // Print first
+                do {
+                    try await LabelLivePrintService.shared.printLabel(with: printData)
+                    print("Print completed successfully")
+                    ToastNotificationService.shared.showSuccess("Label printed successfully")
+                } catch LabelLivePrintError.printSuccess {
+                    print("Print completed successfully")
+                    ToastNotificationService.shared.showSuccess("Label printed successfully")
+                } catch {
+                    print("Print failed but continuing to save: \(error)")
                 }
                 
-                // Then print after successful save using smart logic
-                await MainActor.run {
-                    // Create print data - if price selection needed, data will be prepared for ActionSheet
-                    if let printData = createGenericPrintData() {
-                        // Direct print (single variation or same prices)
-                        performPrint(with: printData)
-                        onDismiss() // Dismiss after successful save and print
+                // Then save
+                if let itemData = await viewModel.saveItem() {
+                    await MainActor.run {
+                        onSave(itemData)
+                        onDismiss() // Dismiss after save
                     }
-                    // If createGenericPrintData returns nil, availablePrices is set and ActionSheet will handle it
                 }
             }
+        } else {
+            // Price selection needed - set flag and return true to show ActionSheet
+            // The FloatingActionButtons will show the price selection ActionSheet
+            needsSaveAfterPrint = true
+            // availablePrices is already set by createGenericPrintData()
         }
 }
 

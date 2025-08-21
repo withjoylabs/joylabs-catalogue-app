@@ -5,6 +5,7 @@ import SwiftUI
 struct ItemDetailsPricingSection: View {
     @ObservedObject var viewModel: ItemDetailsViewModel
     @StateObject private var configManager = FieldConfigurationManager.shared
+    let onVariationPrint: (ItemDetailsVariationData) -> Void
     
     var body: some View {
         ItemDetailsSection(title: "Pricing & Variations", icon: "dollarsign.circle") {
@@ -34,6 +35,7 @@ struct ItemDetailsPricingSection: View {
                                 viewModel.variations.remove(at: index)
                                 viewModel.hasUnsavedChanges = true
                             },
+                            onPrint: onVariationPrint,
                             viewModel: viewModel
                         )
                         
@@ -79,6 +81,7 @@ struct VariationCard: View {
     @Binding var variation: ItemDetailsVariationData
     let index: Int
     let onDelete: () -> Void
+    let onPrint: (ItemDetailsVariationData) -> Void
 
     @StateObject private var duplicateDetection = DuplicateDetectionService()
     @StateObject private var dialogService = ConfirmationDialogService.shared
@@ -117,36 +120,53 @@ struct VariationCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header with variation name and delete button - with background and padding
+            // Header with variation name, delete button, and print button
             HStack {
-                ItemDetailsFieldLabel(title: "Variation \(index + 1)")
+                // Group label and trash icon together on the left
+                HStack(spacing: 8) {
+                    ItemDetailsFieldLabel(title: "Variation \(index + 1)")
+                    
+                    // Trash icon for variations 2+ (immediately adjacent to variation number)
+                    if index > 0 { // Don't allow deleting the first variation
+                        Button(action: {
+                            // Check if variation has data before showing confirmation
+                            if variationHasData {
+                                let config = ConfirmationDialogConfig(
+                                    title: "Delete Variation",
+                                    message: "Are you sure you want to delete this variation? This action cannot be undone.",
+                                    confirmButtonText: "Delete",
+                                    cancelButtonText: "Cancel",
+                                    isDestructive: true,
+                                    onConfirm: {
+                                        onDelete()
+                                    }
+                                )
+                                dialogService.show(config)
+                            } else {
+                                onDelete()
+                            }
+                        }) {
+                            Image(systemName: "trash")
+                                .foregroundColor(.itemDetailsDestructive)
+                                .font(.title3)
+                                .frame(width: 44, height: 44)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                }
                 
                 Spacer()
                 
-                if index > 0 { // Don't allow deleting the first variation
-                    Button(action: {
-                        // Check if variation has data before showing confirmation
-                        if variationHasData {
-                            let config = ConfirmationDialogConfig(
-                                title: "Delete Variation",
-                                message: "Are you sure you want to delete this variation? This action cannot be undone.",
-                                confirmButtonText: "Delete",
-                                cancelButtonText: "Cancel",
-                                isDestructive: true,
-                                onConfirm: {
-                                    onDelete()
-                                }
-                            )
-                            dialogService.show(config)
-                        } else {
-                            onDelete()
-                        }
-                    }) {
-                        Image(systemName: "trash")
-                            .foregroundColor(.itemDetailsDestructive)
-                            .font(.itemDetailsSubheadline)
-                    }
+                // Print button alone on the right
+                Button(action: {
+                    onPrint(variation)
+                }) {
+                    Image(systemName: "printer.fill")
+                        .foregroundColor(.itemDetailsAccent)
+                        .font(.title3)
+                        .frame(width: 44, height: 44)
                 }
+                .buttonStyle(PlainButtonStyle())
             }
             .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
             .padding(.vertical, ItemDetailsSpacing.compactSpacing)
@@ -713,7 +733,12 @@ struct PriceFieldWithTouchTarget: View {
 
 #Preview("Pricing Section") {
     ScrollView {
-        ItemDetailsPricingSection(viewModel: ItemDetailsViewModel())
-            .padding()
+        ItemDetailsPricingSection(
+            viewModel: ItemDetailsViewModel(),
+            onVariationPrint: { variation in
+                print("Print variation: \(variation.name ?? "Unnamed")")
+            }
+        )
+        .padding()
     }
 }
