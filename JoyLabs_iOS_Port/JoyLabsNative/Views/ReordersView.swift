@@ -175,7 +175,15 @@ struct ReordersView: SwiftUI.View {
                     },
                     onSave: { itemData in
                         viewModel.dismissActiveSheet()
-                        viewModel.loadReorderData() // Refresh data after edit
+                        viewModel.loadReorderData() // Refresh reorder data after edit
+                        
+                        // CRITICAL: Also refresh any active search results
+                        if let currentTerm = viewModel.searchManager.currentSearchTerm {
+                            SearchRefreshService.shared.refreshSearchAfterSave(
+                                with: currentTerm,
+                                searchManager: viewModel.searchManager
+                            )
+                        }
                     }
                 )
                 .fullScreenModal()

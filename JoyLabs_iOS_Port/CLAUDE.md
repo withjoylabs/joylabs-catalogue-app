@@ -146,6 +146,14 @@ The codebase follows a **modular service-oriented architecture** with these key 
 - **Performance**: Pre-processed category names for ultra-fast search without JOINs
 - **Caching**: Multi-level cache system for search results
 
+### Search Refresh Coordination
+- **Core Service**: `SearchRefreshService` (Core/Services/) - Centralized search refresh after item saves
+- **Purpose**: Ensures consistent search result updates after ItemDetailsModal save operations
+- **Coverage**: All views using ItemDetailsModal (ScanView, ReordersView, SearchComponents)
+- **Usage**: Automatically called in onSave handlers with original search query for reliable refresh
+- **Architecture**: Single source of truth prevents duplicate refresh logic and multiple failure points
+- **Integration**: Works alongside existing image notification system (images handle their own refresh)
+
 ### Webhook Processing Flow  
 - **Trigger**: Square catalog changes → AWS webhook → Silent push notification → iOS app
 - **Processing Chain**: 

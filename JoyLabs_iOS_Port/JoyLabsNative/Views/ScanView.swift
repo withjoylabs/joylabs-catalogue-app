@@ -18,6 +18,7 @@ struct ScanView: View {
     @State private var isConnected = true
     @State private var showingHistory = false
     @State private var lastScannedBarcode = ""  // Track HID scanned barcode
+    @State private var originalSearchQuery = ""  // Track original search query for refresh
     @StateObject private var searchManager: SearchManager = {
         // Use the shared database manager that's already connected in Phase 1
         let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
@@ -49,7 +50,8 @@ struct ScanView: View {
                 } else if !searchManager.searchResults.isEmpty || !lastScannedBarcode.isEmpty {
                     SearchResultsView(
                         searchManager: searchManager,
-                        scannedBarcode: lastScannedBarcode
+                        scannedBarcode: lastScannedBarcode,
+                        originalSearchQuery: originalSearchQuery
                     )
                 } else {
                     EmptySearchState()
@@ -121,9 +123,14 @@ struct ScanView: View {
             }
         }
         .onChange(of: searchText) { oldValue, newValue in
-            // Clear scanned barcode when user types manually
+            // Clear scanned barcode when user types manually and update original query
             if !newValue.isEmpty && lastScannedBarcode != "" {
                 lastScannedBarcode = ""
+            }
+            
+            // Track original query for refresh (prioritize manual search over HID scan)
+            if !newValue.isEmpty {
+                originalSearchQuery = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
             }
             
             // Cancel previous timer
@@ -158,8 +165,9 @@ struct ScanView: View {
     private func handleHIDBarcodeScan(_ barcode: String) {
         print("🌍 HID barcode scanned: \(barcode)")
         
-        // Store the scanned barcode for display
+        // Store the scanned barcode for display and refresh
         lastScannedBarcode = barcode
+        originalSearchQuery = barcode  // Track for refresh logic
         
         // Clear manual search text to keep search bar clean
         searchText = ""
@@ -197,6 +205,7 @@ struct ScanView: View {
 struct SearchResultsView: View {
     @ObservedObject var searchManager: SearchManager
     let scannedBarcode: String
+    let originalSearchQuery: String  // Pass original query for refresh
     
     var body: some View {
         VStack(spacing: 0) {
@@ -233,7 +242,7 @@ struct SearchResultsView: View {
             } else if let error = searchManager.searchError {
                 SearchErrorView(error: error)
             } else if searchManager.searchResults.isEmpty {
-                NoResultsView(searchManager: searchManager)
+                NoResultsView(searchManager: searchManager, originalSearchQuery: originalSearchQuery)
             } else {
                 SearchResultsList(results: searchManager.searchResults, searchManager: searchManager)
             }
@@ -283,6 +292,7 @@ struct SearchErrorView: View {
 
 struct NoResultsView: View {
     let searchManager: SearchManager
+    let originalSearchQuery: String  // Pass original query for refresh
     @State private var showingItemDetails = false
     @State private var selectedQueryType: SearchQueryType = .upc  // Default to UPC instead of SKU
 
@@ -326,14 +336,18 @@ struct NoResultsView: View {
                     onDismiss: {
                         showingItemDetails = false
                     },
-                    onSave: { itemData in
+                    onSave: { itemData in                        
                         // Dismiss the modal
                         showingItemDetails = false
                         
-                        // Refresh search results to show the newly created item
-                        if let searchQuery = searchManager.currentSearchTerm {
-                            let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
-                            searchManager.performSearchWithDebounce(searchTerm: searchQuery, filters: filters)
+                        // Refresh search results using SearchRefreshService
+                        // Use the best available query for refresh
+                        let queryForRefresh = !originalSearchQuery.isEmpty ? originalSearchQuery : searchManager.currentSearchTerm
+                        if let refreshQuery = queryForRefresh {
+                            SearchRefreshService.shared.refreshSearchAfterSave(
+                                with: refreshQuery,
+                                searchManager: searchManager
+                            )
                         }
                     }
                 )
@@ -468,12 +482,15 @@ struct SearchResultsList: View {
     // MARK: - Search Refresh Function
     
     private func refreshSearchResults() {
-        // Get the current search term from the search manager
+        // Use SearchRefreshService for consistent refresh logic
         if let currentTerm = searchManager.currentSearchTerm {
-            let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
-            searchManager.performSearchWithDebounce(searchTerm: currentTerm, filters: filters)
+            SearchRefreshService.shared.refreshSearchAfterSave(
+                with: currentTerm,
+                searchManager: searchManager
+            )
         }
     }
+    
     
     // MARK: - Reorder and Print Functions
     

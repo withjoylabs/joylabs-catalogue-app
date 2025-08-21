@@ -382,25 +382,19 @@ struct ItemDetailsModal: View {
         // Check if this came from Save & Print button
         if needsSaveAfterPrint {
             Task {
-                // Print first
-                do {
-                    try await LabelLivePrintService.shared.printLabel(with: printData)
-                    print("Print completed successfully")
-                    ToastNotificationService.shared.showSuccess("Label printed successfully")
-                } catch LabelLivePrintError.printSuccess {
-                    print("Print completed successfully")
-                    ToastNotificationService.shared.showSuccess("Label printed successfully")
-                } catch {
-                    print("Print failed but continuing to save: \(error)")
-                }
+                // Start both operations concurrently for snappy UX
+                async let printTask: Void = performPrintInBackground(with: printData)
                 
-                // Then save
+                // Save immediately (don't wait for print)
                 if let itemData = await viewModel.saveItem() {
                     await MainActor.run {
                         onSave(itemData)
-                        onDismiss() // Dismiss after save
+                        onDismiss() // Dismiss immediately after save
                     }
                 }
+                
+                // Let print continue in background
+                await printTask
                 needsSaveAfterPrint = false
             }
         } else {
@@ -431,6 +425,28 @@ struct ItemDetailsModal: View {
             }
         }
     }
+    
+    /// Performs print operation in background for concurrent Save & Print
+    private func performPrintInBackground(with printData: PrintData) async {
+        do {
+            try await LabelLivePrintService.shared.printLabel(with: printData)
+            
+            await MainActor.run {
+                print("Background print completed successfully")
+                ToastNotificationService.shared.showSuccess("Label printed successfully")
+            }
+        } catch LabelLivePrintError.printSuccess {
+            await MainActor.run {
+                print("Background print completed successfully")
+                ToastNotificationService.shared.showSuccess("Label printed successfully")
+            }
+        } catch {
+            await MainActor.run {
+                print("Background print failed: \(error)")
+                // Don't show error to user since save succeeded and modal dismissed
+            }
+        }
+    }
 
     private func handlePrint() -> Bool {
         print("Print button tapped")
@@ -451,27 +467,21 @@ struct ItemDetailsModal: View {
 
         // Check if we need price selection first
         if let printData = createGenericPrintData() {
-            // No price selection needed - print first, then save, then dismiss
+            // No price selection needed - run print and save concurrently
             Task {
-                // Print first
-                do {
-                    try await LabelLivePrintService.shared.printLabel(with: printData)
-                    print("Print completed successfully")
-                    ToastNotificationService.shared.showSuccess("Label printed successfully")
-                } catch LabelLivePrintError.printSuccess {
-                    print("Print completed successfully")
-                    ToastNotificationService.shared.showSuccess("Label printed successfully")
-                } catch {
-                    print("Print failed but continuing to save: \(error)")
-                }
+                // Start both operations concurrently for snappy UX
+                async let printTask: Void = performPrintInBackground(with: printData)
                 
-                // Then save
+                // Save immediately (don't wait for print)
                 if let itemData = await viewModel.saveItem() {
                     await MainActor.run {
                         onSave(itemData)
-                        onDismiss() // Dismiss after save
+                        onDismiss() // Dismiss immediately after save
                     }
                 }
+                
+                // Let print continue in background
+                await printTask
             }
         } else {
             // Price selection needed - set flag and return true to show ActionSheet

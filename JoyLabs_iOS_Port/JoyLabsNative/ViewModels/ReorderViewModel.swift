@@ -28,7 +28,7 @@ class ReorderViewModel: ObservableObject {
     
     // MARK: - Services
     let modalStateManager = QuantityModalStateManager()
-    private let searchManager: SearchManager
+    let searchManager: SearchManager  // Made accessible for SearchRefreshService
     
     private var cancellables = Set<AnyCancellable>()
     private var searchDebounceTimer: Timer?
