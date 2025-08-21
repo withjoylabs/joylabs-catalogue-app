@@ -11,23 +11,25 @@ class FuzzySearch {
     // MARK: - Relevance Weights (tunable)
     private struct FieldWeights {
         static let exactMatch: Double = 100.0
-        static let prefixMatch: Double = 80.0
-        static let substringMatch: Double = 60.0
-        static let fuzzyMatch: Double = 40.0
-        static let tokenMatch: Double = 30.0
+        static let prefixMatch: Double = 85.0    // Increased for better prefix matching
+        static let substringMatch: Double = 70.0 // Increased for better substring matching
+        static let fuzzyMatch: Double = 50.0     // Increased for better typo tolerance
+        static let tokenMatch: Double = 40.0     // Increased for better multi-word search
         
-        // Field-specific multipliers
-        static let barcode: Double = 1.5    // Highest priority
-        static let sku: Double = 1.3        
-        static let name: Double = 1.0       // Base weight
-        static let category: Double = 0.7   // Lower priority
+        // Field-specific multipliers - tuned for catalog search
+        static let barcode: Double = 2.0    // Highest priority - exact barcode matches are critical
+        static let sku: Double = 1.5        // High priority - SKUs are precise identifiers
+        static let name: Double = 1.0       // Base weight - most common search
+        static let category: Double = 0.8   // Slightly higher - categories are important for browsing
     }
     
     private struct SearchConfig {
-        static let maxEditDistance: Int = 2
-        static let minTokenLength: Int = 2
-        static let maxResults: Int = 100
-        static let fuzzyThreshold: Double = 0.3
+        static let maxEditDistance: Int = 3        // Allow more typos for better tolerance
+        static let minTokenLength: Int = 2         // Keep minimum token length reasonable
+        static let maxResults: Int = 200           // Increased for better search coverage
+        static let fuzzyThreshold: Double = 0.2    // Lower threshold to include more fuzzy matches
+        static let multiFieldBonus: Double = 0.3  // Bonus for matches across multiple fields
+        static let exactMatchBonus: Double = 0.5  // Extra bonus for exact matches
     }
     
     // MARK: - Main Search Function
@@ -42,15 +44,15 @@ class FuzzySearch {
         let cleanTerm = searchTerm.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanTerm.isEmpty else { return [] }
         
-        logger.debug("Starting fuzzy search for: '\(cleanTerm)'")
+        logger.debug("[Search] Starting fuzzy search for: '\(cleanTerm)'")
         
         // Tokenize search term
         let tokens = tokenize(cleanTerm)
-        logger.debug("Search tokens: \(tokens)")
+        logger.debug("[Search] Search tokens: \(tokens)")
         
         // Get candidate items from database
         let candidates = try getCandidateItems(tokens: tokens, database: database, filters: filters)
-        logger.debug("Found \(candidates.count) candidate items")
+        logger.debug("[Search] Found \(candidates.count) candidate items")
         
         // Score and rank all candidates
         let scoredResults = scoreAndRankCandidates(
@@ -64,7 +66,7 @@ class FuzzySearch {
             .filter { $0.score >= SearchConfig.fuzzyThreshold }
             .prefix(limit)
         
-        logger.debug("Returning \(filteredResults.count) results after scoring")
+        logger.debug("[Search] Returning \(filteredResults.count) results after scoring")
         return Array(filteredResults)
     }
     
@@ -108,11 +110,13 @@ class FuzzySearch {
             mergeCandidates(&candidates, newCandidates: barcodeResults)
         }
         
-        // Search by category (if enabled)
-        if filters.category {
-            let categoryResults = try searchByCategoryFuzzy(tokens: tokens, database: database)
-            mergeCandidates(&candidates, newCandidates: categoryResults)
-        }
+        // Category search removed - categories contain thousands of items and are not useful for search
+        
+        // TODO: Add case UPC search when implemented
+        // if filters.barcode {
+        //     let caseUpcResults = try searchByCaseUpcFuzzy(tokens: tokens, database: database)
+        //     mergeCandidates(&candidates, newCandidates: caseUpcResults)
+        // }
         
         return Array(candidates.values)
     }
@@ -175,6 +179,7 @@ class FuzzySearch {
                 results.append(candidate)
             }
         }
+        
         
         return results
     }
@@ -353,16 +358,21 @@ class FuzzySearch {
         tokens: [String]
     ) -> [SearchResultWithScore] {
         
-        return candidates.compactMap { candidate in
+        let scoredResults = candidates.compactMap { candidate -> SearchResultWithScore? in
             let score = calculateRelevanceScore(candidate: candidate, searchTerm: searchTerm, tokens: tokens)
             guard score > 0 else { return nil }
             
             return SearchResultWithScore(
                 item: convertToSearchResult(candidate),
                 score: score,
-                explanation: generateScoreExplanation(candidate: candidate, searchTerm: searchTerm, score: score)
+                explanation: "Score: \(String(format: "%.1f", score))"
             )
-        }.sorted { $0.score > $1.score }
+        }
+        
+        let sortedResults = scoredResults.sorted { $0.score > $1.score }
+        
+        
+        return sortedResults
     }
     
     private func calculateRelevanceScore(
@@ -371,31 +381,39 @@ class FuzzySearch {
         tokens: [String]
     ) -> Double {
         
-        var totalScore: Double = 0.0
         let searchLower = searchTerm.lowercased()
         
-        // Score each field
-        totalScore += scoreField(candidate.name, against: searchLower, tokens: tokens, weight: FieldWeights.name)
+        // Score each field and find the BEST match (don't add them together)
+        var bestScore: Double = 0.0
         
+        // Score name field
+        let nameScore = scoreField(candidate.name, against: searchLower, tokens: tokens, weight: FieldWeights.name)
+        bestScore = max(bestScore, nameScore)
+        
+        // Score SKU field  
         if let sku = candidate.sku {
-            totalScore += scoreField(sku, against: searchLower, tokens: tokens, weight: FieldWeights.sku)
+            let skuScore = scoreField(sku, against: searchLower, tokens: tokens, weight: FieldWeights.sku)
+            bestScore = max(bestScore, skuScore)
         }
         
+        // Score barcode field
         if let barcode = candidate.barcode {
-            totalScore += scoreField(barcode, against: searchLower, tokens: tokens, weight: FieldWeights.barcode)
+            let barcodeScore = scoreField(barcode, against: searchLower, tokens: tokens, weight: FieldWeights.barcode)
+            bestScore = max(bestScore, barcodeScore)
         }
         
-        if let category = candidate.categoryName {
-            totalScore += scoreField(category, against: searchLower, tokens: tokens, weight: FieldWeights.category)
+        // Category field scoring removed - not useful for search
+        
+        // Simple bonus for exact matches (but don't override the main scoring)
+        let exactMatchCount = countExactFieldMatches(candidate: candidate, searchTerm: searchLower)
+        if exactMatchCount > 0 {
+            bestScore += 5.0 // Small bonus, don't override field scoring
         }
         
-        // Apply boost for exact matches across multiple fields
-        let fieldMatchCount = countFieldMatches(candidate: candidate, searchTerm: searchLower)
-        if fieldMatchCount > 1 {
-            totalScore *= (1.0 + 0.2 * Double(fieldMatchCount - 1)) // 20% boost per additional field
-        }
+        let finalScore = min(bestScore, 150.0)
         
-        return min(totalScore, 100.0) // Cap at 100
+        
+        return finalScore
     }
     
     private func scoreField(
@@ -413,9 +431,12 @@ class FuzzySearch {
         if field == searchTerm {
             fieldScore = FieldWeights.exactMatch
         }
-        // 2. Prefix match
+        // 2. Prefix match with length-based scoring  
         else if field.hasPrefix(searchTerm) {
-            fieldScore = FieldWeights.prefixMatch
+            // Better score for shorter words (closer matches)
+            let lengthRatio = Double(searchTerm.count) / Double(field.count)
+            // Higher ratio = shorter word = better match
+            fieldScore = FieldWeights.prefixMatch * (0.5 + 0.5 * lengthRatio)
         }
         // 3. Substring match
         else if field.contains(searchTerm) {
@@ -449,21 +470,14 @@ class FuzzySearch {
             if field.contains(token) {
                 matchedTokens += 1
                 if field.hasPrefix(token) {
-                    tokenScore += FieldWeights.tokenMatch * 1.2 // Prefix bonus
+                    tokenScore += FieldWeights.tokenMatch * 1.2 // Simple prefix bonus
                 } else {
                     tokenScore += FieldWeights.tokenMatch
-                }
-            } else {
-                // Check fuzzy match for token
-                let distance = levenshteinDistance(field, token)
-                if distance <= 1 && token.count >= 3 {
-                    matchedTokens += 1
-                    tokenScore += FieldWeights.tokenMatch * 0.7 // Reduced score for fuzzy token match
                 }
             }
         }
         
-        // Boost score based on percentage of matched tokens
+        // Simple ratio-based scoring
         let matchRatio = Double(matchedTokens) / Double(tokens.count)
         return tokenScore * matchRatio
     }
@@ -477,6 +491,17 @@ class FuzzySearch {
         if candidate.categoryName?.lowercased().contains(searchTerm) == true { matches += 1 }
         
         return matches
+    }
+    
+    private func countExactFieldMatches(candidate: CandidateItem, searchTerm: String) -> Int {
+        var exactMatches = 0
+        
+        if candidate.name?.lowercased() == searchTerm { exactMatches += 1 }
+        if candidate.sku?.lowercased() == searchTerm { exactMatches += 1 }
+        if candidate.barcode?.lowercased() == searchTerm { exactMatches += 1 }
+        if candidate.categoryName?.lowercased() == searchTerm { exactMatches += 1 }
+        
+        return exactMatches
     }
     
     // MARK: - Levenshtein Distance Algorithm
@@ -532,9 +557,8 @@ class FuzzySearch {
         )
     }
     
-    private func generateScoreExplanation(candidate: CandidateItem, searchTerm: String, score: Double) -> String {
-        return "Score: \(String(format: "%.1f", score)) for '\(searchTerm)' → '\(candidate.name ?? "Unknown")'"
-    }
+    // Score explanation simplified - just show the numerical score
+    // Full explanations removed as per user preference
 }
 
 // MARK: - Supporting Types

@@ -1,5 +1,14 @@
 import SwiftUI
 
+// MARK: - Global HID Scanner Context Manager
+class HIDScannerContextManager: ObservableObject {
+    @Published var currentContext: HIDScannerContext = .none
+    
+    func setContext(_ context: HIDScannerContext) {
+        currentContext = context
+    }
+}
+
 // MARK: - Reorder Badge Manager
 class ReorderBadgeManager: ObservableObject {
     @Published var unpurchasedCount: Int = 0
@@ -36,6 +45,7 @@ class ReorderBadgeManager: ObservableObject {
 
 struct ContentView: View {
     @StateObject private var reorderBadgeManager = ReorderBadgeManager()
+    @StateObject private var hidScannerContext = HIDScannerContextManager()
     @State private var showingItemDetails = false
     @State private var selectedTab = 0
     
@@ -101,7 +111,30 @@ struct ContentView: View {
                     // Immediately revert to previous tab to prevent showing blank page
                     selectedTab = oldValue
                 }
+                
+                // Update HID scanner context based on selected tab
+                switch newValue {
+                case 0: // Scan tab
+                    hidScannerContext.setContext(.scanView)
+                case 1: // Reorders tab  
+                    hidScannerContext.setContext(.reordersView)
+                default: // Other tabs
+                    hidScannerContext.setContext(.none)
+                }
             }
+            
+            // CRITICAL: App-level HID scanner - truly independent of view state
+            AppLevelHIDScanner(
+                onBarcodeScanned: { barcode, context in
+                    handleGlobalBarcodeScan(barcode: barcode, context: context)
+                },
+                context: hidScannerContext.currentContext,
+                isTextFieldFocused: false, // App-level scanner doesn't care about text field focus
+                isModalPresented: showingItemDetails
+            )
+            .frame(width: 0, height: 0)
+            .opacity(0)
+            .allowsHitTesting(false)
         }
         // CRITICAL: Sheet presentation OUTSIDE size class override - ensures iPad gets proper regular size class
         .sheet(isPresented: $showingItemDetails) {
@@ -119,6 +152,36 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .navigateToNotificationSettings)) { _ in
             selectedTab = 4 // Switch to Profile tab
+        }
+        .onAppear {
+            // Initialize HID scanner context based on current tab
+            switch selectedTab {
+            case 0: hidScannerContext.setContext(.scanView)
+            case 1: hidScannerContext.setContext(.reordersView)
+            default: hidScannerContext.setContext(.none)
+            }
+        }
+    }
+    
+    // MARK: - Global Barcode Handler
+    private func handleGlobalBarcodeScan(barcode: String, context: HIDScannerContext) {
+        print("🎯 Global HID scanner detected barcode: '\(barcode)' in context: \(context)")
+        
+        switch context {
+        case .scanView:
+            // Post notification to ScanView to handle the barcode
+            NotificationCenter.default.post(
+                name: NSNotification.Name("GlobalBarcodeScanned"),
+                object: barcode
+            )
+        case .reordersView:
+            // Post notification to ReordersView to handle the barcode
+            NotificationCenter.default.post(
+                name: NSNotification.Name("GlobalBarcodeScannedReorders"),
+                object: barcode
+            )
+        case .none:
+            print("HID scanner inactive - no context set")
         }
     }
 }

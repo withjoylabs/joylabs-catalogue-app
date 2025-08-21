@@ -1,13 +1,6 @@
 import SwiftUI
 import UIKit
 
-// MARK: - Scroll Position Detection for Pagination
-struct ScrollOffsetPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
 
 // MARK: - Legacy scanner removed - now using SharedHIDScanner
 import OSLog
@@ -27,10 +20,6 @@ struct ScanView: View {
     @FocusState private var isSearchFieldFocused: Bool
     @State private var searchDebounceTimer: Timer?
     
-    // Computed property to track if any modal is presented
-    private var isAnyModalPresented: Bool {
-        return showingHistory
-    }
 
     var body: some View {
         ZStack {
@@ -64,21 +53,6 @@ struct ScanView: View {
             }
             .background(Color(.systemBackground))
 
-            // CRITICAL: App-level HID scanner using UIKeyCommand (no TextField, no keyboard issues)
-            AppLevelHIDScanner(
-                onBarcodeScanned: { barcode, context in
-                    print("🎯 App-level HID scanner detected barcode: '\(barcode)' in context: \(context)")
-                    if context == .scanView {
-                        handleHIDBarcodeScan(barcode)
-                    }
-                },
-                context: .scanView,
-                isTextFieldFocused: isSearchFieldFocused,
-                isModalPresented: isAnyModalPresented
-            )
-            .frame(width: 0, height: 0)
-            .opacity(0)
-            .allowsHitTesting(false)
         }
         .sheet(isPresented: $showingHistory) {
             // TODO: Add HistoryView when it's properly added to Xcode project
@@ -120,6 +94,12 @@ struct ScanView: View {
                 print("🔄 Force image refresh - refreshing search results for: '\(currentTerm)'")
                 let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
                 searchManager.performSearchWithDebounce(searchTerm: currentTerm, filters: filters)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("GlobalBarcodeScanned"))) { notification in
+            // Handle global barcode scan from app-level HID scanner
+            if let barcode = notification.object as? String {
+                handleHIDBarcodeScan(barcode)
             }
         }
         .onChange(of: searchText) { oldValue, newValue in
@@ -429,51 +409,22 @@ struct SearchResultsList: View {
     @ObservedObject var searchManager: SearchManager
 
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(results) { result in
-                        SwipeableScanResultCard(
-                            result: result,
-                            onAddToReorder: {
-                                addItemToReorderList(result, quantity: 1)
-                            },
-                            onPrint: {
-                                printItem(result)
-                            },
-                            onItemUpdated: {
-                                refreshSearchResults()
-                            }
-                        )
-                        .id(result.id)
-                    }
-
-                    // Loading indicator at the bottom
-                    if searchManager.isLoadingMore {
-                        HStack {
-                            Spacer()
-                            ProgressView("Loading more...")
-                                .font(.caption)
-                                .foregroundColor(Color.secondary)
-                            Spacer()
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                ForEach(results) { result in
+                    SwipeableScanResultCard(
+                        result: result,
+                        onAddToReorder: {
+                            addItemToReorderList(result, quantity: 1)
+                        },
+                        onPrint: {
+                            printItem(result)
+                        },
+                        onItemUpdated: {
+                            refreshSearchResults()
                         }
-                        .padding()
-                    }
-                }
-                .background(
-                    GeometryReader { geometry in
-                        Color.clear.preference(
-                            key: ScrollOffsetPreferenceKey.self,
-                            value: geometry.frame(in: .named("scrollView")).minY
-                        )
-                    }
-                )
-            }
-            .coordinateSpace(name: "scrollView")
-            .onPreferenceChange(ScrollOffsetPreferenceKey.self) { offset in
-                // Trigger pagination when near bottom (industry standard pattern)
-                if offset > -100 && searchManager.hasMoreResults && !searchManager.isLoadingMore && !results.isEmpty {
-                    searchManager.loadMoreResults()
+                    )
+                    .id(result.id)
                 }
             }
         }

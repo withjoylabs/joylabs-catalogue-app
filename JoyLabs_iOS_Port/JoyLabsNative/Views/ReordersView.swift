@@ -61,13 +61,6 @@ struct ReordersView: SwiftUI.View {
     
     @FocusState private var isScannerFieldFocused: Bool
     
-    // Computed property to track if any modal is presented
-    private var isAnyModalPresented: Bool {
-        return viewModel.activeSheet != nil || 
-               viewModel.showingExportOptions || 
-               viewModel.showingClearAlert || 
-               viewModel.showingMarkAllReceivedAlert
-    }
 
     var body: some SwiftUI.View {
         NavigationStack {
@@ -100,21 +93,6 @@ struct ReordersView: SwiftUI.View {
                     onItemDetailsLongPress: viewModel.showItemDetails
                 )
 
-                // CRITICAL: App-level HID scanner using UIKeyCommand (no TextField, no keyboard issues)
-                AppLevelHIDScanner(
-                    onBarcodeScanned: { barcode, context in
-                        print("🌍 App-level HID scanner received barcode: '\(barcode)' in context: \(context)")
-                        if context == .reordersView {
-                            barcodeManager.handleGlobalBarcodeScanned(barcode)
-                        }
-                    },
-                    context: .reordersView,
-                    isTextFieldFocused: false,  // No visible text fields in ReordersView
-                    isModalPresented: isAnyModalPresented
-                )
-                .frame(width: 0, height: 0)
-                .opacity(0)
-                .allowsHitTesting(false)
             }
             .navigationBarHidden(true)
             .onAppear {
@@ -148,6 +126,12 @@ struct ReordersView: SwiftUI.View {
                 }
             } message: {
                 Text("Mark all items as received? This will move them to the received state.")
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("GlobalBarcodeScannedReorders"))) { notification in
+                // Handle global barcode scan from app-level HID scanner
+                if let barcode = notification.object as? String {
+                    barcodeManager.handleGlobalBarcodeScanned(barcode)
+                }
             }
         }
         // Unified Sheet Modal

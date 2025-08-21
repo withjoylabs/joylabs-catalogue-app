@@ -73,13 +73,13 @@ class ReorderBarcodeScanningManager: ObservableObject {
             }
         }
         
-        // Reset processing flag and immediately process new barcode
+        // Reset processing flag and immediately process new barcode with chain scanning context
         isProcessingBarcode = false
-        processSingleBarcode(barcode)
+        processSingleBarcode(barcode, isFromChainScanning: true)
     }
     
     // MARK: - Single Barcode Processing
-    private func processSingleBarcode(_ barcode: String) {
+    private func processSingleBarcode(_ barcode: String, isFromChainScanning: Bool = false) {
         guard !isProcessingBarcode else {
             print("⚠️ Already processing a barcode, ignoring: \(barcode)")
             return
@@ -107,6 +107,12 @@ class ReorderBarcodeScanningManager: ObservableObject {
                     print("❌ No item found for barcode: \(barcode)")
                     // Mark processing complete for failed searches
                     isProcessingBarcode = false
+                    
+                    // If this was from chain scanning, dismiss the modal for clean UX
+                    if isFromChainScanning {
+                        print("🔗 Chain scan failed - dismissing modal for clean UX")
+                        viewModel?.handleQuantityModalCancel()
+                    }
                     
                     // Show user feedback for failed searches
                     ToastNotificationService.shared.showError("No item found for barcode: \(barcode)")

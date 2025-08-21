@@ -20,6 +20,11 @@ class AppLevelHIDScannerViewController: UIViewController {
     private var isAnyTextFieldFocused = false
     private var isModalPresented = false
     
+    // Track previous state to prevent unnecessary updates
+    private var previousContext: HIDScannerContext?
+    private var previousTextFieldFocus: Bool?
+    private var previousModalPresentation: Bool?
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         view.isHidden = true  // Invisible - purely for key capture
@@ -200,27 +205,39 @@ class AppLevelHIDScannerViewController: UIViewController {
     // MARK: - Context Management
     
     func updateContext(_ context: HIDScannerContext) {
-        currentContext = context
-        print("[AppLevelHIDScanner] Context updated to: \(context)")
+        // Only update and log if context actually changed
+        if previousContext != context {
+            currentContext = context
+            previousContext = context
+            print("[AppLevelHIDScanner] Context updated to: \(context)")
+        }
     }
     
     func updateTextFieldFocus(_ isFocused: Bool) {
-        isAnyTextFieldFocused = isFocused
-        print("[AppLevelHIDScanner] Text field focus: \(isFocused)")
-        
-        if isFocused {
-            // Clear any accumulated input when user focuses a text field
-            clearBuffer()
+        // Only update and log if focus state actually changed
+        if previousTextFieldFocus != isFocused {
+            isAnyTextFieldFocused = isFocused
+            previousTextFieldFocus = isFocused
+            print("[AppLevelHIDScanner] Text field focus: \(isFocused)")
+            
+            if isFocused {
+                // Clear any accumulated input when user focuses a text field
+                clearBuffer()
+            }
         }
     }
     
     func updateModalPresentation(_ isPresented: Bool) {
-        isModalPresented = isPresented
-        print("[AppLevelHIDScanner] Modal presentation: \(isPresented)")
-        
-        if isPresented {
-            // Clear any accumulated input when a modal is presented
-            clearBuffer()
+        // Only update and log if modal state actually changed
+        if previousModalPresentation != isPresented {
+            isModalPresented = isPresented
+            previousModalPresentation = isPresented
+            print("[AppLevelHIDScanner] Modal presentation: \(isPresented)")
+            
+            if isPresented {
+                // Clear any accumulated input when a modal is presented
+                clearBuffer()
+            }
         }
     }
 }
@@ -246,7 +263,7 @@ struct AppLevelHIDScanner: UIViewControllerRepresentable {
 }
 
 // MARK: - HID Scanner Context
-enum HIDScannerContext {
+enum HIDScannerContext: Equatable {
     case none
     case scanView
     case reordersView
