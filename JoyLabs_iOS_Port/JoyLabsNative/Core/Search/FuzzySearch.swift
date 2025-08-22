@@ -2,34 +2,27 @@ import Foundation
 import SQLite
 import os.log
 
-/// Fuzzy search with advanced ranking algorithms
-/// Implements Levenshtein distance, TF-IDF scoring, and multi-field weighted relevance  
+/// Simple, effective fuzzy search using tokenized prefix matching
+/// Matches word beginnings only - no middle/end word matching to eliminate noise
 class FuzzySearch {
     
     private let logger = Logger(subsystem: "com.joylabs.native", category: "FuzzySearch")
     
-    // MARK: - Relevance Weights (tunable)
-    private struct FieldWeights {
-        static let exactMatch: Double = 100.0
-        static let prefixMatch: Double = 85.0    // Increased for better prefix matching
-        static let substringMatch: Double = 70.0 // Increased for better substring matching
-        static let fuzzyMatch: Double = 50.0     // Increased for better typo tolerance
-        static let tokenMatch: Double = 40.0     // Increased for better multi-word search
-        
-        // Field-specific multipliers - tuned for catalog search
-        static let barcode: Double = 2.0    // Highest priority - exact barcode matches are critical
-        static let sku: Double = 1.5        // High priority - SKUs are precise identifiers
-        static let name: Double = 1.0       // Base weight - most common search
-        static let category: Double = 0.8   // Slightly higher - categories are important for browsing
+    // MARK: - Scoring Constants
+    private struct Scores {
+        static let exactWordMatch: Double = 100.0
+        static let prefixMatch: Double = 80.0
+        static let exactSkuMatch: Double = 60.0
+        static let prefixSkuMatch: Double = 40.0
+        static let upcMatch: Double = 60.0
+        static let multiTokenBonus: Double = 2.0  // Increased for better multi-token prioritization
+        static let allTokensMatchBonus: Double = 50.0  // Big bonus for matching ALL tokens
     }
     
-    private struct SearchConfig {
-        static let maxEditDistance: Int = 3        // Allow more typos for better tolerance
-        static let minTokenLength: Int = 2         // Keep minimum token length reasonable
-        static let maxResults: Int = 200           // Increased for better search coverage
-        static let fuzzyThreshold: Double = 0.2    // Lower threshold to include more fuzzy matches
-        static let multiFieldBonus: Double = 0.3  // Bonus for matches across multiple fields
-        static let exactMatchBonus: Double = 0.5  // Extra bonus for exact matches
+    private struct Config {
+        static let maxResults: Int = 200
+        static let minTokenLength: Int = 2
+        static let minScoreThreshold: Double = 20.0
     }
     
     // MARK: - Main Search Function
@@ -44,87 +37,251 @@ class FuzzySearch {
         let cleanTerm = searchTerm.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanTerm.isEmpty else { return [] }
         
-        logger.debug("[Search] Starting fuzzy search for: '\(cleanTerm)'")
+        logger.debug("[Search] Starting simple fuzzy search for: '\(cleanTerm)'")
         
-        // Tokenize search term
-        let tokens = tokenize(cleanTerm)
-        logger.debug("[Search] Search tokens: \(tokens)")
+        // Determine search type based on content
+        let isNumericQuery = cleanTerm.allSatisfy { $0.isNumber }
         
-        // Get candidate items from database
-        let candidates = try getCandidateItems(tokens: tokens, database: database, filters: filters)
-        logger.debug("[Search] Found \(candidates.count) candidate items")
+        let candidates: [CandidateItem]
         
-        // Score and rank all candidates
+        if isNumericQuery {
+            // Numeric query: search UPC/barcode fields only
+            candidates = try searchNumericFields(term: cleanTerm, database: database, filters: filters)
+        } else {
+            // Alphanumeric query: search name + SKU fields with tokenization
+            candidates = try searchTextFields(term: cleanTerm, database: database, filters: filters)
+        }
+        
+        logger.debug("[Search] Found \(candidates.count) candidates")
+        
+        // Score and rank candidates
         let scoredResults = scoreAndRankCandidates(
             candidates: candidates,
             searchTerm: cleanTerm,
-            tokens: tokens
+            isNumeric: isNumericQuery
         )
         
-        // Filter by minimum score and limit results
+        // Filter by minimum score and apply limit
         let filteredResults = scoredResults
-            .filter { $0.score >= SearchConfig.fuzzyThreshold }
+            .filter { $0.score >= Config.minScoreThreshold }
             .prefix(limit)
         
         logger.debug("[Search] Returning \(filteredResults.count) results after scoring")
         return Array(filteredResults)
     }
     
-    // MARK: - Tokenization
+    // MARK: - Numeric Search (UPC/Barcode)
     
-    private func tokenize(_ text: String) -> [String] {
-        let separators = CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters)
-        return text
-            .lowercased()
-            .components(separatedBy: separators)
-            .filter { $0.count >= SearchConfig.minTokenLength }
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-    }
-    
-    // MARK: - Candidate Retrieval
-    
-    private func getCandidateItems(
-        tokens: [String],
+    private func searchNumericFields(
+        term: String,
         database: Connection,
         filters: SearchFilters
     ) throws -> [CandidateItem] {
         
+        guard filters.barcode else { return [] }
+        
+        logger.debug("[Search] Numeric search for UPC/barcode: '\(term)'")
+        
+        // Search UPC/barcode with exact and prefix matching
+        let query = """
+            SELECT DISTINCT 
+                ci.id, ci.name, ci.category_id, ci.category_name, ci.reporting_category_name,
+                iv.sku, iv.upc, iv.price_amount
+            FROM catalog_items ci
+            JOIN item_variations iv ON ci.id = iv.item_id
+            WHERE ci.is_deleted = 0 AND iv.is_deleted = 0
+            AND (iv.upc = ? OR iv.upc LIKE ?)
+            ORDER BY 
+                CASE 
+                    WHEN iv.upc = ? THEN 1  -- Exact matches first
+                    ELSE 2                  -- Prefix matches second
+                END,
+                ci.name ASC
+            LIMIT \(Config.maxResults)
+        """
+        
+        let prefixPattern = "\(term)%"
+        let statement = try database.prepare(query)
+        let results = try statement.run([term, prefixPattern, term])
+        
+        return results.compactMap { row in
+            createCandidateFromVariationRow(row)
+        }
+    }
+    
+    // MARK: - Text Search (Name + SKU)
+    
+    private func searchTextFields(
+        term: String,
+        database: Connection,
+        filters: SearchFilters
+    ) throws -> [CandidateItem] {
+        
+        // Tokenize search term - split into individual words
+        let tokens = tokenize(term)
+        guard !tokens.isEmpty else { return [] }
+        
+        logger.debug("[Search] Text search with tokens: \(tokens)")
+        
         var candidates: [String: CandidateItem] = [:]
         
-        // Search by name (if enabled)
+        // Search name field (if enabled)
         if filters.name {
-            let nameResults = try searchByNameFuzzy(tokens: tokens, database: database)
+            let nameResults = try searchNameField(tokens: tokens, database: database)
             mergeCandidates(&candidates, newCandidates: nameResults)
         }
         
-        // Search by SKU (if enabled)
+        // Search SKU field (if enabled)  
         if filters.sku {
-            let skuResults = try searchBySkuFuzzy(tokens: tokens, database: database)
+            let skuResults = try searchSkuField(tokens: tokens, database: database)
             mergeCandidates(&candidates, newCandidates: skuResults)
         }
         
-        // Search by barcode/UPC (if enabled)
-        if filters.barcode {
-            let barcodeResults = try searchByBarcodeFuzzy(tokens: tokens, database: database)
-            mergeCandidates(&candidates, newCandidates: barcodeResults)
-        }
-        
-        // Category search removed - categories contain thousands of items and are not useful for search
-        
         // TODO: Add case UPC search when implemented
-        // if filters.barcode {
-        //     let caseUpcResults = try searchByCaseUpcFuzzy(tokens: tokens, database: database)
-        //     mergeCandidates(&candidates, newCandidates: caseUpcResults)
-        // }
+        // This structure is ready but will return 0 results until backend support
+        if filters.barcode {
+            let caseUpcResults = try searchCaseUpcField(tokens: tokens, database: database)
+            mergeCandidates(&candidates, newCandidates: caseUpcResults)
+        }
         
         return Array(candidates.values)
     }
     
+    private func searchNameField(tokens: [String], database: Connection) throws -> [CandidateItem] {
+        // For multi-token searches, require ALL tokens to be found (AND logic)
+        // For single token searches, use simple prefix matching
+        
+        if tokens.count == 1 {
+            // Single token - simple prefix matching
+            let token = tokens[0]
+            let query = """
+                SELECT DISTINCT 
+                    ci.id, ci.name, ci.category_id, ci.category_name, ci.reporting_category_name
+                FROM catalog_items ci
+                WHERE ci.is_deleted = 0 
+                AND (LOWER(ci.name) LIKE ? OR LOWER(ci.name) LIKE ?)
+                ORDER BY ci.name ASC
+                LIMIT \(Config.maxResults)
+            """
+            
+            let statement = try database.prepare(query)
+            let results = try statement.run(["\(token)%", "% \(token)%"])
+            
+            return results.compactMap { row in
+                createCandidateFromItemRow(row)
+            }
+        } else {
+            // Multi-token - require ALL tokens to be found (AND logic)
+            var tokenConditions: [String] = []
+            var bindValues: [Binding?] = []
+            
+            for token in tokens {
+                // Each token must be found as word start somewhere in the name
+                tokenConditions.append("(LOWER(ci.name) LIKE ? OR LOWER(ci.name) LIKE ?)")
+                bindValues.append("\(token)%")  // Start of name
+                bindValues.append("% \(token)%")  // Start of any word
+            }
+            
+            let query = """
+                SELECT DISTINCT 
+                    ci.id, ci.name, ci.category_id, ci.category_name, ci.reporting_category_name
+                FROM catalog_items ci
+                WHERE ci.is_deleted = 0 
+                AND \(tokenConditions.joined(separator: " AND "))
+                ORDER BY ci.name ASC
+                LIMIT \(Config.maxResults)
+            """
+            
+            logger.debug("[Search] Multi-token name query: \(query)")
+            logger.debug("[Search] Bind values: \(bindValues)")
+            
+            let statement = try database.prepare(query)
+            let results = try statement.run(bindValues)
+            
+            return results.compactMap { row in
+                createCandidateFromItemRow(row)
+            }
+        }
+    }
+    
+    private func searchSkuField(tokens: [String], database: Connection) throws -> [CandidateItem] {
+        // SKU field: require ALL tokens for multi-token searches
+        if tokens.count == 1 {
+            // Single token SKU search
+            let token = tokens[0]
+            let query = """
+                SELECT DISTINCT 
+                    ci.id, ci.name, ci.category_id, ci.category_name, ci.reporting_category_name,
+                    iv.sku, iv.upc, iv.price_amount
+                FROM catalog_items ci
+                JOIN item_variations iv ON ci.id = iv.item_id
+                WHERE ci.is_deleted = 0 AND iv.is_deleted = 0
+                AND LOWER(iv.sku) LIKE ?
+                ORDER BY ci.name ASC
+                LIMIT \(Config.maxResults)
+            """
+            
+            let statement = try database.prepare(query)
+            let results = try statement.run(["\(token)%"])
+            
+            return results.compactMap { row in
+                createCandidateFromVariationRow(row)
+            }
+        } else {
+            // Multi-token SKU search - require ALL tokens
+            var tokenConditions: [String] = []
+            var bindValues: [Binding?] = []
+            
+            for token in tokens {
+                tokenConditions.append("LOWER(iv.sku) LIKE ?")
+                bindValues.append("%\(token)%")  // SKUs can have tokens anywhere
+            }
+            
+            let query = """
+                SELECT DISTINCT 
+                    ci.id, ci.name, ci.category_id, ci.category_name, ci.reporting_category_name,
+                    iv.sku, iv.upc, iv.price_amount
+                FROM catalog_items ci
+                JOIN item_variations iv ON ci.id = iv.item_id
+                WHERE ci.is_deleted = 0 AND iv.is_deleted = 0
+                AND \(tokenConditions.joined(separator: " AND "))
+                ORDER BY ci.name ASC
+                LIMIT \(Config.maxResults)
+            """
+            
+            let statement = try database.prepare(query)
+            let results = try statement.run(bindValues)
+            
+            return results.compactMap { row in
+                createCandidateFromVariationRow(row)
+            }
+        }
+    }
+    
+    private func searchCaseUpcField(tokens: [String], database: Connection) throws -> [CandidateItem] {
+        // TODO: Implement case UPC search when backend support is added
+        // For now, return empty results
+        logger.debug("[Search] Case UPC search not yet implemented - returning empty results")
+        return []
+    }
+    
+    // MARK: - Tokenization
+    
+    private func tokenize(_ text: String) -> [String] {
+        return text
+            .lowercased()
+            .components(separatedBy: CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters))
+            .filter { $0.count >= Config.minTokenLength }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+    
+    // MARK: - Candidate Management
+    
     private func mergeCandidates(_ existing: inout [String: CandidateItem], newCandidates: [CandidateItem]) {
         for candidate in newCandidates {
             if let existingCandidate = existing[candidate.id] {
-                // Merge search fields
+                // Merge data, keeping the most complete information
                 existing[candidate.id] = CandidateItem(
                     id: candidate.id,
                     name: candidate.name,
@@ -142,162 +299,155 @@ class FuzzySearch {
         }
     }
     
-    // MARK: - Field-Specific Search Methods
+    // MARK: - Scoring and Ranking
     
-    private func searchByNameFuzzy(tokens: [String], database: Connection) throws -> [CandidateItem] {
-        var results: [CandidateItem] = []
+    private func scoreAndRankCandidates(
+        candidates: [CandidateItem],
+        searchTerm: String,
+        isNumeric: Bool
+    ) -> [SearchResultWithScore] {
         
-        // Build flexible OR query for name search
-        var whereConditions: [String] = []
-        var bindValues: [Binding?] = []
+        logger.debug("[Search] Scoring \(candidates.count) candidates")
         
-        for token in tokens {
-            // Exact matches
-            whereConditions.append("LOWER(name) = ?")
-            bindValues.append(token.lowercased())
+        let tokens = isNumeric ? [searchTerm] : tokenize(searchTerm)
+        
+        let scoredResults = candidates.compactMap { candidate -> SearchResultWithScore? in
+            let score = calculateScore(candidate: candidate, searchTerm: searchTerm, tokens: tokens, isNumeric: isNumeric)
+            guard score > 0 else { return nil }
             
-            // Prefix matches  
-            whereConditions.append("LOWER(name) LIKE ?")
-            bindValues.append("\(token.lowercased())%")
-            
-            // Substring matches
-            whereConditions.append("LOWER(name) LIKE ?")
-            bindValues.append("%\(token.lowercased())%")
+            return SearchResultWithScore(
+                item: convertToSearchResult(candidate),
+                score: score,
+                explanation: "Score: \(String(format: "%.1f", score))"
+            )
         }
         
-        let query = """
-            SELECT DISTINCT ci.id, ci.name, ci.category_id, ci.category_name, ci.reporting_category_name
-            FROM catalog_items ci
-            WHERE ci.is_deleted = 0 
-            AND (\(whereConditions.joined(separator: " OR ")))
-            LIMIT \(SearchConfig.maxResults)
-        """
+        let sortedResults = scoredResults.sorted { $0.score > $1.score }
         
-        let statement = try database.prepare(query)
-        for row in try statement.run(bindValues) {
-            if let candidate = createCandidateFromItemRow(row) {
-                results.append(candidate)
-            }
+        // Log top results
+        logger.debug("[Search] Top 5 results:")
+        for (index, result) in sortedResults.prefix(5).enumerated() {
+            logger.debug("[Search]   \(index + 1). '\(result.item.name ?? "unknown")' - Score: \(String(format: "%.1f", result.score))")
         }
         
-        
-        return results
+        return sortedResults
     }
     
-    private func searchBySkuFuzzy(tokens: [String], database: Connection) throws -> [CandidateItem] {
-        var results: [CandidateItem] = []
+    private func calculateScore(
+        candidate: CandidateItem,
+        searchTerm: String,
+        tokens: [String],
+        isNumeric: Bool
+    ) -> Double {
         
-        var whereConditions: [String] = []
-        var bindValues: [Binding?] = []
-        
-        for token in tokens {
-            whereConditions.append("LOWER(iv.sku) = ?")
-            bindValues.append(token.lowercased())
-            
-            whereConditions.append("LOWER(iv.sku) LIKE ?")
-            bindValues.append("\(token.lowercased())%")
-            
-            whereConditions.append("LOWER(iv.sku) LIKE ?")
-            bindValues.append("%\(token.lowercased())%")
+        if isNumeric {
+            // Numeric search: score UPC matches
+            return scoreUpcMatch(candidate: candidate, searchTerm: searchTerm)
+        } else {
+            // Text search: score name and SKU matches
+            return scoreTextMatch(candidate: candidate, tokens: tokens)
         }
-        
-        let query = """
-            SELECT DISTINCT ci.id, ci.name, ci.category_id, ci.category_name, ci.reporting_category_name,
-                   iv.sku, iv.upc, iv.price_amount
-            FROM catalog_items ci
-            JOIN item_variations iv ON ci.id = iv.item_id
-            WHERE ci.is_deleted = 0 AND iv.is_deleted = 0
-            AND (\(whereConditions.joined(separator: " OR ")))
-            LIMIT \(SearchConfig.maxResults)
-        """
-        
-        let statement = try database.prepare(query)
-        for row in try statement.run(bindValues) {
-            if let candidate = createCandidateFromVariationRow(row) {
-                results.append(candidate)
-            }
-        }
-        
-        return results
     }
     
-    private func searchByBarcodeFuzzy(tokens: [String], database: Connection) throws -> [CandidateItem] {
-        var results: [CandidateItem] = []
+    private func scoreUpcMatch(candidate: CandidateItem, searchTerm: String) -> Double {
+        guard let upc = candidate.barcode else { return 0.0 }
         
-        var whereConditions: [String] = []
-        var bindValues: [Binding?] = []
-        
-        for token in tokens {
-            // For barcodes, exact and prefix matches are most important
-            whereConditions.append("iv.upc = ?")
-            bindValues.append(token)
-            
-            whereConditions.append("iv.upc LIKE ?")
-            bindValues.append("\(token)%")
-            
-            // Only add substring match for longer tokens
-            if token.count >= 4 {
-                whereConditions.append("iv.upc LIKE ?")
-                bindValues.append("%\(token)%")
-            }
+        if upc == searchTerm {
+            return Scores.upcMatch  // Exact UPC match
+        } else if upc.hasPrefix(searchTerm) {
+            // Prefix match - score based on how much of the UPC is matched
+            let matchRatio = Double(searchTerm.count) / Double(upc.count)
+            return Scores.upcMatch * (0.7 + 0.3 * matchRatio)
         }
         
-        guard !whereConditions.isEmpty else { return [] }
-        
-        let query = """
-            SELECT DISTINCT ci.id, ci.name, ci.category_id, ci.category_name, ci.reporting_category_name,
-                   iv.sku, iv.upc, iv.price_amount
-            FROM catalog_items ci
-            JOIN item_variations iv ON ci.id = iv.item_id
-            WHERE ci.is_deleted = 0 AND iv.is_deleted = 0
-            AND (\(whereConditions.joined(separator: " OR ")))
-            LIMIT \(SearchConfig.maxResults)
-        """
-        
-        let statement = try database.prepare(query)
-        for row in try statement.run(bindValues) {
-            if let candidate = createCandidateFromVariationRow(row) {
-                results.append(candidate)
-            }
-        }
-        
-        return results
+        return 0.0
     }
     
-    private func searchByCategoryFuzzy(tokens: [String], database: Connection) throws -> [CandidateItem] {
-        var results: [CandidateItem] = []
+    private func scoreTextMatch(candidate: CandidateItem, tokens: [String]) -> Double {
+        var bestScore: Double = 0.0
         
-        var whereConditions: [String] = []
-        var bindValues: [Binding?] = []
-        
-        for token in tokens {
-            // Search both regular and reporting category names
-            whereConditions.append("LOWER(ci.category_name) LIKE ?")
-            bindValues.append("%\(token.lowercased())%")
-            
-            whereConditions.append("LOWER(ci.reporting_category_name) LIKE ?")
-            bindValues.append("%\(token.lowercased())%")
+        // Score name field
+        if let name = candidate.name {
+            let nameScore = scoreTextField(text: name, tokens: tokens, baseScore: Scores.exactWordMatch)
+            bestScore = max(bestScore, nameScore)
         }
         
-        let query = """
-            SELECT DISTINCT ci.id, ci.name, ci.category_id, ci.category_name, ci.reporting_category_name
-            FROM catalog_items ci
-            WHERE ci.is_deleted = 0 
-            AND (\(whereConditions.joined(separator: " OR ")))
-            LIMIT \(SearchConfig.maxResults)
-        """
+        // Score SKU field
+        if let sku = candidate.sku {
+            let skuScore = scoreTextField(text: sku, tokens: tokens, baseScore: Scores.exactSkuMatch)
+            bestScore = max(bestScore, skuScore)
+        }
         
-        let statement = try database.prepare(query)
-        for row in try statement.run(bindValues) {
-            if let candidate = createCandidateFromItemRow(row) {
-                results.append(candidate)
+        // Apply multi-token bonuses
+        if tokens.count > 1 {
+            let matchedTokens = countMatchedTokens(candidate: candidate, tokens: tokens)
+            
+            logger.debug("[Search] Item '\(candidate.name ?? "unknown")' matched \(matchedTokens)/\(tokens.count) tokens")
+            
+            if matchedTokens == tokens.count {
+                // ALL tokens matched - huge bonus
+                bestScore += Scores.allTokensMatchBonus
+                logger.debug("[Search]   -> ALL tokens matched! Added \(Scores.allTokensMatchBonus) bonus")
+            } else if matchedTokens > 1 {
+                // Some tokens matched - proportional bonus
+                let coverage = Double(matchedTokens) / Double(tokens.count)
+                let bonus = coverage * (Scores.multiTokenBonus - 1.0)
+                bestScore *= (1.0 + bonus)
+                logger.debug("[Search]   -> \(matchedTokens) tokens matched, coverage bonus: \(String(format: "%.1f", bonus))")
             }
         }
         
-        return results
+        return bestScore
     }
     
-    // MARK: - Candidate Creation
+    private func scoreTextField(text: String, tokens: [String], baseScore: Double) -> Double {
+        let words = text.lowercased().components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }
+        var bestScore: Double = 0.0
+        
+        for token in tokens {
+            for (wordIndex, word) in words.enumerated() {
+                var wordScore: Double = 0.0
+                
+                if word == token {
+                    // Exact word match
+                    wordScore = baseScore
+                } else if word.hasPrefix(token) {
+                    // Prefix match - score based on how much of the word is matched
+                    let matchRatio = Double(token.count) / Double(word.count)
+                    wordScore = baseScore * 0.8 * (0.6 + 0.4 * matchRatio)
+                }
+                
+                // Apply position bonus - earlier words are more important
+                let positionMultiplier = max(0.5, 1.0 - Double(wordIndex) * 0.15)
+                wordScore *= positionMultiplier
+                
+                bestScore = max(bestScore, wordScore)
+            }
+        }
+        
+        return bestScore
+    }
+    
+    private func countMatchedTokens(candidate: CandidateItem, tokens: [String]) -> Int {
+        var matchedCount = 0
+        
+        let nameWords = candidate.name?.lowercased().components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty } ?? []
+        let skuWords = candidate.sku?.lowercased().components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty } ?? []
+        let allWords = nameWords + skuWords
+        
+        for token in tokens {
+            let hasMatch = allWords.contains { word in
+                word == token || word.hasPrefix(token)
+            }
+            if hasMatch {
+                matchedCount += 1
+            }
+        }
+        
+        return matchedCount
+    }
+    
+    // MARK: - Helper Methods
     
     private func createCandidateFromItemRow(_ row: Statement.Element) -> CandidateItem? {
         guard let id = row[0] as? String,
@@ -350,329 +500,6 @@ class FuzzySearch {
         )
     }
     
-    // MARK: - Advanced Scoring Algorithm
-    
-    private func scoreAndRankCandidates(
-        candidates: [CandidateItem],
-        searchTerm: String,
-        tokens: [String]
-    ) -> [SearchResultWithScore] {
-        
-        logger.debug("[Search] Scoring \(candidates.count) candidates for term: '\(searchTerm)'")
-        
-        let scoredResults = candidates.compactMap { candidate -> SearchResultWithScore? in
-            let score = calculateRelevanceScore(candidate: candidate, searchTerm: searchTerm, tokens: tokens)
-            guard score > 0 else { return nil }
-            
-            // Debug log for each scored item
-            logger.debug("[Search] Item '\(candidate.name ?? "unknown")' (ID: \(candidate.id)) scored: \(String(format: "%.1f", score))")
-            
-            return SearchResultWithScore(
-                item: convertToSearchResult(candidate),
-                score: score,
-                explanation: "Score: \(String(format: "%.1f", score))"
-            )
-        }
-        
-        let sortedResults = scoredResults.sorted { $0.score > $1.score }
-        
-        // Log top 10 results after sorting
-        logger.debug("[Search] Top 10 results after sorting:")
-        for (index, result) in sortedResults.prefix(10).enumerated() {
-            logger.debug("[Search]   \(index + 1). '\(result.item.name ?? "unknown")' - Score: \(String(format: "%.1f", result.score))")
-        }
-        
-        return sortedResults
-    }
-    
-    private func calculateRelevanceScore(
-        candidate: CandidateItem,
-        searchTerm: String,
-        tokens: [String]
-    ) -> Double {
-        
-        let searchLower = searchTerm.lowercased()
-        
-        // Score each field and find the BEST match (don't add them together)
-        var bestScore: Double = 0.0
-        var bestField: String = "none"
-        
-        // Score name field
-        let nameScore = scoreField(candidate.name, against: searchLower, tokens: tokens, weight: FieldWeights.name)
-        if nameScore > bestScore {
-            bestScore = nameScore
-            bestField = "name"
-        }
-        
-        // Score SKU field  
-        if let sku = candidate.sku {
-            let skuScore = scoreField(sku, against: searchLower, tokens: tokens, weight: FieldWeights.sku)
-            if skuScore > bestScore {
-                bestScore = skuScore
-                bestField = "sku"
-            }
-        }
-        
-        // Score barcode field
-        if let barcode = candidate.barcode {
-            let barcodeScore = scoreField(barcode, against: searchLower, tokens: tokens, weight: FieldWeights.barcode)
-            if barcodeScore > bestScore {
-                bestScore = barcodeScore
-                bestField = "barcode"
-            }
-        }
-        
-        // Category field scoring removed - not useful for search
-        
-        // Simple bonus for exact matches (but don't override the main scoring)
-        let exactMatchCount = countExactFieldMatches(candidate: candidate, searchTerm: searchLower)
-        if exactMatchCount > 0 {
-            bestScore += 5.0 // Small bonus, don't override field scoring
-        }
-        
-        let finalScore = min(bestScore, 150.0)
-        
-        // Enhanced debug logging showing which field won
-        if finalScore > 0 {
-            logger.debug("[Search]   -> '\(candidate.name ?? "unknown")' best match in '\(bestField)' field: \(String(format: "%.1f", finalScore))")
-        }
-        
-        return finalScore
-    }
-    
-    private func scoreField(
-        _ fieldValue: String?,
-        against searchTerm: String,
-        tokens: [String],
-        weight: Double
-    ) -> Double {
-        
-        guard let field = fieldValue?.lowercased(), !field.isEmpty else { return 0.0 }
-        
-        var fieldScore: Double = 0.0
-        
-        // 1. Exact match (highest score)
-        if field == searchTerm {
-            fieldScore = FieldWeights.exactMatch
-        }
-        // 2. Prefix match with length-based scoring  
-        else if field.hasPrefix(searchTerm) {
-            // Better score for shorter words (closer matches)
-            let lengthRatio = Double(searchTerm.count) / Double(field.count)
-            // Higher ratio = shorter word = better match
-            fieldScore = FieldWeights.prefixMatch * (0.5 + 0.5 * lengthRatio)
-        }
-        // 3. Word-level matching - CRITICAL for good search
-        else {
-            // Split the field into words and check each word
-            let words = field.components(separatedBy: CharacterSet.alphanumerics.inverted)
-                .filter { !$0.isEmpty }
-            
-            var bestWordScore: Double = 0.0
-            
-            for (wordIndex, word) in words.enumerated() {
-                var wordScore: Double = 0.0
-                
-                // Check if search term matches this word
-                if word == searchTerm {
-                    // Exact word match
-                    wordScore = 95.0
-                } else if word.hasPrefix(searchTerm) {
-                    // Word starts with search term
-                    let lengthRatio = Double(searchTerm.count) / Double(word.count)
-                    wordScore = 85.0 * (0.5 + 0.5 * lengthRatio)
-                } else if word.contains(searchTerm) {
-                    // Search term is substring of word
-                    let position = word.range(of: searchTerm)?.lowerBound.utf16Offset(in: word) ?? 0
-                    let positionRatio = Double(position) / Double(word.count)
-                    // Score decreases the further into the word the match is
-                    wordScore = 30.0 * (1.0 - positionRatio * 0.5)
-                }
-                
-                // Apply position decay - earlier words in the name are more important
-                let positionMultiplier = 1.0 - (Double(wordIndex) * 0.1)
-                wordScore *= max(positionMultiplier, 0.5)
-                
-                bestWordScore = max(bestWordScore, wordScore)
-            }
-            
-            // Also check the entire field as a substring (but with lower score)
-            if bestWordScore == 0.0 && field.contains(searchTerm) {
-                // Substring match that doesn't align with word boundaries
-                let position = field.range(of: searchTerm)?.lowerBound.utf16Offset(in: field) ?? 0
-                let positionRatio = Double(position) / Double(field.count)
-                // Much lower score for non-word-boundary matches
-                fieldScore = 25.0 * (1.0 - positionRatio * 0.5)
-            } else {
-                fieldScore = bestWordScore
-            }
-        }
-        
-        // 4. Token-based scoring for multi-word queries
-        if tokens.count > 1 {
-            let tokenScore = scoreTokens(field: field, tokens: tokens)
-            fieldScore = max(fieldScore, tokenScore)
-        }
-        
-        return fieldScore * weight
-    }
-    
-    private func scoreTokens(field: String, tokens: [String]) -> Double {
-        guard tokens.count > 1 else { return 0.0 }
-        
-        // Split field into words for fuzzy matching
-        let words = field.components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { !$0.isEmpty }
-        
-        guard !words.isEmpty else { return 0.0 }
-        
-        var totalScore: Double = 0.0
-        var tokenMatches: [Double] = []
-        
-        // For each token, find the best fuzzy match among all words
-        for token in tokens {
-            var bestTokenScore: Double = 0.0
-            
-            for (wordIndex, word) in words.enumerated() {
-                let fuzzyScore = calculateFuzzyWordMatch(token: token, word: word, wordPosition: wordIndex)
-                bestTokenScore = max(bestTokenScore, fuzzyScore)
-            }
-            
-            tokenMatches.append(bestTokenScore)
-            totalScore += bestTokenScore
-        }
-        
-        // Calculate coverage ratio - how many tokens found good matches
-        let goodMatches = tokenMatches.filter { $0 > 20.0 }.count
-        let coverageRatio = Double(goodMatches) / Double(tokens.count)
-        
-        // Apply coverage bonus - multi-word queries should match most tokens
-        let coverageBonus = coverageRatio >= 0.8 ? 1.2 : coverageRatio
-        
-        let finalScore = (totalScore / Double(tokens.count)) * coverageBonus
-        
-        return min(finalScore, 95.0) // Cap at 95 to leave room for exact matches
-    }
-    
-    private func calculateFuzzyWordMatch(token: String, word: String, wordPosition: Int) -> Double {
-        let tokenLower = token.lowercased()
-        let wordLower = word.lowercased()
-        
-        // 1. Exact word match
-        if tokenLower == wordLower {
-            return applyPositionBonus(score: 90.0, position: wordPosition)
-        }
-        
-        // 2. Word starts with token (prefix match)
-        if wordLower.hasPrefix(tokenLower) {
-            let lengthRatio = Double(tokenLower.count) / Double(wordLower.count)
-            let prefixScore = 80.0 * (0.6 + 0.4 * lengthRatio)
-            return applyPositionBonus(score: prefixScore, position: wordPosition)
-        }
-        
-        // 3. Token starts with word (token is longer)
-        if tokenLower.hasPrefix(wordLower) {
-            let lengthRatio = Double(wordLower.count) / Double(tokenLower.count)
-            let reverseScore = 70.0 * (0.5 + 0.5 * lengthRatio)
-            return applyPositionBonus(score: reverseScore, position: wordPosition)
-        }
-        
-        // 4. Fuzzy match using Levenshtein distance
-        let distance = levenshteinDistance(tokenLower, wordLower)
-        let maxLength = max(tokenLower.count, wordLower.count)
-        
-        // Only consider fuzzy matches if they're reasonable
-        if distance <= 3 && maxLength > 0 {
-            let similarity = 1.0 - (Double(distance) / Double(maxLength))
-            
-            // Require reasonable similarity for fuzzy matches
-            if similarity >= 0.4 {
-                let fuzzyScore = 60.0 * similarity
-                return applyPositionBonus(score: fuzzyScore, position: wordPosition)
-            }
-        }
-        
-        // 5. Substring match (lowest priority)
-        if wordLower.contains(tokenLower) && tokenLower.count >= 3 {
-            let position = wordLower.range(of: tokenLower)?.lowerBound.utf16Offset(in: wordLower) ?? 0
-            let positionRatio = Double(position) / Double(wordLower.count)
-            let substringScore = 25.0 * (1.0 - positionRatio * 0.5)
-            return applyPositionBonus(score: substringScore, position: wordPosition)
-        }
-        
-        return 0.0
-    }
-    
-    private func applyPositionBonus(score: Double, position: Int) -> Double {
-        // Strong position preference - first words much more important
-        let positionMultiplier: Double
-        switch position {
-        case 0: positionMultiplier = 1.0      // First word - full score
-        case 1: positionMultiplier = 0.8      // Second word - 80%
-        case 2: positionMultiplier = 0.6      // Third word - 60%  
-        case 3: positionMultiplier = 0.4      // Fourth word - 40%
-        default: positionMultiplier = 0.3     // Fifth+ word - 30%
-        }
-        
-        return score * positionMultiplier
-    }
-    
-    private func countFieldMatches(candidate: CandidateItem, searchTerm: String) -> Int {
-        var matches = 0
-        
-        if candidate.name?.lowercased().contains(searchTerm) == true { matches += 1 }
-        if candidate.sku?.lowercased().contains(searchTerm) == true { matches += 1 }
-        if candidate.barcode?.lowercased().contains(searchTerm) == true { matches += 1 }
-        if candidate.categoryName?.lowercased().contains(searchTerm) == true { matches += 1 }
-        
-        return matches
-    }
-    
-    private func countExactFieldMatches(candidate: CandidateItem, searchTerm: String) -> Int {
-        var exactMatches = 0
-        
-        if candidate.name?.lowercased() == searchTerm { exactMatches += 1 }
-        if candidate.sku?.lowercased() == searchTerm { exactMatches += 1 }
-        if candidate.barcode?.lowercased() == searchTerm { exactMatches += 1 }
-        if candidate.categoryName?.lowercased() == searchTerm { exactMatches += 1 }
-        
-        return exactMatches
-    }
-    
-    // MARK: - Levenshtein Distance Algorithm
-    
-    private func levenshteinDistance(_ s1: String, _ s2: String) -> Int {
-        let a = Array(s1)
-        let b = Array(s2)
-        let m = a.count
-        let n = b.count
-        
-        guard m > 0 else { return n }
-        guard n > 0 else { return m }
-        
-        var matrix = Array(repeating: Array(repeating: 0, count: n + 1), count: m + 1)
-        
-        // Initialize first row and column
-        for i in 0...m { matrix[i][0] = i }
-        for j in 0...n { matrix[0][j] = j }
-        
-        // Fill matrix
-        for i in 1...m {
-            for j in 1...n {
-                let cost = a[i-1] == b[j-1] ? 0 : 1
-                matrix[i][j] = min(
-                    matrix[i-1][j] + 1,      // deletion
-                    matrix[i][j-1] + 1,      // insertion
-                    matrix[i-1][j-1] + cost  // substitution
-                )
-            }
-        }
-        
-        return matrix[m][n]
-    }
-    
-    // MARK: - Helper Methods
-    
     private func convertToSearchResult(_ candidate: CandidateItem) -> SearchResultItem {
         return SearchResultItem(
             id: candidate.id,
@@ -682,7 +509,7 @@ class FuzzySearch {
             barcode: candidate.barcode,
             categoryId: candidate.categoryId,
             categoryName: candidate.categoryName,
-            variationName: nil, // FuzzySearch doesn't currently include variation names
+            variationName: nil,
             images: candidate.images,
             matchType: "fuzzy",
             matchContext: candidate.name,
@@ -691,9 +518,6 @@ class FuzzySearch {
             hasTax: candidate.hasTax
         )
     }
-    
-    // Score explanation simplified - just show the numerical score
-    // Full explanations removed as per user preference
 }
 
 // MARK: - Supporting Types
