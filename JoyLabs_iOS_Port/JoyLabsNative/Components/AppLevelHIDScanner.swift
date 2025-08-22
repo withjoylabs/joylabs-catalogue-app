@@ -36,7 +36,6 @@ class AppLevelHIDScannerViewController: UIViewController {
         // Always become first responder for global key capture
         if !isFirstResponder {
             becomeFirstResponder()
-            print("[AppLevelHIDScanner] Became first responder for global key capture")
         }
     }
     
@@ -44,10 +43,11 @@ class AppLevelHIDScannerViewController: UIViewController {
         return true
     }
     
+    
     // MARK: - UIKeyCommand Implementation (No TextField Needed)
     override var keyCommands: [UIKeyCommand]? {
-        // Don't process keys if a text field is focused OR a modal is presented
-        guard !isAnyTextFieldFocused && !isModalPresented else { return [] }
+        // Only disable for modals - HID scanner must work regardless of text field focus
+        guard !isModalPresented else { return [] }
         
         var commands: [UIKeyCommand] = []
         
@@ -115,7 +115,6 @@ class AppLevelHIDScannerViewController: UIViewController {
         // Start timing on first character
         if inputBuffer.isEmpty {
             firstCharTime = currentTime
-            print("[AppLevelHIDScanner] Input sequence started...")
         }
         
         // Add character to buffer
@@ -129,8 +128,12 @@ class AppLevelHIDScannerViewController: UIViewController {
     }
     
     @objc private func handleReturnKey() {
-        print("[AppLevelHIDScanner] Return key detected - processing input immediately")
         analyzeAndProcessInput()
+        
+        // Ensure we stay as first responder to prevent return key from reaching other views
+        if !isFirstResponder {
+            becomeFirstResponder()
+        }
     }
     
     private func analyzeAndProcessInput() {
@@ -150,16 +153,12 @@ class AppLevelHIDScannerViewController: UIViewController {
         let isBarcodePattern = detectBarcodePattern(input: finalInput, speed: inputSpeed, length: inputLength)
         
         if isBarcodePattern {
-            print("[AppLevelHIDScanner] BARCODE DETECTED: '\(finalInput)' (speed: \(String(format: "%.3f", inputSpeed))s/char)")
-            
             // Send to context-aware callback
             DispatchQueue.main.async { [weak self] in
                 if let self = self {
                     self.onBarcodeScanned?(finalInput, self.currentContext)
                 }
             }
-        } else {
-            print("[AppLevelHIDScanner] KEYBOARD INPUT IGNORED: '\(finalInput)' (speed: \(String(format: "%.3f", inputSpeed))s/char)")
         }
         
         // Clear state
@@ -205,20 +204,18 @@ class AppLevelHIDScannerViewController: UIViewController {
     // MARK: - Context Management
     
     func updateContext(_ context: HIDScannerContext) {
-        // Only update and log if context actually changed
+        // Only update if context actually changed
         if previousContext != context {
             currentContext = context
             previousContext = context
-            print("[AppLevelHIDScanner] Context updated to: \(context)")
         }
     }
     
     func updateTextFieldFocus(_ isFocused: Bool) {
-        // Only update and log if focus state actually changed
+        // Only update if focus state actually changed
         if previousTextFieldFocus != isFocused {
             isAnyTextFieldFocused = isFocused
             previousTextFieldFocus = isFocused
-            print("[AppLevelHIDScanner] Text field focus: \(isFocused)")
             
             if isFocused {
                 // Clear any accumulated input when user focuses a text field
@@ -228,11 +225,10 @@ class AppLevelHIDScannerViewController: UIViewController {
     }
     
     func updateModalPresentation(_ isPresented: Bool) {
-        // Only update and log if modal state actually changed
+        // Only update if modal state actually changed
         if previousModalPresentation != isPresented {
             isModalPresented = isPresented
             previousModalPresentation = isPresented
-            print("[AppLevelHIDScanner] Modal presentation: \(isPresented)")
             
             if isPresented {
                 // Clear any accumulated input when a modal is presented

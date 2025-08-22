@@ -19,12 +19,10 @@ class SearchRefreshService {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         
         guard !trimmedQuery.isEmpty else { 
-            print("🔄 [SearchRefresh] No query to refresh with")
             return 
         }
         
         let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
         searchManager.performSearchWithDebounce(searchTerm: trimmedQuery, filters: filters)
-        print("🔄 [SearchRefresh] Refreshed search for query: '\(trimmedQuery)'")
     }
 }

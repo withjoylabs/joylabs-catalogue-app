@@ -48,6 +48,7 @@ struct ContentView: View {
     @StateObject private var hidScannerContext = HIDScannerContextManager()
     @State private var showingItemDetails = false
     @State private var selectedTab = 0
+    @State private var isAnyTextFieldFocused = false
     
     // iPad detection
     private var isIPad: Bool {
@@ -62,7 +63,9 @@ struct ContentView: View {
         ZStack {
             TabView(selection: $selectedTab) {
                 // Preserve original size class for child views while forcing TabView to use compact layout
-                ScanView()
+                ScanView(onFocusStateChanged: { isFocused in
+                    isAnyTextFieldFocused = isFocused
+                })
                     .environment(\.horizontalSizeClass, originalSizeClass)
                     .tabItem {
                         Image(systemName: "barcode")
@@ -70,7 +73,9 @@ struct ContentView: View {
                     }
                     .tag(0)
 
-                ReordersView()
+                ReordersView(onFocusStateChanged: { isFocused in
+                    isAnyTextFieldFocused = isFocused
+                })
                     .environment(\.horizontalSizeClass, originalSizeClass)
                     .tabItem {
                         Image(systemName: "receipt")
@@ -129,7 +134,7 @@ struct ContentView: View {
                     handleGlobalBarcodeScan(barcode: barcode, context: context)
                 },
                 context: hidScannerContext.currentContext,
-                isTextFieldFocused: false, // App-level scanner doesn't care about text field focus
+                isTextFieldFocused: isAnyTextFieldFocused,
                 isModalPresented: showingItemDetails
             )
             .frame(width: 0, height: 0)

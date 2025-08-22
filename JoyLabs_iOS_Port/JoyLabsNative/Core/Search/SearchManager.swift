@@ -35,7 +35,7 @@ class SearchManager: ObservableObject {
             self.databaseManager = manager
             if manager.getConnection() != nil {
                 self.isDatabaseReady = true
-                logger.debug("[Search] SearchManager using pre-connected shared database")
+                // Using pre-connected shared database
             }
         } else {
             self.databaseManager = SQLiteSwiftCatalogManager()
@@ -57,16 +57,16 @@ class SearchManager: ObservableObject {
         do {
             if databaseManager.getConnection() == nil {
                 try databaseManager.connect()
-                logger.debug("[Search] Search manager connected to database")
+                // Search manager connected to database
             } else {
-                logger.debug("[Search] Search manager using existing database connection")
+                // Using existing database connection
             }
 
             Task { @MainActor in
                 isDatabaseReady = true
             }
         } catch {
-            logger.error("[Search] Search manager database connection failed: \\(error)")
+            // Database connection failed
             Task { @MainActor in
                 searchError = "Database connection failed: \\(error.localizedDescription)"
                 isDatabaseReady = false
@@ -108,7 +108,7 @@ class SearchManager: ObservableObject {
             currentSearchTerm = trimmedTerm
         }
         
-        logger.info("[Search] Performing search for: '\\(trimmedTerm)'")
+        // Performing search
 
         do {
             // 1. Get ALL fuzzy search results at once
@@ -134,19 +134,14 @@ class SearchManager: ObservableObject {
                 totalResultsCount = allResults.count
                 isSearching = false
                 
-                // Log what's actually going into the UI
-                logger.debug("[Search] Populating UI with \(allResults.count) results")
-                logger.debug("[Search] First 5 results in UI order:")
-                for (index, result) in allResults.prefix(5).enumerated() {
-                    logger.debug("[Search]   \(index + 1). '\(result.name ?? "unknown")' (ID: \(result.id))")
-                }
+                // Populating UI with results
             }
             
-            logger.info("[Search] Search completed: \(allResults.count) total results")
+            // Search completed
             return allResults
 
         } catch {
-            logger.error("[Search] Search failed: \(error)")
+            // Search failed
 
             Task { @MainActor in
                 searchError = error.localizedDescription
@@ -163,7 +158,7 @@ class SearchManager: ObservableObject {
             throw SearchError.databaseError(SQLiteSwiftError.noConnection)
         }
 
-        logger.debug("[Search] Running fuzzy search for: '\\(searchTerm)'")
+        // Running fuzzy search
         
         // Get ALL results from fuzzy search - no pagination!
         let scoredResults = try fuzzySearch.performFuzzySearch(
@@ -173,7 +168,7 @@ class SearchManager: ObservableObject {
             limit: 1000 // Get everything
         )
         
-        logger.info("[Search] FuzzySearch returned \\(scoredResults.count) scored results")
+        // FuzzySearch returned results
         
         // Extract SearchResultItems maintaining the scored order
         let results = scoredResults.map { $0.item }
@@ -181,7 +176,7 @@ class SearchManager: ObservableObject {
         // Enrich results while preserving order
         let enrichedResults = enrichSearchResultsPreservingOrder(results, db: db)
         
-        logger.debug("[Search] Enriched \\(enrichedResults.count) results, order preserved")
+        // Enriched results, order preserved
         
         return enrichedResults
     }
@@ -205,7 +200,7 @@ class SearchManager: ObservableObject {
         currentSearchTerm = nil
         totalResultsCount = nil
         isSearching = false
-        logger.debug("[Search] Search cleared")
+        // Search cleared
     }
     
     // MARK: - Private Methods
@@ -436,7 +431,7 @@ class SearchManager: ObservableObject {
             }
         }
         
-        logger.debug("[Search] Deduplicated \(results.count) results to \(deduplicatedResults.count) unique items")
+        // Deduplicated results
         
         return deduplicatedResults
     }
@@ -446,7 +441,7 @@ class SearchManager: ObservableObject {
             throw SearchError.databaseError(SQLiteSwiftError.noConnection)
         }
 
-        logger.debug("[Search] Searching Case UPC for numeric term: \\(searchTerm)")
+        // Searching Case UPC
 
         let teamDataCount = try db.scalar(
             CatalogTableDefinitions.teamData
@@ -455,7 +450,7 @@ class SearchManager: ObservableObject {
         )
 
         if teamDataCount == 0 {
-            logger.info("[Search] No team data with case UPC found")
+            // No team data with case UPC found
             return []
         }
 
@@ -494,7 +489,7 @@ class SearchManager: ObservableObject {
         // Combine results - fuzzy results (already sorted by score) come first, then case UPC results
         // This preserves the score-based ordering from fuzzy search
         let allResults = localResults + caseUpcResults
-        logger.debug("[Search] Combining \(localResults.count) fuzzy results with \(caseUpcResults.count) case UPC results")
+        // Combining fuzzy and case UPC results
         return removeDuplicatesAndRank(results: allResults, searchTerm: lastSearchTerm)
     }
 }

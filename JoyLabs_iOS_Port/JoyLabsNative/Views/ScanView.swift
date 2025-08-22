@@ -20,6 +20,13 @@ struct ScanView: View {
     @FocusState private var isSearchFieldFocused: Bool
     @State private var searchDebounceTimer: Timer?
     
+    // Binding for focus state to pass up to ContentView
+    let onFocusStateChanged: ((Bool) -> Void)?
+    
+    // Default initializer for standalone use (like previews)
+    init(onFocusStateChanged: ((Bool) -> Void)? = nil) {
+        self.onFocusStateChanged = onFocusStateChanged
+    }
 
     var body: some View {
         ZStack {
@@ -52,6 +59,10 @@ struct ScanView: View {
                 BottomSearchBar(searchText: $searchText, isSearchFieldFocused: $isSearchFieldFocused)
             }
             .background(Color(.systemBackground))
+            .onTapGesture {
+                // Dismiss keyboard when tapping background
+                isSearchFieldFocused = false
+            }
 
         }
         .sheet(isPresented: $showingHistory) {
@@ -75,7 +86,6 @@ struct ScanView: View {
         .onReceive(NotificationCenter.default.publisher(for: .catalogSyncCompleted)) { _ in
             // Refresh search results when catalog sync completes (for webhook updates)
             if let currentTerm = searchManager.currentSearchTerm {
-                print("🔄 Catalog sync completed - refreshing search results for: '\(currentTerm)'")
                 let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
                 searchManager.performSearchWithDebounce(searchTerm: currentTerm, filters: filters)
             }
@@ -83,7 +93,6 @@ struct ScanView: View {
         .onReceive(NotificationCenter.default.publisher(for: .imageUpdated)) { notification in
             // Refresh search results when image is updated (for real-time image updates)
             if let currentTerm = searchManager.currentSearchTerm {
-                print("🔄 Image updated - refreshing search results for: '\(currentTerm)'")
                 let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
                 searchManager.performSearchWithDebounce(searchTerm: currentTerm, filters: filters)
             }
@@ -91,7 +100,6 @@ struct ScanView: View {
         .onReceive(NotificationCenter.default.publisher(for: .forceImageRefresh)) { notification in
             // Force refresh of search results when images need to be refreshed
             if let currentTerm = searchManager.currentSearchTerm {
-                print("🔄 Force image refresh - refreshing search results for: '\(currentTerm)'")
                 let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
                 searchManager.performSearchWithDebounce(searchTerm: currentTerm, filters: filters)
             }
@@ -101,6 +109,10 @@ struct ScanView: View {
             if let barcode = notification.object as? String {
                 handleHIDBarcodeScan(barcode)
             }
+        }
+        .onChange(of: isSearchFieldFocused) { oldValue, newValue in
+            // Notify ContentView of focus state changes for AppLevelHIDScanner
+            onFocusStateChanged?(newValue)
         }
         .onChange(of: searchText) { oldValue, newValue in
             // Clear scanned barcode when user types manually and update original query
@@ -143,33 +155,38 @@ struct ScanView: View {
 
     // MARK: - HID Barcode Handling
     private func handleHIDBarcodeScan(_ barcode: String) {
-        print("🌍 HID barcode scanned: \(barcode)")
-        
-        // Store the scanned barcode for display and refresh
-        lastScannedBarcode = barcode
-        originalSearchQuery = barcode  // Track for refresh logic
-        
-        // Clear manual search text to keep search bar clean
-        searchText = ""
-        
-        // Perform direct search (don't populate text field)
-        let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
-        
-        Task {
-            // Clear any existing search state
-            searchManager.clearSearch()
+        // Dual-mode behavior based on text field focus state
+        if isSearchFieldFocused {
+            // Mode 1: Text field is focused - populate the text field
+            // This triggers normal debounced search like manual typing
+            searchText = barcode
+        } else {
+            // Mode 2: Text field not focused - independent search
+            // Store the scanned barcode for display and refresh
+            lastScannedBarcode = barcode
+            originalSearchQuery = barcode  // Track for refresh logic
             
-            // Set currentSearchTerm AFTER clearing so NoResultsView can show create buttons
-            searchManager.currentSearchTerm = barcode
+            // Clear manual search text to keep search bar clean
+            searchText = ""
             
-            // Perform immediate search for barcode
-            let results = await searchManager.performSearch(searchTerm: barcode, filters: filters)
+            // Perform direct search (don't populate text field)
+            let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
             
-            await MainActor.run {
-                print("✅ HID barcode search completed: \(results.count) results found")
-                // Ensure currentSearchTerm is still set in case performSearch cleared it
-                if results.isEmpty {
-                    searchManager.currentSearchTerm = barcode
+            Task {
+                // Clear any existing search state
+                searchManager.clearSearch()
+                
+                // Set currentSearchTerm AFTER clearing so NoResultsView can show create buttons
+                searchManager.currentSearchTerm = barcode
+                
+                // Perform immediate search for barcode
+                let results = await searchManager.performSearch(searchTerm: barcode, filters: filters)
+                
+                await MainActor.run {
+                    // Ensure currentSearchTerm is still set in case performSearch cleared it
+                    if results.isEmpty {
+                        searchManager.currentSearchTerm = barcode
+                    }
                 }
             }
         }

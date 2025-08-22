@@ -37,7 +37,7 @@ class FuzzySearch {
         let cleanTerm = searchTerm.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanTerm.isEmpty else { return [] }
         
-        logger.debug("[Search] Starting simple fuzzy search for: '\(cleanTerm)'")
+        // Starting fuzzy search
         
         // Determine search type based on content
         let isNumericQuery = cleanTerm.allSatisfy { $0.isNumber }
@@ -52,7 +52,7 @@ class FuzzySearch {
             candidates = try searchTextFields(term: cleanTerm, database: database, filters: filters)
         }
         
-        logger.debug("[Search] Found \(candidates.count) candidates")
+        // Found candidates
         
         // Score and rank candidates
         let scoredResults = scoreAndRankCandidates(
@@ -66,7 +66,7 @@ class FuzzySearch {
             .filter { $0.score >= Config.minScoreThreshold }
             .prefix(limit)
         
-        logger.debug("[Search] Returning \(filteredResults.count) results after scoring")
+        // Returning results after scoring
         return Array(filteredResults)
     }
     
@@ -80,7 +80,7 @@ class FuzzySearch {
         
         guard filters.barcode else { return [] }
         
-        logger.debug("[Search] Numeric search for UPC/barcode: '\(term)'")
+        // Numeric search for UPC/barcode
         
         // Search UPC/barcode with exact and prefix matching
         let query = """
@@ -121,7 +121,7 @@ class FuzzySearch {
         let tokens = tokenize(term)
         guard !tokens.isEmpty else { return [] }
         
-        logger.debug("[Search] Text search with tokens: \(tokens)")
+        // Text search with tokens
         
         var candidates: [String: CandidateItem] = [:]
         
@@ -192,8 +192,8 @@ class FuzzySearch {
                 LIMIT \(Config.maxResults)
             """
             
-            logger.debug("[Search] Multi-token name query: \(query)")
-            logger.debug("[Search] Bind values: \(bindValues)")
+            // Multi-token name query
+            // Bind values prepared
             
             let statement = try database.prepare(query)
             let results = try statement.run(bindValues)
@@ -261,7 +261,7 @@ class FuzzySearch {
     private func searchCaseUpcField(tokens: [String], database: Connection) throws -> [CandidateItem] {
         // TODO: Implement case UPC search when backend support is added
         // For now, return empty results
-        logger.debug("[Search] Case UPC search not yet implemented - returning empty results")
+        // Case UPC search not implemented
         return []
     }
     
@@ -307,7 +307,7 @@ class FuzzySearch {
         isNumeric: Bool
     ) -> [SearchResultWithScore] {
         
-        logger.debug("[Search] Scoring \(candidates.count) candidates")
+        // Scoring candidates
         
         let tokens = isNumeric ? [searchTerm] : tokenize(searchTerm)
         
@@ -324,11 +324,7 @@ class FuzzySearch {
         
         let sortedResults = scoredResults.sorted { $0.score > $1.score }
         
-        // Log top results
-        logger.debug("[Search] Top 5 results:")
-        for (index, result) in sortedResults.prefix(5).enumerated() {
-            logger.debug("[Search]   \(index + 1). '\(result.item.name ?? "unknown")' - Score: \(String(format: "%.1f", result.score))")
-        }
+        // Top results processed
         
         return sortedResults
     }
@@ -382,18 +378,18 @@ class FuzzySearch {
         if tokens.count > 1 {
             let matchedTokens = countMatchedTokens(candidate: candidate, tokens: tokens)
             
-            logger.debug("[Search] Item '\(candidate.name ?? "unknown")' matched \(matchedTokens)/\(tokens.count) tokens")
+            // Item token matching
             
             if matchedTokens == tokens.count {
                 // ALL tokens matched - huge bonus
                 bestScore += Scores.allTokensMatchBonus
-                logger.debug("[Search]   -> ALL tokens matched! Added \(Scores.allTokensMatchBonus) bonus")
+                // All tokens matched bonus
             } else if matchedTokens > 1 {
                 // Some tokens matched - proportional bonus
                 let coverage = Double(matchedTokens) / Double(tokens.count)
                 let bonus = coverage * (Scores.multiTokenBonus - 1.0)
                 bestScore *= (1.0 + bonus)
-                logger.debug("[Search]   -> \(matchedTokens) tokens matched, coverage bonus: \(String(format: "%.1f", bonus))")
+                // Tokens matched coverage bonus
             }
         }
         

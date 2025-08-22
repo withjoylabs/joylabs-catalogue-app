@@ -61,6 +61,14 @@ struct ReordersView: SwiftUI.View {
     
     @FocusState private var isScannerFieldFocused: Bool
     
+    // Binding for focus state to pass up to ContentView
+    let onFocusStateChanged: ((Bool) -> Void)?
+    
+    // Default initializer for standalone use (like previews)
+    init(onFocusStateChanged: ((Bool) -> Void)? = nil) {
+        self.onFocusStateChanged = onFocusStateChanged
+    }
+    
 
     var body: some SwiftUI.View {
         NavigationStack {
@@ -98,6 +106,10 @@ struct ReordersView: SwiftUI.View {
             .onAppear {
                 setupViewModels()
                 viewModel.loadReorderData()
+            }
+            .onChange(of: isScannerFieldFocused) { oldValue, newValue in
+                // Notify ContentView of focus state changes for AppLevelHIDScanner
+                onFocusStateChanged?(newValue)
             }
             // No visible text fields to track in ReordersView
             .actionSheet(isPresented: $viewModel.showingExportOptions) {
