@@ -110,7 +110,19 @@ class AppLevelHIDScannerViewController: UIViewController {
     @objc private func handleCharacterInput(_ command: UIKeyCommand) {
         guard let input = command.input else { return }
         
+        // Defensive: Ensure we're in a valid state to receive input
+        if !isFirstResponder {
+            becomeFirstResponder()
+            // If we still can't become first responder, something is wrong
+            guard isFirstResponder else { return }
+        }
+        
         let currentTime = Date()
+        
+        // Defensive: Validate input buffer isn't getting too large (prevent corruption)
+        if inputBuffer.count > 15 { // Square UPC requirement is 13 characters max
+            clearBuffer() // Reset if buffer gets too large
+        }
         
         // Start timing on first character
         if inputBuffer.isEmpty {
@@ -120,26 +132,41 @@ class AppLevelHIDScannerViewController: UIViewController {
         // Add character to buffer
         inputBuffer += input
         
-        // Reset completion timer
+        // Reset completion timer with defensive cleanup
         inputTimer?.invalidate()
         inputTimer = Timer.scheduledTimer(withTimeInterval: barcodeTimeout, repeats: false) { [weak self] _ in
-            self?.analyzeAndProcessInput()
+            guard let self = self else { return }
+            self.analyzeAndProcessInput()
         }
     }
     
     @objc private func handleReturnKey() {
-        analyzeAndProcessInput()
-        
-        // Ensure we stay as first responder to prevent return key from reaching other views
+        // Defensive: Ensure we're in a valid state to process return key
         if !isFirstResponder {
             becomeFirstResponder()
+            // If we can't become first responder, something is wrong - clear buffer and exit
+            guard isFirstResponder else { 
+                clearBuffer()
+                return 
+            }
         }
+        
+        analyzeAndProcessInput()
     }
     
     private func analyzeAndProcessInput() {
-        guard !inputBuffer.isEmpty else { return }
+        guard !inputBuffer.isEmpty else { 
+            clearBuffer() // Defensive cleanup
+            return 
+        }
         
         let finalInput = inputBuffer.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Defensive: Validate input isn't corrupted or too long
+        guard finalInput.count >= 3 && finalInput.count <= 15 else {
+            clearBuffer() // Invalid input, clear and continue
+            return
+        }
         let inputLength = finalInput.count
         
         // Calculate input speed if we have timing data
@@ -199,6 +226,17 @@ class AppLevelHIDScannerViewController: UIViewController {
         inputBuffer = ""
         firstCharTime = nil
         inputTimer?.invalidate()
+        inputTimer = nil
+        
+        // Only reclaim first responder if no text field is focused
+        if !isAnyTextFieldFocused {
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                if !self.isFirstResponder {
+                    self.becomeFirstResponder()
+                }
+            }
+        }
     }
     
     // MARK: - Context Management
@@ -220,6 +258,10 @@ class AppLevelHIDScannerViewController: UIViewController {
             if isFocused {
                 // Clear any accumulated input when user focuses a text field
                 clearBuffer()
+            } else {
+                // When text field loses focus, ensure scanner is ready
+                clearBuffer() // Clean slate for HID scanning
+                // clearBuffer() will handle first responder restoration when appropriate
             }
         }
     }
@@ -233,6 +275,17 @@ class AppLevelHIDScannerViewController: UIViewController {
             if isPresented {
                 // Clear any accumulated input when a modal is presented
                 clearBuffer()
+            } else {
+                // Modal closed - aggressively restore scanner functionality
+                clearBuffer() // Clean slate
+                
+                // Force first responder restoration after brief delay to let modal fully close
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                    guard let self = self else { return }
+                    if !self.isAnyTextFieldFocused && !self.isFirstResponder {
+                        self.becomeFirstResponder()
+                    }
+                }
             }
         }
     }

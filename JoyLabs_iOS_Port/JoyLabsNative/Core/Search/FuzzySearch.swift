@@ -316,7 +316,7 @@ class FuzzySearch {
             guard score > 0 else { return nil }
             
             return SearchResultWithScore(
-                item: convertToSearchResult(candidate),
+                item: convertToSearchResult(candidate, searchTerm: searchTerm, isNumeric: isNumeric),
                 score: score,
                 explanation: "Score: \(String(format: "%.1f", score))"
             )
@@ -496,7 +496,10 @@ class FuzzySearch {
         )
     }
     
-    private func convertToSearchResult(_ candidate: CandidateItem) -> SearchResultItem {
+    private func convertToSearchResult(_ candidate: CandidateItem, searchTerm: String, isNumeric: Bool) -> SearchResultItem {
+        let matchType = isNumeric ? "barcode" : "fuzzy"
+        let matchContext = isNumeric ? searchTerm : candidate.name // For barcode searches, use the searched barcode as context
+        
         return SearchResultItem(
             id: candidate.id,
             name: candidate.name,
@@ -507,8 +510,8 @@ class FuzzySearch {
             categoryName: candidate.categoryName,
             variationName: nil,
             images: candidate.images,
-            matchType: "fuzzy",
-            matchContext: candidate.name,
+            matchType: matchType,
+            matchContext: matchContext,
             isFromCaseUpc: false,
             caseUpcData: nil,
             hasTax: candidate.hasTax

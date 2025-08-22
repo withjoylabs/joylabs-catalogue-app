@@ -257,7 +257,7 @@ class SearchManager: ObservableObject {
             let items = CatalogTableDefinitions.catalogItems.alias("ci")
             let variations = CatalogTableDefinitions.itemVariations.alias("iv")
 
-            let query = items
+            var query = items
                 .select(
                     items[CatalogTableDefinitions.itemId],
                     items[CatalogTableDefinitions.itemName],
@@ -272,7 +272,13 @@ class SearchManager: ObservableObject {
                 )
                 .join(.leftOuter, variations, on: items[CatalogTableDefinitions.itemId] == variations[CatalogTableDefinitions.variationItemId] && variations[CatalogTableDefinitions.variationIsDeleted] == false)
                 .filter(items[CatalogTableDefinitions.itemId] == itemId && items[CatalogTableDefinitions.itemIsDeleted] == false)
-                .limit(1)
+            
+            // For barcode searches, find the specific variation that matches the scanned barcode
+            if matchType == "barcode" || matchType == "upc", let searchedBarcode = matchContext {
+                query = query.filter(variations[CatalogTableDefinitions.variationUpc] == searchedBarcode)
+            }
+            
+            query = query.limit(1)
 
             guard let row = try db.pluck(query) else {
                 return nil
