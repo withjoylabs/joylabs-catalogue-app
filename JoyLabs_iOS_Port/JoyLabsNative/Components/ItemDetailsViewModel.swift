@@ -378,6 +378,9 @@ class ItemDetailsViewModel: ObservableObject {
     // UI state
     @Published var showAdvancedFeatures = false
     @Published var hasUnsavedChanges = false
+    
+    // Cached change detection - avoids expensive computation on every keystroke
+    @Published private var _hasChanges = false
 
     // Available locations (loaded from Square)
     @Published var availableLocations: [LocationData] = []
@@ -502,10 +505,25 @@ class ItemDetailsViewModel: ObservableObject {
         return true
     }
 
-    // Override hasUnsavedChanges to use proper comparison
+    // Cached change detection - no expensive computation on every access
     var hasChanges: Bool {
+        return _hasChanges
+    }
+    
+    // MARK: - Change Detection Methods
+    
+    func markAsChanged() {
+        guard !_hasChanges else { return } // Already marked as changed
+        _hasChanges = true
+    }
+    
+    private func resetChanges() {
+        _hasChanges = false
+    }
+    
+    private func checkInitialChanges() {
+        // For new items, check if any meaningful data has been entered
         guard let original = originalItemData else {
-            // For new items, check if any meaningful data has been entered
             let hasData = !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
                    !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
                    variations.contains { variation in
@@ -514,13 +532,13 @@ class ItemDetailsViewModel: ObservableObject {
                        !(variation.upc ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
                        (variation.priceMoney?.amount ?? 0) > 0
                    }
-            print("🔍 CHANGE DETECTION: New item has data: \(hasData)")
-            return hasData
+            _hasChanges = hasData
+            return
         }
-
+        
+        // For existing items, do the expensive comparison only when explicitly requested
         let hasChanges = !itemData.isEqual(to: original)
-        print("🔍 CHANGE DETECTION: Existing item has changes: \(hasChanges)")
-        return hasChanges
+        _hasChanges = hasChanges
     }
     
     // MARK: - Private Properties
@@ -631,6 +649,7 @@ class ItemDetailsViewModel: ObservableObject {
                 self.originalItemData = updatedItemData
                 self.hasUnsavedChanges = false
                 self.error = nil // Clear any previous errors
+                self.resetChanges() // Clear cached change detection
             }
             print("✅ Local data synchronized with Square API response")
             return updatedItemData
@@ -917,6 +936,9 @@ class ItemDetailsViewModel: ObservableObject {
                     logger.info("No images found for item: \(itemId)")
                 }
             }
+            
+            // Check initial change status after loading all data
+            checkInitialChanges()
         }
     }
 
@@ -1002,6 +1024,9 @@ class ItemDetailsViewModel: ObservableObject {
             // Mark that we need to apply tax defaults
             shouldApplyTaxDefaults = true
         }
+        
+        // Check initial change status for new items (should be false initially)
+        checkInitialChanges()
     }
     
     private func setupNewItemFromSearch(query: String, queryType: SearchQueryType) {

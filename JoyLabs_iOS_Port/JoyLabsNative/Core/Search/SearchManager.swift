@@ -133,13 +133,20 @@ class SearchManager: ObservableObject {
                 searchResults = allResults  // Store ALL results - LazyVStack handles virtualization
                 totalResultsCount = allResults.count
                 isSearching = false
+                
+                // Log what's actually going into the UI
+                logger.debug("[Search] Populating UI with \(allResults.count) results")
+                logger.debug("[Search] First 5 results in UI order:")
+                for (index, result) in allResults.prefix(5).enumerated() {
+                    logger.debug("[Search]   \(index + 1). '\(result.name ?? "unknown")' (ID: \(result.id))")
+                }
             }
             
-            logger.info("[Search] Search completed: \\(allResults.count) total results")
+            logger.info("[Search] Search completed: \(allResults.count) total results")
             return allResults
 
         } catch {
-            logger.error("[Search] Search failed: \\(error)")
+            logger.error("[Search] Search failed: \(error)")
 
             Task { @MainActor in
                 searchError = error.localizedDescription
@@ -168,9 +175,13 @@ class SearchManager: ObservableObject {
         
         logger.info("[Search] FuzzySearch returned \\(scoredResults.count) scored results")
         
-        // Extract SearchResultItems and enrich
+        // Extract SearchResultItems maintaining the scored order
         let results = scoredResults.map { $0.item }
-        let enrichedResults = enrichSearchResults(results, db: db)
+        
+        // Enrich results while preserving order
+        let enrichedResults = enrichSearchResultsPreservingOrder(results, db: db)
+        
+        logger.debug("[Search] Enriched \\(enrichedResults.count) results, order preserved")
         
         return enrichedResults
     }
@@ -231,6 +242,19 @@ class SearchManager: ObservableObject {
         return results.compactMap { result in
             return getCompleteItemData(itemId: result.id, db: db, matchType: result.matchType, matchContext: result.matchContext)
         }
+    }
+    
+    private func enrichSearchResultsPreservingOrder(_ results: [SearchResultItem], db: Connection) -> [SearchResultItem] {
+        // Enrich each result but maintain the exact input order
+        var enrichedResults: [SearchResultItem] = []
+        
+        for result in results {
+            if let enrichedResult = getCompleteItemData(itemId: result.id, db: db, matchType: result.matchType, matchContext: result.matchContext) {
+                enrichedResults.append(enrichedResult)
+            }
+        }
+        
+        return enrichedResults
     }
 
     private func getCompleteItemData(itemId: String, db: Connection, matchType: String, matchContext: String? = nil) -> SearchResultItem? {
@@ -401,17 +425,20 @@ class SearchManager: ObservableObject {
     }
 
     private func removeDuplicatesAndRank(results: [SearchResultItem], searchTerm: String) -> [SearchResultItem] {
-        var uniqueResults: [String: SearchResultItem] = [:]
-
+        // Use a Set to track which IDs we've seen, but preserve the input order
+        var seenIds = Set<String>()
+        var deduplicatedResults: [SearchResultItem] = []
+        
         for result in results {
-            if uniqueResults[result.id] == nil {
-                uniqueResults[result.id] = result
+            if seenIds.insert(result.id).inserted {
+                // This ID is new, add the result
+                deduplicatedResults.append(result)
             }
         }
-
-        return results.compactMap { result in
-            uniqueResults[result.id]
-        }
+        
+        logger.debug("[Search] Deduplicated \(results.count) results to \(deduplicatedResults.count) unique items")
+        
+        return deduplicatedResults
     }
 
     private func searchCaseUpcItems(searchTerm: String) async throws -> [SearchResultItem] {
@@ -464,7 +491,10 @@ class SearchManager: ObservableObject {
         localResults: [SearchResultItem],
         caseUpcResults: [SearchResultItem]
     ) -> [SearchResultItem] {
+        // Combine results - fuzzy results (already sorted by score) come first, then case UPC results
+        // This preserves the score-based ordering from fuzzy search
         let allResults = localResults + caseUpcResults
+        logger.debug("[Search] Combining \(localResults.count) fuzzy results with \(caseUpcResults.count) case UPC results")
         return removeDuplicatesAndRank(results: allResults, searchTerm: lastSearchTerm)
     }
 }
@@ -479,7 +509,7 @@ enum SearchError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .databaseError(let error):
-            return "Database search error: \\(error.localizedDescription)"
+            return "Database search error: \(error.localizedDescription)"
         case .invalidSearchTerm:
             return "Invalid search term"
         case .noConnection:

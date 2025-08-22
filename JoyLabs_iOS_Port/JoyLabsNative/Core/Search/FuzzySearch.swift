@@ -358,9 +358,14 @@ class FuzzySearch {
         tokens: [String]
     ) -> [SearchResultWithScore] {
         
+        logger.debug("[Search] Scoring \(candidates.count) candidates for term: '\(searchTerm)'")
+        
         let scoredResults = candidates.compactMap { candidate -> SearchResultWithScore? in
             let score = calculateRelevanceScore(candidate: candidate, searchTerm: searchTerm, tokens: tokens)
             guard score > 0 else { return nil }
+            
+            // Debug log for each scored item
+            logger.debug("[Search] Item '\(candidate.name ?? "unknown")' (ID: \(candidate.id)) scored: \(String(format: "%.1f", score))")
             
             return SearchResultWithScore(
                 item: convertToSearchResult(candidate),
@@ -371,6 +376,11 @@ class FuzzySearch {
         
         let sortedResults = scoredResults.sorted { $0.score > $1.score }
         
+        // Log top 10 results after sorting
+        logger.debug("[Search] Top 10 results after sorting:")
+        for (index, result) in sortedResults.prefix(10).enumerated() {
+            logger.debug("[Search]   \(index + 1). '\(result.item.name ?? "unknown")' - Score: \(String(format: "%.1f", result.score))")
+        }
         
         return sortedResults
     }
@@ -385,21 +395,31 @@ class FuzzySearch {
         
         // Score each field and find the BEST match (don't add them together)
         var bestScore: Double = 0.0
+        var bestField: String = "none"
         
         // Score name field
         let nameScore = scoreField(candidate.name, against: searchLower, tokens: tokens, weight: FieldWeights.name)
-        bestScore = max(bestScore, nameScore)
+        if nameScore > bestScore {
+            bestScore = nameScore
+            bestField = "name"
+        }
         
         // Score SKU field  
         if let sku = candidate.sku {
             let skuScore = scoreField(sku, against: searchLower, tokens: tokens, weight: FieldWeights.sku)
-            bestScore = max(bestScore, skuScore)
+            if skuScore > bestScore {
+                bestScore = skuScore
+                bestField = "sku"
+            }
         }
         
         // Score barcode field
         if let barcode = candidate.barcode {
             let barcodeScore = scoreField(barcode, against: searchLower, tokens: tokens, weight: FieldWeights.barcode)
-            bestScore = max(bestScore, barcodeScore)
+            if barcodeScore > bestScore {
+                bestScore = barcodeScore
+                bestField = "barcode"
+            }
         }
         
         // Category field scoring removed - not useful for search
@@ -412,6 +432,10 @@ class FuzzySearch {
         
         let finalScore = min(bestScore, 150.0)
         
+        // Enhanced debug logging showing which field won
+        if finalScore > 0 {
+            logger.debug("[Search]   -> '\(candidate.name ?? "unknown")' best match in '\(bestField)' field: \(String(format: "%.1f", finalScore))")
+        }
         
         return finalScore
     }
@@ -438,22 +462,53 @@ class FuzzySearch {
             // Higher ratio = shorter word = better match
             fieldScore = FieldWeights.prefixMatch * (0.5 + 0.5 * lengthRatio)
         }
-        // 3. Substring match
-        else if field.contains(searchTerm) {
-            fieldScore = FieldWeights.substringMatch
-        }
-        // 4. Fuzzy match using Levenshtein distance
+        // 3. Word-level matching - CRITICAL for good search
         else {
-            let distance = levenshteinDistance(field, searchTerm)
-            let maxLength = max(field.count, searchTerm.count)
+            // Split the field into words and check each word
+            let words = field.components(separatedBy: CharacterSet.alphanumerics.inverted)
+                .filter { !$0.isEmpty }
             
-            if distance <= SearchConfig.maxEditDistance && maxLength > 0 {
-                let similarity = 1.0 - (Double(distance) / Double(maxLength))
-                fieldScore = FieldWeights.fuzzyMatch * similarity
+            var bestWordScore: Double = 0.0
+            
+            for (wordIndex, word) in words.enumerated() {
+                var wordScore: Double = 0.0
+                
+                // Check if search term matches this word
+                if word == searchTerm {
+                    // Exact word match
+                    wordScore = 95.0
+                } else if word.hasPrefix(searchTerm) {
+                    // Word starts with search term
+                    let lengthRatio = Double(searchTerm.count) / Double(word.count)
+                    wordScore = 85.0 * (0.5 + 0.5 * lengthRatio)
+                } else if word.contains(searchTerm) {
+                    // Search term is substring of word
+                    let position = word.range(of: searchTerm)?.lowerBound.utf16Offset(in: word) ?? 0
+                    let positionRatio = Double(position) / Double(word.count)
+                    // Score decreases the further into the word the match is
+                    wordScore = 30.0 * (1.0 - positionRatio * 0.5)
+                }
+                
+                // Apply position decay - earlier words in the name are more important
+                let positionMultiplier = 1.0 - (Double(wordIndex) * 0.1)
+                wordScore *= max(positionMultiplier, 0.5)
+                
+                bestWordScore = max(bestWordScore, wordScore)
+            }
+            
+            // Also check the entire field as a substring (but with lower score)
+            if bestWordScore == 0.0 && field.contains(searchTerm) {
+                // Substring match that doesn't align with word boundaries
+                let position = field.range(of: searchTerm)?.lowerBound.utf16Offset(in: field) ?? 0
+                let positionRatio = Double(position) / Double(field.count)
+                // Much lower score for non-word-boundary matches
+                fieldScore = 25.0 * (1.0 - positionRatio * 0.5)
+            } else {
+                fieldScore = bestWordScore
             }
         }
         
-        // 5. Token-based scoring for multi-word queries
+        // 4. Token-based scoring for multi-word queries
         if tokens.count > 1 {
             let tokenScore = scoreTokens(field: field, tokens: tokens)
             fieldScore = max(fieldScore, tokenScore)
@@ -463,23 +518,103 @@ class FuzzySearch {
     }
     
     private func scoreTokens(field: String, tokens: [String]) -> Double {
-        var tokenScore: Double = 0.0
-        var matchedTokens = 0
+        guard tokens.count > 1 else { return 0.0 }
         
+        // Split field into words for fuzzy matching
+        let words = field.components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+        
+        guard !words.isEmpty else { return 0.0 }
+        
+        var totalScore: Double = 0.0
+        var tokenMatches: [Double] = []
+        
+        // For each token, find the best fuzzy match among all words
         for token in tokens {
-            if field.contains(token) {
-                matchedTokens += 1
-                if field.hasPrefix(token) {
-                    tokenScore += FieldWeights.tokenMatch * 1.2 // Simple prefix bonus
-                } else {
-                    tokenScore += FieldWeights.tokenMatch
-                }
+            var bestTokenScore: Double = 0.0
+            
+            for (wordIndex, word) in words.enumerated() {
+                let fuzzyScore = calculateFuzzyWordMatch(token: token, word: word, wordPosition: wordIndex)
+                bestTokenScore = max(bestTokenScore, fuzzyScore)
+            }
+            
+            tokenMatches.append(bestTokenScore)
+            totalScore += bestTokenScore
+        }
+        
+        // Calculate coverage ratio - how many tokens found good matches
+        let goodMatches = tokenMatches.filter { $0 > 20.0 }.count
+        let coverageRatio = Double(goodMatches) / Double(tokens.count)
+        
+        // Apply coverage bonus - multi-word queries should match most tokens
+        let coverageBonus = coverageRatio >= 0.8 ? 1.2 : coverageRatio
+        
+        let finalScore = (totalScore / Double(tokens.count)) * coverageBonus
+        
+        return min(finalScore, 95.0) // Cap at 95 to leave room for exact matches
+    }
+    
+    private func calculateFuzzyWordMatch(token: String, word: String, wordPosition: Int) -> Double {
+        let tokenLower = token.lowercased()
+        let wordLower = word.lowercased()
+        
+        // 1. Exact word match
+        if tokenLower == wordLower {
+            return applyPositionBonus(score: 90.0, position: wordPosition)
+        }
+        
+        // 2. Word starts with token (prefix match)
+        if wordLower.hasPrefix(tokenLower) {
+            let lengthRatio = Double(tokenLower.count) / Double(wordLower.count)
+            let prefixScore = 80.0 * (0.6 + 0.4 * lengthRatio)
+            return applyPositionBonus(score: prefixScore, position: wordPosition)
+        }
+        
+        // 3. Token starts with word (token is longer)
+        if tokenLower.hasPrefix(wordLower) {
+            let lengthRatio = Double(wordLower.count) / Double(tokenLower.count)
+            let reverseScore = 70.0 * (0.5 + 0.5 * lengthRatio)
+            return applyPositionBonus(score: reverseScore, position: wordPosition)
+        }
+        
+        // 4. Fuzzy match using Levenshtein distance
+        let distance = levenshteinDistance(tokenLower, wordLower)
+        let maxLength = max(tokenLower.count, wordLower.count)
+        
+        // Only consider fuzzy matches if they're reasonable
+        if distance <= 3 && maxLength > 0 {
+            let similarity = 1.0 - (Double(distance) / Double(maxLength))
+            
+            // Require reasonable similarity for fuzzy matches
+            if similarity >= 0.4 {
+                let fuzzyScore = 60.0 * similarity
+                return applyPositionBonus(score: fuzzyScore, position: wordPosition)
             }
         }
         
-        // Simple ratio-based scoring
-        let matchRatio = Double(matchedTokens) / Double(tokens.count)
-        return tokenScore * matchRatio
+        // 5. Substring match (lowest priority)
+        if wordLower.contains(tokenLower) && tokenLower.count >= 3 {
+            let position = wordLower.range(of: tokenLower)?.lowerBound.utf16Offset(in: wordLower) ?? 0
+            let positionRatio = Double(position) / Double(wordLower.count)
+            let substringScore = 25.0 * (1.0 - positionRatio * 0.5)
+            return applyPositionBonus(score: substringScore, position: wordPosition)
+        }
+        
+        return 0.0
+    }
+    
+    private func applyPositionBonus(score: Double, position: Int) -> Double {
+        // Strong position preference - first words much more important
+        let positionMultiplier: Double
+        switch position {
+        case 0: positionMultiplier = 1.0      // First word - full score
+        case 1: positionMultiplier = 0.8      // Second word - 80%
+        case 2: positionMultiplier = 0.6      // Third word - 60%  
+        case 3: positionMultiplier = 0.4      // Fourth word - 40%
+        default: positionMultiplier = 0.3     // Fifth+ word - 30%
+        }
+        
+        return score * positionMultiplier
     }
     
     private func countFieldMatches(candidate: CandidateItem, searchTerm: String) -> Int {
