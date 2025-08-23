@@ -19,6 +19,10 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         logger.info("[AppDelegate] Application did finish launching")
         
+        // Initialize toast window manager early for universal coverage
+        _ = ToastWindowManager.shared
+        logger.info("[AppDelegate] Toast window manager initialized")
+        
         // Set up push notification delegate
         UNUserNotificationCenter.current().delegate = PushNotificationService.shared
         

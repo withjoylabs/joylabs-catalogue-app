@@ -53,6 +53,7 @@
 		99246C9B894AF2AE6D86F627 /* SquareCRUDService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35AB2C1793F03C8E7C4FDE80 /* SquareCRUDService.swift */; };
 		99776EE3F97CD95D3C775838 /* ItemFieldConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = D96C042150C12C4387D96347 /* ItemFieldConfiguration.swift */; };
 		9F1D75B816578F431F48DA54 /* WebhookManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F2B7DCDFE09A9CB0B24D0EA /* WebhookManager.swift */; };
+		A135F89195224732ABA3AAF3 /* ToastWindowManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55BCF27BAD920DC02CC1E42D /* ToastWindowManager.swift */; };
 		A1B2C3D4E5F6789012345678 /* JoyLabsNativeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345679 /* JoyLabsNativeApp.swift */; };
 		A1B2C3D4E5F6789012345680 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345681 /* ContentView.swift */; };
 		A1B2C3D4E5F6789012345682 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345683 /* Assets.xcassets */; };
@@ -147,6 +148,7 @@
 		49800521F9B080A23DC72541 /* NotificationExtensions.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NotificationExtensions.swift; path = Core/Notifications/NotificationExtensions.swift; sourceTree = "<group>"; };
 		4AFAF5D9F92448678D1A1EE2 /* ItemEcommerceSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemEcommerceSection.swift; path = Components/ItemEcommerceSection.swift; sourceTree = "<group>"; };
 		522EA5712FAC74516DFC29CF /* NotificationsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NotificationsView.swift; path = Views/NotificationsView.swift; sourceTree = "<group>"; };
+		55BCF27BAD920DC02CC1E42D /* ToastWindowManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ToastWindowManager.swift; path = Core/Services/ToastWindowManager.swift; sourceTree = "<group>"; };
 		5A12C207F099F0E3A82B8ADA /* PushNotificationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PushNotificationService.swift; path = JoyLabsNative/Core/Services/PushNotificationService.swift; sourceTree = "<group>"; };
 		5BF09157ED1FEE7951EC8474 /* SimpleImageService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SimpleImageService.swift; path = Core/Services/SimpleImageService.swift; sourceTree = "<group>"; };
 		5E3FB7296AC28F9B8969A75D /* PushNotificationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PushNotificationService.swift; path = JoyLabsNative/Core/Services/PushNotificationService.swift; sourceTree = "<group>"; };
@@ -561,6 +563,7 @@
 				7CCA9B512044EB597E9B73C7 /* DeferredImageUploadManager.swift */,
 				D0306C22956C0D740D67567F /* ConfirmationDialogService.swift */,
 				1B7C10B3ADF6BBE5BBD90995 /* SearchRefreshService.swift */,
+				55BCF27BAD920DC02CC1E42D /* ToastWindowManager.swift */,
 			);
 			name = Services;
 			sourceTree = "<group>";
@@ -765,6 +768,7 @@
 				E77F480F2ACB4170199D8A95 /* CustomConfirmationDialog.swift in Sources */,
 				365F26C4447BAB5ECB3E7AB8 /* ZoomableImageView.swift in Sources */,
 				650A7CCFBEA21A000914E79B /* SearchRefreshService.swift in Sources */,
+				A135F89195224732ABA3AAF3 /* ToastWindowManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

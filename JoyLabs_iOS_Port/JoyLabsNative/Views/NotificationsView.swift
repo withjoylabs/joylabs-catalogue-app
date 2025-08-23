@@ -79,7 +79,7 @@ struct NotificationsView: View {
             NotificationPermissionView()
                 .fullScreenModal()
         }
-        .withToastNotifications()
+        // Toast notifications now use UIWindow-based presentation
     }
     
     // MARK: - Notifications View
