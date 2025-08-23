@@ -25,7 +25,7 @@ struct ItemDetailsPricingSection: View {
                                     // Safe bounds checking
                                     guard index < viewModel.variations.count else { return }
                                     viewModel.variations[index] = newValue
-                                    viewModel.hasUnsavedChanges = true
+                                    viewModel.hasChanges = true
                                 }
                             ),
                             index: index,
@@ -33,7 +33,7 @@ struct ItemDetailsPricingSection: View {
                                 // Safe removal with bounds checking
                                 guard index < viewModel.variations.count && viewModel.variations.count > 1 else { return }
                                 viewModel.variations.remove(at: index)
-                                viewModel.hasUnsavedChanges = true
+                                viewModel.hasChanges = true
                             },
                             onPrint: onVariationPrint,
                             viewModel: viewModel
@@ -114,7 +114,7 @@ struct VariationCard: View {
             )
             
             variation.locationOverrides.append(newOverride)
-            viewModel.hasUnsavedChanges = true
+            viewModel.hasChanges = true
         }
     }
 
@@ -274,7 +274,7 @@ struct VariationCard: View {
                 // Price overrides section - following CLAUDE.md centralized pattern
                 if variation.pricingType != .variablePricing {
                     // Existing price overrides
-                    ForEach(Array(variation.locationOverrides.enumerated()), id: \.offset) { overrideIndex, override in
+                    ForEach(Array(variation.locationOverrides.enumerated()), id: \.element.id) { overrideIndex, override in
                         ItemDetailsFieldSeparator()
                         
                         PriceOverrideRow(
@@ -285,7 +285,7 @@ struct VariationCard: View {
                             availableLocations: viewModel.availableLocations,
                             onDelete: {
                                 variation.locationOverrides.remove(at: overrideIndex)
-                                viewModel.hasUnsavedChanges = true
+                                viewModel.hasChanges = true
                             }
                         )
                     }

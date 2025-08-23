@@ -681,7 +681,7 @@ struct CaseUpcData: Codable {
     }
 }
 
-struct TeamNote: Codable {
+struct TeamNote: Codable, Equatable {
     let id: String
     let content: String
     let isComplete: Bool

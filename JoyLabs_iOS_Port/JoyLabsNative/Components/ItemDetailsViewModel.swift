@@ -115,20 +115,7 @@ struct ItemDetailsData {
     // Team Data (AppSync Integration)
     var teamData: TeamItemData?
 
-    /// Check if this item data is equal to another (for change detection)
-    func isEqual(to other: ItemDetailsData) -> Bool {
-        return self.name == other.name &&
-               self.description == other.description &&
-               self.abbreviation == other.abbreviation &&
-               self.productType == other.productType &&
-               self.reportingCategoryId == other.reportingCategoryId &&
-               self.categoryIds == other.categoryIds &&
-               self.presentAtAllLocations == other.presentAtAllLocations &&
-               self.presentAtLocationIds == other.presentAtLocationIds &&
-               self.absentAtLocationIds == other.absentAtLocationIds &&
-               self.variations.count == other.variations.count &&
-               zip(self.variations, other.variations).allSatisfy { $0.isEqual(to: $1) }
-    }
+    // Removed complex isEqual method - using simple flag-based change tracking instead
 }
 
 // MARK: - Supporting Enums
@@ -181,15 +168,7 @@ struct ItemDetailsVariationData: Identifiable {
     var stockable: Bool = true
     var sellable: Bool = true
 
-    /// Check if this variation data is equal to another (for change detection)
-    func isEqual(to other: ItemDetailsVariationData) -> Bool {
-        return self.name == other.name &&
-               self.sku == other.sku &&
-               self.upc == other.upc &&
-               self.pricingType == other.pricingType &&
-               self.priceMoney?.amount == other.priceMoney?.amount &&
-               self.priceMoney?.currency == other.priceMoney?.currency
-    }
+    // Removed complex isEqual method - using simple flag-based change tracking instead
 }
 
 enum PricingType: String, CaseIterable {
@@ -377,10 +356,9 @@ class ItemDetailsViewModel: ObservableObject {
     
     // UI state
     @Published var showAdvancedFeatures = false
-    @Published var hasUnsavedChanges = false
     
-    // Cached change detection - avoids expensive computation on every keystroke
-    @Published private var _hasChanges = false
+    // Simple change tracking - set to true on any field change, false after save
+    @Published var hasChanges = false
 
     // Available locations (loaded from Square)
     @Published var availableLocations: [LocationData] = []
@@ -409,8 +387,7 @@ class ItemDetailsViewModel: ObservableObject {
     // Context
     var context: ItemDetailsContext = .createNew
 
-    // Store original data for change detection
-    private var originalItemData: ItemDetailsData?
+    // Removed originalItemData - no longer needed with simple flag-based tracking
 
     // Validation
     @Published var nameError: String?
@@ -505,41 +482,17 @@ class ItemDetailsViewModel: ObservableObject {
         return true
     }
 
-    // Cached change detection - no expensive computation on every access
-    var hasChanges: Bool {
-        return _hasChanges
-    }
-    
     // MARK: - Change Detection Methods
     
     func markAsChanged() {
-        guard !_hasChanges else { return } // Already marked as changed
-        _hasChanges = true
+        hasChanges = true
     }
     
     private func resetChanges() {
-        _hasChanges = false
+        hasChanges = false
     }
     
-    private func checkInitialChanges() {
-        // For new items, check if any meaningful data has been entered
-        guard let original = originalItemData else {
-            let hasData = !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-                   !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-                   variations.contains { variation in
-                       !(variation.name ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-                       !(variation.sku ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-                       !(variation.upc ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-                       (variation.priceMoney?.amount ?? 0) > 0
-                   }
-            _hasChanges = hasData
-            return
-        }
-        
-        // For existing items, do the expensive comparison only when explicitly requested
-        let hasChanges = !itemData.isEqual(to: original)
-        _hasChanges = hasChanges
-    }
+    // Removed checkInitialChanges - no longer needed with simple flag-based tracking
     
     // MARK: - Private Properties
     private var cancellables = Set<AnyCancellable>()
@@ -573,9 +526,8 @@ class ItemDetailsViewModel: ObservableObject {
             setupNewItemFromSearch(query: query, queryType: queryType)
         }
 
-        // Store original data for change detection
-        originalItemData = itemData
-        hasUnsavedChanges = false
+        // Reset change tracking for fresh load
+        hasChanges = false
 
         // Load critical dropdown data
         await loadCriticalData()
@@ -646,10 +598,8 @@ class ItemDetailsViewModel: ObservableObject {
             // Load the updated data back into our granular properties
             await loadItemDataFromCatalogObject(savedObject)
             await MainActor.run {
-                self.originalItemData = updatedItemData
-                self.hasUnsavedChanges = false
+                self.hasChanges = false // Reset after successful save
                 self.error = nil // Clear any previous errors
-                self.resetChanges() // Clear cached change detection
             }
             print("✅ Local data synchronized with Square API response")
             return updatedItemData
@@ -672,7 +622,7 @@ class ItemDetailsViewModel: ObservableObject {
                 }
             }
 
-            // Keep hasUnsavedChanges = true so user can retry
+            // Keep hasChanges = true so user can retry
             return nil
         }
     }
@@ -695,7 +645,7 @@ class ItemDetailsViewModel: ObservableObject {
             // Mark as deleted locally
             await MainActor.run {
                 self.staticData.isDeleted = true
-                self.hasUnsavedChanges = false
+                self.hasChanges = false
             }
 
             return true
@@ -719,25 +669,25 @@ class ItemDetailsViewModel: ObservableObject {
     }
     
     private func setupChangeTracking() {
-        // Track changes on individual properties instead of the whole itemData
+        // Simple change tracking - any field change sets hasChanges to true
         Publishers.CombineLatest4($name, $description, $abbreviation, $reportingCategoryId)
-            .dropFirst()
+            .dropFirst() // Skip initial values
             .sink { [weak self] _ in
-                self?.hasUnsavedChanges = true
+                self?.hasChanges = true
             }
             .store(in: &cancellables)
             
         Publishers.CombineLatest3($categoryIds, $variations, $taxIds)
-            .dropFirst()
+            .dropFirst() // Skip initial values
             .sink { [weak self] _ in
-                self?.hasUnsavedChanges = true
+                self?.hasChanges = true
             }
             .store(in: &cancellables)
             
         Publishers.CombineLatest3($modifierListIds, $imageURL, $staticData)
-            .dropFirst()
+            .dropFirst() // Skip initial values
             .sink { [weak self] _ in
-                self?.hasUnsavedChanges = true
+                self?.hasChanges = true
             }
             .store(in: &cancellables)
     }
@@ -794,7 +744,7 @@ class ItemDetailsViewModel: ObservableObject {
         // Only refresh if we're currently editing this item and haven't made changes
         guard case .editExisting(let currentItemId) = context,
               currentItemId == itemId,
-              !hasUnsavedChanges else {
+              !hasChanges else {
             logger.info("Skipping refresh - either different item, unsaved changes, or not in edit mode")
             return
         }
@@ -807,10 +757,7 @@ class ItemDetailsViewModel: ObservableObject {
                 // Transform and update the item data
                 await loadItemDataFromCatalogObject(catalogObject)
                 
-                await MainActor.run {
-                    // Update original data to reflect the refreshed state
-                    self.originalItemData = self.itemData
-                }
+                // No need to update original data - using simple flag tracking
                 
                 logger.info("Successfully refreshed item data for \(itemId)")
             } else {
@@ -937,8 +884,7 @@ class ItemDetailsViewModel: ObservableObject {
                 }
             }
             
-            // Check initial change status after loading all data
-            checkInitialChanges()
+            // No need to check initial changes - using simple flag tracking
         }
     }
 
@@ -1026,7 +972,7 @@ class ItemDetailsViewModel: ObservableObject {
         }
         
         // Check initial change status for new items (should be false initially)
-        checkInitialChanges()
+        // No need to check initial changes - using simple flag tracking
     }
     
     private func setupNewItemFromSearch(query: String, queryType: SearchQueryType) {
