@@ -339,22 +339,25 @@ struct ItemDetailsModal: View {
     }
     
     /// Handles print for specific variation
-    func handleVariationPrint(_ variation: ItemDetailsVariationData) {
+    func handleVariationPrint(_ variation: ItemDetailsVariationData, completion: @escaping (Bool) -> Void) {
         Task {
             do {
                 let printData = createVariationPrintData(variation: variation)
                 try await LabelLivePrintService.shared.printLabel(with: printData)
                 
                 await MainActor.run {
-                    print("Variation print completed successfully")
+                    ToastNotificationService.shared.showSuccess("Label printed successfully")
+                    completion(true)
                 }
             } catch LabelLivePrintError.printSuccess {
                 await MainActor.run {
-                    print("Variation print completed successfully")
+                    ToastNotificationService.shared.showSuccess("Label printed successfully")
+                    completion(true)
                 }
             } catch {
                 await MainActor.run {
                     viewModel.error = error.localizedDescription
+                    completion(false)
                 }
             }
         }
@@ -497,7 +500,7 @@ struct ItemDetailsContent: View {
     let context: ItemDetailsContext
     @ObservedObject var viewModel: ItemDetailsViewModel
     let onSave: () -> Void
-    let onVariationPrint: (ItemDetailsVariationData) -> Void
+    let onVariationPrint: (ItemDetailsVariationData, @escaping (Bool) -> Void) -> Void
     @StateObject private var configManager = FieldConfigurationManager.shared
     
     var body: some View {

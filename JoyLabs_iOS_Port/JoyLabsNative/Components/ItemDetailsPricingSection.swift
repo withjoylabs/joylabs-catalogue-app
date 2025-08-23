@@ -5,7 +5,8 @@ import SwiftUI
 struct ItemDetailsPricingSection: View {
     @ObservedObject var viewModel: ItemDetailsViewModel
     @StateObject private var configManager = FieldConfigurationManager.shared
-    let onVariationPrint: (ItemDetailsVariationData) -> Void
+    let onVariationPrint: (ItemDetailsVariationData, @escaping (Bool) -> Void) -> Void
+    @State private var printingVariationIndices = Set<Int>()
     
     var body: some View {
         ItemDetailsSection(title: "Pricing & Variations", icon: "dollarsign.circle") {
@@ -35,7 +36,13 @@ struct ItemDetailsPricingSection: View {
                                 viewModel.variations.remove(at: index)
                                 viewModel.hasChanges = true
                             },
-                            onPrint: onVariationPrint,
+                            onPrint: { variation in
+                                printingVariationIndices.insert(index)
+                                onVariationPrint(variation) { _ in
+                                    printingVariationIndices.remove(index)
+                                }
+                            },
+                            isPrinting: printingVariationIndices.contains(index),
                             viewModel: viewModel
                         )
                         
@@ -82,6 +89,7 @@ struct VariationCard: View {
     let index: Int
     let onDelete: () -> Void
     let onPrint: (ItemDetailsVariationData) -> Void
+    let isPrinting: Bool
 
     @StateObject private var duplicateDetection = DuplicateDetectionService()
     @StateObject private var dialogService = ConfirmationDialogService.shared
@@ -159,14 +167,23 @@ struct VariationCard: View {
                 
                 // Print button alone on the right
                 Button(action: {
-                    onPrint(variation)
+                    if !isPrinting {
+                        onPrint(variation)
+                    }
                 }) {
-                    Image(systemName: "printer.fill")
-                        .foregroundColor(.itemDetailsAccent)
-                        .font(.title3)
-                        .frame(width: 44, height: 44)
+                    if isPrinting {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                            .frame(width: 44, height: 44)
+                    } else {
+                        Image(systemName: "printer.fill")
+                            .foregroundColor(.itemDetailsAccent)
+                            .font(.title3)
+                            .frame(width: 44, height: 44)
+                    }
                 }
                 .buttonStyle(PlainButtonStyle())
+                .disabled(isPrinting)
             }
             .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
             .padding(.vertical, ItemDetailsSpacing.compactSpacing)
@@ -735,8 +752,11 @@ struct PriceFieldWithTouchTarget: View {
     ScrollView {
         ItemDetailsPricingSection(
             viewModel: ItemDetailsViewModel(),
-            onVariationPrint: { variation in
+            onVariationPrint: { variation, completion in
                 print("Print variation: \(variation.name ?? "Unnamed")")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    completion(true)
+                }
             }
         )
         .padding()
