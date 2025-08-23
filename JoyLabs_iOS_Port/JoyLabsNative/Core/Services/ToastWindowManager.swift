@@ -53,7 +53,9 @@ final class ToastWindowManager {
         let containerView = ToastContainerView(
             toast: .constant(nil),
             onDismiss: { [weak self] in
-                self?.dismissCurrentToast()
+                Task { @MainActor in
+                    self?.dismissCurrentToast()
+                }
             }
         )
         
@@ -115,7 +117,9 @@ final class ToastWindowManager {
             hostingController.rootView = ToastContainerView(
                 toast: .constant(nil),
                 onDismiss: { [weak self] in
-                    self?.dismissCurrentToast()
+                    Task { @MainActor in
+                        self?.dismissCurrentToast()
+                    }
                 }
             )
         }
@@ -162,7 +166,9 @@ final class ToastWindowManager {
                 hostingController.rootView = ToastContainerView(
                     toast: .constant(toast),
                     onDismiss: { [weak self] in
-                        self?.dismissCurrentToast()
+                        Task { @MainActor in
+                            self?.dismissCurrentToast()
+                        }
                     }
                 )
                 isShowing = true
@@ -172,7 +178,9 @@ final class ToastWindowManager {
         // Set up auto-dismiss timer
         dismissTimer?.invalidate()
         dismissTimer = Timer.scheduledTimer(withTimeInterval: toast.duration, repeats: false) { [weak self] _ in
-            self?.dismissCurrentToast()
+            Task { @MainActor in
+                self?.dismissCurrentToast()
+            }
         }
     }
 }
