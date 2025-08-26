@@ -103,7 +103,7 @@ final class ToastWindowManager: ObservableObject {
     /// Show a toast notification with enhanced stacking
     func show(_ toast: ToastNotification) {
         // Create active toast with 2-second auto-dismiss
-        var activeToast = ActiveToast(notification: toast)
+        let activeToast = ActiveToast(notification: toast)
         
         // Remove oldest if at max capacity
         if activeToasts.count >= maxVisibleToasts {

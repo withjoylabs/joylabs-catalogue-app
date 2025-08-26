@@ -73,7 +73,9 @@ class ToastNotificationService: ObservableObject {
     
     /// Dismiss current toast
     func dismiss() {
-        windowManager.dismissCurrentToast()
+        if let toast = currentToast {
+            windowManager.dismissToast(withId: toast.id)
+        }
         currentToast = nil
     }
     
