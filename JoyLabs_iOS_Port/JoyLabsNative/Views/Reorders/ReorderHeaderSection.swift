@@ -12,6 +12,7 @@ struct ReorderHeaderSection: View {
     @Binding var displayMode: ReorderDisplayMode
 
     let onManagementAction: (ManagementAction) -> Void
+    let onExportTap: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -21,7 +22,8 @@ struct ReorderHeaderSection: View {
                 unpurchasedItems: unpurchasedItems,
                 purchasedItems: purchasedItems,
                 totalQuantity: totalQuantity,
-                onManagementAction: onManagementAction
+                onManagementAction: onManagementAction,
+                onExportTap: onExportTap
             )
 
             // Filter Row (stays pinned)

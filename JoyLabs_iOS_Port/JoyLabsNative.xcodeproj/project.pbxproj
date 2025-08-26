@@ -22,8 +22,10 @@
 		343A5BEB820EB07235EEFE35 /* ItemDetailsPricingSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65695EAA6350279F084BF63B /* ItemDetailsPricingSection.swift */; };
 		365F26C4447BAB5ECB3E7AB8 /* ZoomableImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F87ABC339104C2473194A151 /* ZoomableImageView.swift */; };
 		37E79365D45FBBB720767A29 /* ItemModifiersSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97248AB2D5A526439B92B9E2 /* ItemModifiersSection.swift */; };
+		39D14EE39E617F642FD943A9 /* ExportOptionsModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11E2C4538C893D6DC9BF4311 /* ExportOptionsModal.swift */; };
 		3D033F23814EAC17F1F30659 /* ItemSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DC776666D9E1A98076720A2 /* ItemSettingsView.swift */; };
 		4017A953F9FBBE7E588A972C /* TokenService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B48CACD7CFD81508BCDBFB9 /* TokenService.swift */; };
+		40F3A250FFE903C7168EECC4 /* ShareSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F54CA42167200D8C7C3A550A /* ShareSheetView.swift */; };
 		41826807649EF63DBBA03CCD /* FieldConfigurationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D71532DF527344EFA478B1B3 /* FieldConfigurationManager.swift */; };
 		4236D7318DCE1F0A794C7A50 /* ItemTaxSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7034F57676BBD40AAF7206B6 /* ItemTaxSettingsSection.swift */; };
 		43A12C33A2000D835D11605B /* ItemDataTransformers.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA6CAB610624BBFC8C7C36B6 /* ItemDataTransformers.swift */; };
@@ -47,6 +49,7 @@
 		7D83E6DC3B87B824D4DFE0A2 /* ReorderAppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D786AE1AEAE343A9AC9C0007 /* ReorderAppState.swift */; };
 		85126E4554FBE0F2C78D3609 /* ToastNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1645309EC63E18A4589C1AC3 /* ToastNotificationService.swift */; };
 		8796DF07A71B45B6C419C13A /* SwipeableReorderCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9656EA400096ADC30614CEB4 /* SwipeableReorderCard.swift */; };
+		8F3E31087D2D8735D8CF5ED8 /* PDFGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D98DAE4298918395B51B620F /* PDFGenerator.swift */; };
 		905F0111BFADB010745559BD /* DeferredImageUploadManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CCA9B512044EB597E9B73C7 /* DeferredImageUploadManager.swift */; };
 		9189A53F265287C2C25FF411 /* ItemDetailsBasicSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5A87F50DC4826C17C46DD0 /* ItemDetailsBasicSection.swift */; };
 		92151EA89C79EBB198799E77 /* ItemImageSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2D5FAE44721EA24C8E50126 /* ItemImageSection.swift */; };
@@ -94,6 +97,7 @@
 		A285779AFC5B5E43CA497F39 /* LabelLiveSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11C6F817152E7F615D5CB415 /* LabelLiveSettingsView.swift */; };
 		A5405A8E241F271728925183 /* ReorderItemsContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08E54CBA0603F19D75E0455F /* ReorderItemsContent.swift */; };
 		A8BBF4FD63BC8B3554057010 /* ReorderViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA4E1D926AD0EFEB747BE184 /* ReorderViewModel.swift */; };
+		A9C706605B21C6648E3B386E /* ReorderExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FF78A1593BC7C4F813F02A7 /* ReorderExportService.swift */; };
 		AA5102A379E2429BBA60C844 /* NotificationPermissionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B0C0220C8486FC50DA6F922 /* NotificationPermissionView.swift */; };
 		B839576176BE6BDF2B053D07 /* SquareDataConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DAB355F729C92CB2F1631E3 /* SquareDataConverter.swift */; };
 		BDE67A3DC91ABABDC7D87D5F /* ReorderNotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19B09D874AB49F7514B894BB /* ReorderNotificationManager.swift */; };
@@ -106,6 +110,7 @@
 		DC0BF75906B9902A9E9F25EE /* ItemDetailsStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE43F36BB6F6797E1742AD7C /* ItemDetailsStyles.swift */; };
 		DE9B0804171D8F8469343090 /* SquareImageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECE3FAA42B58C68978179AFA /* SquareImageService.swift */; };
 		E0A4C587E31A4D97E9D4D827 /* ItemDetailsCategoriesSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36FF7B27B9EC548A6363CA3B /* ItemDetailsCategoriesSection.swift */; };
+		E3FEC6909CEE89C39A3D9C3A /* CSVGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72B794CCD01B67AB70408743 /* CSVGenerator.swift */; };
 		E77F480F2ACB4170199D8A95 /* CustomConfirmationDialog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A51CB94E5784E7C6B6DF51E /* CustomConfirmationDialog.swift */; };
 		E96B947FD6602A6362924F1C /* ReorderDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D65BFF8B1281F6313E2EAA1 /* ReorderDataManager.swift */; };
 		E9A6D95E709090B8AEE36C79 /* NotificationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 522EA5712FAC74516DFC29CF /* NotificationsView.swift */; };
@@ -131,6 +136,7 @@
 		0E3B3F77BC194AF2CF9CED6F /* ItemMeasurementSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemMeasurementSection.swift; path = Components/ItemMeasurementSection.swift; sourceTree = "<group>"; };
 		109D8EF3405D7C8718DCDF2B /* ItemCustomAttributesSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemCustomAttributesSection.swift; path = Components/ItemCustomAttributesSection.swift; sourceTree = "<group>"; };
 		11C6F817152E7F615D5CB415 /* LabelLiveSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LabelLiveSettingsView.swift; path = Views/LabelLiveSettingsView.swift; sourceTree = "<group>"; };
+		11E2C4538C893D6DC9BF4311 /* ExportOptionsModal.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExportOptionsModal.swift; path = Components/ExportOptionsModal.swift; sourceTree = "<group>"; };
 		1645309EC63E18A4589C1AC3 /* ToastNotificationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ToastNotificationService.swift; path = Core/Services/ToastNotificationService.swift; sourceTree = "<group>"; };
 		16B4FF1AB7482AE61C22D7F0 /* DuplicateDetectionService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DuplicateDetectionService.swift; path = Components/DuplicateDetectionService.swift; sourceTree = "<group>"; };
 		19B09D874AB49F7514B894BB /* ReorderNotificationManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderNotificationManager.swift; path = JoyLabsNative/ViewModels/ReorderNotificationManager.swift; sourceTree = "<group>"; };
@@ -159,6 +165,7 @@
 		6ECE051541206A85FCA7DCFC /* WebhookNotificationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WebhookNotificationService.swift; path = Core/Services/WebhookNotificationService.swift; sourceTree = "<group>"; };
 		6F2B7DCDFE09A9CB0B24D0EA /* WebhookManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WebhookManager.swift; path = Core/Services/WebhookManager.swift; sourceTree = "<group>"; };
 		7034F57676BBD40AAF7206B6 /* ItemTaxSettingsSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemTaxSettingsSection.swift; path = Components/ItemTaxSettingsSection.swift; sourceTree = "<group>"; };
+		72B794CCD01B67AB70408743 /* CSVGenerator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CSVGenerator.swift; path = Utils/CSVGenerator.swift; sourceTree = "<group>"; };
 		75FC10AFED4E5423B76916D5 /* ItemAvailabilitySection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemAvailabilitySection.swift; path = Components/ItemAvailabilitySection.swift; sourceTree = "<group>"; };
 		7B48CACD7CFD81508BCDBFB9 /* TokenService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TokenService.swift; path = Core/Services/TokenService.swift; sourceTree = "<group>"; };
 		7BD6FFEA84896CD48CE4E372 /* ReorderContentView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderContentView.swift; path = JoyLabsNative/Views/Reorders/ReorderContentView.swift; sourceTree = "<group>"; };
@@ -176,6 +183,7 @@
 		9CC3C5DBAC897BD5BAD446F8 /* UnifiedImagePickerModal.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = UnifiedImagePickerModal.swift; path = JoyLabsNative/Components/UnifiedImagePickerModal.swift; sourceTree = "<group>"; };
 		9DAB355F729C92CB2F1631E3 /* SquareDataConverter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SquareDataConverter.swift; path = Core/Services/SquareDataConverter.swift; sourceTree = "<group>"; };
 		9DC776666D9E1A98076720A2 /* ItemSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemSettingsView.swift; path = Views/ItemSettingsView.swift; sourceTree = "<group>"; };
+		9FF78A1593BC7C4F813F02A7 /* ReorderExportService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderExportService.swift; path = Core/Services/ReorderExportService.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345679 /* JoyLabsNativeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNativeApp.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345681 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345683 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -226,6 +234,7 @@
 		D7606A3222698687642B402D /* LabelLivePrintService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LabelLivePrintService.swift; path = Core/Services/LabelLivePrintService.swift; sourceTree = "<group>"; };
 		D786AE1AEAE343A9AC9C0007 /* ReorderAppState.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderAppState.swift; path = JoyLabsNative/State/ReorderAppState.swift; sourceTree = "<group>"; };
 		D96C042150C12C4387D96347 /* ItemFieldConfiguration.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemFieldConfiguration.swift; path = Components/ItemFieldConfiguration.swift; sourceTree = "<group>"; };
+		D98DAE4298918395B51B620F /* PDFGenerator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PDFGenerator.swift; path = Utils/PDFGenerator.swift; sourceTree = "<group>"; };
 		E05265C6905F14EE507527F2 /* ItemEnabledLocationsSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemEnabledLocationsSection.swift; path = Components/ItemEnabledLocationsSection.swift; sourceTree = "<group>"; };
 		E2D5FAE44721EA24C8E50126 /* ItemImageSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemImageSection.swift; path = Components/ItemImageSection.swift; sourceTree = "<group>"; };
 		E7C7A71E405D29DA8DA233CD /* ItemDetailsAdvancedSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsAdvancedSection.swift; path = Components/ItemDetailsAdvancedSection.swift; sourceTree = "<group>"; };
@@ -234,6 +243,7 @@
 		ECE3FAA42B58C68978179AFA /* SquareImageService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SquareImageService.swift; path = Core/Square/SquareImageService.swift; sourceTree = "<group>"; };
 		F32EEA3114D99A383F2B69FC /* ReorderPhotoCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderPhotoCard.swift; path = JoyLabsNative/Components/Reorder/ReorderPhotoCard.swift; sourceTree = "<group>"; };
 		F41835B4957DA654FE6627F7 /* ItemProductTypeSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemProductTypeSection.swift; path = Components/ItemProductTypeSection.swift; sourceTree = "<group>"; };
+		F54CA42167200D8C7C3A550A /* ShareSheetView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ShareSheetView.swift; path = Components/ShareSheetView.swift; sourceTree = "<group>"; };
 		F730ECB41F35B30ADCEEF069 /* SimpleImageView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SimpleImageView.swift; path = Components/SimpleImageView.swift; sourceTree = "<group>"; };
 		F87ABC339104C2473194A151 /* ZoomableImageView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ZoomableImageView.swift; path = Components/ZoomableImageView.swift; sourceTree = "<group>"; };
 		FA4E1D926AD0EFEB747BE184 /* ReorderViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderViewModel.swift; path = JoyLabsNative/ViewModels/ReorderViewModel.swift; sourceTree = "<group>"; };
@@ -351,6 +361,8 @@
 				7E3BCABE673B4A6579D0625F /* FieldVisibilityAndReorderingView.swift */,
 				8A51CB94E5784E7C6B6DF51E /* CustomConfirmationDialog.swift */,
 				F87ABC339104C2473194A151 /* ZoomableImageView.swift */,
+				F54CA42167200D8C7C3A550A /* ShareSheetView.swift */,
+				11E2C4538C893D6DC9BF4311 /* ExportOptionsModal.swift */,
 			);
 			name = Components;
 			sourceTree = "<group>";
@@ -374,6 +386,15 @@
 				B7646D10B74DD6424D05604B /* ReorderFilterManager.swift */,
 			);
 			name = ViewModels;
+			sourceTree = "<group>";
+		};
+		6D4BDF451EE7B678FF6BC4F7 /* Utils */ = {
+			isa = PBXGroup;
+			children = (
+				72B794CCD01B67AB70408743 /* CSVGenerator.swift */,
+				D98DAE4298918395B51B620F /* PDFGenerator.swift */,
+			);
+			name = Utils;
 			sourceTree = "<group>";
 		};
 		77BBD53CCA5DCDECA9C8F056 /* Models */ = {
@@ -443,6 +464,7 @@
 				FCA1EEFAA8C3E62322E3ACB2 /* JoyLabsNative.entitlements */,
 				77BBD53CCA5DCDECA9C8F056 /* Models */,
 				E8569C96DE846CD87FE837CC /* Extensions */,
+				6D4BDF451EE7B678FF6BC4F7 /* Utils */,
 			);
 			path = JoyLabsNative;
 			sourceTree = "<group>";
@@ -564,6 +586,7 @@
 				D0306C22956C0D740D67567F /* ConfirmationDialogService.swift */,
 				1B7C10B3ADF6BBE5BBD90995 /* SearchRefreshService.swift */,
 				55BCF27BAD920DC02CC1E42D /* ToastWindowManager.swift */,
+				9FF78A1593BC7C4F813F02A7 /* ReorderExportService.swift */,
 			);
 			name = Services;
 			sourceTree = "<group>";
@@ -769,6 +792,11 @@
 				365F26C4447BAB5ECB3E7AB8 /* ZoomableImageView.swift in Sources */,
 				650A7CCFBEA21A000914E79B /* SearchRefreshService.swift in Sources */,
 				A135F89195224732ABA3AAF3 /* ToastWindowManager.swift in Sources */,
+				40F3A250FFE903C7168EECC4 /* ShareSheetView.swift in Sources */,
+				39D14EE39E617F642FD943A9 /* ExportOptionsModal.swift in Sources */,
+				E3FEC6909CEE89C39A3D9C3A /* CSVGenerator.swift in Sources */,
+				8F3E31087D2D8735D8CF5ED8 /* PDFGenerator.swift in Sources */,
+				A9C706605B21C6648E3B386E /* ReorderExportService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

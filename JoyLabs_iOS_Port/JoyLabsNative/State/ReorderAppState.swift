@@ -207,8 +207,6 @@ class ReorderAppState: ObservableObject {
             showingMarkAllReceivedAlert = true
         case .clearAll:
             showingClearAlert = true
-        case .export:
-            showingExportOptions = true
         }
     }
     

@@ -18,7 +18,7 @@ class ReorderViewModel: ObservableObject {
     
     // Sheet management
     @Published var activeSheet: ReordersSheet?
-    @Published var showingExportOptions = false
+    @Published var showingExportModal = false
     @Published var showingClearAlert = false
     @Published var showingMarkAllReceivedAlert = false
     
@@ -230,8 +230,6 @@ class ReorderViewModel: ObservableObject {
             showingMarkAllReceivedAlert = true
         case .clearAll:
             showingClearAlert = true
-        case .export:
-            showingExportOptions = true
         }
     }
     
@@ -319,16 +317,9 @@ class ReorderViewModel: ObservableObject {
     }
     
     // MARK: - Export Functions
-    func shareList() {
-        print("Sharing list...")
-    }
-    
-    func printList() {
-        print("Printing list...")
-    }
-    
-    func saveAsPDF() {
-        print("Saving as PDF...")
+    func handleExportSelection(_ format: ExportFormat) async {
+        // This will be called from the export modal
+        print("Export selected: \(format.displayName)")
     }
     
     // MARK: - Helper Methods

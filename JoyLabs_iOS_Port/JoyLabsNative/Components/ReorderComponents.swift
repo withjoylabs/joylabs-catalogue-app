@@ -7,6 +7,7 @@ struct ReordersScrollableHeader: View {
     let purchasedItems: Int
     let totalQuantity: Int
     let onManagementAction: (ManagementAction) -> Void
+    let onExportTap: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -19,16 +20,20 @@ struct ReordersScrollableHeader: View {
 
                     Spacer()
 
+                    // Export button
+                    Button(action: onExportTap) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.title2)
+                            .foregroundColor(.blue)
+                    }
+
+                    // Manage menu (without export option)
                     Menu {
                         Button("Mark All as Received") {
                             onManagementAction(.markAllReceived)
                         }
                         Button("Clear All Items", role: .destructive) {
                             onManagementAction(.clearAll)
-                        }
-                        Divider()
-                        Button("Export Items") {
-                            onManagementAction(.export)
                         }
                     } label: {
                         Image(systemName: "gear")
@@ -63,7 +68,6 @@ struct ReordersScrollableHeader: View {
 enum ManagementAction {
     case markAllReceived
     case clearAll
-    case export
 }
 
 // MARK: - Stat Item
@@ -260,7 +264,8 @@ struct CategoryBadge: View {
         unpurchasedItems: 3,
         purchasedItems: 2,
         totalQuantity: 15,
-        onManagementAction: { _ in }
+        onManagementAction: { _ in },
+        onExportTap: { }
     )
 }
 

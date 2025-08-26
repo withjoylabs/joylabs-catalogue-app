@@ -89,6 +89,7 @@ struct ReordersView: SwiftUI.View {
                     scannerSearchText: $barcodeManager.scannerSearchText,
                     isScannerFieldFocused: $isScannerFieldFocused,
                     onManagementAction: viewModel.handleManagementAction,
+                    onExportTap: { viewModel.showingExportModal = true },
                     onStatusChange: viewModel.updateItemStatus,
                     onQuantityChange: viewModel.updateItemQuantity,
                     onRemoveItem: viewModel.removeItem,
@@ -112,17 +113,6 @@ struct ReordersView: SwiftUI.View {
                 onFocusStateChanged?(newValue)
             }
             // No visible text fields to track in ReordersView
-            .actionSheet(isPresented: $viewModel.showingExportOptions) {
-                ActionSheet(
-                    title: Text("Export Reorders"),
-                    buttons: [
-                        .default(Text("Share List")) { viewModel.shareList() },
-                        .default(Text("Print")) { viewModel.printList() },
-                        .default(Text("Save as PDF")) { viewModel.saveAsPDF() },
-                        .cancel()
-                    ]
-                )
-            }
             .alert("Clear All Items", isPresented: $viewModel.showingClearAlert) {
                 Button("Cancel", role: .cancel) { }
                 Button("Clear All", role: .destructive) {
@@ -145,6 +135,17 @@ struct ReordersView: SwiftUI.View {
                     barcodeManager.handleGlobalBarcodeScanned(barcode)
                 }
             }
+        }
+        // Export Options Modal
+        .sheet(isPresented: $viewModel.showingExportModal) {
+            ExportOptionsModal(
+                isPresented: $viewModel.showingExportModal,
+                items: viewModel.reorderItems,
+                onExport: { format in
+                    await viewModel.handleExportSelection(format)
+                }
+            )
+            .imagePickerModal()
         }
         // Unified Sheet Modal
         .sheet(item: $viewModel.activeSheet) { sheet in

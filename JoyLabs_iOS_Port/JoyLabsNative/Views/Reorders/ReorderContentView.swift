@@ -17,6 +17,7 @@ struct ReorderContentView: View {
     @FocusState.Binding var isScannerFieldFocused: Bool
 
     let onManagementAction: (ManagementAction) -> Void
+    let onExportTap: () -> Void
     let onStatusChange: (String, ReorderStatus) -> Void
     let onQuantityChange: (String, Int) -> Void
     let onRemoveItem: (String) -> Void
@@ -59,7 +60,8 @@ struct ReorderContentView: View {
                                 filterOption: $filterOption,
                                 organizationOption: $organizationOption,
                                 displayMode: $displayMode,
-                                onManagementAction: onManagementAction
+                                onManagementAction: onManagementAction,
+                                onExportTap: onExportTap
                             )
                         }
                     }
