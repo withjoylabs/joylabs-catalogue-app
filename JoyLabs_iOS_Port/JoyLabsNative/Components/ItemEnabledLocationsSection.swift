@@ -11,22 +11,11 @@ struct ItemEnabledLocationsSection: View {
                     // All Locations Toggle
                     ItemDetailsFieldRow {
                         ItemDetailsToggleRow(
-                            title: "Present at All Locations",
+                            title: "Locations",
                             isOn: Binding(
-                                get: { viewModel.staticData.presentAtAllLocations },
+                                get: { viewModel.staticData.locationsEnabled },
                                 set: { newValue in
-                                    viewModel.staticData.presentAtAllLocations = newValue
-                                    if newValue {
-                                        // If enabling at all locations, clear location arrays (Square uses absent list for exceptions)
-                                        viewModel.staticData.presentAtLocationIds = []
-                                        viewModel.staticData.absentAtLocationIds = []
-                                        // Legacy support: select all for UI
-                                        viewModel.staticData.enabledLocationIds = viewModel.availableLocations.map { $0.id }
-                                    } else {
-                                        // When disabling all locations, clear absent list and populate present list with current selections
-                                        viewModel.staticData.absentAtLocationIds = []
-                                        viewModel.staticData.presentAtLocationIds = viewModel.staticData.enabledLocationIds
-                                    }
+                                    viewModel.staticData.locationsEnabled = newValue
                                 }
                             )
                         )
@@ -55,7 +44,7 @@ struct ItemEnabledLocationsSection: View {
                         )
                     }
 
-                    if !viewModel.staticData.presentAtAllLocations {
+                    if viewModel.staticData.locationsEnabled {
                         ItemDetailsFieldSeparator()
 
                         // Individual Location Selection
@@ -75,15 +64,9 @@ struct ItemEnabledLocationsSection: View {
                                         ForEach(viewModel.availableLocations, id: \.id) { location in
                                             LocationToggleRow(
                                                 location: location,
-                                                isEnabled: viewModel.staticData.enabledLocationIds.contains(location.id)
+                                                isEnabled: viewModel.staticData.isLocationEnabled(location.id)
                                             ) { isEnabled in
-                                                if isEnabled {
-                                                    if !viewModel.staticData.enabledLocationIds.contains(location.id) {
-                                                        viewModel.staticData.enabledLocationIds.append(location.id)
-                                                    }
-                                                } else {
-                                                    viewModel.staticData.enabledLocationIds.removeAll { $0 == location.id }
-                                                }
+                                                viewModel.staticData.setLocationEnabled(location.id, enabled: isEnabled)
                                             }
                                         }
                                     }
@@ -93,7 +76,7 @@ struct ItemEnabledLocationsSection: View {
                     }
                     
                     // Summary
-                    if !viewModel.staticData.enabledLocationIds.isEmpty {
+                    if viewModel.staticData.locationsEnabled {
                         ItemDetailsFieldSeparator()
                         
                         ItemDetailsFieldRow {
@@ -102,12 +85,19 @@ struct ItemEnabledLocationsSection: View {
                                     .foregroundColor(.itemDetailsSuccess)
                                     .font(.itemDetailsBody.weight(.medium))
                                 
-                                if viewModel.itemData.presentAtAllLocations {
+                                let enabledLocationCount = viewModel.availableLocations.filter { viewModel.staticData.isLocationEnabled($0.id) }.count
+                                let totalLocationCount = viewModel.availableLocations.count
+                                
+                                if viewModel.staticData.presentAtAllLocations && viewModel.staticData.absentAtLocationIds.isEmpty {
                                     Text("Present at all locations")
                                         .font(.itemDetailsCaption)
                                         .foregroundColor(.itemDetailsSecondaryText)
+                                } else if enabledLocationCount > 0 {
+                                    Text("Enabled at \(enabledLocationCount) of \(totalLocationCount) location(s)")
+                                        .font(.itemDetailsCaption)
+                                        .foregroundColor(.itemDetailsSecondaryText)
                                 } else {
-                                    Text("Enabled at \(viewModel.staticData.enabledLocationIds.count) location(s)")
+                                    Text("Available at future locations only")
                                         .font(.itemDetailsCaption)
                                         .foregroundColor(.itemDetailsSecondaryText)
                                 }

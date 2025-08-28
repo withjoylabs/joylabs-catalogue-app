@@ -749,6 +749,33 @@ version    version     version (preserved at every step)
 ### Key Takeaway
 **VERSION_MISMATCH = Missing or incorrect version field somewhere in your object hierarchy.** Always fetch current state, include all version fields, and never hardcode version values.
 
+## Square Location Logic (ItemDetailsModal)
+
+### Square Dashboard Terminology
+- **"Locations"** - Master toggle controlling if item has ANY location availability
+- **Individual Location Toggles** - Show when master is ON, control specific locations  
+- **"Available at All Future Locations"** - Controls `present_at_all_locations` boolean
+
+### Square API Data Structure
+```swift
+present_at_all_locations: Bool     // Future locations toggle
+present_at_location_ids: [String]  // Specific enabled locations
+absent_at_location_ids: [String]   // Exceptions when present_at_all_locations=true
+```
+
+### Implementation (`ItemDetailsStaticData`)
+- **Master Toggle**: `locationsEnabled` = `present_at_all_locations || !present_at_location_ids.isEmpty`
+- **Individual Logic**: `isLocationEnabled()` uses present_at_all_locations + absent/present arrays
+- **Auto-Enable**: Selecting any location auto-enables master toggle
+- **UI Display**: Individual toggles show when master ON, hidden when master OFF
+
+### 5 Square Scenarios Supported
+1. **Everything ON**: `present_at_all_locations: true` (no arrays)
+2. **Specific locations**: `present_at_all_locations: false` + `present_at_location_ids: ["loc1","loc2"]`  
+3. **Future only**: `present_at_all_locations: true` + `absent_at_location_ids: ["loc1","loc2"]`
+4. **One location**: `present_at_all_locations: false` + `present_at_location_ids: ["loc1"]`
+5. **One + future**: `present_at_all_locations: true` + `absent_at_location_ids: ["loc2"]`
+
 ## Error Handling Patterns
 
 ### Fail Fast for Critical Operations

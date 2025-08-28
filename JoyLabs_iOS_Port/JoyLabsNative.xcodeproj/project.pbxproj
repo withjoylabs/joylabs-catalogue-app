@@ -55,6 +55,7 @@
 		92151EA89C79EBB198799E77 /* ItemImageSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2D5FAE44721EA24C8E50126 /* ItemImageSection.swift */; };
 		99246C9B894AF2AE6D86F627 /* SquareCRUDService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35AB2C1793F03C8E7C4FDE80 /* SquareCRUDService.swift */; };
 		99776EE3F97CD95D3C775838 /* ItemFieldConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = D96C042150C12C4387D96347 /* ItemFieldConfiguration.swift */; };
+		9C3AE080A9C601FD9E3A08A7 /* LocationCacheManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA8C5B246DFF28C031178155 /* LocationCacheManager.swift */; };
 		9F1D75B816578F431F48DA54 /* WebhookManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F2B7DCDFE09A9CB0B24D0EA /* WebhookManager.swift */; };
 		A135F89195224732ABA3AAF3 /* ToastWindowManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55BCF27BAD920DC02CC1E42D /* ToastWindowManager.swift */; };
 		A1B2C3D4E5F6789012345678 /* JoyLabsNativeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345679 /* JoyLabsNativeApp.swift */; };
@@ -95,7 +96,6 @@
 		A1B2C3D4E5F6789012345903 /* CatalogTableCreator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345904 /* CatalogTableCreator.swift */; };
 		A1B2C3D4E5F6789012345905 /* CatalogObjectInserters.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345906 /* CatalogObjectInserters.swift */; };
 		A285779AFC5B5E43CA497F39 /* LabelLiveSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11C6F817152E7F615D5CB415 /* LabelLiveSettingsView.swift */; };
-		A5405A8E241F271728925183 /* ReorderItemsContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08E54CBA0603F19D75E0455F /* ReorderItemsContent.swift */; };
 		A8BBF4FD63BC8B3554057010 /* ReorderViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA4E1D926AD0EFEB747BE184 /* ReorderViewModel.swift */; };
 		A9C706605B21C6648E3B386E /* ReorderExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FF78A1593BC7C4F813F02A7 /* ReorderExportService.swift */; };
 		AA5102A379E2429BBA60C844 /* NotificationPermissionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B0C0220C8486FC50DA6F922 /* NotificationPermissionView.swift */; };
@@ -105,7 +105,6 @@
 		C798D416ABF659B88BDA1C8E /* PushNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E3FB7296AC28F9B8969A75D /* PushNotificationService.swift */; };
 		C8B848A33B7BFFE84D0A142D /* LabelLivePrintService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7606A3222698687642B402D /* LabelLivePrintService.swift */; };
 		CC4CE3294C46EDAA954DC559 /* ItemDetailsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D583607765D3CA494A3F396E /* ItemDetailsViewModel.swift */; };
-		D7AB8C6042BF5B8980E922A3 /* ReorderHeaderSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC109DD4E71A09E72CF6F0D3 /* ReorderHeaderSection.swift */; };
 		DA39CFBD36DCA1D81A5F2AB6 /* ItemCustomAttributesSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 109D8EF3405D7C8718DCDF2B /* ItemCustomAttributesSection.swift */; };
 		DC0BF75906B9902A9E9F25EE /* ItemDetailsStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE43F36BB6F6797E1742AD7C /* ItemDetailsStyles.swift */; };
 		DE9B0804171D8F8469343090 /* SquareImageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECE3FAA42B58C68978179AFA /* SquareImageService.swift */; };
@@ -129,7 +128,6 @@
 
 /* Begin PBXFileReference section */
 		02A73B5385BF767E2F503CFD /* AppLevelHIDScanner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AppLevelHIDScanner.swift; path = Components/AppLevelHIDScanner.swift; sourceTree = "<group>"; };
-		08E54CBA0603F19D75E0455F /* ReorderItemsContent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderItemsContent.swift; path = JoyLabsNative/Views/Reorders/ReorderItemsContent.swift; sourceTree = "<group>"; };
 		099140CF4DCC3454A9EC9A5C /* ItemDetailsModal.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsModal.swift; path = Components/ItemDetailsModal.swift; sourceTree = "<group>"; };
 		09BFF04263C6393A3C5DD86A /* WebhookIntegrationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WebhookIntegrationTests.swift; path = Testing/WebhookIntegrationTests.swift; sourceTree = "<group>"; };
 		0B4067D357704001C7A0D307 /* QuantityNumpad.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QuantityNumpad.swift; sourceTree = "<group>"; };
@@ -225,7 +223,7 @@
 		B7646D10B74DD6424D05604B /* ReorderFilterManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderFilterManager.swift; path = JoyLabsNative/ViewModels/ReorderFilterManager.swift; sourceTree = "<group>"; };
 		BA6CAB610624BBFC8C7C36B6 /* ItemDataTransformers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDataTransformers.swift; path = Components/ItemDataTransformers.swift; sourceTree = "<group>"; };
 		BF8BABE731647487EFC23A76 /* FieldVisibilityModifier.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FieldVisibilityModifier.swift; path = Components/FieldVisibilityModifier.swift; sourceTree = "<group>"; };
-		CC109DD4E71A09E72CF6F0D3 /* ReorderHeaderSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderHeaderSection.swift; path = JoyLabsNative/Views/Reorders/ReorderHeaderSection.swift; sourceTree = "<group>"; };
+		CA8C5B246DFF28C031178155 /* LocationCacheManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LocationCacheManager.swift; path = Core/Services/LocationCacheManager.swift; sourceTree = "<group>"; };
 		CE43F36BB6F6797E1742AD7C /* ItemDetailsStyles.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsStyles.swift; path = Components/ItemDetailsStyles.swift; sourceTree = "<group>"; };
 		D011F99665AC02112E587409 /* FuzzySearch.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FuzzySearch.swift; path = Core/Search/FuzzySearch.swift; sourceTree = "<group>"; };
 		D0306C22956C0D740D67567F /* ConfirmationDialogService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ConfirmationDialogService.swift; path = Core/Services/ConfirmationDialogService.swift; sourceTree = "<group>"; };
@@ -562,8 +560,6 @@
 			isa = PBXGroup;
 			children = (
 				7BD6FFEA84896CD48CE4E372 /* ReorderContentView.swift */,
-				CC109DD4E71A09E72CF6F0D3 /* ReorderHeaderSection.swift */,
-				08E54CBA0603F19D75E0455F /* ReorderItemsContent.swift */,
 			);
 			name = Reorders;
 			sourceTree = "<group>";
@@ -587,6 +583,7 @@
 				1B7C10B3ADF6BBE5BBD90995 /* SearchRefreshService.swift */,
 				55BCF27BAD920DC02CC1E42D /* ToastWindowManager.swift */,
 				9FF78A1593BC7C4F813F02A7 /* ReorderExportService.swift */,
+				CA8C5B246DFF28C031178155 /* LocationCacheManager.swift */,
 			);
 			name = Services;
 			sourceTree = "<group>";
@@ -769,8 +766,6 @@
 				E96B947FD6602A6362924F1C /* ReorderDataManager.swift in Sources */,
 				BDE67A3DC91ABABDC7D87D5F /* ReorderNotificationManager.swift in Sources */,
 				5475BE92BD8F51964C39D74A /* ReorderContentView.swift in Sources */,
-				D7AB8C6042BF5B8980E922A3 /* ReorderHeaderSection.swift in Sources */,
-				A5405A8E241F271728925183 /* ReorderItemsContent.swift in Sources */,
 				8796DF07A71B45B6C419C13A /* SwipeableReorderCard.swift in Sources */,
 				65577A06B7D6A9FED610402A /* ReorderPhotoCard.swift in Sources */,
 				19F619C092689543928A0A06 /* ReorderFilterManager.swift in Sources */,
@@ -797,6 +792,7 @@
 				E3FEC6909CEE89C39A3D9C3A /* CSVGenerator.swift in Sources */,
 				8F3E31087D2D8735D8CF5ED8 /* PDFGenerator.swift in Sources */,
 				A9C706605B21C6648E3B386E /* ReorderExportService.swift in Sources */,
+				9C3AE080A9C601FD9E3A08A7 /* LocationCacheManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

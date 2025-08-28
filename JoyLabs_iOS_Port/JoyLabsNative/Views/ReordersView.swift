@@ -103,17 +103,17 @@ struct ReordersView: SwiftUI.View {
                 )
 
             }
-            .navigationBarHidden(true)
-            .onAppear {
-                setupViewModels()
-                viewModel.loadReorderData()
-            }
-            .onChange(of: isScannerFieldFocused) { oldValue, newValue in
-                // Notify ContentView of focus state changes for AppLevelHIDScanner
-                onFocusStateChanged?(newValue)
-            }
-            // No visible text fields to track in ReordersView
-            .alert("Clear All Items", isPresented: $viewModel.showingClearAlert) {
+        }
+        .onAppear {
+            setupViewModels()
+            viewModel.loadReorderData()
+        }
+        .onChange(of: isScannerFieldFocused) { oldValue, newValue in
+            // Notify ContentView of focus state changes for AppLevelHIDScanner
+            onFocusStateChanged?(newValue)
+        }
+        // No visible text fields to track in ReordersView
+        .alert("Clear All Items", isPresented: $viewModel.showingClearAlert) {
                 Button("Cancel", role: .cancel) { }
                 Button("Clear All", role: .destructive) {
                     viewModel.clearAllItems()
@@ -135,9 +135,8 @@ struct ReordersView: SwiftUI.View {
                     barcodeManager.handleGlobalBarcodeScanned(barcode)
                 }
             }
-        }
-        // Export Options Modal
-        .sheet(isPresented: $viewModel.showingExportModal) {
+            // Export Options Modal
+            .sheet(isPresented: $viewModel.showingExportModal) {
             ExportOptionsModal(
                 isPresented: $viewModel.showingExportModal,
                 items: viewModel.reorderItems,

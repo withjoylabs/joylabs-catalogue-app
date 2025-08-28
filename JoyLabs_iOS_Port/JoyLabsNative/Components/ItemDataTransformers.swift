@@ -26,7 +26,7 @@ class ItemDataTransformers {
         itemDetails.version = catalogObject.version
         itemDetails.updatedAt = catalogObject.updatedAt
         itemDetails.isDeleted = catalogObject.safeIsDeleted
-        itemDetails.presentAtAllLocations = catalogObject.presentAtAllLocations ?? true
+        itemDetails.presentAtAllLocations = catalogObject.presentAtAllLocations ?? false
         itemDetails.presentAtLocationIds = catalogObject.presentAtLocationIds ?? []
         itemDetails.absentAtLocationIds = catalogObject.absentAtLocationIds ?? []
         

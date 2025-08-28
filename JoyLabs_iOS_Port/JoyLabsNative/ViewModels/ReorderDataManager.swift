@@ -103,6 +103,29 @@ class ReorderDataManager: ObservableObject {
                 // Check if item has taxes
                 let hasTax = checkItemHasTaxFromDataJson(dataJson)
                 
+                // Get team data (vendor, case info) from team_data table
+                let teamQuery = CatalogTableDefinitions.teamData
+                    .select(CatalogTableDefinitions.teamVendor,
+                           CatalogTableDefinitions.teamCaseUpc,
+                           CatalogTableDefinitions.teamCaseCost,
+                           CatalogTableDefinitions.teamCaseQuantity)
+                    .filter(CatalogTableDefinitions.teamDataItemId == item.itemId)
+                    .limit(1)
+                
+                var vendor: String? = nil
+                var caseUpc: String? = nil
+                var caseCost: Double? = nil
+                var caseQuantity: Int? = nil
+                
+                if let teamRow = try db.pluck(teamQuery) {
+                    vendor = try? teamRow.get(CatalogTableDefinitions.teamVendor)
+                    caseUpc = try? teamRow.get(CatalogTableDefinitions.teamCaseUpc)
+                    caseCost = try? teamRow.get(CatalogTableDefinitions.teamCaseCost)
+                    if let caseQty = try? teamRow.get(CatalogTableDefinitions.teamCaseQuantity) {
+                        caseQuantity = Int(caseQty)
+                    }
+                }
+                
                 // Get primary image data using centralized SimpleImageService
                 let imageUrl = await getPrimaryImageForReorderItem(itemId: item.itemId)
                 
@@ -119,6 +142,12 @@ class ReorderDataManager: ObservableObject {
                 }
                 updatedItem.hasTax = hasTax
                 
+                // Update team data fields
+                updatedItem.vendor = vendor
+                updatedItem.caseUpc = caseUpc
+                updatedItem.caseCost = caseCost
+                updatedItem.caseQuantity = caseQuantity
+                
                 // Update image data - PRESERVE existing if no new data found
                 if let imageUrl = imageUrl {
                     updatedItem.imageUrl = imageUrl
@@ -134,6 +163,7 @@ class ReorderDataManager: ObservableObject {
                 print("   - Barcode: '\(item.barcode ?? "nil")' → '\(updatedItem.barcode ?? "nil")'")
                 print("   - Price: \(updatedItem.price?.description ?? "nil")")
                 print("   - Category: \(updatedItem.categoryName ?? "nil")")
+                print("   - Vendor: '\(item.vendor ?? "nil")' → '\(updatedItem.vendor ?? "nil")'")
                 print("   - Image URL: \(updatedItem.imageUrl ?? "nil")")
                 print("   - Has Tax: \(updatedItem.hasTax)")
                 

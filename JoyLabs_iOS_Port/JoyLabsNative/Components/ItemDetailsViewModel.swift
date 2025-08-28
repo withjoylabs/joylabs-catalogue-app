@@ -225,19 +225,7 @@ struct LocationOverrideData: Identifiable {
 }
 
 // MARK: - Location Data
-struct LocationData: Identifiable {
-    let id: String
-    let name: String
-    let address: String
-    let isActive: Bool
-
-    init(id: String, name: String, address: String = "", isActive: Bool = true) {
-        self.id = id
-        self.name = name
-        self.address = address
-        self.isActive = isActive
-    }
-}
+// LocationData is now defined in LocationCacheManager.swift to avoid duplication
 
 // MARK: - Static Data Container
 /// Contains less frequently changed item properties to reduce @Published overhead
@@ -317,6 +305,92 @@ struct ItemDetailsStaticData {
                 presentAtAllLocations = false
                 absentAtLocationIds = []
             }
+        }
+    }
+    
+    // Computed property for master "Locations" toggle (Square Dashboard equivalent)
+    var locationsEnabled: Bool {
+        get {
+            // Master toggle is ON when item has ANY location availability
+            return presentAtAllLocations || !presentAtLocationIds.isEmpty
+        }
+        set {
+            if newValue {
+                // Enable locations - if no specific rules exist, default to future availability only
+                if !presentAtAllLocations && presentAtLocationIds.isEmpty {
+                    presentAtAllLocations = true
+                    absentAtLocationIds = [] // Will show individual location toggles as OFF
+                }
+                // If already has location rules, don't change them
+            } else {
+                // Disable all location availability
+                presentAtAllLocations = false
+                presentAtLocationIds = []
+                absentAtLocationIds = []
+                enabledLocationIds = [] // Clear UI tracking array too
+            }
+        }
+    }
+    
+    // Check if specific location is enabled based on Square API logic
+    func isLocationEnabled(_ locationId: String) -> Bool {
+        if presentAtAllLocations {
+            // When present at all locations, location is enabled UNLESS it's in absent list
+            return !absentAtLocationIds.contains(locationId)
+        } else {
+            // When not present at all locations, location is enabled ONLY if in present list
+            return presentAtLocationIds.contains(locationId)
+        }
+    }
+    
+    // Update location enabled state using Square API logic
+    mutating func setLocationEnabled(_ locationId: String, enabled: Bool) {
+        // When enabling a location and master toggle is OFF, we need to switch to specific locations mode
+        if enabled && !locationsEnabled {
+            presentAtAllLocations = false
+            presentAtLocationIds = [locationId]
+            absentAtLocationIds = []
+        } else if enabled {
+            // Master toggle is ON - operate in current mode
+            if presentAtAllLocations {
+                // Present at all locations mode - use absent list for exceptions
+                // Remove from absent list (if present)
+                absentAtLocationIds.removeAll { $0 == locationId }
+            } else {
+                // Specific locations mode - use present list
+                // Add to present list (if not already present)
+                if !presentAtLocationIds.contains(locationId) {
+                    presentAtLocationIds.append(locationId)
+                }
+                // Remove from absent list (cleanup)
+                absentAtLocationIds.removeAll { $0 == locationId }
+            }
+        } else {
+            // Disabling a location
+            if presentAtAllLocations {
+                // Present at all locations mode - add to absent list
+                if !absentAtLocationIds.contains(locationId) {
+                    absentAtLocationIds.append(locationId)
+                }
+            } else {
+                // Specific locations mode - remove from present list
+                presentAtLocationIds.removeAll { $0 == locationId }
+                
+                // If no locations remain enabled, clear master toggle
+                if presentAtLocationIds.isEmpty {
+                    presentAtAllLocations = false
+                    absentAtLocationIds = []
+                }
+            }
+        }
+        
+        // Update legacy UI tracking array for backward compatibility
+        if enabled {
+            if !enabledLocationIds.contains(locationId) {
+                enabledLocationIds.append(locationId)
+            }
+        } else {
+            enabledLocationIds.removeAll { $0 == locationId }
         }
     }
 
@@ -712,7 +786,11 @@ class ItemDetailsViewModel: ObservableObject {
 
         do {
             if let catalogObject = try catalogManager.fetchItemById(itemId) {
-                // Successfully loaded item from database
+                // CRITICAL: Load locations FIRST before processing catalog object
+                // This ensures availableLocations is populated for location initialization logic
+                await loadLocations()
+                
+                // Then load item data with populated locations
                 await loadItemDataFromCatalogObject(catalogObject)
                 print("[ItemDetailsModal] Successfully loaded item from database: \(name)")
 
@@ -777,7 +855,32 @@ class ItemDetailsViewModel: ObservableObject {
         staticData.version = catalogObject.version
         staticData.updatedAt = catalogObject.updatedAt
         staticData.isDeleted = catalogObject.safeIsDeleted
-        staticData.presentAtAllLocations = catalogObject.presentAtAllLocations ?? true
+        staticData.presentAtAllLocations = catalogObject.presentAtAllLocations ?? false
+        staticData.presentAtLocationIds = catalogObject.presentAtLocationIds ?? []
+        staticData.absentAtLocationIds = catalogObject.absentAtLocationIds ?? []
+        
+        // CRITICAL: Initialize enabledLocationIds for UI display based on Square's location logic
+        if catalogObject.presentAtAllLocations == true {
+            if let absentIds = catalogObject.absentAtLocationIds, !absentIds.isEmpty {
+                // Special case: Future locations ON, but some current locations OFF
+                // UI shows: Locations ✅, individual toggles vary, Future ✅
+                staticData.enabledLocationIds = availableLocations.compactMap { location in
+                    absentIds.contains(location.id) ? nil : location.id
+                }
+            } else {
+                // Normal case: All locations ON (including future)
+                // UI shows: All toggles ✅
+                staticData.enabledLocationIds = availableLocations.map { $0.id }
+            }
+        } else if let presentIds = catalogObject.presentAtLocationIds, !presentIds.isEmpty {
+            // Current locations explicitly listed (future locations OFF)
+            // UI shows: Locations varies, individual toggles vary, Future ❌
+            staticData.enabledLocationIds = presentIds
+        } else {
+            // No locations enabled
+            // UI shows: All toggles ❌
+            staticData.enabledLocationIds = []
+        }
 
         // Extract item data
         if let itemData = catalogObject.itemData {
@@ -1147,12 +1250,12 @@ class ItemDetailsViewModel: ObservableObject {
 
     /// Load all critical dropdown data from local database using same patterns as search
     private func loadCriticalData() async {
-        // Load main data in parallel
+        // Load main data in parallel (locations already loaded before item processing)
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.loadCategories() }
             group.addTask { await self.loadTaxes() }
             group.addTask { await self.loadModifierLists() }
-            group.addTask { await self.loadLocations() }
+            // NOTE: locations loaded separately before item processing to prevent race condition
         }
         
         // Load recent categories after categories are available
@@ -1315,27 +1418,12 @@ class ItemDetailsViewModel: ObservableObject {
     }
 
     /// Load locations from local database (same pattern as other data)
+    /// Load locations from app-wide cache (instant, no HTTP calls)
     private func loadLocations() async {
-        // Use SquareLocationsService instead of database query
-        let locationsService = SquareLocationsService()
-        await locationsService.fetchLocations()
-        
-        // Transform SquareLocation to LocationData
-        let locations: [LocationData] = locationsService.locations.compactMap { squareLocation in
-            guard !squareLocation.id.isEmpty,
-                  let name = squareLocation.name, !name.isEmpty else { return nil }
-            
-            return LocationData(
-                id: squareLocation.id,
-                name: name,
-                address: [squareLocation.address?.addressLine1, squareLocation.address?.locality, squareLocation.address?.administrativeDistrictLevel1].compactMap { $0 }.joined(separator: ", "),
-                isActive: squareLocation.status == "ACTIVE"
-            )
-        }
-
+        // Use cached locations from LocationCacheManager (no HTTP calls!)
         await MainActor.run {
-            self.availableLocations = locations
-            logger.debug("Loaded \(locations.count) locations for item modal")
+            self.availableLocations = LocationCacheManager.shared.locations
+            logger.debug("Loaded \(self.availableLocations.count) cached locations for item modal (no HTTP call)")
         }
     }
 

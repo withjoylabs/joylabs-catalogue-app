@@ -85,6 +85,7 @@ struct JoyLabsNativeApp: App {
         let _ = WebhookManager.shared
         let _ = WebhookNotificationService.shared
         let _ = NotificationSettingsService.shared
+        let _ = LocationCacheManager.shared
         
         logger.info("[App] Phase 1: Critical services initialized synchronously (FieldConfig, Database, ImageCache, All Square services, Singleton services)")
         
@@ -102,7 +103,12 @@ struct JoyLabsNativeApp: App {
         Task.detached(priority: .high) {
             await MainActor.run {
                 Task {
-                    logger.info("[App] Phase 2: Starting catch-up sync before enabling webhook processing...")
+                    logger.info("[App] Phase 2: Starting catch-up sync and location loading...")
+                    
+                    // Load locations first (required for item modals)
+                    await LocationCacheManager.shared.loadLocations()
+                    
+                    // Then perform catch-up sync
                     await performAppLaunchCatchUpSync()
                     
                     // PHASE 3: Initialize webhook system AFTER catch-up sync completes
