@@ -149,7 +149,7 @@ class ItemDataTransformers {
             description: itemDetails.description.isEmpty ? nil : itemDetails.description,
             categoryId: itemDetails.reportingCategoryId, // Legacy field for backward compatibility
             taxIds: itemDetails.taxIds.isEmpty ? nil : itemDetails.taxIds,
-            variations: transformVariationsToAPI(itemDetails.variations, itemId: itemId, presentAtAllLocations: itemDetails.presentAtAllLocations),
+            variations: transformVariationsToAPI(itemDetails.variations, itemId: itemId, presentAtAllLocations: itemDetails.presentAtAllLocations, presentAtLocationIds: itemDetails.presentAtLocationIds, absentAtLocationIds: itemDetails.absentAtLocationIds),
             productType: transformProductTypeToAPI(itemDetails.productType),
             skipModifierScreen: itemDetails.skipModifierScreen,
             itemOptions: nil, // TODO: Implement item options transformation
@@ -182,7 +182,7 @@ class ItemDataTransformers {
             version: itemDetails.version ?? 1,
             isDeleted: itemDetails.isDeleted,
             presentAtAllLocations: itemDetails.presentAtAllLocations,
-            presentAtLocationIds: itemDetails.presentAtLocationIds.isEmpty ? nil : itemDetails.presentAtLocationIds,
+            presentAtLocationIds: itemDetails.presentAtAllLocations ? nil : (itemDetails.presentAtLocationIds.isEmpty ? nil : itemDetails.presentAtLocationIds),
             absentAtLocationIds: itemDetails.absentAtLocationIds.isEmpty ? nil : itemDetails.absentAtLocationIds,
             itemData: itemData,
             categoryData: nil,
@@ -209,7 +209,7 @@ class ItemDataTransformers {
             description: itemDetails.description.isEmpty ? nil : itemDetails.description,
             categoryId: itemDetails.reportingCategoryId,
             taxIds: itemDetails.taxIds.isEmpty ? nil : itemDetails.taxIds,
-            variations: transformVariationsToAPI(itemDetails.variations, itemId: itemDetails.id ?? "#\(UUID().uuidString)", presentAtAllLocations: itemDetails.presentAtAllLocations),
+            variations: transformVariationsToAPI(itemDetails.variations, itemId: itemDetails.id ?? "#\(UUID().uuidString)", presentAtAllLocations: itemDetails.presentAtAllLocations, presentAtLocationIds: itemDetails.presentAtLocationIds, absentAtLocationIds: itemDetails.absentAtLocationIds),
             productType: transformProductTypeToAPI(itemDetails.productType),
             skipModifierScreen: itemDetails.skipModifierScreen,
             itemOptions: nil,
@@ -241,7 +241,7 @@ class ItemDataTransformers {
             version: itemDetails.version ?? 1,
             isDeleted: itemDetails.isDeleted,
             presentAtAllLocations: itemDetails.presentAtAllLocations,
-            presentAtLocationIds: itemDetails.presentAtLocationIds.isEmpty ? nil : itemDetails.presentAtLocationIds,
+            presentAtLocationIds: itemDetails.presentAtAllLocations ? nil : (itemDetails.presentAtLocationIds.isEmpty ? nil : itemDetails.presentAtLocationIds),
             absentAtLocationIds: itemDetails.absentAtLocationIds.isEmpty ? nil : itemDetails.absentAtLocationIds,
             itemData: itemData,
             categoryData: nil,
@@ -301,7 +301,7 @@ class ItemDataTransformers {
         return categoryIds.map { CategoryReference(id: $0, ordinal: nil) }
     }
 
-    private static func transformVariationsToAPI(_ variations: [ItemDetailsVariationData], itemId: String, presentAtAllLocations: Bool) -> [ItemVariation]? {
+    private static func transformVariationsToAPI(_ variations: [ItemDetailsVariationData], itemId: String, presentAtAllLocations: Bool, presentAtLocationIds: [String], absentAtLocationIds: [String]) -> [ItemVariation]? {
         guard !variations.isEmpty else { return nil }
 
         // Filter out completely empty variations
@@ -316,8 +316,8 @@ class ItemDataTransformers {
                 version: variation.version, // Preserve existing version for updates, nil for new variations
                 isDeleted: false,
                 presentAtAllLocations: presentAtAllLocations, // Inherit from parent item
-                presentAtLocationIds: nil, // Variations inherit from parent item
-                absentAtLocationIds: nil, // Variations inherit from parent item
+                presentAtLocationIds: presentAtAllLocations ? nil : (presentAtLocationIds.isEmpty ? nil : presentAtLocationIds), // Only use when presentAtAllLocations=false
+                absentAtLocationIds: absentAtLocationIds.isEmpty ? nil : absentAtLocationIds, // Inherit from parent item
                 itemVariationData: ItemVariationData(
                     itemId: itemId, // Reference parent item ID (with # for new items)
                     name: variation.name?.isEmpty == false ? variation.name : nil,

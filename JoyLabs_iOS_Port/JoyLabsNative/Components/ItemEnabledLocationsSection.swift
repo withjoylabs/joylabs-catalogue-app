@@ -30,15 +30,27 @@ struct ItemEnabledLocationsSection: View {
                             isOn: Binding(
                                 get: { viewModel.staticData.availableAtFutureLocations },
                                 set: { newValue in
-                                    viewModel.staticData.availableAtFutureLocations = newValue
-                                    if !newValue {
-                                        // If disabling future locations, must also disable present at all locations
-                                        viewModel.staticData.presentAtAllLocations = false
-                                        // Convert to specific location mode
-                                        viewModel.staticData.presentAtLocationIds = viewModel.staticData.enabledLocationIds
-                                        viewModel.staticData.absentAtLocationIds = []
+                                    if newValue {
+                                        // Enabling future locations
+                                        viewModel.staticData.availableAtFutureLocations = true
+                                        // This automatically sets presentAtAllLocations = true and clears absentAtLocationIds
+                                    } else {
+                                        // Disabling future locations - preserve current location selection
+                                        if viewModel.staticData.presentAtAllLocations {
+                                            // We were in "all locations" mode - convert to specific mode
+                                            // Get all currently enabled locations
+                                            let currentlyEnabledIds = viewModel.availableLocations.compactMap { location in
+                                                viewModel.staticData.isLocationEnabled(location.id) ? location.id : nil
+                                            }
+                                            
+                                            viewModel.staticData.presentAtAllLocations = false
+                                            viewModel.staticData.presentAtLocationIds = currentlyEnabledIds
+                                            viewModel.staticData.absentAtLocationIds = []
+                                        } else {
+                                            // Already in specific mode
+                                            viewModel.staticData.availableAtFutureLocations = false
+                                        }
                                     }
-                                    // When enabling, the computed property sets presentAtAllLocations = true
                                 }
                             )
                         )

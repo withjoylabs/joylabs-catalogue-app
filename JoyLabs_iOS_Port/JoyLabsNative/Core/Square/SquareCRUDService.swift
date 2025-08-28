@@ -307,6 +307,9 @@ class SquareCRUDService: ObservableObject {
             throw SquareCRUDError.invalidData("Invalid tax IDs: \(invalidTaxIds.joined(separator: ", "))")
         }
         
+        // Validate location logic consistency
+        validateLocationFields(itemDetails)
+        
         logger.debug("✅ Item validation passed for creation")
     }
     
@@ -319,6 +322,34 @@ class SquareCRUDService: ObservableObject {
         }
         
         logger.debug("✅ Item validation passed for update")
+    }
+    
+    // MARK: - Location Field Validation
+    
+    /// Validate Square location fields for consistency and log location data being sent
+    private func validateLocationFields(_ itemDetails: ItemDetailsData) {
+        // Log location data being sent to Square API
+        logger.info("📍 CRUD Location Data - presentAtAllLocations: \(itemDetails.presentAtAllLocations)")
+        logger.info("📍 CRUD Location Data - presentAtLocationIds: \(itemDetails.presentAtLocationIds.count) locations: \(itemDetails.presentAtLocationIds)")
+        logger.info("📍 CRUD Location Data - absentAtLocationIds: \(itemDetails.absentAtLocationIds.count) locations: \(itemDetails.absentAtLocationIds)")
+        
+        // Validate Square location logic consistency
+        if itemDetails.presentAtAllLocations {
+            // When present at all locations, we should use absent list for exceptions
+            if !itemDetails.presentAtLocationIds.isEmpty {
+                logger.warning("⚠️ Potential location logic issue: presentAtAllLocations=true but presentAtLocationIds is not empty. Square uses absentAtLocationIds for exceptions when presentAtAllLocations=true")
+            }
+        } else {
+            // When not present at all locations, we should use present list for specific locations
+            if !itemDetails.absentAtLocationIds.isEmpty {
+                logger.warning("⚠️ Potential location logic issue: presentAtAllLocations=false but absentAtLocationIds is not empty. Square uses presentAtLocationIds for specific locations when presentAtAllLocations=false")
+            }
+            
+            // Validate we have at least one location specified
+            if itemDetails.presentAtLocationIds.isEmpty {
+                logger.warning("⚠️ Location logic warning: presentAtAllLocations=false but no presentAtLocationIds specified. Item may not be available anywhere")
+            }
+        }
     }
     
     // MARK: - Database Synchronization Methods

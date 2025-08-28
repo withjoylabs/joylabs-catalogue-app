@@ -83,7 +83,6 @@ struct ItemDetailsData {
     var presentAtAllLocations: Bool = true  // Square API field for location availability
     var presentAtLocationIds: [String] = [] // Specific location IDs where item is present
     var absentAtLocationIds: [String] = [] // Specific location IDs where item is absent
-    var enabledLocationIds: [String] = [] // Legacy field for backward compatibility
     
     // Computed property for "Available at all future locations" toggle
     var availableAtFutureLocations: Bool {
@@ -291,7 +290,6 @@ struct ItemDetailsStaticData {
     var presentAtAllLocations: Bool = true
     var presentAtLocationIds: [String] = []
     var absentAtLocationIds: [String] = []
-    var enabledLocationIds: [String] = []
     
     // Computed property for "Available at all future locations" toggle
     var availableAtFutureLocations: Bool {
@@ -299,10 +297,9 @@ struct ItemDetailsStaticData {
             return presentAtAllLocations
         }
         set {
-            if newValue {
-                presentAtAllLocations = true
-            } else {
-                presentAtAllLocations = false
+            // Simple setter - complex logic handled at UI binding level in ViewModel
+            presentAtAllLocations = newValue
+            if !newValue {
                 absentAtLocationIds = []
             }
         }
@@ -327,7 +324,6 @@ struct ItemDetailsStaticData {
                 presentAtAllLocations = false
                 presentAtLocationIds = []
                 absentAtLocationIds = []
-                enabledLocationIds = [] // Clear UI tracking array too
             }
         }
     }
@@ -382,15 +378,6 @@ struct ItemDetailsStaticData {
                     absentAtLocationIds = []
                 }
             }
-        }
-        
-        // Update legacy UI tracking array for backward compatibility
-        if enabled {
-            if !enabledLocationIds.contains(locationId) {
-                enabledLocationIds.append(locationId)
-            }
-        } else {
-            enabledLocationIds.removeAll { $0 == locationId }
         }
     }
 
@@ -524,7 +511,7 @@ class ItemDetailsViewModel: ObservableObject {
         data.presentAtAllLocations = staticData.presentAtAllLocations
         data.presentAtLocationIds = staticData.presentAtLocationIds
         data.absentAtLocationIds = staticData.absentAtLocationIds
-        data.enabledLocationIds = staticData.enabledLocationIds
+        // enabledLocationIds is legacy UI field - not sent to Square API
         data.isDeleted = staticData.isDeleted
         data.updatedAt = staticData.updatedAt
         data.createdAt = staticData.createdAt
@@ -859,28 +846,8 @@ class ItemDetailsViewModel: ObservableObject {
         staticData.presentAtLocationIds = catalogObject.presentAtLocationIds ?? []
         staticData.absentAtLocationIds = catalogObject.absentAtLocationIds ?? []
         
-        // CRITICAL: Initialize enabledLocationIds for UI display based on Square's location logic
-        if catalogObject.presentAtAllLocations == true {
-            if let absentIds = catalogObject.absentAtLocationIds, !absentIds.isEmpty {
-                // Special case: Future locations ON, but some current locations OFF
-                // UI shows: Locations ✅, individual toggles vary, Future ✅
-                staticData.enabledLocationIds = availableLocations.compactMap { location in
-                    absentIds.contains(location.id) ? nil : location.id
-                }
-            } else {
-                // Normal case: All locations ON (including future)
-                // UI shows: All toggles ✅
-                staticData.enabledLocationIds = availableLocations.map { $0.id }
-            }
-        } else if let presentIds = catalogObject.presentAtLocationIds, !presentIds.isEmpty {
-            // Current locations explicitly listed (future locations OFF)
-            // UI shows: Locations varies, individual toggles vary, Future ❌
-            staticData.enabledLocationIds = presentIds
-        } else {
-            // No locations enabled
-            // UI shows: All toggles ❌
-            staticData.enabledLocationIds = []
-        }
+        // Location data is now handled purely through Square API fields
+        // UI toggles use isLocationEnabled() which computes from presentAtAllLocations + present/absent arrays
 
         // Extract item data
         if let itemData = catalogObject.itemData {
@@ -1250,12 +1217,12 @@ class ItemDetailsViewModel: ObservableObject {
 
     /// Load all critical dropdown data from local database using same patterns as search
     private func loadCriticalData() async {
-        // Load main data in parallel (locations already loaded before item processing)
+        // Load main data in parallel including locations for new item modals
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.loadCategories() }
             group.addTask { await self.loadTaxes() }
             group.addTask { await self.loadModifierLists() }
-            // NOTE: locations loaded separately before item processing to prevent race condition
+            group.addTask { await self.loadLocations() } // Added for new item support
         }
         
         // Load recent categories after categories are available

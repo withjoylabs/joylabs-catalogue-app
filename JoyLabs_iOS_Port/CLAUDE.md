@@ -776,6 +776,53 @@ absent_at_location_ids: [String]   // Exceptions when present_at_all_locations=t
 4. **One location**: `present_at_all_locations: false` + `present_at_location_ids: ["loc1"]`
 5. **One + future**: `present_at_all_locations: true` + `absent_at_location_ids: ["loc2"]`
 
+### Critical Square API Location Rules (CRUD Operations)
+
+#### **Mutually Exclusive Arrays Rule**
+Square API **REQUIRES** mutually exclusive location arrays to prevent "duplicate attributes" errors:
+
+```swift
+// ✅ CORRECT - When presentAtAllLocations: true
+{
+  "present_at_all_locations": true,
+  "present_at_location_ids": null,           // MUST be omitted/null
+  "absent_at_location_ids": ["loc2"]         // Exceptions only
+}
+
+// ✅ CORRECT - When presentAtAllLocations: false  
+{
+  "present_at_all_locations": false,
+  "present_at_location_ids": ["loc1"],       // Specific locations
+  "absent_at_location_ids": null             // MUST be omitted/null
+}
+
+// ❌ WRONG - Causes "duplicate attributes" error
+{
+  "present_at_all_locations": true,
+  "present_at_location_ids": ["loc1", "loc2"],  // Creates duplicate reference
+  "absent_at_location_ids": ["loc2"]            // Same location in both arrays
+}
+```
+
+#### **API Transformation Logic**
+Both ITEM and ITEM_VARIATION objects must follow these rules in `ItemDataTransformers.swift`:
+
+```swift
+// For ITEM objects
+presentAtLocationIds: presentAtAllLocations ? nil : (locationIds.isEmpty ? nil : locationIds)
+
+// For ITEM_VARIATION objects (inherit from parent)
+presentAtLocationIds: presentAtAllLocations ? nil : (parentLocationIds.isEmpty ? nil : parentLocationIds)
+```
+
+#### **Location Inheritance Chain**
+ITEM_VARIATION objects **MUST** inherit complete location configuration from parent ITEM:
+- `present_at_all_locations` → Copy from parent
+- `present_at_location_ids` → Copy from parent (when presentAtAllLocations=false)
+- `absent_at_location_ids` → Copy from parent (when presentAtAllLocations=true)
+
+**Failure to maintain consistency causes Square API rejection with "object is enabled at unit X, but referenced object is not" errors.**
+
 ## Error Handling Patterns
 
 ### Fail Fast for Critical Operations
