@@ -701,13 +701,13 @@ class ItemDetailsViewModel: ObservableObject {
             return false
         }
 
-        print("Deleting item: \(itemId)")
+        print("[ItemDetailsViewModel] Deleting item: \(itemId)")
         isSaving = true
         defer { isSaving = false }
 
         do {
             _ = try await crudService.deleteItem(itemId)
-            print("✅ Item deleted successfully: \(itemId)")
+            print("[ItemDetailsViewModel] ✅ Item deleted successfully: \(itemId)")
 
             // Mark as deleted locally
             await MainActor.run {

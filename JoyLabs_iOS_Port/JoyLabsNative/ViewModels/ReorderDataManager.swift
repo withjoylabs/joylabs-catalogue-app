@@ -157,15 +157,7 @@ class ReorderDataManager: ObservableObject {
                     // Keep existing imageId and imageUrl unchanged
                 }
                 
-                print("🔄 [ReorderRefresh] Updated ALL data for item ID: \(item.itemId)")
-                print("   - Name: '\(item.name)' → '\(updatedItem.name)'")
-                print("   - SKU: '\(item.sku ?? "nil")' → '\(updatedItem.sku ?? "nil")'")
-                print("   - Barcode: '\(item.barcode ?? "nil")' → '\(updatedItem.barcode ?? "nil")'")
-                print("   - Price: \(updatedItem.price?.description ?? "nil")")
-                print("   - Category: \(updatedItem.categoryName ?? "nil")")
-                print("   - Vendor: '\(item.vendor ?? "nil")' → '\(updatedItem.vendor ?? "nil")'")
-                print("   - Image URL: \(updatedItem.imageUrl ?? "nil")")
-                print("   - Has Tax: \(updatedItem.hasTax)")
+                // Verbose logging removed to reduce console spam
                 
                 updatedItems.append(updatedItem)
                 

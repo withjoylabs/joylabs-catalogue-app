@@ -15,6 +15,9 @@ class ReorderNotificationManager: ObservableObject {
     }
     
     private func setupNotificationObservers() {
+        // Clear any existing subscriptions to prevent duplicates
+        cancellables.removeAll()
+        
         // CONSOLIDATED: Single notification observer that handles all catalog updates
         NotificationCenter.default.publisher(for: .catalogSyncCompleted)
             .receive(on: DispatchQueue.main)

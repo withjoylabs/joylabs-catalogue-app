@@ -90,7 +90,6 @@ class SimpleImageService: ObservableObject {
     func getPrimaryImageURL(for itemId: String) async -> String? {
         // Get the primary image ID from Square's catalog data (image_ids[0])
         guard let primaryImageId = getPrimaryImageIdFromSquare(itemId: itemId) else {
-            logger.debug("⚠️ No primary image ID found in Square data for item: \(itemId)")
             return nil
         }
         
@@ -100,7 +99,6 @@ class SimpleImageService: ObservableObject {
             
             // Find the mapping for the primary image ID from Square
             if let primaryMapping = mappings.first(where: { $0.squareImageId == primaryImageId }) {
-                logger.debug("✅ Found primary image mapping for item \(itemId): \(primaryImageId)")
                 return primaryMapping.originalAwsUrl
             } else {
                 logger.warning("⚠️ Primary image ID \(primaryImageId) not found in mappings for item \(itemId)")
