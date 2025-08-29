@@ -342,6 +342,35 @@ extension PushNotificationService {
         } catch {
             logger.error("❌ Catalog sync failed for webhook event \(eventId): \(error)")
             
+            // Handle authentication failures specifically
+            if let apiError = error as? SquareAPIError, case .authenticationFailed = apiError {
+                logger.error("[PushNotification] Authentication failed during webhook sync - clearing tokens and notifying user")
+                
+                // Clear invalid tokens
+                let tokenService = SquareAPIServiceFactory.createTokenService()
+                try? await tokenService.clearAuthData()
+                
+                // Update auth state
+                let apiService = SquareAPIServiceFactory.createService()
+                apiService.setAuthenticated(false)
+                
+                // Notify user
+                await MainActor.run {
+                    WebhookNotificationService.shared.addAuthenticationFailureNotification()
+                    ToastNotificationService.shared.showError("Square authentication expired. Please reconnect in Profile.")
+                }
+            } else {
+                // For non-auth errors, still create a notification
+                await MainActor.run {
+                    WebhookNotificationService.shared.addWebhookNotification(
+                        title: "Sync Failed",
+                        message: "Failed to sync catalog: \(error.localizedDescription)",
+                        type: .error,
+                        eventType: "webhook.sync.failed"
+                    )
+                }
+            }
+            
             // Post notification about sync failure
             NotificationCenter.default.post(
                 name: NSNotification.Name("catalogSyncFailed"),

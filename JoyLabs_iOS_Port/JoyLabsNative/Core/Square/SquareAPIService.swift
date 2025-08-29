@@ -239,6 +239,16 @@ class SquareAPIService: ObservableObject {
         
         logger.info("User signed out successfully")
     }
+    
+    /// Set authenticated state (for handling auth failures)
+    func setAuthenticated(_ authenticated: Bool) {
+        isAuthenticated = authenticated
+        if !authenticated {
+            authenticationState = .unauthenticated
+            currentMerchant = nil
+            logger.info("Authentication state set to: \(authenticated)")
+        }
+    }
 
 
 

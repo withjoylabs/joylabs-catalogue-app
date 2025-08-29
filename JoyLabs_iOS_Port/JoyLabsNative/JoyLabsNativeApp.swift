@@ -217,6 +217,25 @@ struct JoyLabsNativeApp: App {
         } catch {
             logger.error("[App] App launch catch-up sync failed: \(error)")
             
+            // Handle authentication failures specifically
+            if let apiError = error as? SquareAPIError, case .authenticationFailed = apiError {
+                logger.error("[App] Authentication failed during app launch sync - clearing tokens and notifying user")
+                
+                // Clear invalid tokens
+                let tokenService = SquareAPIServiceFactory.createTokenService()
+                try? await tokenService.clearAuthData()
+                
+                // Update auth state
+                let apiService = SquareAPIServiceFactory.createService()
+                apiService.setAuthenticated(false)
+                
+                // Notify user
+                await MainActor.run {
+                    WebhookNotificationService.shared.addAuthenticationFailureNotification()
+                    ToastNotificationService.shared.showError("Square authentication expired. Please reconnect in Profile.")
+                }
+            }
+            
             // Post notification about sync failure
             NotificationCenter.default.post(
                 name: NSNotification.Name("catalogSyncFailed"),

@@ -212,6 +212,20 @@ extension WebhookNotificationService {
         addNotification(notification)
     }
     
+    /// Add authentication failure notification
+    func addAuthenticationFailureNotification() {
+        let notification = WebhookNotification(
+            title: "Authentication Failed",
+            message: "Square authentication expired. Please reconnect in Profile.",
+            type: .error,
+            eventType: "auth.failed",
+            timestamp: Date()
+        )
+        
+        addNotification(notification)
+        logger.error("[WebhookNotification] Authentication failure notification added")
+    }
+    
     /// Add a system notification
     private func addSystemNotification(_ message: String, type: WebhookNotificationType) {
         let notification = WebhookNotification(

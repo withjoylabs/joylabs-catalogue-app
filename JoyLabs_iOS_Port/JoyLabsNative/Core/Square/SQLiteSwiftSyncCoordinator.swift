@@ -167,6 +167,28 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
                 await MainActor.run { [weak self] in
                     guard let self = self else { return }
                     self.logger.error("[SyncCoordinator] Manual sync failed: \(error)")
+                    
+                    // Handle authentication failures specifically
+                    if let apiError = error as? SquareAPIError, case .authenticationFailed = apiError {
+                        self.logger.error("[SyncCoordinator] Authentication failed - clearing tokens and notifying user")
+                        
+                        Task {
+                            // Clear invalid tokens
+                            let tokenService = SquareAPIServiceFactory.createTokenService()
+                            try? await tokenService.clearAuthData()
+                            
+                            // Update auth state
+                            let apiService = SquareAPIServiceFactory.createService()
+                            apiService.setAuthenticated(false)
+                            
+                            // Notify user
+                            await MainActor.run {
+                                WebhookNotificationService.shared.addAuthenticationFailureNotification()
+                                ToastNotificationService.shared.showError("Square authentication expired. Please reconnect in Profile.")
+                            }
+                        }
+                    }
+                    
                     self.error = error
                     self.syncState = .idle
                 }
@@ -264,6 +286,28 @@ class SQLiteSwiftSyncCoordinator: ObservableObject {
                 await MainActor.run { [weak self] in
                     guard let self = self else { return }
                     self.logger.error("[SyncCoordinator] ❌ Incremental sync failed: \(error)")
+                    
+                    // Handle authentication failures specifically
+                    if let apiError = error as? SquareAPIError, case .authenticationFailed = apiError {
+                        self.logger.error("[SyncCoordinator] Authentication failed - clearing tokens and notifying user")
+                        
+                        Task {
+                            // Clear invalid tokens
+                            let tokenService = SquareAPIServiceFactory.createTokenService()
+                            try? await tokenService.clearAuthData()
+                            
+                            // Update auth state
+                            let apiService = SquareAPIServiceFactory.createService()
+                            apiService.setAuthenticated(false)
+                            
+                            // Notify user
+                            await MainActor.run {
+                                WebhookNotificationService.shared.addAuthenticationFailureNotification()
+                                ToastNotificationService.shared.showError("Square authentication expired. Please reconnect in Profile.")
+                            }
+                        }
+                    }
+                    
                     self.logger.warning("[SyncCoordinator] ⚠️ No lastSyncResult will be set due to sync failure")
                     self.error = error
                     self.syncState = .idle
