@@ -86,15 +86,31 @@ struct SearchResultItem: Identifiable, Hashable {
     let caseUpcData: CaseUpcData?
     let hasTax: Bool
 
-    // Hashable conformance
+    // Hashable conformance - includes ALL mutable fields so SwiftUI detects changes
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
         hasher.combine(matchType)
         hasher.combine(isFromCaseUpc)
+        hasher.combine(price)        // ✅ Now detects price changes
+        hasher.combine(name)         // ✅ Now detects name changes
+        hasher.combine(sku)          // ✅ Now detects SKU changes
+        hasher.combine(barcode)      // ✅ Now detects barcode changes
+        hasher.combine(categoryName) // ✅ Now detects category changes
+        hasher.combine(variationName) // ✅ Now detects variation name changes
+        hasher.combine(hasTax)       // ✅ Now detects tax status changes
     }
 
     static func == (lhs: SearchResultItem, rhs: SearchResultItem) -> Bool {
-        return lhs.id == rhs.id && lhs.matchType == rhs.matchType && lhs.isFromCaseUpc == rhs.isFromCaseUpc
+        return lhs.id == rhs.id && 
+               lhs.matchType == rhs.matchType && 
+               lhs.isFromCaseUpc == rhs.isFromCaseUpc &&
+               lhs.price == rhs.price &&        // ✅ Now compares price
+               lhs.name == rhs.name &&          // ✅ Now compares name  
+               lhs.sku == rhs.sku &&            // ✅ Now compares SKU
+               lhs.barcode == rhs.barcode &&    // ✅ Now compares barcode
+               lhs.categoryName == rhs.categoryName && // ✅ Now compares category
+               lhs.variationName == rhs.variationName && // ✅ Now compares variation name
+               lhs.hasTax == rhs.hasTax         // ✅ Now compares tax status
     }
 }
 

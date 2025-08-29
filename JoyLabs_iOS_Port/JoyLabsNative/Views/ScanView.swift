@@ -82,27 +82,15 @@ struct ScanView: View {
             // DISABLED: Auto-focus removed for dual-mode scanning
             // Text field can be manually focused for keyboard input
             // HID scanner works globally without focus requirement
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .catalogSyncCompleted)) { _ in
-            // Refresh search results when catalog sync completes (for webhook updates)
-            if let currentTerm = searchManager.currentSearchTerm {
-                let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
-                searchManager.performSearchWithDebounce(searchTerm: currentTerm, filters: filters)
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .imageUpdated)) { notification in
-            // Refresh search results when image is updated (for real-time image updates)
-            if let currentTerm = searchManager.currentSearchTerm {
-                let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
-                searchManager.performSearchWithDebounce(searchTerm: currentTerm, filters: filters)
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .forceImageRefresh)) { notification in
-            // Force refresh of search results when images need to be refreshed
-            if let currentTerm = searchManager.currentSearchTerm {
-                let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
-                searchManager.performSearchWithDebounce(searchTerm: currentTerm, filters: filters)
-            }
+            
+            // Setup centralized item update manager with ScanView's SearchManager
+            // This ensures the global service can update this view's search results
+            let catalogStatsService = CatalogStatsService()
+            CentralItemUpdateManager.shared.setup(
+                searchManager: searchManager,
+                reorderDataManager: ReorderDataManager(), // Placeholder - will be replaced by ReordersView
+                catalogStatsService: catalogStatsService
+            )
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("GlobalBarcodeScanned"))) { notification in
             // Handle global barcode scan from app-level HID scanner
@@ -242,7 +230,7 @@ struct SearchResultsView: View {
             } else if searchManager.searchResults.isEmpty {
                 NoResultsView(searchManager: searchManager, originalSearchQuery: originalSearchQuery)
             } else {
-                SearchResultsList(results: searchManager.searchResults, searchManager: searchManager)
+                SearchResultsList(searchManager: searchManager)
             }
         }
     }
@@ -338,15 +326,8 @@ struct NoResultsView: View {
                         // Dismiss the modal
                         showingItemDetails = false
                         
-                        // Refresh search results using SearchRefreshService
-                        // Use the best available query for refresh
-                        let queryForRefresh = !originalSearchQuery.isEmpty ? originalSearchQuery : searchManager.currentSearchTerm
-                        if let refreshQuery = queryForRefresh {
-                            SearchRefreshService.shared.refreshSearchAfterSave(
-                                with: refreshQuery,
-                                searchManager: searchManager
-                            )
-                        }
+                        // NOTE: Search refresh is now handled automatically by SquareCRUDService 
+                        // via catalogSyncCompleted notifications. No manual refresh needed.
                     }
                 )
                 .fullScreenModal()
@@ -423,13 +404,12 @@ struct CreateItemButtons: View {
 }
 
 struct SearchResultsList: View {
-    let results: [SearchResultItem]
     @ObservedObject var searchManager: SearchManager
 
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
-                ForEach(results) { result in
+                ForEach(searchManager.searchResults) { result in
                     SwipeableScanResultCard(
                         result: result,
                         onAddToReorder: {
@@ -451,13 +431,9 @@ struct SearchResultsList: View {
     // MARK: - Search Refresh Function
     
     private func refreshSearchResults() {
-        // Use SearchRefreshService for consistent refresh logic
-        if let currentTerm = searchManager.currentSearchTerm {
-            SearchRefreshService.shared.refreshSearchAfterSave(
-                with: currentTerm,
-                searchManager: searchManager
-            )
-        }
+        // DEPRECATED: This method is no longer needed as search refresh
+        // is handled automatically via catalogSyncCompleted notifications
+        // Keeping method stub for backward compatibility, but it does nothing
     }
     
     

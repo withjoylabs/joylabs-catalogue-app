@@ -56,7 +56,7 @@ struct ReordersView: SwiftUI.View {
     @StateObject private var viewModel = ReorderViewModel()
     @StateObject private var barcodeManager = ReorderBarcodeScanningManager(searchManager: SearchManager(databaseManager: SquareAPIServiceFactory.createDatabaseManager()))
     @StateObject private var dataManager = ReorderDataManager()
-    @StateObject private var notificationManager = ReorderNotificationManager()
+    // NOTE: Notification handling is now centralized in CentralItemUpdateManager
     // Remove focus monitor - using direct focus state instead
     
     @FocusState private var isScannerFieldFocused: Bool
@@ -173,13 +173,8 @@ struct ReordersView: SwiftUI.View {
                         viewModel.dismissActiveSheet()
                         viewModel.loadReorderData() // Refresh reorder data after edit
                         
-                        // CRITICAL: Also refresh any active search results
-                        if let currentTerm = viewModel.searchManager.currentSearchTerm {
-                            SearchRefreshService.shared.refreshSearchAfterSave(
-                                with: currentTerm,
-                                searchManager: viewModel.searchManager
-                            )
-                        }
+                        // NOTE: Search refresh is now handled automatically by SquareCRUDService 
+                        // via catalogSyncCompleted notifications. No manual refresh needed.
                     }
                 )
                 .fullScreenModal()
@@ -210,7 +205,14 @@ struct ReordersView: SwiftUI.View {
     private func setupViewModels() {
         barcodeManager.setViewModel(viewModel)
         dataManager.setViewModel(viewModel)
-        notificationManager.setup(dataManager: dataManager, barcodeManager: barcodeManager)
+        
+        // Setup centralized item update manager with ReordersView services
+        // This ensures the global service can update this view's data
+        CentralItemUpdateManager.shared.setup(
+            searchManager: barcodeManager.searchManager, // Use the same SearchManager instance
+            reorderDataManager: dataManager,
+            reorderBarcodeManager: barcodeManager
+        )
     }
 }
 

@@ -182,11 +182,6 @@ struct CatalogManagementView: View {
                 hasInitialized = true
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .catalogSyncCompleted)) { _ in
-            // Refresh statistics when sync is truly completed
-            catalogStatsService.refreshStats()
-            logger.debug("📊 Statistics refreshed after sync completion")
-        }
         // Modal presentations
         .sheet(isPresented: $showingSyncConfirmation) {
             SyncConfirmationModal(

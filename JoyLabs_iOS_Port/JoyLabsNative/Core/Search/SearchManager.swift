@@ -488,6 +488,79 @@ class SearchManager: ObservableObject {
         }
     }
     
+    // MARK: - Targeted Item Updates (No Full Refresh)
+    
+    /// Updates a specific item in search results without full refresh
+    func updateItemInSearchResults(itemId: String) {
+        print("🔍 [SearchManager] updateItemInSearchResults called for itemId: \(itemId)")
+        
+        guard let db = databaseManager.getConnection() else { 
+            print("❌ [SearchManager] Database connection failed")
+            return 
+        }
+        
+        print("🔍 [SearchManager] Current search results count: \(searchResults.count)")
+        
+        // Find the item index in current search results
+        guard let index = searchResults.firstIndex(where: { $0.id == itemId }) else {
+            print("⚠️ [SearchManager] Item \(itemId) not found in current search results - no update needed")
+            return
+        }
+        
+        print("✅ [SearchManager] Found item \(itemId) at index \(index)")
+        
+        // Get the existing item to preserve match context
+        let existingItem = searchResults[index]
+        let oldPrice = existingItem.price
+        
+        print("🔍 [SearchManager] Existing item price: \(oldPrice ?? 0.0)")
+        
+        // Fetch updated item data from database
+        if let updatedItem = getCompleteItemData(
+            itemId: itemId, 
+            db: db, 
+            matchType: existingItem.matchType,
+            matchContext: existingItem.matchContext
+        ) {
+            let newPrice = updatedItem.price
+            print("🔄 [SearchManager] Updated item price: \(newPrice ?? 0.0)")
+            
+            // Replace only this item in the array
+            searchResults[index] = updatedItem
+            print("✅ [SearchManager] Successfully updated item \(itemId) in search results (price: \(oldPrice ?? 0.0) → \(newPrice ?? 0.0))")
+            // SwiftUI will automatically detect the change and update the UI
+        } else {
+            print("❌ [SearchManager] Failed to fetch updated item data for \(itemId)")
+        }
+    }
+    
+    /// Removes a specific item from search results
+    func removeItemFromSearchResults(itemId: String) {
+        searchResults.removeAll { $0.id == itemId }
+    }
+    
+    /// Checks if a newly created item should appear in current search results
+    func itemMatchesCurrentSearch(itemId: String) -> Bool {
+        guard let currentTerm = currentSearchTerm,
+              !currentTerm.isEmpty,
+              let db = databaseManager.getConnection() else {
+            return false
+        }
+        
+        // Fetch the new item to check if it matches current search criteria
+        if let newItem = getCompleteItemData(itemId: itemId, db: db, matchType: "name") {
+            // Check if any of the item's fields match the current search term
+            let searchTerm = currentTerm.lowercased()
+            
+            if let name = newItem.name?.lowercased(), name.contains(searchTerm) { return true }
+            if let sku = newItem.sku?.lowercased(), sku.contains(searchTerm) { return true }
+            if let barcode = newItem.barcode?.lowercased(), barcode.contains(searchTerm) { return true }
+            if let category = newItem.categoryName?.lowercased(), category.contains(searchTerm) { return true }
+        }
+        
+        return false
+    }
+    
     private func combineAndDeduplicateResults(
         localResults: [SearchResultItem],
         caseUpcResults: [SearchResultItem]

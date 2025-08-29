@@ -39,7 +39,6 @@
 		611221FE14DD319E9DC39D50 /* ItemEcommerceSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AFAF5D9F92448678D1A1EE2 /* ItemEcommerceSection.swift */; };
 		62E17EEFBD0A30493327D374 /* ViewExtensions+ModalPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EFA46CC1207E812F353D29F /* ViewExtensions+ModalPresentation.swift */; };
 		633EAA03A1AACAFBDA6DCEC6 /* WebhookService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CB9D6E0060770E50822CE1D /* WebhookService.swift */; };
-		650A7CCFBEA21A000914E79B /* SearchRefreshService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B7C10B3ADF6BBE5BBD90995 /* SearchRefreshService.swift */; };
 		65577A06B7D6A9FED610402A /* ReorderPhotoCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F32EEA3114D99A383F2B69FC /* ReorderPhotoCard.swift */; };
 		690DEB5BE22908836C5ABF87 /* SimpleImageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BF09157ED1FEE7951EC8474 /* SimpleImageService.swift */; };
 		6EA41FDD40E6B3236E5DC902 /* FloatingActionButtons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3773602C0EF0A589CED63975 /* FloatingActionButtons.swift */; };
@@ -139,7 +138,6 @@
 		16B4FF1AB7482AE61C22D7F0 /* DuplicateDetectionService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DuplicateDetectionService.swift; path = Components/DuplicateDetectionService.swift; sourceTree = "<group>"; };
 		19B09D874AB49F7514B894BB /* ReorderNotificationManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderNotificationManager.swift; path = JoyLabsNative/ViewModels/ReorderNotificationManager.swift; sourceTree = "<group>"; };
 		1AFF25D6F4AAE782EEF291F9 /* LabelLiveSettings.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LabelLiveSettings.swift; path = Models/LabelLiveSettings.swift; sourceTree = "<group>"; };
-		1B7C10B3ADF6BBE5BBD90995 /* SearchRefreshService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SearchRefreshService.swift; path = Core/Services/SearchRefreshService.swift; sourceTree = "<group>"; };
 		1C929C41C8E9A90056B333C4 /* ReorderStatisticsCalculator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderStatisticsCalculator.swift; path = JoyLabsNative/Utils/ReorderStatisticsCalculator.swift; sourceTree = "<group>"; };
 		1E5A87F50DC4826C17C46DD0 /* ItemDetailsBasicSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsBasicSection.swift; path = Components/ItemDetailsBasicSection.swift; sourceTree = "<group>"; };
 		24FCFC0D136AEF6740D9E682 /* ItemLocationOverridesSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemLocationOverridesSection.swift; path = Components/ItemLocationOverridesSection.swift; sourceTree = "<group>"; };
@@ -580,7 +578,6 @@
 				D7606A3222698687642B402D /* LabelLivePrintService.swift */,
 				7CCA9B512044EB597E9B73C7 /* DeferredImageUploadManager.swift */,
 				D0306C22956C0D740D67567F /* ConfirmationDialogService.swift */,
-				1B7C10B3ADF6BBE5BBD90995 /* SearchRefreshService.swift */,
 				55BCF27BAD920DC02CC1E42D /* ToastWindowManager.swift */,
 				9FF78A1593BC7C4F813F02A7 /* ReorderExportService.swift */,
 				CA8C5B246DFF28C031178155 /* LocationCacheManager.swift */,
@@ -785,7 +782,6 @@
 				EF1ED1F1B0F29A02EF984D10 /* ConfirmationDialogService.swift in Sources */,
 				E77F480F2ACB4170199D8A95 /* CustomConfirmationDialog.swift in Sources */,
 				365F26C4447BAB5ECB3E7AB8 /* ZoomableImageView.swift in Sources */,
-				650A7CCFBEA21A000914E79B /* SearchRefreshService.swift in Sources */,
 				A135F89195224732ABA3AAF3 /* ToastWindowManager.swift in Sources */,
 				40F3A250FFE903C7168EECC4 /* ShareSheetView.swift in Sources */,
 				39D14EE39E617F642FD943A9 /* ExportOptionsModal.swift in Sources */,

@@ -141,23 +141,20 @@ struct ItemDetailsModal: View {
         .onAppear {
             print("[ItemDetailsModal] onAppear called for context: \(context)")
             setupForContext()
+            
+            // Register with centralized item update manager for automatic refresh
+            if case .editExisting(let itemId) = context {
+                CentralItemUpdateManager.shared.registerItemDetailsModal(itemId: itemId, viewModel: viewModel)
+            }
         }
         .onDisappear {
             // Only reset when modal is actually being dismissed (not during presentation animation)
             // We'll let the parent handle modal lifecycle properly
             print("[ItemDetailsModal] onDisappear called")
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .catalogSyncCompleted)) { _ in
-            // Refresh item data when catalog sync completes (for webhook updates)
-            // Add defensive check to prevent race conditions during modal presentation
+            
+            // Unregister from centralized item update manager
             if case .editExisting(let itemId) = context {
-                logger.info("Catalog sync completed - refreshing item data for \(itemId)")
-                // Small delay to ensure modal is fully loaded before responding to notifications
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    Task {
-                        await viewModel.refreshItemData(itemId: itemId)
-                    }
-                }
+                CentralItemUpdateManager.shared.unregisterItemDetailsModal(itemId: itemId)
             }
         }
         .withConfirmationDialog()

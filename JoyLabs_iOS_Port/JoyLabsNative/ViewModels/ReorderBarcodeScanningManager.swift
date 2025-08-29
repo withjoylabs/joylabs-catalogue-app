@@ -6,7 +6,7 @@ class ReorderBarcodeScanningManager: ObservableObject {
     @Published var scannerSearchText = ""
     @Published var isProcessingBarcode = false
     
-    private let searchManager: SearchManager
+    let searchManager: SearchManager  // Made public for CentralItemUpdateManager access
     private weak var viewModel: ReorderViewModel?
     
     init(searchManager: SearchManager) {

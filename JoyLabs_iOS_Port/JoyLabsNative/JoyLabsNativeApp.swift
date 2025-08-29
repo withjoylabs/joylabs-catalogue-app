@@ -87,7 +87,11 @@ struct JoyLabsNativeApp: App {
         let _ = NotificationSettingsService.shared
         let _ = LocationCacheManager.shared
         
-        logger.info("[App] Phase 1: Critical services initialized synchronously (FieldConfig, Database, ImageCache, All Square services, Singleton services)")
+        // Initialize centralized item update manager - THE SINGLE SERVICE for all app-wide updates
+        // This will be setup with specific services in Phase 2 when views are ready
+        let _ = CentralItemUpdateManager.shared
+        
+        logger.info("[App] Phase 1: Critical services initialized synchronously (FieldConfig, Database, ImageCache, All Square services, Singleton services, CentralItemUpdateManager)")
         
         // Request push notification permissions immediately after Phase 1 completes
         logger.info("[App] Phase 1: Requesting push notification permissions...")

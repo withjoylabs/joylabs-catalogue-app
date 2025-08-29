@@ -171,8 +171,66 @@ class ReorderDataManager: ObservableObject {
         return updatedItems
     }
     
-    // MARK: - Notification-Triggered Refresh
+    // MARK: - Targeted Item Updates (No Full Refresh)
+    
+    /// Updates specific reorder items that reference the changed catalog item
+    func updateReorderItemsReferencingCatalogItem(itemId: String) async {
+        guard let viewModel = viewModel else { return }
+        
+        var reorderItems = viewModel.reorderItems
+        var hasChanges = false
+        
+        // Find all reorder items that reference this catalog item
+        for i in 0..<reorderItems.count {
+            if reorderItems[i].itemId == itemId {
+                // Fetch fresh catalog data for this specific item
+                if let freshCatalogData = await fetchCatalogData(itemId: itemId) {
+                    // Update catalog-derived properties while preserving reorder metadata
+                    reorderItems[i].name = freshCatalogData.name
+                    reorderItems[i].sku = freshCatalogData.sku
+                    reorderItems[i].barcode = freshCatalogData.barcode
+                    reorderItems[i].price = freshCatalogData.price
+                    reorderItems[i].categoryName = freshCatalogData.categoryName
+                    reorderItems[i].hasTax = freshCatalogData.hasTax
+                    reorderItems[i].vendor = freshCatalogData.vendor
+                    reorderItems[i].caseUpc = freshCatalogData.caseUpc
+                    reorderItems[i].caseCost = freshCatalogData.caseCost
+                    reorderItems[i].caseQuantity = freshCatalogData.caseQuantity
+                    reorderItems[i].imageUrl = freshCatalogData.imageUrl
+                    
+                    hasChanges = true
+                    print("🔄 Updated reorder item referencing catalog item: \(itemId)")
+                }
+            }
+        }
+        
+        if hasChanges {
+            await MainActor.run {
+                viewModel.reorderItems = reorderItems
+                saveReorderData(reorderItems)
+            }
+        }
+    }
+    
+    /// Removes reorder items that reference a deleted catalog item
+    func removeReorderItemsReferencingCatalogItem(itemId: String) async {
+        guard let viewModel = viewModel else { return }
+        
+        let originalCount = viewModel.reorderItems.count
+        let filteredItems = viewModel.reorderItems.filter { $0.itemId != itemId }
+        
+        if filteredItems.count < originalCount {
+            await MainActor.run {
+                viewModel.reorderItems = filteredItems
+                saveReorderData(filteredItems)
+            }
+            print("🗑️ Removed reorder items referencing deleted catalog item: \(itemId)")
+        }
+    }
+    
+    // MARK: - DEPRECATED: Full Refresh Methods (will be removed)
     func handleCatalogSyncCompleted() async {
+        // DEPRECATED: This method performs full refresh - will be replaced by targeted updates
         guard let viewModel = viewModel else { return }
         
         print("🔄 Catalog sync completed - refreshing reorder items data")
@@ -205,6 +263,110 @@ class ReorderDataManager: ObservableObject {
         await MainActor.run {
             viewModel.reorderItems = refreshedItems
             saveReorderData(refreshedItems)
+        }
+    }
+    
+    // MARK: - Universal Item Data Fetcher
+    
+    /// Fetches complete catalog data for a single item
+    private func fetchCatalogData(itemId: String) async -> CatalogData? {
+        let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
+        guard let db = databaseManager.getConnection() else {
+            return nil
+        }
+        
+        do {
+            // Query catalog_items table
+            let itemQuery = CatalogTableDefinitions.catalogItems
+                .select(CatalogTableDefinitions.itemName,
+                       CatalogTableDefinitions.itemCategoryName,
+                       CatalogTableDefinitions.itemReportingCategoryName,
+                       CatalogTableDefinitions.itemDataJson)
+                .filter(CatalogTableDefinitions.itemId == itemId)
+                .filter(CatalogTableDefinitions.itemIsDeleted == false)
+            
+            guard let itemRow = try db.pluck(itemQuery) else {
+                return nil
+            }
+            
+            // Get item data
+            let name = try? itemRow.get(CatalogTableDefinitions.itemName)
+            let reportingCategoryName = try? itemRow.get(CatalogTableDefinitions.itemReportingCategoryName)
+            let regularCategoryName = try? itemRow.get(CatalogTableDefinitions.itemCategoryName)
+            let categoryName = reportingCategoryName ?? regularCategoryName
+            let dataJson = try? itemRow.get(CatalogTableDefinitions.itemDataJson)
+            
+            // Get variation data
+            let variationQuery = CatalogTableDefinitions.itemVariations
+                .select(CatalogTableDefinitions.variationPriceAmount,
+                       CatalogTableDefinitions.variationSku,
+                       CatalogTableDefinitions.variationUpc)
+                .filter(CatalogTableDefinitions.variationItemId == itemId)
+                .filter(CatalogTableDefinitions.variationIsDeleted == false)
+                .limit(1)
+            
+            var price: Double? = nil
+            var sku: String? = nil
+            var barcode: String? = nil
+            
+            if let variationRow = try db.pluck(variationQuery) {
+                let priceAmount = try? variationRow.get(CatalogTableDefinitions.variationPriceAmount)
+                if let amount = priceAmount, amount > 0 {
+                    let convertedPrice = Double(amount) / 100.0
+                    if convertedPrice.isFinite && !convertedPrice.isNaN && convertedPrice > 0 {
+                        price = convertedPrice
+                    }
+                }
+                sku = try? variationRow.get(CatalogTableDefinitions.variationSku)
+                barcode = try? variationRow.get(CatalogTableDefinitions.variationUpc)
+            }
+            
+            // Get team data
+            let teamQuery = CatalogTableDefinitions.teamData
+                .select(CatalogTableDefinitions.teamVendor,
+                       CatalogTableDefinitions.teamCaseUpc,
+                       CatalogTableDefinitions.teamCaseCost,
+                       CatalogTableDefinitions.teamCaseQuantity)
+                .filter(CatalogTableDefinitions.teamDataItemId == itemId)
+                .limit(1)
+            
+            var vendor: String? = nil
+            var caseUpc: String? = nil
+            var caseCost: Double? = nil
+            var caseQuantity: Int? = nil
+            
+            if let teamRow = try db.pluck(teamQuery) {
+                vendor = try? teamRow.get(CatalogTableDefinitions.teamVendor)
+                caseUpc = try? teamRow.get(CatalogTableDefinitions.teamCaseUpc)
+                caseCost = try? teamRow.get(CatalogTableDefinitions.teamCaseCost)
+                if let caseQty = try? teamRow.get(CatalogTableDefinitions.teamCaseQuantity) {
+                    caseQuantity = Int(caseQty)
+                }
+            }
+            
+            // Get tax info
+            let hasTax = checkItemHasTaxFromDataJson(dataJson)
+            
+            // Get image URL
+            let imageUrl = await getPrimaryImageForReorderItem(itemId: itemId)
+            
+            return CatalogData(
+                name: name ?? "Unknown Item",
+                sku: sku,
+                barcode: barcode,
+                price: price,
+                categoryName: categoryName,
+                hasTax: hasTax,
+                vendor: vendor,
+                caseUpc: caseUpc,
+                caseCost: caseCost,
+                caseQuantity: caseQuantity,
+                imageUrl: imageUrl
+            )
+            
+        } catch {
+            print("❌ [ReorderDataManager] Failed to fetch catalog data for item \(itemId): \(error)")
+            return nil
         }
     }
     
@@ -242,4 +404,21 @@ class ReorderDataManager: ObservableObject {
         
         return (total: totalItems, unpurchased: unpurchasedItems, purchased: purchasedItems, totalQuantity: totalQuantity)
     }
+}
+
+// MARK: - Supporting Data Structures
+
+/// Represents complete catalog data for a single item
+private struct CatalogData {
+    let name: String
+    let sku: String?
+    let barcode: String?
+    let price: Double?
+    let categoryName: String?
+    let hasTax: Bool
+    let vendor: String?
+    let caseUpc: String?
+    let caseCost: Double?
+    let caseQuantity: Int?
+    let imageUrl: String?
 }

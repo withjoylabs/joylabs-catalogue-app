@@ -165,8 +165,12 @@ struct ContentView: View {
             case 1: hidScannerContext.setContext(.reordersView)
             default: hidScannerContext.setContext(.none)
             }
+            
+            // NOTE: Centralized item update manager is setup by individual views
+            // with their specific service instances to ensure proper updates
         }
     }
+    
     
     // MARK: - Global Barcode Handler
     private func handleGlobalBarcodeScan(barcode: String, context: HIDScannerContext) {
