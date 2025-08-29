@@ -381,8 +381,9 @@ class ReorderViewModel: ObservableObject {
                     .filter(CatalogTableDefinitions.itemIsDeleted == false)
                 
                 guard let itemRow = try db.pluck(itemQuery) else {
-                    print("⚠️ [ReorderRefresh] Item not found in database: \(item.itemId)")
-                    updatedItems.append(item)
+                    // Item not found or is deleted - skip it (don't add to updated items)
+                    print("⚠️ [ReorderRefresh] Item not found or deleted, removing from reorder list: \(item.itemId)")
+                    // Don't add to updatedItems - effectively removes it from the list
                     continue
                 }
                 

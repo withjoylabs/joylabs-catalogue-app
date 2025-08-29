@@ -694,6 +694,12 @@ class ItemDetailsViewModel: ObservableObject {
             print("Cannot delete - no item ID")
             return false
         }
+        
+        // Prevent duplicate delete operations
+        guard !isSaving else {
+            print("Delete already in progress")
+            return false
+        }
 
         print("Deleting item: \(itemId)")
         isSaving = true

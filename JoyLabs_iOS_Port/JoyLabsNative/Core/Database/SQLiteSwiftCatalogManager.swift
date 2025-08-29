@@ -456,6 +456,23 @@ class SQLiteSwiftCatalogManager {
                     )
                     try db.run(fallbackInsert)
                 }
+            } else if object.isDeleted == true {
+                // Handle deleted items that have no itemData
+                // Simple update to mark the item as deleted in the database
+                logger.info("📝 Marking item \(object.id) as deleted in database")
+                let update = CatalogTableDefinitions.catalogItems
+                    .filter(CatalogTableDefinitions.itemId == object.id)
+                    .update(
+                        CatalogTableDefinitions.itemIsDeleted <- true,
+                        CatalogTableDefinitions.itemUpdatedAt <- timestamp,
+                        CatalogTableDefinitions.itemVersion <- String(object.safeVersion)
+                    )
+                let rowsUpdated = try db.run(update)
+                if rowsUpdated > 0 {
+                    logger.info("✅ Successfully marked item \(object.id) as deleted in database")
+                } else {
+                    logger.warning("⚠️ No rows updated when marking item \(object.id) as deleted - item may not exist")
+                }
             }
             
         case "ITEM_VARIATION":

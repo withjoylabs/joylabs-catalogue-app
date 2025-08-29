@@ -137,8 +137,9 @@ struct ScanView: View {
                 return
             }
 
-            // Only trigger search if field is focused and has content
-            guard isSearchFieldFocused && !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            // Only trigger search if there's content
+            // Note: Removed focus requirement as it breaks search after modal dismissal
+            guard !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 return
             }
 

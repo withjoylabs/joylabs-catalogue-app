@@ -97,6 +97,7 @@ struct ItemDetailsModal: View {
                     context: context,
                     viewModel: viewModel,
                     onSave: handleSave,
+                    onDismiss: onDismiss,
                     onVariationPrint: handleVariationPrint
                 )
 
@@ -500,6 +501,7 @@ struct ItemDetailsContent: View {
     let context: ItemDetailsContext
     @ObservedObject var viewModel: ItemDetailsViewModel
     let onSave: () -> Void
+    let onDismiss: () -> Void
     let onVariationPrint: (ItemDetailsVariationData, @escaping (Bool) -> Void) -> Void
     @StateObject private var configManager = FieldConfigurationManager.shared
     
@@ -518,7 +520,10 @@ struct ItemDetailsContent: View {
                     }
 
                     // Delete Button Section (always last)
-                    ItemDeleteSection(viewModel: viewModel)
+                    ItemDeleteSection(
+                        viewModel: viewModel,
+                        onDismiss: onDismiss
+                    )
 
                     // Bottom spacing for floating buttons and keyboard
                     Spacer()

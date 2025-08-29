@@ -385,7 +385,22 @@ class SquareAPIService: ObservableObject {
 
         let response = try await httpClient.deleteCatalogObject(objectId)
 
-        guard let deletedObject = response.deletedObject else {
+        // Handle both response formats from Square API
+        let deletedObject: DeletedCatalogObject
+        if let existingDeletedObject = response.deletedObject {
+            // Full deleted object returned (some Square API versions)
+            deletedObject = existingDeletedObject
+        } else if let deletedObjectIds = response.deletedObjectIds, !deletedObjectIds.isEmpty {
+            // Only deleted IDs returned (current Square API behavior)
+            // Create a minimal DeletedCatalogObject for compatibility
+            deletedObject = DeletedCatalogObject(
+                objectType: "ITEM",  // Default to ITEM type for catalog deletions
+                id: deletedObjectIds.first ?? objectId,  // Use first deleted ID or original ID
+                version: nil,  // Version not provided in this response format
+                deletedAt: ISO8601DateFormatter().string(from: Date())
+            )
+            logger.info("✅ Item deleted successfully. Deleted IDs: \(deletedObjectIds)")
+        } else {
             throw SquareAPIError.deleteFailed("No deleted object information returned")
         }
 

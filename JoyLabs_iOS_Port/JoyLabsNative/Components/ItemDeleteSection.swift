@@ -3,6 +3,7 @@ import SwiftUI
 // MARK: - Item Delete Section
 struct ItemDeleteSection: View {
     @ObservedObject var viewModel: ItemDetailsViewModel
+    let onDismiss: () -> Void
     @State private var showingDeleteConfirmation = false
     
     var body: some View {
@@ -46,26 +47,43 @@ struct ItemDeleteSection: View {
                 .padding()
                 .background(Color(.systemGray6))
                 .cornerRadius(12)
-                .alert("Delete Item", isPresented: $showingDeleteConfirmation) {
-                    Button("Cancel", role: .cancel) { }
-                    Button("Delete", role: .destructive) {
-                        handleDeleteItem()
-                    }
-                } message: {
-                    Text("Are you sure you want to delete '\(viewModel.itemData.name)'? This action cannot be undone.")
-                }
             }
+        }
+        .confirmationDialog(
+            "Delete Item",
+            isPresented: $showingDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                handleDeleteItem()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Are you sure you want to delete '\(viewModel.itemData.name)'? This action cannot be undone.")
         }
     }
     
     private func handleDeleteItem() {
         Task {
-            await viewModel.deleteItem()
+            let success = await viewModel.deleteItem()
+            if success {
+                await MainActor.run {
+                    ToastNotificationService.shared.showSuccess("Item deleted successfully")
+                    onDismiss()
+                }
+            } else {
+                await MainActor.run {
+                    ToastNotificationService.shared.showError("Failed to delete item")
+                }
+            }
         }
     }
 }
 
 #Preview {
-    ItemDeleteSection(viewModel: ItemDetailsViewModel())
-        .padding()
+    ItemDeleteSection(
+        viewModel: ItemDetailsViewModel(),
+        onDismiss: { print("Dismiss preview") }
+    )
+    .padding()
 }

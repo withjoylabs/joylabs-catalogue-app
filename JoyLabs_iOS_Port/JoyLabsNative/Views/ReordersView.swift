@@ -135,6 +135,17 @@ struct ReordersView: SwiftUI.View {
                     barcodeManager.handleGlobalBarcodeScanned(barcode)
                 }
             }
+            .onReceive(NotificationCenter.default.publisher(for: .catalogSyncCompleted)) { notification in
+                // Refresh reorder data when catalog sync completes (handles deleted items)
+                viewModel.loadReorderData()
+                
+                // Check if this was a delete operation
+                if let userInfo = notification.userInfo,
+                   let operation = userInfo["operation"] as? String,
+                   operation == "delete" {
+                    // Optional: Could show a toast here if an item was removed from reorder list
+                }
+            }
             // Export Options Modal
             .sheet(isPresented: $viewModel.showingExportModal) {
             ExportOptionsModal(
