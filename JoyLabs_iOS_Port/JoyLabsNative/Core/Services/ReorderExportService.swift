@@ -93,6 +93,13 @@ class ReorderExportService: ObservableObject {
         if fileURL != nil {
             exportStatus = "Export complete!"
             ToastNotificationService.shared.showSuccess("Export generated successfully")
+            
+            // Clean up old export files after successful export
+            Task.detached(priority: .background) {
+                await MainActor.run {
+                    self.cleanupOldExportFiles()
+                }
+            }
         } else {
             ToastNotificationService.shared.showError("Failed to generate export")
         }
@@ -181,5 +188,70 @@ class ReorderExportService: ObservableObject {
         let categories = Set(items.compactMap { $0.categoryName }).count
         
         return (itemCount, totalQuantity, totalValue, categories)
+    }
+    
+    // MARK: - File Cleanup
+    /// Clean up old export files to prevent storage buildup
+    /// Keeps only the most recent 10 files and removes files older than 7 days
+    func cleanupOldExportFiles() {
+        guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return
+        }
+        
+        let exportsDirectory = documentsDirectory.appendingPathComponent("Exports")
+        
+        do {
+            let fileURLs = try FileManager.default.contentsOfDirectory(
+                at: exportsDirectory,
+                includingPropertiesForKeys: [.creationDateKey, .fileSizeKey]
+            )
+            
+            // Filter to only export files (CSV and PDF)
+            let exportFiles = fileURLs.filter { url in
+                let ext = url.pathExtension.lowercased()
+                return ext == "csv" || ext == "pdf"
+            }
+            
+            // Sort by creation date (newest first)
+            let sortedFiles = exportFiles.sorted { url1, url2 in
+                let date1 = (try? url1.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? Date.distantPast
+                let date2 = (try? url2.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? Date.distantPast
+                return date1 > date2
+            }
+            
+            let sevenDaysAgo = Date().addingTimeInterval(-7 * 24 * 60 * 60)
+            var deletedCount = 0
+            
+            // Remove files beyond the 10 most recent OR older than 7 days
+            for (index, fileURL) in sortedFiles.enumerated() {
+                let shouldDelete = index >= 10 // Keep only 10 most recent
+                
+                if !shouldDelete {
+                    // Also check age
+                    if let creationDate = try? fileURL.resourceValues(forKeys: [.creationDateKey]).creationDate,
+                       creationDate < sevenDaysAgo {
+                        // File is older than 7 days
+                    } else {
+                        continue // Keep this file
+                    }
+                }
+                
+                // Delete the file
+                do {
+                    try FileManager.default.removeItem(at: fileURL)
+                    deletedCount += 1
+                    print("🗑️ [ReorderExportService] Cleaned up old export file: \(fileURL.lastPathComponent)")
+                } catch {
+                    print("❌ [ReorderExportService] Failed to delete export file \(fileURL.lastPathComponent): \(error)")
+                }
+            }
+            
+            if deletedCount > 0 {
+                print("✅ [ReorderExportService] Cleaned up \(deletedCount) old export files")
+            }
+            
+        } catch {
+            print("❌ [ReorderExportService] Failed to cleanup export files: \(error)")
+        }
     }
 }

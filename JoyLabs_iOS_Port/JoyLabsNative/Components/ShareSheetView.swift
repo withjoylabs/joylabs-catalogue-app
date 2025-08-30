@@ -34,10 +34,18 @@ struct ShareSheetView: UIViewControllerRepresentable {
         )
         
         controller.completionWithItemsHandler = { activityType, completed, returnedItems, error in
+            // Clean up any ShareableFileData temporary files after sharing
+            for item in activityItems {
+                if let shareableFile = item as? ShareableFileData {
+                    shareableFile.cleanup()
+                }
+            }
+            
             if let error = error {
                 print("[ShareSheet] Error: \(error.localizedDescription)")
                 onComplete?(false)
             } else {
+                print("[ShareSheet] Sharing completed: \(completed)")
                 onComplete?(completed)
             }
         }

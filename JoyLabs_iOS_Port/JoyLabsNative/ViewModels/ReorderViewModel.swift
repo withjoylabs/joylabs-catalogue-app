@@ -9,6 +9,7 @@ class ReorderViewModel: ObservableObject {
     @Published var isProcessingBarcode = false
     @Published var scannerSearchText = ""
     @Published var currentModalQuantity: Int = 1
+    @Published var hasLoadedInitialData = false  // Prevents reloading on tab switches
     
     // Filter and sort state
     @Published var sortOption: ReorderSortOption = .timeNewest
@@ -109,6 +110,19 @@ class ReorderViewModel: ObservableObject {
     }
     
     // MARK: - Data Management
+    
+    /// Loads reorder data only if it hasn't been loaded yet - prevents reloading on tab switches
+    func loadReorderDataIfNeeded() {
+        guard !hasLoadedInitialData else {
+            print("📦 Reorder data already loaded - skipping reload to preserve updates")
+            return
+        }
+        
+        hasLoadedInitialData = true
+        loadReorderData()
+    }
+    
+    /// Force loads reorder data from storage (used internally and for manual refresh)
     func loadReorderData() {
         if let data = UserDefaults.standard.data(forKey: "reorderItems"),
            let items = try? JSONDecoder().decode([ReorderItem].self, from: data) {

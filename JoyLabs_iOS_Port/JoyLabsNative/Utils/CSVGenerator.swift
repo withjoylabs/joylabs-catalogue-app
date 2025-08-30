@@ -2,31 +2,61 @@ import Foundation
 
 class CSVGenerator {
     
+    // MARK: - Category Grouping and Sorting
+    static func groupAndSortItems(_ items: [ReorderItem]) -> [(category: String, items: [ReorderItem])] {
+        // Group items by category
+        let grouped = Dictionary(grouping: items) { item in
+            item.categoryName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Uncategorized"
+        }
+        
+        // Sort categories alphabetically and items within each category
+        return grouped.map { category, categoryItems in
+            let sortedItems = categoryItems.sorted { lhs, rhs in
+                lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
+            return (category: category, items: sortedItems)
+        }.sorted { lhs, rhs in
+            // Put "Uncategorized" last
+            if lhs.category == "Uncategorized" { return false }
+            if rhs.category == "Uncategorized" { return true }
+            return lhs.category.localizedCaseInsensitiveCompare(rhs.category) == .orderedAscending
+        }
+    }
+    
     // MARK: - Generate CSV for Reorder Items
     static func generateReorderCSV(from items: [ReorderItem]) -> Data? {
         var csvString = ""
         
         // Add headers
-        let headers = ["Index", "Item Name", "Variation Name", "Category", "UPC", "SKU", "Price", "Quantity", "Status"]
+        let headers = ["Category", "Item Name", "Variation Name", "UPC", "SKU", "Price", "Quantity", "Status"]
         csvString.append(headers.map { escapeCSVField($0) }.joined(separator: ","))
         csvString.append("\n")
         
-        // Add data rows
-        for (index, item) in items.enumerated() {
-            let row = [
-                String(index + 1),
-                item.name,
-                item.variationName ?? "",
-                item.categoryName ?? "",
-                item.barcode ?? "",
-                item.sku ?? "",
-                formatPrice(item.price),
-                String(item.quantity),
-                item.status.displayName
-            ]
-            
-            csvString.append(row.map { escapeCSVField($0) }.joined(separator: ","))
+        // Group and sort items by category
+        let groupedItems = groupAndSortItems(items)
+        
+        // Add data rows organized by category
+        for categoryGroup in groupedItems {
+            // Add category section header
             csvString.append("\n")
+            csvString.append("--- \(categoryGroup.category.uppercased()) ---,,,,,,,\n")
+            
+            // Add items for this category
+            for item in categoryGroup.items {
+                let row = [
+                    item.categoryName ?? "",
+                    item.name,
+                    item.variationName ?? "",
+                    item.barcode ?? "",
+                    item.sku ?? "",
+                    formatPrice(item.price),
+                    String(item.quantity),
+                    item.status.displayName
+                ]
+                
+                csvString.append(row.map { escapeCSVField($0) }.joined(separator: ","))
+                csvString.append("\n")
+            }
         }
         
         // Add summary row

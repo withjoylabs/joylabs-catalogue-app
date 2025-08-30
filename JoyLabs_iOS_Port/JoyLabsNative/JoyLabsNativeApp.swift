@@ -114,6 +114,9 @@ struct JoyLabsNativeApp: App {
         // This will be setup with specific services in Phase 2 when views are ready
         let _ = CentralItemUpdateManager.shared
         
+        // Clean up any orphaned temporary share files from previous app sessions
+        ShareableFileData.cleanupAllTemporaryFiles()
+        
         logger.info("[App] Phase 1: Critical services initialized synchronously (FieldConfig, Database, ImageCache, All Square services, Singleton services, CentralItemUpdateManager)")
         
         // Request push notification permissions immediately after Phase 1 completes

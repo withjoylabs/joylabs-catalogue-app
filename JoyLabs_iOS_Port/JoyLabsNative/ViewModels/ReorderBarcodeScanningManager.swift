@@ -7,7 +7,8 @@ class ReorderBarcodeScanningManager: ObservableObject {
     @Published var isProcessingBarcode = false
     
     let searchManager: SearchManager  // Made public for CentralItemUpdateManager access
-    private weak var viewModel: ReorderViewModel?
+    private weak var viewModel: ReorderViewModel?  // Legacy support
+    private weak var reorderService: ReorderService?  // SwiftData support
     
     init(searchManager: SearchManager) {
         self.searchManager = searchManager
@@ -15,6 +16,10 @@ class ReorderBarcodeScanningManager: ObservableObject {
     
     func setViewModel(_ viewModel: ReorderViewModel) {
         self.viewModel = viewModel
+    }
+    
+    func setReorderService(_ service: ReorderService) {
+        self.reorderService = service
     }
     
     // MARK: - Main Barcode Handlers

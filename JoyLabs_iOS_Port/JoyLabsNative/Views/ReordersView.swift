@@ -106,7 +106,7 @@ struct ReordersView: SwiftUI.View {
         }
         .onAppear {
             setupViewModels()
-            viewModel.loadReorderData()
+            viewModel.loadReorderDataIfNeeded()  // Only loads on first appearance, not tab switches
         }
         .onChange(of: isScannerFieldFocused) { oldValue, newValue in
             // Notify ContentView of focus state changes for AppLevelHIDScanner
@@ -171,9 +171,7 @@ struct ReordersView: SwiftUI.View {
                     },
                     onSave: { itemData in
                         viewModel.dismissActiveSheet()
-                        viewModel.loadReorderData() // Refresh reorder data after edit
-                        
-                        // NOTE: Search refresh is now handled automatically by SquareCRUDService 
+                        // NOTE: Item updates are handled automatically by CentralItemUpdateManager 
                         // via catalogSyncCompleted notifications. No manual refresh needed.
                     }
                 )
@@ -209,9 +207,10 @@ struct ReordersView: SwiftUI.View {
         // Setup centralized item update manager with ReordersView services
         // This ensures the global service can update this view's data
         CentralItemUpdateManager.shared.setup(
-            searchManager: barcodeManager.searchManager, // Use the same SearchManager instance
+            searchManager: barcodeManager.searchManager, // ReordersView's SearchManager for barcode scanning
             reorderDataManager: dataManager,
-            reorderBarcodeManager: barcodeManager
+            reorderBarcodeManager: barcodeManager,
+            viewName: "ReordersView"
         )
     }
 }

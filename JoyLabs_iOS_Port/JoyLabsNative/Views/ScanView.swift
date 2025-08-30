@@ -88,8 +88,8 @@ struct ScanView: View {
             let catalogStatsService = CatalogStatsService()
             CentralItemUpdateManager.shared.setup(
                 searchManager: searchManager,
-                reorderDataManager: ReorderDataManager(), // Placeholder - will be replaced by ReordersView
-                catalogStatsService: catalogStatsService
+                catalogStatsService: catalogStatsService,
+                viewName: "ScanView"
             )
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("GlobalBarcodeScanned"))) { notification in

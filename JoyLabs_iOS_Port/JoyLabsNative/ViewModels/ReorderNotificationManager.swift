@@ -10,10 +10,16 @@ class CentralItemUpdateManager: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     
     // CENTRALIZED: All managers that need item updates
-    private weak var searchManager: SearchManager?
-    private weak var reorderDataManager: ReorderDataManager?
+    // Using arrays to support multiple instances (e.g., multiple SearchManagers from different views)
+    private var searchManagers: [WeakReference<SearchManager>] = []
+    private weak var reorderDataManager: ReorderDataManager?  // Legacy - will be removed
     private weak var reorderBarcodeManager: ReorderBarcodeScanningManager?
     private weak var catalogStatsService: CatalogStatsService?
+    
+    // SwiftData service (single source of truth)
+    private var reorderService: ReorderService? {
+        return ReorderService.shared  // Always use the singleton
+    }
     
     // CENTRALIZED: Registry for ItemDetailsModals that need refreshing
     private var activeItemDetailsModals: [String: WeakReference<ItemDetailsViewModel>] = [:]
@@ -32,22 +38,71 @@ class CentralItemUpdateManager: ObservableObject {
         print("🎯 [CentralItemUpdateManager] Unregistered ItemDetailsModal for item: \(itemId)")
     }
     
-    /// Setup method to register ALL services that need item updates
+    /// Setup method to register services that need item updates - ADDITIVE, not destructive
+    /// Can be called multiple times from different views without overwriting existing services
     func setup(
-        searchManager: SearchManager,
-        reorderDataManager: ReorderDataManager,
+        searchManager: SearchManager? = nil,
+        reorderDataManager: ReorderDataManager? = nil,
         reorderBarcodeManager: ReorderBarcodeScanningManager? = nil,
-        catalogStatsService: CatalogStatsService? = nil
+        catalogStatsService: CatalogStatsService? = nil,
+        viewName: String = "Unknown"  // For debugging which view is registering
     ) {
-        print("🎯 [CentralItemUpdateManager] Setting up with searchManager: \(ObjectIdentifier(searchManager))")
+        print("🎯 [CentralItemUpdateManager] Setup called from \(viewName)")
         
-        self.searchManager = searchManager
-        self.reorderDataManager = reorderDataManager
-        self.reorderBarcodeManager = reorderBarcodeManager
-        self.catalogStatsService = catalogStatsService
+        // Add SearchManager if provided (supports multiple instances)
+        if let searchManager = searchManager {
+            // Clean up any dead references first
+            searchManagers.removeAll { $0.value == nil }
+            
+            // Check if this exact instance is already registered
+            let isAlreadyRegistered = searchManagers.contains { $0.value === searchManager }
+            
+            if !isAlreadyRegistered {
+                searchManagers.append(WeakReference(searchManager))
+                print("✅ [CentralItemUpdateManager] Registered SearchManager from \(viewName): \(ObjectIdentifier(searchManager))")
+            } else {
+                print("⚠️ [CentralItemUpdateManager] SearchManager from \(viewName) already registered: \(ObjectIdentifier(searchManager))")
+            }
+        }
         
-        setupNotificationObservers()
-        print("🎯 [CentralItemUpdateManager] Initialized with all app services")
+        // Only update ReorderDataManager if provided and not already set
+        if let reorderDataManager = reorderDataManager {
+            if self.reorderDataManager == nil {
+                self.reorderDataManager = reorderDataManager
+                print("✅ [CentralItemUpdateManager] Registered ReorderDataManager from \(viewName)")
+            } else if self.reorderDataManager !== reorderDataManager {
+                print("⚠️ [CentralItemUpdateManager] ReorderDataManager already set, keeping existing one")
+            }
+        }
+        
+        // Only update ReorderBarcodeManager if provided
+        if let reorderBarcodeManager = reorderBarcodeManager {
+            if self.reorderBarcodeManager == nil {
+                self.reorderBarcodeManager = reorderBarcodeManager
+                print("✅ [CentralItemUpdateManager] Registered ReorderBarcodeManager from \(viewName)")
+            }
+        }
+        
+        // Only update CatalogStatsService if provided
+        if let catalogStatsService = catalogStatsService {
+            if self.catalogStatsService == nil {
+                self.catalogStatsService = catalogStatsService
+                print("✅ [CentralItemUpdateManager] Registered CatalogStatsService from \(viewName)")
+            }
+        }
+        
+        // Setup observers only on first call
+        if cancellables.isEmpty {
+            setupNotificationObservers()
+            print("🎯 [CentralItemUpdateManager] Notification observers initialized")
+        }
+        
+        // Log current state
+        print("📊 [CentralItemUpdateManager] Current state:")
+        print("   - SearchManagers registered: \(searchManagers.compactMap { $0.value }.count)")
+        print("   - ReorderDataManager: \(reorderDataManager != nil ? "✅" : "❌")")
+        print("   - ReorderBarcodeManager: \(reorderBarcodeManager != nil ? "✅" : "❌")")
+        print("   - CatalogStatsService: \(catalogStatsService != nil ? "✅" : "❌")")
     }
     
     private func setupNotificationObservers() {
@@ -119,13 +174,17 @@ class CentralItemUpdateManager: ObservableObject {
     private func handleItemCreation(itemId: String) async {
         print("🆕 [CentralItemUpdateManager] Handling item creation: \(itemId)")
         
-        // ScanView: Check if new item matches current search criteria
-        if let searchManager = searchManager,
-           searchManager.itemMatchesCurrentSearch(itemId: itemId) {
-            // Re-run current search to naturally include new item
-            if let currentTerm = searchManager.currentSearchTerm {
-                let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
-                searchManager.performSearchWithDebounce(searchTerm: currentTerm, filters: filters)
+        // Update ALL registered SearchManagers
+        searchManagers.removeAll { $0.value == nil }  // Clean up dead references
+        for weakRef in searchManagers {
+            if let searchManager = weakRef.value,
+               searchManager.itemMatchesCurrentSearch(itemId: itemId) {
+                // Re-run current search to naturally include new item
+                if let currentTerm = searchManager.currentSearchTerm {
+                    let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
+                    searchManager.performSearchWithDebounce(searchTerm: currentTerm, filters: filters)
+                    print("🔄 [CentralItemUpdateManager] Refreshed search in SearchManager: \(ObjectIdentifier(searchManager))")
+                }
             }
         }
         
@@ -141,16 +200,36 @@ class CentralItemUpdateManager: ObservableObject {
     private func handleItemUpdate(itemId: String) async {
         print("🔄 [CentralItemUpdateManager] Handling item update: \(itemId)")
         
-        // ScanView: Update specific item in search results (no full refresh)
-        if let searchManager = searchManager {
-            print("🎯 [CentralItemUpdateManager] Calling searchManager.updateItemInSearchResults for \(itemId)")
-            searchManager.updateItemInSearchResults(itemId: itemId)
-        } else {
-            print("❌ [CentralItemUpdateManager] searchManager is nil - cannot update search results")
+        // Update ALL registered SearchManagers
+        searchManagers.removeAll { $0.value == nil }  // Clean up dead references
+        var updatedCount = 0
+        for weakRef in searchManagers {
+            if let searchManager = weakRef.value {
+                print("🎯 [CentralItemUpdateManager] Updating SearchManager \(ObjectIdentifier(searchManager)) for item: \(itemId)")
+                searchManager.updateItemInSearchResults(itemId: itemId)
+                updatedCount += 1
+            }
         }
         
-        // ReordersView: Update reorder items that reference this catalog item
-        await reorderDataManager?.updateReorderItemsReferencingCatalogItem(itemId: itemId)
+        if updatedCount == 0 {
+            print("⚠️ [CentralItemUpdateManager] No SearchManagers registered to update")
+        } else {
+            print("✅ [CentralItemUpdateManager] Updated \(updatedCount) SearchManager(s)")
+        }
+        
+        // ReordersView: Update reorder items that reference this catalog item (SwiftData)
+        if let reorderService = reorderService {
+            await reorderService.updateItemsFromCatalog(itemId: itemId)
+            print("✅ [CentralItemUpdateManager] Updated SwiftData ReorderService for item: \(itemId)")
+        } else {
+            print("⚠️ [CentralItemUpdateManager] ReorderService not available")
+        }
+        
+        // Legacy ReorderDataManager (for backward compatibility during transition)
+        if let reorderDataManager = reorderDataManager {
+            await reorderDataManager.updateReorderItemsReferencingCatalogItem(itemId: itemId)
+            print("✅ [CentralItemUpdateManager] Updated legacy ReorderDataManager for item: \(itemId)")
+        }
         
         // ReordersView: Refresh barcode search if active
         reorderBarcodeManager?.refreshSearchResults()
@@ -168,10 +247,21 @@ class CentralItemUpdateManager: ObservableObject {
     private func handleItemDeletion(itemId: String) async {
         print("🗑️ [CentralItemUpdateManager] Handling item deletion: \(itemId)")
         
-        // ScanView: Remove specific item from search results
-        searchManager?.removeItemFromSearchResults(itemId: itemId)
+        // Remove from ALL registered SearchManagers
+        searchManagers.removeAll { $0.value == nil }  // Clean up dead references
+        for weakRef in searchManagers {
+            if let searchManager = weakRef.value {
+                searchManager.removeItemFromSearchResults(itemId: itemId)
+                print("🗑️ [CentralItemUpdateManager] Removed item from SearchManager: \(ObjectIdentifier(searchManager))")
+            }
+        }
         
-        // ReordersView: Remove reorder items that reference the deleted catalog item
+        // ReordersView: Remove reorder items that reference the deleted catalog item (SwiftData)
+        if let reorderService = reorderService {
+            await reorderService.removeItemsForDeletedCatalogItem(itemId: itemId)
+        }
+        
+        // Legacy support
         await reorderDataManager?.removeReorderItemsReferencingCatalogItem(itemId: itemId)
         
         // CatalogManagementView: Refresh statistics when items are deleted
@@ -185,11 +275,15 @@ class CentralItemUpdateManager: ObservableObject {
         print("🖼️ [CentralItemUpdateManager] Handling image update across all views")
         
         Task {
-            // ScanView: Refresh search results for image updates
-            if let searchManager = searchManager,
-               let currentTerm = searchManager.currentSearchTerm {
-                let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
-                searchManager.performSearchWithDebounce(searchTerm: currentTerm, filters: filters)
+            // Update ALL registered SearchManagers
+            searchManagers.removeAll { $0.value == nil }  // Clean up dead references
+            for weakRef in searchManagers {
+                if let searchManager = weakRef.value,
+                   let currentTerm = searchManager.currentSearchTerm {
+                    let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
+                    searchManager.performSearchWithDebounce(searchTerm: currentTerm, filters: filters)
+                    print("🖼️ [CentralItemUpdateManager] Refreshed images in SearchManager: \(ObjectIdentifier(searchManager))")
+                }
             }
             
             // ReordersView: Refresh reorder data for image updates
@@ -207,11 +301,15 @@ class CentralItemUpdateManager: ObservableObject {
         print("🔄 [CentralItemUpdateManager] Handling force image refresh across all views")
         
         Task {
-            // ScanView: Force refresh search results
-            if let searchManager = searchManager,
-               let currentTerm = searchManager.currentSearchTerm {
-                let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
-                searchManager.performSearchWithDebounce(searchTerm: currentTerm, filters: filters)
+            // Force refresh ALL registered SearchManagers
+            searchManagers.removeAll { $0.value == nil }  // Clean up dead references
+            for weakRef in searchManagers {
+                if let searchManager = weakRef.value,
+                   let currentTerm = searchManager.currentSearchTerm {
+                    let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
+                    searchManager.performSearchWithDebounce(searchTerm: currentTerm, filters: filters)
+                    print("🔄 [CentralItemUpdateManager] Force refreshed SearchManager: \(ObjectIdentifier(searchManager))")
+                }
             }
             
             // ReordersView: Force refresh reorder data

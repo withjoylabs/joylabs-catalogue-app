@@ -10,26 +10,139 @@ enum PDFLayout {
 
 class PDFGenerator {
     
+    // MARK: - Category Grouping and Sorting (shared with CSVGenerator)
+    static func groupAndSortItems(_ items: [ReorderItem]) -> [(category: String, items: [ReorderItem])] {
+        // Group items by category
+        let grouped = Dictionary(grouping: items) { item in
+            item.categoryName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Uncategorized"
+        }
+        
+        // Sort categories alphabetically and items within each category
+        return grouped.map { category, categoryItems in
+            let sortedItems = categoryItems.sorted { lhs, rhs in
+                lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
+            return (category: category, items: sortedItems)
+        }.sorted { lhs, rhs in
+            // Put "Uncategorized" last
+            if lhs.category == "Uncategorized" { return false }
+            if rhs.category == "Uncategorized" { return true }
+            return lhs.category.localizedCaseInsensitiveCompare(rhs.category) == .orderedAscending
+        }
+    }
+    
     // MARK: - Main PDF Generation
     static func generateReorderPDF(from items: [ReorderItem], layout: PDFLayout) -> Data {
         let pageSize = CGSize(width: 612, height: 792) // US Letter in points
         let renderer = UIGraphicsPDFRenderer(bounds: CGRect(origin: .zero, size: pageSize))
         
         return renderer.pdfData { context in
+            // Group and sort items by category
+            let groupedItems = groupAndSortItems(items)
+            let totalItems = items.count
+            
             switch layout {
             case .grid3:
-                renderGridLayout(items: items, context: context, columns: 3)
+                renderGridLayoutWithCategories(groupedItems: groupedItems, context: context, columns: 3, totalItems: totalItems)
             case .grid5:
-                renderGridLayout(items: items, context: context, columns: 5)
+                renderGridLayoutWithCategories(groupedItems: groupedItems, context: context, columns: 5, totalItems: totalItems)
             case .grid7:
-                renderGridLayout(items: items, context: context, columns: 7)
+                renderGridLayoutWithCategories(groupedItems: groupedItems, context: context, columns: 7, totalItems: totalItems)
             case .list:
-                renderListLayout(items: items, context: context)
+                renderListLayoutWithCategories(groupedItems: groupedItems, context: context, totalItems: totalItems)
             }
         }
     }
     
-    // MARK: - Grid Layout Rendering
+    // MARK: - Grid Layout Rendering with Categories
+    private static func renderGridLayoutWithCategories(groupedItems: [(category: String, items: [ReorderItem])], context: UIGraphicsPDFRendererContext, columns: Int, totalItems: Int) {
+        let pageSize = context.format.bounds.size
+        let margin: CGFloat = 36 // 0.5 inch margins
+        let spacing: CGFloat = 8 // Reduced spacing since no borders/padding
+        let contentWidth = pageSize.width - (margin * 2)
+        let itemWidth = (contentWidth - CGFloat(columns - 1) * spacing) / CGFloat(columns)
+        let baseImageHeight = itemWidth * 0.7 // Base image size
+        let actualImageHeight = baseImageHeight * 1.2 // 20% larger images
+        let textHeight: CGFloat = columns == 3 ? 65 : 50 // More text space needed for wrapping
+        let itemHeight = actualImageHeight + textHeight
+        let categoryHeaderHeight: CGFloat = 25 // Space for category headers
+        
+        // REDUCED: Header height from 60 to 40 for better space efficiency
+        let headerHeight: CGFloat = 40
+        
+        var currentY: CGFloat = margin + headerHeight
+        var currentPage = 0
+        
+        // Calculate available content height
+        let _ = pageSize.height - margin * 2 - headerHeight // Remove unused variable
+        
+        for categoryGroup in groupedItems {
+            let itemsInCategory = categoryGroup.items.count
+            let minItemsToShow = min(3, itemsInCategory) // Show at least 3 items or all if less
+            let minItemsHeight = CGFloat(minItemsToShow) * (itemHeight + spacing) / CGFloat(columns)
+            
+            // Check if we need a new page for category header + minimum items
+            if currentY + categoryHeaderHeight + minItemsHeight > pageSize.height - margin {
+                context.beginPage()
+                currentPage += 1
+                currentY = margin + headerHeight
+                drawGridHeader(context: context, pageNumber: currentPage + 1, totalItems: totalItems, layout: columns)
+            }
+            
+            // Draw category header
+            if currentPage == 0 && categoryGroup.category == groupedItems.first?.category {
+                // First page, draw main header
+                context.beginPage()
+                currentPage = 1
+                drawGridHeader(context: context, pageNumber: currentPage, totalItems: totalItems, layout: columns)
+            }
+            
+            drawCategoryHeader(categoryName: categoryGroup.category, y: currentY, pageWidth: pageSize.width, margin: margin)
+            currentY += categoryHeaderHeight
+            
+            // Draw items in this category
+            var itemIndex = 0
+            let categoryItems = categoryGroup.items
+            
+            while itemIndex < categoryItems.count {
+                let itemsPerRow = columns
+                let rowsRemaining = Int(ceil(Double(categoryItems.count - itemIndex) / Double(itemsPerRow)))
+                let spaceNeeded = CGFloat(rowsRemaining) * (itemHeight + spacing)
+                
+                // Check if we need a new page
+                if currentY + spaceNeeded > pageSize.height - margin {
+                    context.beginPage()
+                    currentPage += 1
+                    currentY = margin + headerHeight
+                    drawGridHeader(context: context, pageNumber: currentPage, totalItems: totalItems, layout: columns)
+                }
+                
+                // Draw items in current row
+                for col in 0..<itemsPerRow {
+                    if itemIndex >= categoryItems.count { break }
+                    
+                    let x = margin + CGFloat(col) * (itemWidth + spacing)
+                    
+                    drawGridItemWithoutIndex(
+                        item: categoryItems[itemIndex],
+                        rect: CGRect(x: x, y: currentY, width: itemWidth, height: itemHeight),
+                        imageSize: baseImageHeight,
+                        fontSize: getFontSize(for: columns)
+                    )
+                    
+                    itemIndex += 1
+                }
+                
+                currentY += itemHeight + spacing
+                if itemIndex >= categoryItems.count { break }
+            }
+            
+            // Add extra space after category
+            currentY += 10
+        }
+    }
+    
+    // MARK: - Grid Layout Rendering (Legacy)
     private static func renderGridLayout(items: [ReorderItem], context: UIGraphicsPDFRendererContext, columns: Int) {
         let pageSize = context.format.bounds.size
         let margin: CGFloat = 36 // 0.5 inch margins
@@ -85,11 +198,249 @@ class PDFGenerator {
         }
     }
     
-    // MARK: - List Layout Rendering
+    // MARK: - Grid Item Drawing (Without Index Numbers for space efficiency)
+    private static func drawGridItemWithoutIndex(item: ReorderItem, rect: CGRect, imageSize: CGFloat, fontSize: CGFloat) {
+        // NO BORDERS OR ROUNDED CORNERS - completely removed for clean look
+        
+        // Calculate larger image size using recovered space from removed padding
+        let largerImageSize = imageSize * 1.2 // 20% larger images
+        
+        // Draw image or placeholder - LEFT ALIGNED with no padding
+        let imageRect = CGRect(
+            x: rect.minX, // Left aligned, no padding
+            y: rect.minY, // No top margin
+            width: largerImageSize,
+            height: largerImageSize
+        )
+        
+        if let imageUrl = item.imageUrl,
+           let url = URL(string: imageUrl),
+           let imageData = try? Data(contentsOf: url),
+           let image = UIImage(data: imageData) {
+            image.draw(in: imageRect)
+        } else {
+            // Draw white placeholder with light border (ink-efficient for printing)
+            UIColor.white.setFill()
+            UIBezierPath(rect: imageRect).fill() // No rounded corners
+            
+            // Draw very light border
+            UIColor.systemGray5.setStroke()
+            let borderPath = UIBezierPath(rect: imageRect)
+            borderPath.lineWidth = 0.5
+            borderPath.stroke()
+        }
+        
+        // Draw status indicator
+        if item.status == .purchased {
+            let checkSize: CGFloat = 20
+            let checkRect = CGRect(
+                x: imageRect.minX + 4,
+                y: imageRect.minY + 4,
+                width: checkSize,
+                height: checkSize
+            )
+            UIColor.systemGreen.setFill()
+            UIBezierPath(ovalIn: checkRect).fill()
+            
+            // Draw checkmark
+            UIColor.white.setStroke()
+            let checkPath = UIBezierPath()
+            checkPath.move(to: CGPoint(x: checkRect.minX + 5, y: checkRect.midY))
+            checkPath.addLine(to: CGPoint(x: checkRect.midX - 1, y: checkRect.maxY - 6))
+            checkPath.addLine(to: CGPoint(x: checkRect.maxX - 4, y: checkRect.minY + 5))
+            checkPath.lineWidth = 2
+            checkPath.stroke()
+        }
+        
+        // Draw text below image - LEFT ALIGNED with image, no padding
+        let textY = imageRect.maxY + 2
+        let availableWidth = rect.width
+        
+        // For 3-grid: Show name (wrapped), UPC line 1, price left + qty right line 2
+        if fontSize >= 11 { // 3-grid layout
+            let nameFont = UIFont.systemFont(ofSize: fontSize - 1, weight: .medium)
+            let detailFont = UIFont.systemFont(ofSize: fontSize - 2)
+            let lineHeight = fontSize + 1
+            
+            var currentY = textY
+            
+            // Item Name with text wrapping (no truncation)
+            let nameHeight = lineHeight * 2 // Allow 2 lines for name
+            let nameRect = CGRect(x: rect.minX, y: currentY, width: availableWidth, height: nameHeight)
+            drawWrappingText(text: item.name, rect: nameRect, font: nameFont)
+            currentY += nameHeight
+            
+            // UPC (line 1) 
+            if let upc = item.barcode, !upc.isEmpty {
+                let upcRect = CGRect(x: rect.minX, y: currentY, width: availableWidth, height: lineHeight)
+                upc.draw(in: upcRect, withAttributes: [.font: detailFont, .foregroundColor: UIColor.systemGray])
+                currentY += lineHeight
+            }
+            
+            // Price (left) and Qty (right) on same line (line 2)
+            let priceQtyRect = CGRect(x: rect.minX, y: currentY, width: availableWidth, height: lineHeight)
+            if let price = item.price {
+                let priceText = String(format: "$%.2f", price)
+                priceText.draw(in: priceQtyRect, withAttributes: [.font: detailFont, .foregroundColor: UIColor.black])
+                
+                let qtyText = "\(item.quantity)"
+                let qtySize = qtyText.size(withAttributes: [.font: detailFont])
+                let qtyRect = CGRect(x: rect.maxX - qtySize.width, y: currentY, width: qtySize.width, height: lineHeight)
+                qtyText.draw(in: qtyRect, withAttributes: [.font: detailFont, .foregroundColor: UIColor.black])
+            } else {
+                "\(item.quantity)".draw(in: priceQtyRect, withAttributes: [.font: detailFont, .foregroundColor: UIColor.black])
+            }
+            
+        } else {
+            // For 5-grid and 7-grid: Same pattern
+            let nameFont = UIFont.systemFont(ofSize: fontSize, weight: .medium) 
+            let detailFont = UIFont.systemFont(ofSize: fontSize - 1)
+            let lineHeight = fontSize + 1
+            
+            var currentY = textY
+            
+            // Item Name with text wrapping (no truncation)
+            let nameHeight = lineHeight * 2
+            let nameRect = CGRect(x: rect.minX, y: currentY, width: availableWidth, height: nameHeight)
+            drawWrappingText(text: item.name, rect: nameRect, font: nameFont)
+            currentY += nameHeight
+            
+            // UPC (line 1)
+            if let upc = item.barcode, !upc.isEmpty {
+                let upcRect = CGRect(x: rect.minX, y: currentY, width: availableWidth, height: lineHeight)
+                upc.draw(in: upcRect, withAttributes: [.font: detailFont, .foregroundColor: UIColor.systemGray])
+                currentY += lineHeight
+            }
+            
+            // Price (left) and Qty (right) on same line (line 2)
+            let priceQtyRect = CGRect(x: rect.minX, y: currentY, width: availableWidth, height: lineHeight)
+            if let price = item.price {
+                let priceText = String(format: "$%.2f", price)
+                priceText.draw(in: priceQtyRect, withAttributes: [.font: detailFont, .foregroundColor: UIColor.black])
+                
+                let qtyText = "\(item.quantity)"
+                let qtySize = qtyText.size(withAttributes: [.font: detailFont])
+                let qtyRect = CGRect(x: rect.maxX - qtySize.width, y: currentY, width: qtySize.width, height: lineHeight)
+                qtyText.draw(in: qtyRect, withAttributes: [.font: detailFont, .foregroundColor: UIColor.black])
+            } else {
+                "\(item.quantity)".draw(in: priceQtyRect, withAttributes: [.font: detailFont, .foregroundColor: UIColor.black])
+            }
+        }
+    }
+    
+    // MARK: - Text Wrapping Helper
+    private static func drawWrappingText(text: String, rect: CGRect, font: UIFont) {
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.lineBreakMode = .byWordWrapping
+        paragraphStyle.alignment = .left
+        
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: UIColor.black,
+            .paragraphStyle: paragraphStyle
+        ]
+        
+        text.draw(in: rect, withAttributes: attributes)
+    }
+    
+    // MARK: - Category Header Drawing
+    private static func drawCategoryHeader(categoryName: String, y: CGFloat, pageWidth: CGFloat, margin: CGFloat) {
+        let headerRect = CGRect(x: margin, y: y, width: pageWidth - margin * 2, height: 20)
+        
+        // Draw category name
+        let headerAttributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: 14, weight: .bold),
+            .foregroundColor: UIColor.black
+        ]
+        
+        categoryName.uppercased().draw(in: headerRect, withAttributes: headerAttributes)
+        
+        // Draw underline
+        UIColor.systemGray3.setStroke()
+        let underlinePath = UIBezierPath()
+        underlinePath.move(to: CGPoint(x: margin, y: y + 18))
+        underlinePath.addLine(to: CGPoint(x: pageWidth - margin, y: y + 18))
+        underlinePath.lineWidth = 0.5
+        underlinePath.stroke()
+    }
+    
+    // MARK: - List Layout Rendering with Categories
+    private static func renderListLayoutWithCategories(groupedItems: [(category: String, items: [ReorderItem])], context: UIGraphicsPDFRendererContext, totalItems: Int) {
+        let pageSize = context.format.bounds.size
+        let margin: CGFloat = 36
+        let rowHeight: CGFloat = 50
+        let headerHeight: CGFloat = 40 // REDUCED from 80
+        let tableHeaderHeight: CGFloat = 18 // Further reduced for tighter spacing
+        let categoryHeaderHeight: CGFloat = 25
+        
+        let contentHeight = pageSize.height - margin * 2 - headerHeight - tableHeaderHeight
+        let _ = Int(contentHeight / rowHeight) // Remove unused variable
+        
+        var currentPage = 0
+        var currentY: CGFloat = margin + headerHeight
+        
+        for categoryGroup in groupedItems {
+            let itemsInCategory = categoryGroup.items.count
+            let minItemsToShow = min(3, itemsInCategory) // Show at least 3 items or all if less
+            let minItemsHeight = CGFloat(minItemsToShow) * rowHeight
+            
+            // Check if we need a new page for category header + minimum items
+            if currentY + categoryHeaderHeight + tableHeaderHeight + minItemsHeight > pageSize.height - margin {
+                context.beginPage()
+                currentPage += 1
+                currentY = margin + headerHeight
+                drawListHeader(context: context, pageNumber: currentPage + 1, totalPages: 0, totalItems: totalItems)
+            }
+            
+            // Draw main header on first page
+            if currentPage == 0 && categoryGroup.category == groupedItems.first?.category {
+                context.beginPage()
+                currentPage = 1
+                drawListHeader(context: context, pageNumber: currentPage, totalPages: 0, totalItems: totalItems)
+            }
+            
+            // Draw category header
+            drawCategoryHeader(categoryName: categoryGroup.category, y: currentY, pageWidth: pageSize.width, margin: margin)
+            currentY += categoryHeaderHeight
+            
+            // Draw table header
+            drawListTableHeader(y: currentY, margin: margin)
+            currentY += tableHeaderHeight
+            
+            // Draw items in this category
+            var itemIndex = 0
+            let categoryItems = categoryGroup.items
+            
+            for item in categoryItems {
+                // Check if we need a new page
+                if currentY + rowHeight > pageSize.height - margin {
+                    context.beginPage()
+                    currentPage += 1
+                    currentY = margin + headerHeight
+                    drawListHeader(context: context, pageNumber: currentPage, totalPages: 0, totalItems: totalItems)
+                    
+                    // Redraw category header and table header on new page
+                    drawCategoryHeader(categoryName: categoryGroup.category, y: currentY, pageWidth: pageSize.width, margin: margin)
+                    currentY += categoryHeaderHeight
+                    drawListTableHeader(y: currentY, margin: margin)
+                    currentY += tableHeaderHeight
+                }
+                
+                drawListItem(item: item, y: currentY, isEvenRow: itemIndex % 2 == 0)
+                currentY += rowHeight
+                itemIndex += 1
+            }
+            
+            // Add extra space after category
+            currentY += 10
+        }
+    }
+    
+    // MARK: - List Layout Rendering (Legacy)
     private static func renderListLayout(items: [ReorderItem], context: UIGraphicsPDFRendererContext) {
         let pageSize = context.format.bounds.size
         let margin: CGFloat = 36
-        let rowHeight: CGFloat = 60
+        let rowHeight: CGFloat = 50
         let headerHeight: CGFloat = 80
         let tableHeaderHeight: CGFloat = 30
         
@@ -126,7 +477,6 @@ class PDFGenerator {
                 
                 drawListItem(
                     item: items[itemIndex],
-                    index: itemIndex + 1,
                     y: y,
                     isEvenRow: itemIndex % 2 == 0
                 )
@@ -172,21 +522,17 @@ class PDFGenerator {
            let image = UIImage(data: imageData) {
             image.draw(in: imageRect)
         } else {
-            // Draw placeholder
-            UIColor.systemGray5.setFill()
+            // Draw white placeholder with light border (ink-efficient for printing)
+            UIColor.white.setFill()
             UIBezierPath(roundedRect: imageRect, cornerRadius: 4).fill()
             
-            // Draw placeholder icon
-            let iconSize: CGFloat = imageSize * 0.3
-            let iconRect = CGRect(
-                x: imageRect.midX - iconSize/2,
-                y: imageRect.midY - iconSize/2,
-                width: iconSize,
-                height: iconSize
-            )
-            if let photoIcon = UIImage(systemName: "photo") {
-                photoIcon.withTintColor(.systemGray3).draw(in: iconRect)
-            }
+            // Draw very light border
+            UIColor.systemGray5.setStroke()
+            let borderPath = UIBezierPath(roundedRect: imageRect, cornerRadius: 4)
+            borderPath.lineWidth = 0.5
+            borderPath.stroke()
+            
+            // No placeholder icon - just clean white square to save ink
         }
         
         // Draw status indicator
@@ -237,74 +583,72 @@ class PDFGenerator {
     }
     
     // MARK: - List Item Drawing
-    private static func drawListItem(item: ReorderItem, index: Int, y: CGFloat, isEvenRow: Bool) {
+    private static func drawListItem(item: ReorderItem, y: CGFloat, isEvenRow: Bool) {
         let margin: CGFloat = 36
         let pageWidth: CGFloat = 612
         let contentWidth = pageWidth - margin * 2
+        let rowHeight: CGFloat = 50 // Reduced from 60 to tighten rows
         
-        // Alternating row background
+        // Very subtle alternating row background (ink-efficient)
         if isEvenRow {
-            UIColor.systemGray6.setFill()
-            UIBezierPath(rect: CGRect(x: margin, y: y, width: contentWidth, height: 60)).fill()
+            // Use extremely light gray (almost white) to save ink
+            UIColor(white: 0.97, alpha: 1.0).setFill()
+            UIBezierPath(rect: CGRect(x: margin, y: y, width: contentWidth, height: rowHeight)).fill()
         }
         
-        // Column widths
-        let indexWidth: CGFloat = 40
+        // New column widths: Image, Name, UPC, SKU, Retail, Qty (Variation removed and merged with name)
         let imageWidth: CGFloat = 50
-        let nameWidth: CGFloat = 150
-        let variationWidth: CGFloat = 80
-        let categoryWidth: CGFloat = 80
-        let upcWidth: CGFloat = 80
+        let nameWidth: CGFloat = 240    // +60pt from removed variation + existing space
+        let upcWidth: CGFloat = 90      // +20pt wider for UPC codes
         let skuWidth: CGFloat = 60
-        let priceWidth: CGFloat = contentWidth - indexWidth - imageWidth - nameWidth - variationWidth - categoryWidth - upcWidth - skuWidth
+        let priceWidth: CGFloat = 70
+        let qtyWidth: CGFloat = contentWidth - imageWidth - nameWidth - upcWidth - skuWidth - priceWidth
         
         var x = margin
+        let upcFontSize: CGFloat = 9 // Use UPC font size for all elements
         
-        // Index
-        drawTableCell(text: "\(index)", x: x, y: y, width: indexWidth, height: 60, alignment: .center)
-        x += indexWidth
-        
-        // Image
-        let imageRect = CGRect(x: x + 5, y: y + 5, width: 40, height: 50)
+        // Image - 1:1 aspect ratio (square), centered vertically, aligned with margin
+        let imageSize: CGFloat = 36 // Reduced to fit tighter rows
+        let imagePadding = (rowHeight - imageSize) / 2
+        let imageRect = CGRect(x: x, y: y + imagePadding, width: imageSize, height: imageSize)
         if let imageUrl = item.imageUrl,
            let url = URL(string: imageUrl),
            let imageData = try? Data(contentsOf: url),
            let image = UIImage(data: imageData) {
             image.draw(in: imageRect)
         } else {
-            UIColor.systemGray5.setFill()
+            // White background for missing images (ink-efficient)
+            UIColor.white.setFill()
             UIBezierPath(rect: imageRect).fill()
+            
+            // Very light border
+            UIColor.systemGray5.setStroke()
+            let borderPath = UIBezierPath(rect: imageRect)
+            borderPath.lineWidth = 0.5
+            borderPath.stroke()
         }
         x += imageWidth
         
-        // Item Name
-        drawTableCell(text: item.name, x: x, y: y, width: nameWidth, height: 60)
+        // Item Name with variation appended - with text wrapping support
+        let itemNameWithVariation = formatDisplayName(item: item)
+        drawTableCellCentered(text: itemNameWithVariation, x: x, y: y, width: nameWidth, height: rowHeight, fontSize: upcFontSize, allowWrapping: true)
         x += nameWidth
         
-        // Variation
-        drawTableCell(text: item.variationName ?? "", x: x, y: y, width: variationWidth, height: 60)
-        x += variationWidth
-        
-        // Category
-        drawTableCell(text: item.categoryName ?? "", x: x, y: y, width: categoryWidth, height: 60)
-        x += categoryWidth
-        
-        // UPC
-        drawTableCell(text: item.barcode ?? "", x: x, y: y, width: upcWidth, height: 60, fontSize: 9)
+        // UPC - centered vertically
+        drawTableCellCentered(text: item.barcode ?? "", x: x, y: y, width: upcWidth, height: rowHeight, fontSize: upcFontSize)
         x += upcWidth
         
-        // SKU
-        drawTableCell(text: item.sku ?? "", x: x, y: y, width: skuWidth, height: 60, fontSize: 9)
+        // SKU - centered vertically
+        drawTableCellCentered(text: item.sku ?? "", x: x, y: y, width: skuWidth, height: rowHeight, fontSize: upcFontSize)
         x += skuWidth
         
-        // Price × Qty
-        let priceText: String
-        if let price = item.price {
-            priceText = String(format: "$%.2f × %d", price, item.quantity)
-        } else {
-            priceText = "× \(item.quantity)"
-        }
-        drawTableCell(text: priceText, x: x, y: y, width: priceWidth, height: 60, alignment: .right)
+        // Retail Price - centered vertically
+        let priceText = item.price != nil ? String(format: "$%.2f", item.price!) : ""
+        drawTableCellCentered(text: priceText, x: x, y: y, width: priceWidth, height: rowHeight, fontSize: upcFontSize, alignment: .right)
+        x += priceWidth
+        
+        // Qty - centered vertically
+        drawTableCellCentered(text: "\(item.quantity)", x: x, y: y, width: qtyWidth, height: rowHeight, fontSize: upcFontSize, alignment: .center)
     }
     
     // MARK: - Headers
@@ -312,9 +656,9 @@ class PDFGenerator {
         let margin: CGFloat = 36
         let pageWidth = context.format.bounds.size.width
         
-        // Title
+        // Title - REDUCED font size for better space efficiency
         let titleAttributes: [NSAttributedString.Key: Any] = [
-            .font: UIFont.systemFont(ofSize: 18, weight: .bold),
+            .font: UIFont.systemFont(ofSize: 14, weight: .bold),
             .foregroundColor: UIColor.black
         ]
         let title = "Reorder List - \(layout) per Row"
@@ -328,32 +672,55 @@ class PDFGenerator {
         let dateText = DateFormatter.localizedString(from: Date(), dateStyle: .medium, timeStyle: .none)
         let pageText = "Page \(pageNumber) | \(totalItems) items | \(dateText)"
         let pageSize = pageText.size(withAttributes: infoAttributes)
-        pageText.draw(at: CGPoint(x: pageWidth - margin - pageSize.width, y: margin), withAttributes: infoAttributes)
+        pageText.draw(at: CGPoint(x: pageWidth - margin - pageSize.width, y: margin + 2), withAttributes: infoAttributes)
     }
     
     private static func drawListHeader(context: UIGraphicsPDFRendererContext, pageNumber: Int, totalPages: Int, totalItems: Int) {
         let margin: CGFloat = 36
         let pageWidth = context.format.bounds.size.width
         
-        // Title
+        // Title - REDUCED font size for space efficiency
         let titleAttributes: [NSAttributedString.Key: Any] = [
-            .font: UIFont.systemFont(ofSize: 20, weight: .bold),
+            .font: UIFont.systemFont(ofSize: 14, weight: .bold),
             .foregroundColor: UIColor.black
         ]
         "Reorder List".draw(at: CGPoint(x: margin, y: margin), withAttributes: titleAttributes)
         
-        // Subtitle with date
+        // Date and page info in single line - REDUCED spacing
         let subtitleAttributes: [NSAttributedString.Key: Any] = [
-            .font: UIFont.systemFont(ofSize: 12),
+            .font: UIFont.systemFont(ofSize: 10),
             .foregroundColor: UIColor.systemGray
         ]
-        let dateText = DateFormatter.localizedString(from: Date(), dateStyle: .long, timeStyle: .short)
-        dateText.draw(at: CGPoint(x: margin, y: margin + 25), withAttributes: subtitleAttributes)
-        
-        // Page info
-        let pageText = "Page \(pageNumber) of \(totalPages) | Total Items: \(totalItems)"
+        let dateText = DateFormatter.localizedString(from: Date(), dateStyle: .medium, timeStyle: .none)
+        let pageText = "Page \(pageNumber) | \(totalItems) items | \(dateText)"
         let pageSize = pageText.size(withAttributes: subtitleAttributes)
-        pageText.draw(at: CGPoint(x: pageWidth - margin - pageSize.width, y: margin + 25), withAttributes: subtitleAttributes)
+        pageText.draw(at: CGPoint(x: pageWidth - margin - pageSize.width, y: margin + 2), withAttributes: subtitleAttributes)
+    }
+    
+    private static func drawListTableHeader(y: CGFloat, margin: CGFloat) {
+        let pageWidth: CGFloat = 612
+        let contentWidth = pageWidth - margin * 2
+        
+        let headerAttributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: 9, weight: .bold), // Same size as UPC font, but bold
+            .foregroundColor: UIColor.black
+        ]
+        
+        // New column layout: Image, Name, UPC, SKU, Retail, Qty (Variation merged with name)
+        var x = margin
+        drawTableCell(text: "Image", x: x, y: y, width: 50, height: 18, attributes: headerAttributes, alignment: .center)
+        x += 50
+        drawTableCell(text: "Item Name", x: x, y: y, width: 240, height: 18, attributes: headerAttributes)
+        x += 240
+        drawTableCell(text: "UPC", x: x, y: y, width: 90, height: 18, attributes: headerAttributes)
+        x += 90
+        drawTableCell(text: "SKU", x: x, y: y, width: 60, height: 18, attributes: headerAttributes)
+        x += 60
+        drawTableCell(text: "Retail", x: x, y: y, width: 70, height: 18, attributes: headerAttributes, alignment: .right)
+        x += 70
+        
+        let remainingWidth = contentWidth - (x - margin)
+        drawTableCell(text: "Qty", x: x, y: y, width: remainingWidth, height: 18, attributes: headerAttributes, alignment: .center)
     }
     
     private static func drawTableHeader(context: UIGraphicsPDFRendererContext, y: CGFloat) {
@@ -456,6 +823,68 @@ class PDFGenerator {
         text.draw(in: rect, withAttributes: mutableAttributes)
     }
     
+    // MARK: - Table Cell with Text Wrapping
+    private static func drawTableCellWithWrapping(
+        text: String,
+        x: CGFloat,
+        y: CGFloat,
+        width: CGFloat,
+        height: CGFloat,
+        fontSize: CGFloat = 11,
+        alignment: NSTextAlignment = .left
+    ) {
+        let mutableAttributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: fontSize),
+            .foregroundColor: UIColor.black
+        ]
+        
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = alignment
+        paragraphStyle.lineBreakMode = .byWordWrapping
+        
+        var mutableAttributesCopy = mutableAttributes
+        mutableAttributesCopy[.paragraphStyle] = paragraphStyle
+        
+        let rect = CGRect(x: x + 4, y: y + 2, width: width - 8, height: height - 4)
+        text.draw(in: rect, withAttributes: mutableAttributesCopy)
+    }
+    
+    // MARK: - Table Cell with Vertical Centering
+    private static func drawTableCellCentered(
+        text: String,
+        x: CGFloat,
+        y: CGFloat,
+        width: CGFloat,
+        height: CGFloat,
+        fontSize: CGFloat = 10,
+        alignment: NSTextAlignment = .left,
+        allowWrapping: Bool = false
+    ) {
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: fontSize),
+            .foregroundColor: UIColor.black
+        ]
+        
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = alignment
+        paragraphStyle.lineBreakMode = allowWrapping ? .byWordWrapping : .byTruncatingTail
+        
+        var mutableAttributes = attributes
+        mutableAttributes[.paragraphStyle] = paragraphStyle
+        
+        if allowWrapping {
+            // For wrapped text, use the full height and let it flow naturally
+            let rect = CGRect(x: x + 4, y: y + 2, width: width - 8, height: height - 4)
+            text.draw(in: rect, withAttributes: mutableAttributes)
+        } else {
+            // For single line text, center vertically
+            let textSize = text.size(withAttributes: mutableAttributes)
+            let verticalPadding = (height - textSize.height) / 2
+            let rect = CGRect(x: x + 4, y: y + verticalPadding, width: width - 8, height: textSize.height)
+            text.draw(in: rect, withAttributes: mutableAttributes)
+        }
+    }
+    
     private static func getFontSize(for columns: Int) -> CGFloat {
         switch columns {
         case 3: return 11
@@ -477,20 +906,29 @@ class PDFGenerator {
     static func createShareablePDF(from items: [ReorderItem], layout: PDFLayout, fileName: String? = nil) -> ShareableFileData? {
         let pdfData = generateReorderPDF(from: items, layout: layout)
         
-        let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .short, timeStyle: .none)
-            .replacingOccurrences(of: "/", with: "-")
-        
-        let layoutSuffix: String
-        switch layout {
-        case .grid3: layoutSuffix = "grid-3"
-        case .grid5: layoutSuffix = "grid-5"
-        case .grid7: layoutSuffix = "grid-7"
-        case .list: layoutSuffix = "list"
-        }
-        
-        let finalFileName = fileName ?? "reorder-\(layoutSuffix)-\(timestamp).pdf"
+        let finalFileName = fileName ?? generateDescriptiveFilename(for: layout)
         
         return ShareableFileData.createPDF(data: pdfData, filename: finalFileName)
+    }
+    
+    // MARK: - Descriptive Filename Generation
+    private static func generateDescriptiveFilename(for layout: PDFLayout) -> String {
+        // Format: [Business Name] Reorder List - [YYYY-MM-DD] - [Layout Option].pdf
+        let businessName = UserDefaults.standard.string(forKey: "businessName") ?? "Business"
+        
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let dateString = dateFormatter.string(from: Date())
+        
+        let layoutOption: String
+        switch layout {
+        case .grid3: layoutOption = "3 Per Row Grid"
+        case .grid5: layoutOption = "5 Per Row Grid"
+        case .grid7: layoutOption = "7 Per Row Grid"
+        case .list: layoutOption = "Detailed List"
+        }
+        
+        return "\(businessName) Reorder List - \(dateString) - \(layoutOption).pdf"
     }
     
     // MARK: - File Creation (FIXED: Documents Directory + File Security)

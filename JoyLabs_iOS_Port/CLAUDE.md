@@ -960,45 +960,32 @@ SimpleImageView.thumbnail(imageURL: url, size: 50)
 
 ## Centralized Item Update System
 
-### Core Architecture
-- **CentralItemUpdateManager.swift** - THE SINGLE FILE for all app-wide item updates
-- Receives notifications from `SquareCRUDService` and coordinates targeted updates across all views
-- Eliminates UI flashing by updating only specific items, not performing full refreshes
-- Initialized in Phase 1 of app startup as singleton service
+### Setup Pattern for New Views
+When adding a view that displays catalog items, register with CentralItemUpdateManager in `.onAppear`:
+```swift
+.onAppear {
+    CentralItemUpdateManager.shared.setup(
+        searchManager: yourSearchManager,  // Optional: if view has search
+        reorderDataManager: dataManager,   // Optional: if view manages reorders
+        viewName: "YourViewName"          // Required: for debugging
+    )
+}
+```
 
-### Supported Views
-- **ScanView**: Updates search results for specific items using `SearchManager.updateItemInSearchResults()`
-- **ReordersView**: Updates catalog data for reorder items referencing changed items  
-- **CatalogManagementView**: Refreshes statistics via `CatalogStatsService.refreshStats()`
-- **ItemDetailsModal**: Registry system for real-time refresh of active modals
+**The setup() method is ADDITIVE** - multiple views can register without conflict.
 
-### Operation Types
-- **create**: Checks if new items match current searches, refreshes stats
-- **update**: Updates specific items across all views, refreshes active modals, includes comprehensive logging
-- **delete**: Removes items from all views, cleans up references
-
-### Setup Pattern
-- Views call `CentralItemUpdateManager.shared.setup()` with their service instances during view initialization
-- ItemDetailsModals register/unregister via `registerItemDetailsModal()`/`unregisterItemDetailsModal()` in onAppear/onDisappear
-- No direct notification handling in views - all centralized
-- Uses WeakReference wrapper to prevent retain cycles in modal registry
-
-### UI Update Architecture
-- **SearchResultsList**: Uses live `@Published` data from `SearchManager` instead of static snapshots
-- **SearchResultItem**: Comprehensive `Hashable`/`Equatable` implementation includes all mutable fields (price, name, sku, barcode, etc.) so SwiftUI detects content changes
-- **Targeted Updates**: Only affected items refresh, no full screen reloads
-
-### Debug Logging
-- All operations logged with `[CentralItemUpdateManager]` and `[SearchManager]` prefixes
-- Includes before/after price values and item update confirmations
-- Setup logs show `ObjectIdentifier` for service instances to verify correct registration
-
-### Key Benefits
-- Single file to maintain for all update logic
-- Targeted updates prevent UI flashing  
-- Professional, responsive user experience with immediate price/data updates
-- Easy to extend for new views
-- Comprehensive logging for debugging UI update issues
+### Model Requirements for UI Updates
+Any model displayed in ForEach must implement Hashable/Equatable with ALL mutable fields:
+```swift
+struct YourItem: Hashable, Equatable {
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(price)    // Include ALL fields that can change
+        hasher.combine(name)
+        // ... etc
+    }
+}
+```
 
 ## Code Philosophy
 - Always aim for professional, robust solution that properly handles asynchronous operations - exactly what any modern app would do!
