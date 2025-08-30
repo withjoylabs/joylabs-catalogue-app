@@ -69,7 +69,18 @@ class CSVGenerator {
         return formatter.string(from: date)
     }
     
-    // MARK: - File Creation
+    // MARK: - Data for Sharing (Bypasses iOS File Security Issues)
+    static func createShareableCSV(from items: [ReorderItem], fileName: String? = nil) -> ShareableFileData? {
+        guard let csvData = generateReorderCSV(from: items) else { return nil }
+        
+        let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .short, timeStyle: .none)
+            .replacingOccurrences(of: "/", with: "-")
+        let finalFileName = fileName ?? "reorder-list-\(timestamp).csv"
+        
+        return ShareableFileData.createCSV(data: csvData, filename: finalFileName)
+    }
+    
+    // MARK: - File Creation (FIXED: Documents Directory + File Security)
     static func createCSVFile(from items: [ReorderItem], fileName: String? = nil) -> URL? {
         guard let csvData = generateReorderCSV(from: items) else { return nil }
         
@@ -77,14 +88,34 @@ class CSVGenerator {
             .replacingOccurrences(of: "/", with: "-")
         let finalFileName = fileName ?? "reorder-list-\(timestamp).csv"
         
-        let tempDirectory = FileManager.default.temporaryDirectory
-        let fileURL = tempDirectory.appendingPathComponent(finalFileName)
+        // FIXED: Use Documents directory instead of temp directory for proper sharing permissions
+        guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            print("[CSVGenerator] Failed to access Documents directory")
+            return nil
+        }
+        
+        // Create Exports subdirectory for organization
+        let exportsDirectory = documentsDirectory.appendingPathComponent("Exports")
         
         do {
-            try csvData.write(to: fileURL)
+            // Ensure Exports directory exists
+            try FileManager.default.createDirectory(at: exportsDirectory, withIntermediateDirectories: true)
+            
+            var fileURL = exportsDirectory.appendingPathComponent(finalFileName)
+            
+            // Write file with proper attributes for sharing
+            try csvData.write(to: fileURL, options: [.atomic])
+            
+            // Set file attributes for sharing (readable by other apps)
+            var resourceValues = URLResourceValues()
+            resourceValues.isExcludedFromBackup = true // Don't backup export files
+            try fileURL.setResourceValues(resourceValues)
+            
+            print("✅ [CSVGenerator] CSV file created successfully at: \(fileURL.lastPathComponent)")
             return fileURL
+            
         } catch {
-            print("[CSVGenerator] Failed to write CSV file: \(error)")
+            print("❌ [CSVGenerator] Failed to write CSV file: \(error)")
             return nil
         }
     }

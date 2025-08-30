@@ -73,7 +73,7 @@ struct ContentView: View {
                     }
                     .tag(0)
 
-                ReordersView(onFocusStateChanged: { isFocused in
+                ReordersViewSwiftData(onFocusStateChanged: { isFocused in
                     isAnyTextFieldFocused = isFocused
                 })
                     .environment(\.horizontalSizeClass, originalSizeClass)

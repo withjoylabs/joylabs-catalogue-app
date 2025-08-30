@@ -473,7 +473,27 @@ class PDFGenerator {
         return name
     }
     
-    // MARK: - File Creation
+    // MARK: - Data for Sharing (Bypasses iOS File Security Issues)
+    static func createShareablePDF(from items: [ReorderItem], layout: PDFLayout, fileName: String? = nil) -> ShareableFileData? {
+        let pdfData = generateReorderPDF(from: items, layout: layout)
+        
+        let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .short, timeStyle: .none)
+            .replacingOccurrences(of: "/", with: "-")
+        
+        let layoutSuffix: String
+        switch layout {
+        case .grid3: layoutSuffix = "grid-3"
+        case .grid5: layoutSuffix = "grid-5"
+        case .grid7: layoutSuffix = "grid-7"
+        case .list: layoutSuffix = "list"
+        }
+        
+        let finalFileName = fileName ?? "reorder-\(layoutSuffix)-\(timestamp).pdf"
+        
+        return ShareableFileData.createPDF(data: pdfData, filename: finalFileName)
+    }
+    
+    // MARK: - File Creation (FIXED: Documents Directory + File Security)
     static func createPDFFile(from items: [ReorderItem], layout: PDFLayout, fileName: String? = nil) -> URL? {
         let pdfData = generateReorderPDF(from: items, layout: layout)
         
@@ -490,14 +510,34 @@ class PDFGenerator {
         
         let finalFileName = fileName ?? "reorder-\(layoutSuffix)-\(timestamp).pdf"
         
-        let tempDirectory = FileManager.default.temporaryDirectory
-        let fileURL = tempDirectory.appendingPathComponent(finalFileName)
+        // FIXED: Use Documents directory instead of temp directory for proper sharing permissions
+        guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            print("[PDFGenerator] Failed to access Documents directory")
+            return nil
+        }
+        
+        // Create Exports subdirectory for organization
+        let exportsDirectory = documentsDirectory.appendingPathComponent("Exports")
         
         do {
-            try pdfData.write(to: fileURL)
+            // Ensure Exports directory exists
+            try FileManager.default.createDirectory(at: exportsDirectory, withIntermediateDirectories: true)
+            
+            var fileURL = exportsDirectory.appendingPathComponent(finalFileName)
+            
+            // Write file with proper attributes for sharing
+            try pdfData.write(to: fileURL, options: [.atomic])
+            
+            // Set file attributes for sharing (readable by other apps)
+            var resourceValues = URLResourceValues()
+            resourceValues.isExcludedFromBackup = true // Don't backup export files
+            try fileURL.setResourceValues(resourceValues)
+            
+            print("✅ [PDFGenerator] PDF file created successfully at: \(fileURL.lastPathComponent)")
             return fileURL
+            
         } catch {
-            print("[PDFGenerator] Failed to write PDF file: \(error)")
+            print("❌ [PDFGenerator] Failed to write PDF file: \(error)")
             return nil
         }
     }

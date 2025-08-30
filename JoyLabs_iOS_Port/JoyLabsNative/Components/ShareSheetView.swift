@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import LinkPresentation
 
 struct ShareSheetView: UIViewControllerRepresentable {
     let activityItems: [Any]
@@ -12,6 +13,16 @@ struct ShareSheetView: UIViewControllerRepresentable {
         onComplete: ((Bool) -> Void)? = nil
     ) {
         self.activityItems = activityItems
+        self.applicationActivities = applicationActivities
+        self.onComplete = onComplete
+    }
+    
+    init(
+        shareableFiles: [ShareableFileData],
+        applicationActivities: [UIActivity]? = nil,
+        onComplete: ((Bool) -> Void)? = nil
+    ) {
+        self.activityItems = shareableFiles
         self.applicationActivities = applicationActivities
         self.onComplete = onComplete
     }
@@ -31,11 +42,31 @@ struct ShareSheetView: UIViewControllerRepresentable {
             }
         }
         
-        // iPad configuration
+        // IMPROVED: iPad popover configuration
         if let popover = controller.popoverPresentationController {
-            popover.sourceView = UIView()
-            popover.sourceRect = CGRect(x: UIScreen.main.bounds.midX, y: UIScreen.main.bounds.midY, width: 0, height: 0)
-            popover.permittedArrowDirections = []
+            // Better approach: Use the window's root view as source
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+               let window = windowScene.windows.first {
+                popover.sourceView = window.rootViewController?.view
+                popover.sourceRect = CGRect(
+                    x: window.bounds.midX, 
+                    y: window.bounds.midY, 
+                    width: 1, 
+                    height: 1
+                )
+            } else {
+                // Fallback to screen center
+                popover.sourceView = UIView()
+                popover.sourceRect = CGRect(
+                    x: UIScreen.main.bounds.midX, 
+                    y: UIScreen.main.bounds.midY, 
+                    width: 1, 
+                    height: 1
+                )
+            }
+            
+            // Allow all arrow directions for better placement
+            popover.permittedArrowDirections = [.up, .down, .left, .right]
         }
         
         return controller
@@ -56,6 +87,19 @@ extension View {
         self.sheet(isPresented: isPresented) {
             ShareSheetView(
                 activityItems: items,
+                onComplete: onComplete
+            )
+        }
+    }
+    
+    func shareSheet(
+        isPresented: Binding<Bool>,
+        shareableFiles: [ShareableFileData],
+        onComplete: ((Bool) -> Void)? = nil
+    ) -> some View {
+        self.sheet(isPresented: isPresented) {
+            ShareSheetView(
+                shareableFiles: shareableFiles,
                 onComplete: onComplete
             )
         }

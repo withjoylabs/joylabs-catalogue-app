@@ -9,10 +9,12 @@
 /* Begin PBXBuildFile section */
 		0C6000FC83DF6D91C933D873 /* SimpleImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F730ECB41F35B30ADCEEF069 /* SimpleImageView.swift */; };
 		0E704C1995A3979C5ED2AE88 /* FuzzySearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = D011F99665AC02112E587409 /* FuzzySearch.swift */; };
+		12164AA2F419705C7AED0835 /* ReordersViewSwiftData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07327BB46D9122D3CFCDB559 /* ReordersViewSwiftData.swift */; };
 		135161F2D6150929CEF0A9D1 /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B03008BCC45D5E32B158F66F /* NotificationSettingsView.swift */; };
 		140CE30F96C5476776E42C34 /* UnifiedImagePickerModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CC3C5DBAC897BD5BAD446F8 /* UnifiedImagePickerModal.swift */; };
 		1569B20890AD45422D438BC1 /* FieldVisibilityModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF8BABE731647487EFC23A76 /* FieldVisibilityModifier.swift */; };
 		19F619C092689543928A0A06 /* ReorderFilterManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7646D10B74DD6424D05604B /* ReorderFilterManager.swift */; };
+		1D9DE9A829E94BFED623CBE6 /* ReorderItemModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6292A63C8F8D35F5B12A8F6A /* ReorderItemModel.swift */; };
 		1DD643B9A325F36154A6078B /* LabelLiveSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AFF25D6F4AAE782EEF291F9 /* LabelLiveSettings.swift */; };
 		21D4D3B4CE1031814FDAFCCB /* ComprehensiveItemModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 463F35C3BE9ED261FEE0206F /* ComprehensiveItemModels.swift */; };
 		2762D04C26D1C662BFB79CF0 /* ItemDetailsModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 099140CF4DCC3454A9EC9A5C /* ItemDetailsModal.swift */; };
@@ -45,7 +47,9 @@
 		6F5DE98B1CAA89726CC9FF2D /* NotificationSettingsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94D98163B152C53C35F66FD4 /* NotificationSettingsService.swift */; };
 		7049BADF1D61D0240CB1C900 /* ItemProductTypeSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F41835B4957DA654FE6627F7 /* ItemProductTypeSection.swift */; };
 		727C46D51FB7521A15C78324 /* ReorderBarcodeScanningManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 612C9E33A082AEB63A3A1DC3 /* ReorderBarcodeScanningManager.swift */; };
+		7995B042235CA11634DB6A93 /* ReorderService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AE1BE4622C5C0A85C6CAA3E /* ReorderService.swift */; };
 		7D83E6DC3B87B824D4DFE0A2 /* ReorderAppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D786AE1AEAE343A9AC9C0007 /* ReorderAppState.swift */; };
+		823B57DE36146918AC79FFAE /* ShareableFileData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B59E873AFBCFBE04460F20A8 /* ShareableFileData.swift */; };
 		85126E4554FBE0F2C78D3609 /* ToastNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1645309EC63E18A4589C1AC3 /* ToastNotificationService.swift */; };
 		8796DF07A71B45B6C419C13A /* SwipeableReorderCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9656EA400096ADC30614CEB4 /* SwipeableReorderCard.swift */; };
 		8F3E31087D2D8735D8CF5ED8 /* PDFGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D98DAE4298918395B51B620F /* PDFGenerator.swift */; };
@@ -120,6 +124,7 @@
 		F0E1858DA63A2B4ECA8E77E6 /* ItemLocationOverridesSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24FCFC0D136AEF6740D9E682 /* ItemLocationOverridesSection.swift */; };
 		F691E68C7ADFDA1137A12D8D /* ItemDeleteSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68CAE024F232AEDA149CF627 /* ItemDeleteSection.swift */; };
 		F734B51CB83D78322A781674 /* QuantitySelectionModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB32D29A7FF02592B9894919 /* QuantitySelectionModal.swift */; };
+		F807F15659615F6ED5E8E97D /* ReorderModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C4809FBB6B3D2AD55C570A9 /* ReorderModels.swift */; };
 		FB639BE785F378A20A1A5252 /* ItemMeasurementSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E3B3F77BC194AF2CF9CED6F /* ItemMeasurementSection.swift */; };
 		FBD9A264FF0F76391E23E3E1 /* DuplicateWarningView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84F97B5C958182F299BA523E /* DuplicateWarningView.swift */; };
 		FBE6EC39B347843F2D356399 /* UITextField+NoInputAccessory.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA65834124AA651116B2DF7A /* UITextField+NoInputAccessory.swift */; };
@@ -127,9 +132,12 @@
 
 /* Begin PBXFileReference section */
 		02A73B5385BF767E2F503CFD /* AppLevelHIDScanner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AppLevelHIDScanner.swift; path = Components/AppLevelHIDScanner.swift; sourceTree = "<group>"; };
+		07327BB46D9122D3CFCDB559 /* ReordersViewSwiftData.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReordersViewSwiftData.swift; path = Views/ReordersViewSwiftData.swift; sourceTree = "<group>"; };
 		099140CF4DCC3454A9EC9A5C /* ItemDetailsModal.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsModal.swift; path = Components/ItemDetailsModal.swift; sourceTree = "<group>"; };
 		09BFF04263C6393A3C5DD86A /* WebhookIntegrationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WebhookIntegrationTests.swift; path = Testing/WebhookIntegrationTests.swift; sourceTree = "<group>"; };
+		0AE1BE4622C5C0A85C6CAA3E /* ReorderService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderService.swift; path = Core/Services/ReorderService.swift; sourceTree = "<group>"; };
 		0B4067D357704001C7A0D307 /* QuantityNumpad.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QuantityNumpad.swift; sourceTree = "<group>"; };
+		0C4809FBB6B3D2AD55C570A9 /* ReorderModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderModels.swift; path = Models/ReorderModels.swift; sourceTree = "<group>"; };
 		0E3B3F77BC194AF2CF9CED6F /* ItemMeasurementSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemMeasurementSection.swift; path = Components/ItemMeasurementSection.swift; sourceTree = "<group>"; };
 		109D8EF3405D7C8718DCDF2B /* ItemCustomAttributesSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemCustomAttributesSection.swift; path = Components/ItemCustomAttributesSection.swift; sourceTree = "<group>"; };
 		11C6F817152E7F615D5CB415 /* LabelLiveSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LabelLiveSettingsView.swift; path = Views/LabelLiveSettingsView.swift; sourceTree = "<group>"; };
@@ -155,6 +163,7 @@
 		5BF09157ED1FEE7951EC8474 /* SimpleImageService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SimpleImageService.swift; path = Core/Services/SimpleImageService.swift; sourceTree = "<group>"; };
 		5E3FB7296AC28F9B8969A75D /* PushNotificationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PushNotificationService.swift; path = JoyLabsNative/Core/Services/PushNotificationService.swift; sourceTree = "<group>"; };
 		612C9E33A082AEB63A3A1DC3 /* ReorderBarcodeScanningManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderBarcodeScanningManager.swift; path = JoyLabsNative/ViewModels/ReorderBarcodeScanningManager.swift; sourceTree = "<group>"; };
+		6292A63C8F8D35F5B12A8F6A /* ReorderItemModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderItemModel.swift; path = Models/SwiftData/ReorderItemModel.swift; sourceTree = "<group>"; };
 		65695EAA6350279F084BF63B /* ItemDetailsPricingSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsPricingSection.swift; path = Components/ItemDetailsPricingSection.swift; sourceTree = "<group>"; };
 		68CAE024F232AEDA149CF627 /* ItemDeleteSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDeleteSection.swift; path = Components/ItemDeleteSection.swift; sourceTree = "<group>"; };
 		6D65BFF8B1281F6313E2EAA1 /* ReorderDataManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderDataManager.swift; path = JoyLabsNative/ViewModels/ReorderDataManager.swift; sourceTree = "<group>"; };
@@ -218,6 +227,7 @@
 		A1B2C3D4E5F6789012345904 /* CatalogTableCreator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Database/CatalogTableCreator.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345906 /* CatalogObjectInserters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Core/Database/CatalogObjectInserters.swift; sourceTree = "<group>"; };
 		B03008BCC45D5E32B158F66F /* NotificationSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Components/NotificationSettingsView.swift; sourceTree = "<group>"; };
+		B59E873AFBCFBE04460F20A8 /* ShareableFileData.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ShareableFileData.swift; path = Components/ShareableFileData.swift; sourceTree = "<group>"; };
 		B7646D10B74DD6424D05604B /* ReorderFilterManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderFilterManager.swift; path = JoyLabsNative/ViewModels/ReorderFilterManager.swift; sourceTree = "<group>"; };
 		BA6CAB610624BBFC8C7C36B6 /* ItemDataTransformers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDataTransformers.swift; path = Components/ItemDataTransformers.swift; sourceTree = "<group>"; };
 		BF8BABE731647487EFC23A76 /* FieldVisibilityModifier.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FieldVisibilityModifier.swift; path = Components/FieldVisibilityModifier.swift; sourceTree = "<group>"; };
@@ -300,6 +310,7 @@
 				FFC3BC89DCE156954A61833A /* NotificationPermissionView.swift */,
 				522EA5712FAC74516DFC29CF /* NotificationsView.swift */,
 				11C6F817152E7F615D5CB415 /* LabelLiveSettingsView.swift */,
+				07327BB46D9122D3CFCDB559 /* ReordersViewSwiftData.swift */,
 			);
 			name = Views;
 			sourceTree = "<group>";
@@ -359,6 +370,7 @@
 				F87ABC339104C2473194A151 /* ZoomableImageView.swift */,
 				F54CA42167200D8C7C3A550A /* ShareSheetView.swift */,
 				11E2C4538C893D6DC9BF4311 /* ExportOptionsModal.swift */,
+				B59E873AFBCFBE04460F20A8 /* ShareableFileData.swift */,
 			);
 			name = Components;
 			sourceTree = "<group>";
@@ -397,6 +409,8 @@
 			isa = PBXGroup;
 			children = (
 				1AFF25D6F4AAE782EEF291F9 /* LabelLiveSettings.swift */,
+				0C4809FBB6B3D2AD55C570A9 /* ReorderModels.swift */,
+				F1916B246416A4E35DFABAB4 /* SwiftData */,
 			);
 			name = Models;
 			sourceTree = "<group>";
@@ -581,6 +595,7 @@
 				55BCF27BAD920DC02CC1E42D /* ToastWindowManager.swift */,
 				9FF78A1593BC7C4F813F02A7 /* ReorderExportService.swift */,
 				CA8C5B246DFF28C031178155 /* LocationCacheManager.swift */,
+				0AE1BE4622C5C0A85C6CAA3E /* ReorderService.swift */,
 			);
 			name = Services;
 			sourceTree = "<group>";
@@ -598,6 +613,14 @@
 				7EFA46CC1207E812F353D29F /* ViewExtensions+ModalPresentation.swift */,
 			);
 			name = Extensions;
+			sourceTree = "<group>";
+		};
+		F1916B246416A4E35DFABAB4 /* SwiftData */ = {
+			isa = PBXGroup;
+			children = (
+				6292A63C8F8D35F5B12A8F6A /* ReorderItemModel.swift */,
+			);
+			name = SwiftData;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -789,6 +812,11 @@
 				8F3E31087D2D8735D8CF5ED8 /* PDFGenerator.swift in Sources */,
 				A9C706605B21C6648E3B386E /* ReorderExportService.swift in Sources */,
 				9C3AE080A9C601FD9E3A08A7 /* LocationCacheManager.swift in Sources */,
+				F807F15659615F6ED5E8E97D /* ReorderModels.swift in Sources */,
+				1D9DE9A829E94BFED623CBE6 /* ReorderItemModel.swift in Sources */,
+				7995B042235CA11634DB6A93 /* ReorderService.swift in Sources */,
+				12164AA2F419705C7AED0835 /* ReordersViewSwiftData.swift in Sources */,
+				823B57DE36146918AC79FFAE /* ShareableFileData.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 import UIKit
 import OSLog
 import UserNotifications
@@ -7,14 +8,35 @@ import UserNotifications
 struct JoyLabsNativeApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     private let logger = Logger(subsystem: "com.joylabs.native", category: "App")
+    
+    // SwiftData model container for persistent storage
+    let modelContainer: ModelContainer
 
     init() {
+        // Initialize SwiftData container FIRST
+        do {
+            let schema = Schema([
+                ReorderItemModel.self
+            ])
+            let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+            self.modelContainer = try ModelContainer(for: schema, configurations: [modelConfiguration])
+            print("✅ [SwiftData] ModelContainer initialized")
+        } catch {
+            fatalError("Failed to initialize ModelContainer: \(error)")
+        }
+        
         // Initialize critical services SYNCHRONOUSLY first to prevent race conditions
         initializeCriticalServicesSync()
         
         // FIX: Enable global InputAccessoryView swizzling to prevent constraint conflicts
         // This affects ALL TextFields in the app, preventing InputAccessoryGenerator creation
         UITextField.swizzleInputAccessoryView()
+        
+        // Initialize ReorderService with model context
+        let mainContext = modelContainer.mainContext
+        Task { @MainActor in
+            ReorderService.shared.setModelContext(mainContext)
+        }
         
         // Then initialize remaining services asynchronously
         initializeRemainingServicesAsync()
@@ -23,6 +45,7 @@ struct JoyLabsNativeApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .modelContainer(modelContainer)  // Provide SwiftData context to all views
                 .onOpenURL { url in
                     logger.info("App received URL: \(url.absoluteString)")
                     handleIncomingURL(url)
