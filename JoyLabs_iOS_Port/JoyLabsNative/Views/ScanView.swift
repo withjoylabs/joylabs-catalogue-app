@@ -440,44 +440,8 @@ struct SearchResultsList: View {
     // MARK: - Reorder and Print Functions
     
     private func addItemToReorderList(_ item: SearchResultItem, quantity: Int) {
-        // Load existing reorder items
-        var reorderItems: [ReorderItem] = []
-        if let data = UserDefaults.standard.data(forKey: "reorderItems"),
-           let items = try? JSONDecoder().decode([ReorderItem].self, from: data) {
-            reorderItems = items
-        }
-        
-        // Check if item already exists
-        if let existingIndex = reorderItems.firstIndex(where: { $0.itemId == item.id }) {
-            // Update existing item with new quantity (replace, don't increment)
-            reorderItems[existingIndex].quantity = quantity
-        } else {
-            // Create new reorder item
-            var newItem = ReorderItem(
-                id: UUID().uuidString,
-                itemId: item.id,
-                name: item.name ?? "Unknown Item",
-                sku: item.sku,
-                barcode: item.barcode,
-                variationName: item.variationName,
-                quantity: quantity,
-                status: .added,
-                addedDate: Date(),
-                notes: nil
-            )
-            
-            // Set additional properties
-            newItem.price = item.price
-            newItem.categoryName = item.categoryName 
-            newItem.imageUrl = item.images?.first?.imageData?.url
-            newItem.imageId = item.images?.first?.id
-            reorderItems.append(newItem)
-        }
-        
-        // Save back to UserDefaults
-        if let data = try? JSONEncoder().encode(reorderItems) {
-            UserDefaults.standard.set(data, forKey: "reorderItems")
-        }
+        // Use ReorderService to add item (SwiftData implementation)
+        ReorderService.shared.addOrUpdateItem(from: item, quantity: quantity)
         
         // Show success toast with truncated item name
         let itemName = item.name ?? "Item"

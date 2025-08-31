@@ -44,12 +44,16 @@ class SimpleImageService: ObservableObject {
         // Generate idempotency key
         let idempotencyKey = UUID().uuidString
         
+        // Detect MIME type from filename or data
+        let mimeType = detectMimeType(from: fileName, data: imageData)
+        
         // Upload to Square
         let response = try await httpClient.uploadImageToSquare(
             imageData: imageData,
             fileName: fileName,
             itemId: itemId,
-            idempotencyKey: idempotencyKey
+            idempotencyKey: idempotencyKey,
+            mimeType: mimeType
         )
         
         guard let imageObject = response.image,
@@ -241,6 +245,35 @@ class SimpleImageService: ObservableObject {
         // URLCache will automatically handle this when AsyncImage makes new requests
         logger.debug("🗑️ Cache cleared for item: \(itemId)")
     }
+    
+    /// Detect MIME type from filename extension or data signature
+    private func detectMimeType(from fileName: String, data: Data) -> String {
+        // Check filename extension first
+        let lowercaseFileName = fileName.lowercased()
+        if lowercaseFileName.hasSuffix(".png") {
+            return "image/png"
+        } else if lowercaseFileName.hasSuffix(".jpg") || lowercaseFileName.hasSuffix(".jpeg") {
+            return "image/jpeg"
+        }
+        
+        // Fallback to data signature detection
+        guard data.count >= 4 else {
+            return "image/jpeg" // Default fallback
+        }
+        
+        // Check PNG signature (89 50 4E 47)
+        if data[0] == 0x89 && data[1] == 0x50 && data[2] == 0x4E && data[3] == 0x47 {
+            return "image/png"
+        }
+        
+        // Check JPEG signature (FF D8 FF)
+        if data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF {
+            return "image/jpeg"
+        }
+        
+        // Default fallback
+        return "image/jpeg"
+    }
 }
 
 // MARK: - Error Types
@@ -297,3 +330,50 @@ struct ImageUploadResult {
 
 // Compatibility aliases for migration
 typealias UnifiedImageError = SimpleImageError
+
+// MARK: - Image Format Utilities
+extension UIImage {
+    /// Detects if the image has an alpha channel (transparency)
+    var hasAlphaChannel: Bool {
+        guard let cgImage = self.cgImage else { return false }
+        
+        let alphaInfo = cgImage.alphaInfo
+        switch alphaInfo {
+        case .none, .noneSkipFirst, .noneSkipLast:
+            return false
+        case .first, .last, .premultipliedFirst, .premultipliedLast, .alphaOnly:
+            return true
+        @unknown default:
+            return false
+        }
+    }
+    
+    /// Converts image to appropriate data format (PNG for transparency, JPEG for opaque)
+    func smartImageData(compressionQuality: CGFloat = 0.9) -> (data: Data?, format: ImageFormat) {
+        if hasAlphaChannel {
+            return (pngData(), .png)
+        } else {
+            return (jpegData(compressionQuality: compressionQuality), .jpeg)
+        }
+    }
+}
+
+/// Supported image formats for upload
+enum ImageFormat {
+    case png
+    case jpeg
+    
+    var mimeType: String {
+        switch self {
+        case .png: return "image/png"
+        case .jpeg: return "image/jpeg"
+        }
+    }
+    
+    var fileExtension: String {
+        switch self {
+        case .png: return "png"
+        case .jpeg: return "jpg"
+        }
+    }
+}

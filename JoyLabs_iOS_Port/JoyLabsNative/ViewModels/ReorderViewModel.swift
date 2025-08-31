@@ -147,7 +147,7 @@ class ReorderViewModel: ObservableObject {
     }
     
     // MARK: - Item Management
-    func updateItemStatus(itemId: String, newStatus: ReorderStatus) {
+    func updateItemStatus(itemId: String, newStatus: ReorderItemStatus) {
         if let index = reorderItems.firstIndex(where: { $0.id == itemId }) {
             let itemName = reorderItems[index].name
             

@@ -640,9 +640,6 @@ ITEM (has version)
 // ✅ CORRECT - Always fetch current versions first
 let currentObject = await squareAPI.fetchObject(id)
 let updateRequest = buildUpdateRequest(data, currentVersions: currentObject.getAllVersions())
-
-// ❌ WRONG - Never hardcode or omit versions for existing objects
-let updateRequest = UpdateRequest(id: id, version: nil) // Will cause VERSION_MISMATCH
 ```
 
 #### 4. **New vs Existing Object Handling**
@@ -651,45 +648,6 @@ let updateRequest = UpdateRequest(id: id, version: nil) // Will cause VERSION_MI
 - **Child objects**: Follow same rule based on whether they exist
 
 ### Common VERSION_MISMATCH Traps
-
-#### Trap 1: Missing Child Object Versions
-```swift
-// ❌ TRAP - Updating item but forgetting variation versions
-{
-  "id": "ITEM123",
-  "version": 1234567890,  // ✅ Main object version included
-  "item_data": {
-    "variations": [
-      {
-        "id": "VAR123",
-        // ❌ Missing version field - causes VERSION_MISMATCH
-        "item_variation_data": { ... }
-      }
-    ]
-  }
-}
-```
-
-#### Trap 2: Stale Version Data
-```swift
-// ❌ TRAP - Using cached/old version data
-let item = database.getItem(id)  // Might be stale
-updateItemWithVersion(item.version)  // Could be outdated
-
-// ✅ CORRECT - Always fetch fresh
-let item = await squareAPI.fetchItem(id)  // Current version
-updateItemWithVersion(item.version)
-```
-
-#### Trap 3: Partial Object Updates
-```swift
-// ❌ TRAP - Only sending changed fields without versions
-{
-  "id": "ITEM123",
-  "item_data": {
-    "name": "New Name"  // Missing version fields
-  }
-}
 
 // ✅ CORRECT - Full object with all versions
 {

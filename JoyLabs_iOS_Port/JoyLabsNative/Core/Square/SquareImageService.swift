@@ -264,14 +264,19 @@ extension SquareImageService {
         fileName: String,
         itemId: String?
     ) async throws -> SquareImageUploadResult {
-        // Convert UIImage to JPEG data with high quality
-        guard let imageData = image.jpegData(compressionQuality: 0.9) else {
-            throw SquareAPIError.upsertFailed("Failed to convert UIImage to JPEG data")
+        // Convert UIImage to appropriate format (PNG for transparency, JPEG for opaque)
+        let (imageData, imageFormat) = image.smartImageData(compressionQuality: 0.9)
+        guard let data = imageData else {
+            throw SquareAPIError.upsertFailed("Failed to convert UIImage to data")
         }
         
+        // Update filename extension to match format
+        let updatedFileName = fileName.replacingOccurrences(of: ".jpg", with: ".\(imageFormat.fileExtension)")
+                                     .replacingOccurrences(of: ".jpeg", with: ".\(imageFormat.fileExtension)")
+        
         return try await uploadImage(
-            imageData: imageData,
-            fileName: fileName,
+            imageData: data,
+            fileName: updatedFileName,
             itemId: itemId
         )
     }

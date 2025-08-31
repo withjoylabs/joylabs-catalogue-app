@@ -9,36 +9,33 @@ class HIDScannerContextManager: ObservableObject {
     }
 }
 
-// MARK: - Reorder Badge Manager
+// MARK: - Reorder Badge Manager (SwiftData)
 class ReorderBadgeManager: ObservableObject {
     @Published var unpurchasedCount: Int = 0
+    private var timer: Timer?
 
     init() {
         updateBadgeCount()
-
-        // Listen for changes to UserDefaults
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(updateBadgeCount),
-            name: UserDefaults.didChangeNotification,
-            object: nil
-        )
+        
+        // Use a timer to periodically update the badge count since SwiftData doesn't have a direct notification system
+        // This is lightweight and only runs when the app is active
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            self?.updateBadgeCount()
+        }
     }
 
     @objc private func updateBadgeCount() {
-        // Load reorder items from UserDefaults and count unpurchased
-        DispatchQueue.main.async {
-            if let data = UserDefaults.standard.data(forKey: "reorderItems"),
-               let items = try? JSONDecoder().decode([ReorderItem].self, from: data) {
-                self.unpurchasedCount = items.filter { $0.status == .added }.count
-            } else {
-                self.unpurchasedCount = 0
+        // Use ReorderService to get unpurchased count from SwiftData
+        Task { @MainActor in
+            let count = await ReorderService.shared.getUnpurchasedCount()
+            if self.unpurchasedCount != count {
+                self.unpurchasedCount = count
             }
         }
     }
 
     deinit {
-        NotificationCenter.default.removeObserver(self)
+        timer?.invalidate()
     }
 }
 

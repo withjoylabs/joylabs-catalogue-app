@@ -12,7 +12,7 @@ private func formatDisplayName(itemName: String?, variationName: String?) -> Str
 struct SwipeableReorderCard: View {
     let item: ReorderItem
     let displayMode: ReorderDisplayMode
-    let onStatusChange: (ReorderStatus) -> Void
+    let onStatusChange: (ReorderItemStatus) -> Void
     let onQuantityChange: (Int) -> Void
     let onQuantityTap: () -> Void // Tap to show quantity modal
     let onRemove: () -> Void

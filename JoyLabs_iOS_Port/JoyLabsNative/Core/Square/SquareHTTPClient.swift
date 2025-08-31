@@ -308,7 +308,8 @@ actor SquareHTTPClient {
         imageData: Data,
         fileName: String,
         itemId: String?,
-        idempotencyKey: String
+        idempotencyKey: String,
+        mimeType: String = "image/jpeg"
     ) async throws -> CreateCatalogImageResponse {
         logger.debug("Uploading image to Square: \(fileName) - DIRECT Square API")
 
@@ -334,7 +335,8 @@ actor SquareHTTPClient {
             fileName: fileName,
             itemId: itemId,
             idempotencyKey: idempotencyKey,
-            boundary: boundary
+            boundary: boundary,
+            mimeType: mimeType
         )
 
         // Create request
@@ -505,7 +507,8 @@ actor SquareHTTPClient {
         fileName: String,
         itemId: String?,
         idempotencyKey: String,
-        boundary: String
+        boundary: String,
+        mimeType: String = "image/jpeg"
     ) -> Data {
         var formData = Data()
 
@@ -537,7 +540,7 @@ actor SquareHTTPClient {
             // Add file field
             formData.append("--\(boundary)\r\n".data(using: .utf8)!)
             formData.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(fileName)\"\r\n".data(using: .utf8)!)
-            formData.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
+            formData.append("Content-Type: \(mimeType)\r\n\r\n".data(using: .utf8)!)
             formData.append(imageData)
             formData.append("\r\n".data(using: .utf8)!)
 

@@ -545,8 +545,9 @@ struct UnifiedImagePickerModal: View {
             do {
                 isUploading = true
 
-                // Convert image to data with high quality
-                guard let imageData = image.jpegData(compressionQuality: 0.9) else {
+                // Convert image to appropriate format (PNG for transparency, JPEG for opaque)
+                let (imageData, imageFormat) = image.smartImageData(compressionQuality: 0.9)
+                guard let data = imageData else {
                     throw UnifiedImageError.invalidImageData
                 }
                 
@@ -557,8 +558,8 @@ struct UnifiedImagePickerModal: View {
                     logger.info("📦 New item detected - preparing image data for inclusion in item creation")
                     
                     // Convert image data to base64 for temporary storage in ItemDetailsData
-                    let base64Image = imageData.base64EncodedString()
-                    let dataURL = "data:image/jpeg;base64,\(base64Image)"
+                    let base64Image = data.base64EncodedString()
+                    let dataURL = "data:\(imageFormat.mimeType);base64,\(base64Image)"
                     
                     // Create result with data URL for new items
                     let result = ImageUploadResult(
@@ -577,9 +578,11 @@ struct UnifiedImagePickerModal: View {
                     // IMMEDIATE UPLOAD: Existing item with ID - upload normally
                     logger.info("🚀 Uploading image immediately for existing item: \(itemId)")
                     
+                    let fileName = "joylabs_image_\(Int(Date().timeIntervalSince1970))_\(Int.random(in: 1000...9999)).\(imageFormat.fileExtension)"
+                    
                     let awsURL = try await imageService.uploadImage(
-                        imageData: imageData,
-                        fileName: "joylabs_image_\(Int(Date().timeIntervalSince1970))_\(Int.random(in: 1000...9999)).jpg",
+                        imageData: data,
+                        fileName: fileName,
                         itemId: itemId
                     )
                     

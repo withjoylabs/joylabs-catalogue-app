@@ -18,7 +18,7 @@ struct ReorderContentView: View {
 
     let onManagementAction: (ManagementAction) -> Void
     let onExportTap: () -> Void
-    let onStatusChange: (String, ReorderStatus) -> Void
+    let onStatusChange: (String, ReorderItemStatus) -> Void
     let onQuantityChange: (String, Int) -> Void
     let onRemoveItem: (String) -> Void
     let onBarcodeScanned: (String) -> Void

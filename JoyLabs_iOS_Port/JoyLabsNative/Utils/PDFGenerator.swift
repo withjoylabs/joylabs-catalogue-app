@@ -607,10 +607,11 @@ class PDFGenerator {
         var x = margin
         let upcFontSize: CGFloat = 9 // Use UPC font size for all elements
         
-        // Image - 1:1 aspect ratio (square), centered vertically, aligned with margin
+        // Image - 1:1 aspect ratio (square), centered vertically, with small left margin
         let imageSize: CGFloat = 36 // Reduced to fit tighter rows
+        let imageLeftMargin: CGFloat = 4 // Small margin to the left of the image
         let imagePadding = (rowHeight - imageSize) / 2
-        let imageRect = CGRect(x: x, y: y + imagePadding, width: imageSize, height: imageSize)
+        let imageRect = CGRect(x: x + imageLeftMargin, y: y + imagePadding, width: imageSize, height: imageSize)
         if let imageUrl = item.imageUrl,
            let url = URL(string: imageUrl),
            let imageData = try? Data(contentsOf: url),
@@ -629,7 +630,7 @@ class PDFGenerator {
         }
         x += imageWidth
         
-        // Item Name with variation appended - with text wrapping support
+        // Item Name with variation appended - vertically centered with text wrapping support
         let itemNameWithVariation = formatDisplayName(item: item)
         drawTableCellCentered(text: itemNameWithVariation, x: x, y: y, width: nameWidth, height: rowHeight, fontSize: upcFontSize, allowWrapping: true)
         x += nameWidth
@@ -708,7 +709,7 @@ class PDFGenerator {
         
         // New column layout: Image, Name, UPC, SKU, Retail, Qty (Variation merged with name)
         var x = margin
-        drawTableCell(text: "Image", x: x, y: y, width: 50, height: 18, attributes: headerAttributes, alignment: .center)
+        drawTableCell(text: "Image", x: x, y: y, width: 50, height: 18, attributes: headerAttributes, alignment: .left)
         x += 50
         drawTableCell(text: "Item Name", x: x, y: y, width: 240, height: 18, attributes: headerAttributes)
         x += 240
@@ -873,8 +874,16 @@ class PDFGenerator {
         mutableAttributes[.paragraphStyle] = paragraphStyle
         
         if allowWrapping {
-            // For wrapped text, use the full height and let it flow naturally
-            let rect = CGRect(x: x + 4, y: y + 2, width: width - 8, height: height - 4)
+            // For wrapped text, calculate the actual height needed and center vertically
+            let boundingRect = text.boundingRect(
+                with: CGSize(width: width - 8, height: .greatestFiniteMagnitude),
+                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                attributes: mutableAttributes,
+                context: nil
+            )
+            let textHeight = ceil(boundingRect.height)
+            let verticalPadding = max(0, (height - textHeight) / 2)
+            let rect = CGRect(x: x + 4, y: y + verticalPadding, width: width - 8, height: textHeight)
             text.draw(in: rect, withAttributes: mutableAttributes)
         } else {
             // For single line text, center vertically

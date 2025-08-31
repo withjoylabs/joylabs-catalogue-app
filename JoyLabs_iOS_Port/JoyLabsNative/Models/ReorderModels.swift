@@ -10,12 +10,12 @@ struct ReorderItem: Identifiable, Codable, Hashable, Equatable {
     var barcode: String? // Made mutable to allow updates from database
     var variationName: String? // Made mutable to allow updates from database
     var quantity: Int
-    var status: ReorderStatus
+    var status: ReorderItemStatus
     var addedDate: Date
     var purchasedDate: Date?
     var receivedDate: Date?
     var notes: String?
-    var priority: ReorderPriority = .normal
+    var priority: ReorderItemPriority = .normal
 
     // Team data fields (from team_data table)
     var vendor: String?
@@ -31,7 +31,7 @@ struct ReorderItem: Identifiable, Codable, Hashable, Equatable {
     var imageId: String?
     var hasTax: Bool = false
 
-    init(id: String, itemId: String, name: String, sku: String? = nil, barcode: String? = nil, variationName: String? = nil, quantity: Int, status: ReorderStatus = .added, addedDate: Date = Date(), notes: String? = nil) {
+    init(id: String, itemId: String, name: String, sku: String? = nil, barcode: String? = nil, variationName: String? = nil, quantity: Int, status: ReorderItemStatus = .added, addedDate: Date = Date(), notes: String? = nil) {
         self.id = id
         self.itemId = itemId
         self.name = name
@@ -83,11 +83,11 @@ struct ReorderItem: Identifiable, Codable, Hashable, Equatable {
 }
 
 // MARK: - Reorder Status (3-stage workflow)
-enum ReorderStatus: String, CaseIterable, Codable {
-    case added = "added"           // Stage 1: Blank radio button
-    case purchased = "purchased"   // Stage 2: Filled radio button
-    case received = "received"     // Stage 3: Moved to reveal right side
-
+enum ReorderItemStatus: String, CaseIterable, Codable {
+    case added = "added"
+    case purchased = "purchased"
+    case received = "received"
+    
     var displayName: String {
         switch self {
         case .added: return "Added"
@@ -95,23 +95,23 @@ enum ReorderStatus: String, CaseIterable, Codable {
         case .received: return "Received"
         }
     }
-
+    
     var systemImageName: String {
         switch self {
         case .added: return "circle"
         case .purchased: return "checkmark.circle.fill"
-        case .received: return "checkmark.circle.fill" // Received items should be swiped away, not shown
+        case .received: return "checkmark.circle.fill"
         }
     }
 }
 
 // MARK: - Reorder Priority
-enum ReorderPriority: String, CaseIterable, Codable {
+enum ReorderItemPriority: String, CaseIterable, Codable {
     case low = "Low"
     case normal = "Normal"
     case high = "High"
     case urgent = "Urgent"
-
+    
     var color: String {
         switch self {
         case .low: return "gray"

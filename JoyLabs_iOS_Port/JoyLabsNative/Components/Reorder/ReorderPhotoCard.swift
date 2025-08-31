@@ -12,7 +12,7 @@ private func formatDisplayName(itemName: String?, variationName: String?) -> Str
 struct ReorderPhotoCard: View {
     let item: ReorderItem
     let displayMode: ReorderDisplayMode
-    let onStatusChange: (ReorderStatus) -> Void
+    let onStatusChange: (ReorderItemStatus) -> Void
     let onQuantityChange: (Int) -> Void
     let onRemove: () -> Void
     let onImageTap: () -> Void // Photo tap toggles bought status
@@ -43,7 +43,7 @@ struct ReorderPhotoCard: View {
                         HStack {
                             Button(action: {
                                 withAnimation(.spring(response: 0.2, dampingFraction: 0.7, blendDuration: 0)) {
-                                    let newStatus: ReorderStatus = (item.status == .added) ? .purchased : .added
+                                    let newStatus: ReorderItemStatus = (item.status == .added) ? .purchased : .added
                                     onStatusChange(newStatus)
                                 }
                             }) {
@@ -69,7 +69,7 @@ struct ReorderPhotoCard: View {
             .onTapGesture {
                 print("[ReorderPhotoCard] Image tap detected - toggling status")
                 withAnimation(.spring(response: 0.2, dampingFraction: 0.7, blendDuration: 0)) {
-                    let newStatus: ReorderStatus = (item.status == .added) ? .purchased : .added
+                    let newStatus: ReorderItemStatus = (item.status == .added) ? .purchased : .added
                     onStatusChange(newStatus)
                 }
             }

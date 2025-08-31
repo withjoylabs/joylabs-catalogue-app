@@ -16,71 +16,8 @@ final class ReorderService: ObservableObject {
     // MARK: - Setup
     func setModelContext(_ context: ModelContext) {
         self.modelContext = context
-        migrateFromUserDefaultsIfNeeded()
     }
     
-    // MARK: - Migration from UserDefaults (One-time)
-    private func migrateFromUserDefaultsIfNeeded() {
-        guard let context = modelContext else { return }
-        
-        // Check if migration already done
-        let migrationKey = "ReorderDataMigratedToSwiftData"
-        guard !UserDefaults.standard.bool(forKey: migrationKey) else { return }
-        
-        // Load old data from UserDefaults
-        if let data = UserDefaults.standard.data(forKey: "reorderItems"),
-           let oldItems = try? JSONDecoder().decode([ReorderItem].self, from: data) {
-            
-            print("🔄 Migrating \(oldItems.count) reorder items to SwiftData")
-            
-            for oldItem in oldItems {
-                let newItem = ReorderItemModel(
-                    id: oldItem.id,
-                    itemId: oldItem.itemId,
-                    name: oldItem.name,
-                    sku: oldItem.sku,
-                    barcode: oldItem.barcode,
-                    variationName: oldItem.variationName,
-                    quantity: oldItem.quantity,
-                    status: ReorderItemStatus(rawValue: oldItem.status.rawValue) ?? .added,
-                    addedDate: oldItem.addedDate,
-                    notes: oldItem.notes,
-                    priority: ReorderItemPriority(rawValue: oldItem.priority.rawValue) ?? .normal
-                )
-                
-                // Copy over all other fields
-                newItem.purchasedDate = oldItem.purchasedDate
-                newItem.receivedDate = oldItem.receivedDate
-                newItem.vendor = oldItem.vendor
-                newItem.unitCost = oldItem.unitCost
-                newItem.caseUpc = oldItem.caseUpc
-                newItem.caseCost = oldItem.caseCost
-                newItem.caseQuantity = oldItem.caseQuantity
-                newItem.categoryName = oldItem.categoryName
-                newItem.price = oldItem.price
-                newItem.imageUrl = oldItem.imageUrl
-                newItem.imageId = oldItem.imageId
-                newItem.hasTax = oldItem.hasTax
-                
-                context.insert(newItem)
-            }
-            
-            // Save migration
-            do {
-                try context.save()
-                UserDefaults.standard.set(true, forKey: migrationKey)
-                print("✅ Migration complete")
-                
-                // Clean up old data
-                UserDefaults.standard.removeObject(forKey: "reorderItems")
-            } catch {
-                print("❌ Migration failed: \(error)")
-            }
-        } else {
-            // No old data, mark as migrated
-            UserDefaults.standard.set(true, forKey: migrationKey)
-        }
-    }
     
     // MARK: - CRUD Operations
     
@@ -143,7 +80,7 @@ final class ReorderService: ObservableObject {
         
         do {
             if let item = try context.fetch(descriptor).first {
-                item.status = status
+                item.statusEnum = status
                 
                 switch status {
                 case .purchased:
@@ -217,24 +154,41 @@ final class ReorderService: ObservableObject {
         }
     }
     
+    // MARK: - Badge Count Support
+    func getUnpurchasedCount() async -> Int {
+        guard let context = modelContext else { return 0 }
+        
+        let descriptor = FetchDescriptor<ReorderItemModel>(
+            predicate: #Predicate { item in item.status == "added" }
+        )
+        
+        do {
+            let items = try context.fetch(descriptor)
+            return items.count
+        } catch {
+            print("❌ Failed to get unpurchased count: \(error)")
+            return 0
+        }
+    }
+    
     func markAllAsReceived() {
         guard let context = modelContext else { return }
         
         let descriptor = FetchDescriptor<ReorderItemModel>(
-            predicate: #Predicate { item in item.status.rawValue == "added" }
+            predicate: #Predicate { item in item.status == "added" }
         )
         
         do {
             let items = try context.fetch(descriptor)
             for item in items {
-                item.status = .received
+                item.statusEnum = .received
                 item.receivedDate = Date()
                 item.lastUpdated = Date()
             }
             try context.save()
             
             // Then delete all received items
-            try context.delete(model: ReorderItemModel.self, where: #Predicate { item in item.status.rawValue == "received" })
+            try context.delete(model: ReorderItemModel.self, where: #Predicate { item in item.status == "received" })
             try context.save()
         } catch {
             print("❌ Failed to mark all as received: \(error)")

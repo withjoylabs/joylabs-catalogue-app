@@ -18,7 +18,7 @@ struct JoyLabsNativeApp: App {
             let schema = Schema([
                 ReorderItemModel.self
             ])
-            let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+            let modelConfiguration = ModelConfiguration("reorders-v2.store", schema: schema, isStoredInMemoryOnly: false)
             self.modelContainer = try ModelContainer(for: schema, configurations: [modelConfiguration])
             print("✅ [SwiftData] ModelContainer initialized")
         } catch {

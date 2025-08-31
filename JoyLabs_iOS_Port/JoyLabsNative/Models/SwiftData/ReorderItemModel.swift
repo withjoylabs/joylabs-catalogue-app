@@ -17,12 +17,12 @@ final class ReorderItemModel {
     
     // Reorder-specific data
     var quantity: Int
-    var status: ReorderItemStatus
+    var status: String
     var addedDate: Date
     var purchasedDate: Date?
     var receivedDate: Date?
     var notes: String?
-    var priority: ReorderItemPriority
+    var priority: String
     
     // Team data fields (from team_data table)
     var vendor: String?
@@ -40,6 +40,18 @@ final class ReorderItemModel {
     
     // Timestamp for updates
     var lastUpdated: Date
+    
+    
+    // Computed properties for enum access
+    var statusEnum: ReorderItemStatus {
+        get { ReorderItemStatus(rawValue: status) ?? .added }
+        set { status = newValue.rawValue }
+    }
+    
+    var priorityEnum: ReorderItemPriority {
+        get { ReorderItemPriority(rawValue: priority) ?? .normal }
+        set { priority = newValue.rawValue }
+    }
     
     init(
         id: String = UUID().uuidString,
@@ -61,10 +73,10 @@ final class ReorderItemModel {
         self.barcode = barcode
         self.variationName = variationName
         self.quantity = quantity
-        self.status = status
+        self.status = status.rawValue
         self.addedDate = addedDate
         self.notes = notes
-        self.priority = priority
+        self.priority = priority.rawValue
         self.hasTax = false
         self.lastUpdated = Date()
     }
@@ -98,42 +110,3 @@ final class ReorderItemModel {
     }
 }
 
-// MARK: - Status Enum (Stored as String in SwiftData)
-enum ReorderItemStatus: String, CaseIterable, Codable {
-    case added = "added"
-    case purchased = "purchased"
-    case received = "received"
-    
-    var displayName: String {
-        switch self {
-        case .added: return "Added"
-        case .purchased: return "Purchased"
-        case .received: return "Received"
-        }
-    }
-    
-    var systemImageName: String {
-        switch self {
-        case .added: return "circle"
-        case .purchased: return "checkmark.circle.fill"
-        case .received: return "checkmark.circle.fill"
-        }
-    }
-}
-
-// MARK: - Priority Enum (Stored as String in SwiftData)
-enum ReorderItemPriority: String, CaseIterable, Codable {
-    case low = "Low"
-    case normal = "Normal"
-    case high = "High"
-    case urgent = "Urgent"
-    
-    var color: String {
-        switch self {
-        case .low: return "gray"
-        case .normal: return "blue"
-        case .high: return "orange"
-        case .urgent: return "red"
-        }
-    }
-}

@@ -94,7 +94,7 @@ class ReorderDatabaseService: ObservableObject {
     }
     
     /// Get reorder items by status
-    func getReorderItems(status: ReorderStatus) throws -> [DatabaseReorderItem] {
+    func getReorderItems(status: ReorderItemStatus) throws -> [DatabaseReorderItem] {
         let query = reorderItems.filter(self.status == status.rawValue).order(updatedAt.desc)
         return try db.prepare(query).map { row in
             DatabaseReorderItem(
@@ -113,7 +113,7 @@ class ReorderDatabaseService: ObservableObject {
     }
     
     /// Update reorder item status
-    func updateReorderItemStatus(itemId: String, newStatus: ReorderStatus) throws {
+    func updateReorderItemStatus(itemId: String, newStatus: ReorderItemStatus) throws {
         let now = Date().iso8601String
         let item = reorderItems.filter(self.itemId == itemId)
         
@@ -213,21 +213,3 @@ extension Date {
     }
 }
 
-extension ReorderStatus {
-    var rawValue: String {
-        switch self {
-        case .added: return "added"
-        case .purchased: return "purchased"
-        case .received: return "received"
-        }
-    }
-    
-    init?(rawValue: String) {
-        switch rawValue {
-        case "added": self = .added
-        case "purchased": self = .purchased
-        case "received": self = .received
-        default: return nil
-        }
-    }
-}

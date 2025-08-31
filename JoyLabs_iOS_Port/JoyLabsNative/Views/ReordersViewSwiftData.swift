@@ -2,6 +2,52 @@ import SwiftUI
 import SwiftData
 import UIKit
 
+// MARK: - Supporting Types for ReordersViewSwiftData
+
+enum ReordersSheet: Identifiable {
+    case imagePicker(ReorderItem)
+    case itemDetails(ReorderItem)
+    case quantityModal(SearchResultItem)
+    
+    var id: String {
+        switch self {
+        case .imagePicker(let item): return "imagePicker-\(item.id)"
+        case .itemDetails(let item): return "itemDetails-\(item.id)"
+        case .quantityModal(let item): return "quantityModal-\(item.id)"
+        }
+    }
+}
+
+class QuantityModalStateManager: ObservableObject {
+    @Published var showingQuantityModal = false
+    @Published var selectedItemForQuantity: SearchResultItem?
+    @Published var modalQuantity: Int = 1
+    @Published var isExistingItem = false
+    @Published var modalJustPresented = false
+    
+    func setItem(_ item: SearchResultItem, quantity: Int, isExisting: Bool) {
+        selectedItemForQuantity = item
+        modalQuantity = quantity
+        isExistingItem = isExisting
+    }
+    
+    func showModal() {
+        modalJustPresented = true
+        showingQuantityModal = true
+        // Clear the flag after a short delay to allow normal dismiss behavior
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.modalJustPresented = false
+        }
+    }
+    
+    func clearState() {
+        selectedItemForQuantity = nil
+        showingQuantityModal = false
+        isExistingItem = false
+        modalJustPresented = false
+    }
+}
+
 // MARK: - Professional ReordersView with SwiftData Backend (Fully Restored)
 struct ReordersViewSwiftData: SwiftUI.View {
     // SwiftData as single source of truth for data
@@ -187,7 +233,7 @@ struct ReordersViewSwiftData: SwiftUI.View {
             .nestedComponentModal()
         }
         // RESTORED: Professional unified sheet modal with original ReordersSheet enum
-        .sheet(item: $activeSheet) { sheet in
+        .sheet(item: $activeSheet) { (sheet: ReordersSheet) in
             switch sheet {
             case .imagePicker(let item):
                 UnifiedImagePickerModal(
@@ -252,7 +298,18 @@ struct ReordersViewSwiftData: SwiftUI.View {
         
         // Setup barcode manager with ReorderService  
         barcodeManager.setReorderService(ReorderService.shared)
+        
+        // Connect barcode manager modal handlers using closures
+        barcodeManager.setModalHandlers(
+            showQuantityModal: showQuantityModal,
+            isModalShowing: { modalStateManager.showingQuantityModal },
+            getCurrentItem: { modalStateManager.selectedItemForQuantity },
+            getCurrentQuantity: { currentModalQuantity },
+            dismissModal: { handleQuantityModalCancel() }
+        )
     }
+    
+    // Protocol methods now handled via closures in setModalHandlers
     
     private func handleManagementAction(_ action: ManagementAction) {
         switch action {
@@ -265,9 +322,8 @@ struct ReordersViewSwiftData: SwiftUI.View {
     
     // MARK: - Professional Item Management (SwiftData Backend)
     
-    private func updateItemStatus(_ itemId: String, _ newStatus: ReorderStatus) {
-        let swiftDataStatus = ReorderItemStatus(rawValue: newStatus.rawValue) ?? .added
-        ReorderService.shared.updateItemStatus(itemId, status: swiftDataStatus)
+    private func updateItemStatus(_ itemId: String, _ newStatus: ReorderItemStatus) {
+        ReorderService.shared.updateItemStatus(itemId, status: newStatus)
         
         let statusName = newStatus.displayName
         ToastNotificationService.shared.showSuccess("Item marked as \(statusName)")
@@ -376,8 +432,6 @@ struct ReordersViewSwiftData: SwiftUI.View {
     
     private func convertToReorderItem(_ swiftDataItem: ReorderItemModel) -> ReorderItem {
         // Professional conversion: SwiftData → ReorderItem for UI compatibility
-        let legacyStatus = ReorderStatus(rawValue: swiftDataItem.status.rawValue) ?? .added
-        let legacyPriority = ReorderPriority(rawValue: swiftDataItem.priority.rawValue) ?? .normal
         
         var reorderItem = ReorderItem(
             id: swiftDataItem.id,
@@ -387,7 +441,7 @@ struct ReordersViewSwiftData: SwiftUI.View {
             barcode: swiftDataItem.barcode,
             variationName: swiftDataItem.variationName,
             quantity: swiftDataItem.quantity,
-            status: legacyStatus,
+            status: swiftDataItem.statusEnum,
             addedDate: swiftDataItem.addedDate,
             notes: swiftDataItem.notes
         )
@@ -403,7 +457,7 @@ struct ReordersViewSwiftData: SwiftUI.View {
         reorderItem.imageUrl = swiftDataItem.imageUrl
         reorderItem.imageId = swiftDataItem.imageId
         reorderItem.hasTax = swiftDataItem.hasTax
-        reorderItem.priority = legacyPriority
+        reorderItem.priority = swiftDataItem.priorityEnum
         reorderItem.purchasedDate = swiftDataItem.purchasedDate
         reorderItem.receivedDate = swiftDataItem.receivedDate
         
