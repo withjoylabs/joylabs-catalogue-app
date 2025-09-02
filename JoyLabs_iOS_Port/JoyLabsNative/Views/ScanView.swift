@@ -85,7 +85,8 @@ struct ScanView: View {
             
             // Setup centralized item update manager with ScanView's SearchManager
             // This ensures the global service can update this view's search results
-            let catalogStatsService = CatalogStatsService()
+            let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
+            let catalogStatsService = CatalogStatsService(modelContext: databaseManager.getContext())
             CentralItemUpdateManager.shared.setup(
                 searchManager: searchManager,
                 catalogStatsService: catalogStatsService,
@@ -136,8 +137,10 @@ struct ScanView: View {
 
             // Simplified debounce with single timer (removed triple-async layers)
             searchDebounceTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: false) { _ in
-                let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
-                searchManager.performSearchWithDebounce(searchTerm: newValue, filters: filters)
+                Task { @MainActor in
+                    let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
+                    searchManager.performSearchWithDebounce(searchTerm: newValue, filters: filters)
+                }
             }
         }
     }

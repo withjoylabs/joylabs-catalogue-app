@@ -1,7 +1,8 @@
 import SwiftUI
+import SwiftData
 import Combine
 import os.log
-import SQLite
+import Foundation
 
 // MARK: - Item Details Data
 /// Complete data model for item details that captures all Square catalog fields
@@ -1075,20 +1076,18 @@ class ItemDetailsViewModel: ObservableObject {
         logger.info("🔍 [MODAL] Getting primary image info for item: \(itemId)")
 
         do {
-            guard let db = databaseManager.getConnection() else {
-                logger.error("🔍 [MODAL] ❌ Database not connected")
-                return nil
-            }
+            let db = databaseManager.getContext()
             
-            // Get item's image_ids array from database
-            let selectQuery = """
-                SELECT data_json FROM catalog_items
-                WHERE id = ? AND is_deleted = 0
-            """
+            // Get item's image_ids array from database using SwiftData
+            let descriptor = FetchDescriptor<CatalogItemModel>(
+                predicate: #Predicate { item in
+                    item.id == itemId && item.isDeleted == false
+                }
+            )
             
-            let statement = try db.prepare(selectQuery)
-            for row in try statement.run([itemId]) {
-                let dataJsonString = row[0] as? String ?? "{}"
+            let catalogItems = try db.fetch(descriptor)
+            for catalogItem in catalogItems {
+                let dataJsonString = catalogItem.dataJson ?? "{}"
                 let dataJsonData = dataJsonString.data(using: String.Encoding.utf8) ?? Data()
                 
                 if let currentData = try JSONSerialization.jsonObject(with: dataJsonData) as? [String: Any] {
@@ -1154,47 +1153,42 @@ class ItemDetailsViewModel: ObservableObject {
 
     /// Load variations from database for the current item
     private func loadVariationsForCurrentItem() async {
-        guard let db = databaseManager.getConnection() else {
-            // Fallback to default variation if no database connection
-            var variation = ItemDetailsVariationData()
-            variation.name = ItemFieldConfiguration.defaultConfiguration().pricingFields.defaultVariationName
-            variations = [variation]
-            return
-        }
+        let db = databaseManager.getContext()
 
         do {
-            let sql = """
-                SELECT id, name, sku, upc, ordinal, pricing_type, price_amount, price_currency, version, data_json
-                FROM item_variations
-                WHERE item_id = ? AND is_deleted = 0
-                ORDER BY ordinal ASC
-            """
-            let statement = try db.prepare(sql)
+            let itemId = self.staticData.id ?? ""
+            let descriptor = FetchDescriptor<ItemVariationModel>(
+                predicate: #Predicate { variation in
+                    variation.itemId == itemId && variation.isDeleted == false
+                },
+                sortBy: [SortDescriptor(\.ordinal)]
+            )
+            
+            let variationModels = try db.fetch(descriptor)
             var loadedVariations: [ItemDetailsVariationData] = []
 
-            for row in try statement.run(self.staticData.id ?? "") {
+            for variationModel in variationModels {
                 var variation = ItemDetailsVariationData()
-                variation.id = row[0] as? String
-                variation.name = row[1] as? String
-                variation.sku = row[2] as? String
-                variation.upc = row[3] as? String
-                variation.ordinal = (row[4] as? Int64).map(Int.init) ?? 0
+                variation.id = variationModel.id
+                variation.name = variationModel.name
+                variation.sku = variationModel.sku
+                variation.upc = variationModel.upc
+                variation.ordinal = variationModel.ordinal ?? 0
 
                 // Parse pricing type
-                if let pricingTypeStr = row[5] as? String {
+                if let pricingTypeStr = variationModel.pricingType {
                     variation.pricingType = transformPricingType(pricingTypeStr)
                 }
 
                 // Parse price money
-                if let priceAmount = row[6] as? Int64,
-                   let priceCurrency = row[7] as? String {
+                if let priceAmount = variationModel.priceAmount,
+                   let priceCurrency = variationModel.priceCurrency {
                     variation.priceMoney = MoneyData(amount: Int(priceAmount), currency: priceCurrency)
                 }
                 
                 // Parse version (stored as TEXT in database)
-                if let versionStr = row[8] as? String {
-                    variation.version = Int64(versionStr)
-                }
+                let versionStr = variationModel.version
+                variation.version = Int64(versionStr)
 
                 loadedVariations.append(variation)
                 logger.info("Loaded variation: \(variation.name ?? "unnamed") - SKU: \(variation.sku ?? "none") - UPC: \(variation.upc ?? "none") - Version: \(variation.version?.description ?? "nil")")
@@ -1246,25 +1240,21 @@ class ItemDetailsViewModel: ObservableObject {
     /// Load categories from local database (same pattern as search)
     private func loadCategories() async {
         do {
-            guard let db = databaseManager.getConnection() else {
-                logger.error("No database connection available")
-                return
-            }
+            let db = databaseManager.getContext()
 
-            let query = """
-                SELECT id, name, is_deleted
-                FROM categories
-                WHERE is_deleted = 0
-                ORDER BY name ASC
-            """
+            let descriptor = FetchDescriptor<CategoryModel>(
+                predicate: #Predicate { category in
+                    category.isDeleted == false
+                },
+                sortBy: [SortDescriptor(\.name)]
+            )
 
-            let statement = try db.prepare(query)
+            let categoryModels = try db.fetch(descriptor)
             var categories: [CategoryData] = []
 
-            for row in statement {
-                let id = row[0] as? String ?? ""
-                let name = row[1] as? String ?? ""
-                let _ = (row[2] as? Int64 ?? 0) != 0 // isDeleted - already filtered in query
+            for categoryModel in categoryModels {
+                let id = categoryModel.id
+                let name = categoryModel.name ?? ""
 
                 guard !id.isEmpty, !name.isEmpty else { continue }
 
@@ -1299,26 +1289,23 @@ class ItemDetailsViewModel: ObservableObject {
     /// Load taxes from local database (same pattern as search)
     private func loadTaxes() async {
         do {
-            guard let db = databaseManager.getConnection() else {
-                logger.error("No database connection available")
-                return
-            }
+            let db = databaseManager.getContext()
 
-            let query = """
-                SELECT id, name, percentage, enabled
-                FROM taxes
-                WHERE is_deleted = 0 AND enabled = 1
-                ORDER BY name ASC
-            """
+            let descriptor = FetchDescriptor<TaxModel>(
+                predicate: #Predicate { tax in
+                    tax.isDeleted == false && tax.enabled == true
+                },
+                sortBy: [SortDescriptor(\.name)]
+            )
 
-            let statement = try db.prepare(query)
+            let taxModels = try db.fetch(descriptor)
             var taxes: [TaxData] = []
 
-            for row in statement {
-                let id = row[0] as? String ?? ""
-                let name = row[1] as? String ?? ""
-                let percentage = row[2] as? String
-                let enabled = (row[3] as? Int64 ?? 0) != 0
+            for taxModel in taxModels {
+                let id = taxModel.id
+                let name = taxModel.name ?? ""
+                let percentage = taxModel.percentage
+                let enabled = taxModel.enabled ?? true
 
                 guard !id.isEmpty, !name.isEmpty else { continue }
 
@@ -1347,25 +1334,22 @@ class ItemDetailsViewModel: ObservableObject {
     /// Load modifier lists from local database (same pattern as search)
     private func loadModifierLists() async {
         do {
-            guard let db = databaseManager.getConnection() else {
-                logger.error("No database connection available")
-                return
-            }
+            let db = databaseManager.getContext()
 
-            let query = """
-                SELECT id, name, selection_type
-                FROM modifier_lists
-                WHERE is_deleted = 0
-                ORDER BY name ASC
-            """
+            let descriptor = FetchDescriptor<ModifierListModel>(
+                predicate: #Predicate { modifierList in
+                    modifierList.isDeleted == false
+                },
+                sortBy: [SortDescriptor(\.name)]
+            )
 
-            let statement = try db.prepare(query)
+            let modifierListModels = try db.fetch(descriptor)
             var modifierLists: [ModifierListData] = []
 
-            for row in statement {
-                let id = row[0] as? String ?? ""
-                let name = row[1] as? String ?? ""
-                let selectionType = row[2] as? String
+            for modifierListModel in modifierListModels {
+                let id = modifierListModel.id
+                let name = modifierListModel.name ?? ""
+                let selectionType = modifierListModel.selectionType
 
                 guard !id.isEmpty, !name.isEmpty else { continue }
 
@@ -1406,22 +1390,19 @@ class ItemDetailsViewModel: ObservableObject {
         guard let itemId = staticData.id else { return }
 
         do {
-            guard let db = databaseManager.getConnection() else {
-                logger.error("No database connection available for pre-resolved names")
-                return
-            }
+            let db = databaseManager.getContext()
 
-            let query = """
-                SELECT tax_names, modifier_names
-                FROM catalog_items
-                WHERE id = ? AND is_deleted = 0
-            """
+            let descriptor = FetchDescriptor<CatalogItemModel>(
+                predicate: #Predicate { item in
+                    item.id == itemId && item.isDeleted == false
+                }
+            )
 
-            let statement = try db.prepare(query)
+            let catalogItems = try db.fetch(descriptor)
 
-            for row in try statement.run(itemId) {
-                let taxNames = row[0] as? String
-                let modifierNames = row[1] as? String
+            for catalogItem in catalogItems {
+                let taxNames = catalogItem.taxNames
+                let modifierNames = catalogItem.modifierNames
 
                 // Store the pre-resolved names for display purposes
                 // These will be used in the UI instead of doing repeated lookups

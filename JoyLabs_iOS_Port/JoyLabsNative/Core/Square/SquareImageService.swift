@@ -1,7 +1,7 @@
 import Foundation
+import SwiftData
 import UIKit
 import OSLog
-import SQLite
 
 // MARK: - Square Image Service Result Types
 struct SquareImageUploadResult {
@@ -125,9 +125,7 @@ class SquareImageService: ObservableObject {
         itemId: String,
         fileName: String
     ) async throws {
-        guard let db = databaseManager.getConnection() else {
-            throw SquareAPIError.upsertFailed("Database not connected")
-        }
+        let db = databaseManager.getContext()
 
         logger.info("Updating local database with new image: \(squareImageId)")
 
@@ -140,20 +138,34 @@ class SquareImageService: ObservableObject {
         ]
 
         do {
-            try db.run("""
-                INSERT OR REPLACE INTO images
-                (id, updated_at, version, is_deleted, name, url, caption, data_json)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            squareImageId,
-            String(now),
-            "1",
-            false,
-            fileName,
-            awsUrl,
-            "Uploaded via JoyLabs iOS app",
-            try JSONSerialization.data(withJSONObject: imageDataJson).base64EncodedString()
+            // Check if image already exists
+            let descriptor = FetchDescriptor<ImageModel>(
+                predicate: #Predicate { image in
+                    image.id == squareImageId
+                }
             )
+            
+            let imageModel: ImageModel
+            if let existingImage = try db.fetch(descriptor).first {
+                // Update existing image
+                imageModel = existingImage
+            } else {
+                // Create new image
+                imageModel = ImageModel(id: squareImageId)
+                db.insert(imageModel)
+            }
+            
+            // Set/update properties
+            imageModel.id = squareImageId
+            imageModel.updatedAt = Date(timeIntervalSince1970: now)
+            imageModel.version = "1"
+            imageModel.isDeleted = false
+            imageModel.name = fileName
+            imageModel.url = awsUrl
+            imageModel.caption = "Uploaded via JoyLabs iOS app"
+            imageModel.dataJson = try JSONSerialization.data(withJSONObject: imageDataJson).base64EncodedString()
+            
+            try db.save()
 
             logger.info("✅ Saved image to images table: \(squareImageId)")
         } catch {
@@ -163,16 +175,17 @@ class SquareImageService: ObservableObject {
 
         // 2. Update the item's data to include the new image ID as primary
         do {
-            // Use raw SQL for complex JSON operations
-            let selectQuery = """
-                SELECT id, data_json FROM catalog_items
-                WHERE id = ? AND is_deleted = 0
-            """
+            // Use SwiftData to get catalog item
+            let descriptor = FetchDescriptor<CatalogItemModel>(
+                predicate: #Predicate { item in
+                    item.id == itemId && item.isDeleted == false
+                }
+            )
 
-            let statement = try db.prepare(selectQuery)
+            let catalogItems = try db.fetch(descriptor)
 
-            for row in try statement.run([itemId]) {
-                let dataJsonString = row[1] as? String ?? "{}"
+            for catalogItem in catalogItems {
+                let dataJsonString = catalogItem.dataJson ?? "{}"
                 let dataJsonData = dataJsonString.data(using: String.Encoding.utf8) ?? Data()
 
                 var currentData = try JSONSerialization.jsonObject(with: dataJsonData) as? [String: Any] ?? [:]
@@ -189,17 +202,15 @@ class SquareImageService: ObservableObject {
                 // Update the data
                 currentData["image_ids"] = imageIds
 
-                // Save back to database
+                // Save back to database using SwiftData
                 let updatedDataJson = try JSONSerialization.data(withJSONObject: currentData)
                 let updatedDataJsonString = String(data: updatedDataJson, encoding: .utf8) ?? "{}"
 
-                let updateQuery = """
-                    UPDATE catalog_items
-                    SET data_json = ?, updated_at = ?
-                    WHERE id = ?
-                """
-
-                try db.run(updateQuery, updatedDataJsonString, String(now), itemId)
+                // Update the catalog item
+                catalogItem.dataJson = updatedDataJsonString
+                catalogItem.updatedAt = Date(timeIntervalSince1970: now)
+                
+                try db.save()
 
                 logger.info("✅ Updated item with new primary image: \(itemId) -> \(squareImageId)")
                 logger.info("📊 Updated image_ids array: \(imageIds)")
@@ -303,19 +314,17 @@ extension SquareImageService {
 
     /// Get the current image ID for an item before uploading new one
     private func getOldImageIdForItem(itemId: String) async throws -> String? {
-        guard let db = databaseManager.getConnection() else {
-            throw SquareAPIError.upsertFailed("No database connection")
-        }
+        let db = databaseManager.getContext()
 
-        // Use SQLite.swift table syntax
-        let catalogItems = Table("catalog_items")
-        let id = Expression<String>("id")
-        let dataJson = Expression<String?>("data_json")
+        // Use SwiftData to get catalog item
+        let descriptor = FetchDescriptor<CatalogItemModel>(
+            predicate: #Predicate { item in
+                item.id == itemId
+            }
+        )
 
-        let query = catalogItems.select(dataJson).where(id == itemId)
-
-        if let row = try db.pluck(query) {
-            let dataJsonString = row[dataJson] ?? ""
+        if let catalogItem = try db.fetch(descriptor).first {
+            let dataJsonString = catalogItem.dataJson ?? ""
             if let data = dataJsonString.data(using: String.Encoding.utf8),
                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let imageIds = json["image_ids"] as? [String],

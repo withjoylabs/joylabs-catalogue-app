@@ -1,4 +1,6 @@
 import SwiftUI
+import SwiftData
+import Foundation
 
 struct LabelLiveSettingsView: View {
     @StateObject private var settingsService = LabelLiveSettingsService.shared
@@ -520,26 +522,22 @@ struct AddDiscountRuleSheet: View {
         
         Task {
             do {
-                guard let db = databaseManager.getConnection() else {
-                    await MainActor.run {
-                        isLoadingCategories = false
-                    }
-                    return
-                }
+                let db = databaseManager.getContext()
                 
-                let query = """
-                    SELECT id, name
-                    FROM categories
-                    WHERE is_deleted = 0 AND name IS NOT NULL
-                    ORDER BY name ASC
-                """
+                let descriptor = FetchDescriptor<CategoryModel>(
+                    predicate: #Predicate { category in
+                        category.isDeleted == false && category.name != nil
+                    },
+                    sortBy: [SortDescriptor(\.name)]
+                )
                 
-                let statement = try db.prepare(query)
+                let categoryModels = try db.fetch(descriptor)
                 var categories: [(id: String, name: String)] = []
                 
-                for row in statement {
-                    let id = row[0] as! String
-                    let name = row[1] as! String
+                for categoryModel in categoryModels {
+                    let id = categoryModel.id
+                    let name = categoryModel.name ?? ""
+                    guard !id.isEmpty, !name.isEmpty else { continue }
                     categories.append((id: id, name: name))
                 }
                 

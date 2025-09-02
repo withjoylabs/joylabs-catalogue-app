@@ -252,49 +252,45 @@ final class ReorderService: ObservableObject {
     
     private func fetchCatalogData(itemId: String, db: Connection) async -> CatalogData? {
         do {
-            // Query catalog_items table
-            let itemQuery = CatalogTableDefinitions.catalogItems
-                .select(CatalogTableDefinitions.itemName,
-                       CatalogTableDefinitions.itemCategoryName,
-                       CatalogTableDefinitions.itemReportingCategoryName,
-                       CatalogTableDefinitions.itemDataJson)
-                .filter(CatalogTableDefinitions.itemId == itemId)
-                .filter(CatalogTableDefinitions.itemIsDeleted == false)
+            // Query catalog_items using SwiftData
+            let itemDescriptor = FetchDescriptor<CatalogItemModel>(
+                predicate: #Predicate { item in
+                    item.id == itemId && !item.isDeleted
+                }
+            )
             
-            guard let itemRow = try db.pluck(itemQuery) else {
+            guard let catalogItem = try db.fetch(itemDescriptor).first else {
                 return nil
             }
             
             // Get item data
-            let name = try? itemRow.get(CatalogTableDefinitions.itemName)
-            let reportingCategoryName = try? itemRow.get(CatalogTableDefinitions.itemReportingCategoryName)
-            let regularCategoryName = try? itemRow.get(CatalogTableDefinitions.itemCategoryName)
+            let name = catalogItem.name
+            let reportingCategoryName = catalogItem.reportingCategoryName
+            let regularCategoryName = catalogItem.categoryName
             let categoryName = reportingCategoryName ?? regularCategoryName
-            let dataJson = try? itemRow.get(CatalogTableDefinitions.itemDataJson)
+            let dataJson = catalogItem.dataJson
             
-            // Get variation data
-            let variationQuery = CatalogTableDefinitions.itemVariations
-                .select(CatalogTableDefinitions.variationPriceAmount,
-                       CatalogTableDefinitions.variationSku,
-                       CatalogTableDefinitions.variationUpc)
-                .filter(CatalogTableDefinitions.variationItemId == itemId)
-                .filter(CatalogTableDefinitions.variationIsDeleted == false)
-                .limit(1)
+            // Get variation data using SwiftData
+            let variationDescriptor = FetchDescriptor<ItemVariationModel>(
+                predicate: #Predicate { variation in
+                    variation.itemId == itemId && !variation.isDeleted
+                }
+            )
             
             var price: Double? = nil
             var sku: String? = nil
             var barcode: String? = nil
             
-            if let variationRow = try db.pluck(variationQuery) {
-                let priceAmount = try? variationRow.get(CatalogTableDefinitions.variationPriceAmount)
+            if let variation = try db.fetch(variationDescriptor).first {
+                let priceAmount = variation.priceAmount
                 if let amount = priceAmount, amount > 0 {
                     let convertedPrice = Double(amount) / 100.0
                     if convertedPrice.isFinite && !convertedPrice.isNaN && convertedPrice > 0 {
                         price = convertedPrice
                     }
                 }
-                sku = try? variationRow.get(CatalogTableDefinitions.variationSku)
-                barcode = try? variationRow.get(CatalogTableDefinitions.variationUpc)
+                sku = variation.sku
+                barcode = variation.upc
             }
             
             // Get tax info

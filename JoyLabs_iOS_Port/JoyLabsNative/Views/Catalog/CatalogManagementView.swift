@@ -1,4 +1,6 @@
 import SwiftUI
+import SwiftData
+import Foundation
 import os.log
 
 // Notification for refreshing catalog data after sync
@@ -139,7 +141,10 @@ struct SyncSuccessModal: View {
 struct CatalogManagementView: View {
     @StateObject private var syncCoordinator = SquareAPIServiceFactory.createSyncCoordinator()
     @StateObject private var locationsService = SquareLocationsService()
-    @StateObject private var catalogStatsService = CatalogStatsService()
+    @StateObject private var catalogStatsService: CatalogStatsService = {
+        let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
+        return CatalogStatsService(modelContext: databaseManager.getContext())
+    }()
 
     @State private var showingClearDatabaseConfirmation = false
     @State private var showingSyncConfirmation = false
@@ -363,7 +368,9 @@ struct CatalogManagementView: View {
                 Spacer()
 
                 Button("Refresh") {
-                    catalogStatsService.refreshStats()
+                    Task {
+                        await catalogStatsService.refreshStats()
+                    }
                 }
                 .font(.subheadline)
                 .fontWeight(.medium)
@@ -568,12 +575,10 @@ struct CatalogManagementView: View {
     private func loadInitialData() {
         logger.debug("📱 Initializing catalog management page...")
 
-        // Set the database manager for stats service (this triggers stats calculation)
-        let databaseManager = syncCoordinator.catalogSyncService.sharedDatabaseManager
-        catalogStatsService.setDatabaseManager(databaseManager)
-
         // Force refresh stats to ensure they're loaded
-        catalogStatsService.refreshStats()
+        Task {
+            await catalogStatsService.refreshStats()
+        }
 
         // Load locations in background
         Task {
@@ -599,26 +604,22 @@ struct CatalogManagementView: View {
             logger.info("🧪 TEST: Starting to process existing objects in database...")
 
             let databaseManager = syncCoordinator.catalogSyncService.sharedDatabaseManager
-            guard let db = databaseManager.getConnection() else {
-                logger.error("🧪 TEST: No database connection available")
-                return
-            }
+            let db = databaseManager.getContext()
 
             do {
-                // Get raw JSON data from database to test processing
-                let query = """
-                    SELECT id, type, data_json FROM catalog_objects
-                    WHERE type IN ('CATEGORY', 'TAX', 'MODIFIER_LIST', 'MODIFIER', 'IMAGE')
-                    LIMIT 20
-                """
-
-                let statement = try db.prepare(query)
+                // Get catalog items from SwiftData to test processing
+                var itemDescriptor = FetchDescriptor<CatalogItemModel>(
+                    sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
+                )
+                itemDescriptor.fetchLimit = 10
+                
+                let catalogItems = try db.fetch(itemDescriptor)
                 var processedCount = 0
 
-                for row in try statement.run() {
-                    let objectId = row[0] as! String
-                    let objectType = row[1] as! String
-                    let jsonData = row[2] as! String
+                for catalogItem in catalogItems {
+                    let objectId = catalogItem.id
+                    let objectType = "ITEM"
+                    let jsonData = catalogItem.dataJson ?? "{}"
 
                     logger.info("🧪 TEST: Processing \(objectType) object \(objectId)")
                     logger.debug("🧪 TEST: Raw JSON: \(jsonData)")
@@ -696,7 +697,7 @@ struct CatalogManagementView: View {
                 logger.info("Database cleared successfully")
 
                 // Refresh stats to show 0 counts
-                catalogStatsService.refreshStats()
+                await catalogStatsService.refreshStats()
 
                 // Notify all catalog views to refresh their data
                 NotificationCenter.default.post(name: .catalogDataDidUpdate, object: nil)
@@ -1058,17 +1059,21 @@ class CategoriesViewModel: ObservableObject {
                 throw NSError(domain: "Database", code: 1, userInfo: [NSLocalizedDescriptionKey: "No database connection"])
             }
 
-            let rows = try db.prepare(CatalogTableDefinitions.categories.order(CatalogTableDefinitions.categoryName.asc))
+            let descriptor = FetchDescriptor<CategoryModel>(
+                predicate: #Predicate { _ in true },
+                sortBy: [SortDescriptor(\.name, order: .forward)]
+            )
+            let categoryModels = try db.fetch(descriptor)
 
             var loadedCategories: [CategoryDisplayData] = []
 
-            for row in rows {
+            for categoryModel in categoryModels {
                 let category = CategoryDisplayData(
-                    id: row[CatalogTableDefinitions.categoryId],
-                    name: row[CatalogTableDefinitions.categoryName] ?? "Unknown Category",
-                    isDeleted: row[CatalogTableDefinitions.categoryIsDeleted],
-                    updatedAt: row[CatalogTableDefinitions.categoryUpdatedAt],
-                    version: row[CatalogTableDefinitions.categoryVersion]
+                    id: categoryModel.id,
+                    name: categoryModel.name ?? "Unknown Category",
+                    isDeleted: categoryModel.isDeleted,
+                    updatedAt: ISO8601DateFormatter().string(from: categoryModel.updatedAt),
+                    version: categoryModel.version
                 )
 
                 loadedCategories.append(category)
@@ -1289,24 +1294,28 @@ class TaxesViewModel: ObservableObject {
 
         do {
             try databaseManager.connect()
-            guard let db = databaseManager.getConnection() else {
-                throw NSError(domain: "Database", code: 1, userInfo: [NSLocalizedDescriptionKey: "No database connection"])
-            }
+            let db = databaseManager.getContext()
 
-            let rows = try db.prepare(CatalogTableDefinitions.taxes.order(CatalogTableDefinitions.taxName.asc))
+            let descriptor = FetchDescriptor<TaxModel>(
+                predicate: #Predicate { tax in
+                    tax.isDeleted == false
+                },
+                sortBy: [SortDescriptor(\.name)]
+            )
 
+            let taxModels = try db.fetch(descriptor)
             var loadedTaxes: [TaxDisplayData] = []
 
-            for row in rows {
+            for taxModel in taxModels {
                 let tax = TaxDisplayData(
-                    id: row[CatalogTableDefinitions.taxId],
-                    name: row[CatalogTableDefinitions.taxName] ?? "Unknown Tax",
-                    isDeleted: row[CatalogTableDefinitions.taxIsDeleted],
-                    updatedAt: row[CatalogTableDefinitions.taxUpdatedAt],
-                    version: row[CatalogTableDefinitions.taxVersion],
-                    calculationPhase: row[CatalogTableDefinitions.taxCalculationPhase],
-                    percentage: row[CatalogTableDefinitions.taxPercentage],
-                    enabled: row[CatalogTableDefinitions.taxEnabled]
+                    id: taxModel.id,
+                    name: taxModel.name ?? "Unknown Tax",
+                    isDeleted: taxModel.isDeleted,
+                    updatedAt: ISO8601DateFormatter().string(from: taxModel.updatedAt),
+                    version: taxModel.version,
+                    calculationPhase: taxModel.calculationPhase ?? "TAX_SUBTOTAL_PHASE",
+                    percentage: taxModel.percentage ?? "0.0",
+                    enabled: taxModel.enabled ?? true
                 )
 
                 loadedTaxes.append(tax)
@@ -1520,24 +1529,28 @@ class ModifiersViewModel: ObservableObject {
 
         do {
             try databaseManager.connect()
-            guard let db = databaseManager.getConnection() else {
-                throw NSError(domain: "Database", code: 1, userInfo: [NSLocalizedDescriptionKey: "No database connection"])
-            }
+            let db = databaseManager.getContext()
 
-            let rows = try db.prepare(CatalogTableDefinitions.modifiers.order(CatalogTableDefinitions.modifierName.asc))
+            let descriptor = FetchDescriptor<ModifierModel>(
+                predicate: #Predicate { modifier in
+                    modifier.isDeleted == false
+                },
+                sortBy: [SortDescriptor(\.name)]
+            )
 
+            let modifierModels = try db.fetch(descriptor)
             var loadedModifiers: [ModifierDisplayData] = []
 
-            for row in rows {
+            for modifierModel in modifierModels {
                 let modifier = ModifierDisplayData(
-                    id: row[CatalogTableDefinitions.modifierId],
-                    name: row[CatalogTableDefinitions.modifierName] ?? "Unknown Modifier",
-                    isDeleted: row[CatalogTableDefinitions.modifierIsDeleted],
-                    updatedAt: row[CatalogTableDefinitions.modifierUpdatedAt],
-                    version: row[CatalogTableDefinitions.modifierVersion],
-                    priceAmount: row[CatalogTableDefinitions.modifierPriceAmount],
-                    priceCurrency: row[CatalogTableDefinitions.modifierPriceCurrency],
-                    onByDefault: row[CatalogTableDefinitions.modifierOnByDefault]
+                    id: modifierModel.id,
+                    name: modifierModel.name ?? "Unknown Modifier",
+                    isDeleted: modifierModel.isDeleted,
+                    updatedAt: ISO8601DateFormatter().string(from: modifierModel.updatedAt),
+                    version: modifierModel.version,
+                    priceAmount: modifierModel.priceAmount ?? 0,
+                    priceCurrency: modifierModel.priceCurrency ?? "USD",
+                    onByDefault: modifierModel.onByDefault ?? false
                 )
 
                 loadedModifiers.append(modifier)

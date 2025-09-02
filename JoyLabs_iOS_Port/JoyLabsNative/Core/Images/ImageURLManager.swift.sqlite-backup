@@ -34,6 +34,7 @@ class ImageURLManager {
     // MARK: - Public Methods
     
     /// Create image URL mapping table
+    @MainActor
     func createImageMappingTable() throws {
         guard let db = databaseManager.getConnection() else {
             throw ImageURLError.databaseNotConnected
@@ -67,6 +68,7 @@ class ImageURLManager {
     }
     
     /// Store image URL mapping when processing Square catalog objects
+    @MainActor
     func storeImageMapping(
         squareImageId: String,
         awsUrl: String,
@@ -103,6 +105,7 @@ class ImageURLManager {
     }
     
     /// Get local cache key for Square image ID
+    @MainActor
     func getLocalCacheKey(for squareImageId: String) throws -> String? {
         guard let db = databaseManager.getConnection() else {
             throw ImageURLError.databaseNotConnected
@@ -122,6 +125,7 @@ class ImageURLManager {
     }
     
     /// Get original AWS URL for Square image ID
+    @MainActor
     func getOriginalAwsUrl(for squareImageId: String) throws -> String? {
         guard let db = databaseManager.getConnection() else {
             throw ImageURLError.databaseNotConnected
@@ -139,6 +143,7 @@ class ImageURLManager {
     }
     
     /// Get all image mappings for a specific object
+    @MainActor
     func getImageMappings(for objectId: String, objectType: String) throws -> [ImageMapping] {
         guard let db = databaseManager.getConnection() else {
             throw ImageURLError.databaseNotConnected
@@ -169,6 +174,7 @@ class ImageURLManager {
     }
     
     /// Mark image mappings as deleted (soft delete for CRUD operations)
+    @MainActor
     func markImageAsDeleted(squareImageId: String) throws {
         guard let db = databaseManager.getConnection() else {
             throw ImageURLError.databaseNotConnected
@@ -181,6 +187,7 @@ class ImageURLManager {
     }
     
     /// Clear all image mappings (for full sync)
+    @MainActor
     func clearAllImageMappings() throws {
         guard let db = databaseManager.getConnection() else {
             logger.warning("⚠️ Database connection not available for clearing image mappings - skipping")
@@ -192,6 +199,7 @@ class ImageURLManager {
     }
     
     /// Clean up orphaned image mappings
+    @MainActor
     func cleanupOrphanedMappings() throws {
         guard let db = databaseManager.getConnection() else {
             throw ImageURLError.databaseNotConnected
@@ -210,6 +218,7 @@ class ImageURLManager {
     }
 
     /// Remove image mapping for a specific image ID
+    @MainActor
     func removeImageMapping(imageId: String) async {
         guard let db = databaseManager.getConnection() else {
             logger.error("❌ No database connection for removing image mapping")
@@ -263,6 +272,7 @@ class ImageURLManager {
         return "\(safeKey).jpg" // Default extension
     }
     
+    @MainActor
     private func updateLastAccessedTime(squareImageId: String) throws {
         guard let db = databaseManager.getConnection() else { return }
 
@@ -273,6 +283,7 @@ class ImageURLManager {
     // MARK: - Webhook Support Methods
 
     /// Invalidate image mappings for a specific object (for webhook processing)
+    @MainActor
     func invalidateImagesForObject(objectId: String, objectType: String) throws {
         guard let db = databaseManager.getConnection() else {
             throw ImageURLError.databaseNotConnected
@@ -285,6 +296,7 @@ class ImageURLManager {
     }
 
     /// Invalidate a specific image by Square image ID (for webhook processing)
+    @MainActor
     func invalidateImageById(squareImageId: String) throws {
         guard let db = databaseManager.getConnection() else {
             throw ImageURLError.databaseNotConnected
@@ -297,6 +309,7 @@ class ImageURLManager {
     }
 
     /// Get all cache keys that need cleanup (marked as deleted)
+    @MainActor
     func getStaleImageCacheKeys() throws -> [String] {
         guard let db = databaseManager.getConnection() else {
             throw ImageURLError.databaseNotConnected
@@ -316,6 +329,7 @@ class ImageURLManager {
     }
 
     /// Remove stale image mappings from database (cleanup after cache files are deleted)
+    @MainActor
     func cleanupStaleImageMappings() throws {
         guard let db = databaseManager.getConnection() else {
             throw ImageURLError.databaseNotConnected

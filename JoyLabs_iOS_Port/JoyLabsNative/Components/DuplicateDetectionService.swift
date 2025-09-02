@@ -1,6 +1,6 @@
 import Foundation
+import SwiftData
 import OSLog
-import SQLite
 
 /// Service for detecting duplicate SKUs and UPCs in the catalog
 /// Provides real-time validation and warnings for item creation/editing
@@ -133,109 +133,103 @@ class DuplicateDetectionService: ObservableObject {
     }
     
     private func findDuplicatesBySKU(_ sku: String, excludeItemId: String?) async throws -> [DuplicateItem] {
-        return try await withCheckedThrowingContinuation { continuation in
-            Task {
-                do {
-                    guard let db = databaseManager.getConnection() else {
-                        continuation.resume(throwing: NSError(domain: "DuplicateDetection", code: 1, userInfo: [NSLocalizedDescriptionKey: "Database not connected"]))
-                        return
-                    }
-
-                    // Use SQLite.swift syntax for querying
-                    let catalogItems = Table("catalog_items")
-                    let itemVariations = Table("item_variations")
-
-                    let itemId = Expression<String>("id")
-                    let itemName = Expression<String?>("name")
-                    let itemIsDeleted = Expression<Bool>("is_deleted")
-
-                    let variationId = Expression<String>("id")
-                    let variationItemId = Expression<String?>("item_id")
-                    let variationName = Expression<String?>("name")
-                    let variationSku = Expression<String?>("sku")
-                    let variationIsDeleted = Expression<Bool>("is_deleted")
-
-                    var query = catalogItems
-                        .join(itemVariations, on: catalogItems[itemId] == itemVariations[variationItemId])
-                        .select(catalogItems[itemId], catalogItems[itemName], itemVariations[variationId], itemVariations[variationName], itemVariations[variationSku])
-                        .where(itemVariations[variationSku] == sku && catalogItems[itemIsDeleted] == false && itemVariations[variationIsDeleted] == false)
-
-                    if let excludeId = excludeItemId {
-                        query = query.where(catalogItems[itemId] != excludeId)
-                    }
-
-                    var duplicates: [DuplicateItem] = []
-
-                    for row in try db.prepare(query) {
-                        let duplicate = DuplicateItem(
-                            itemId: row[catalogItems[itemId]],
-                            itemName: row[catalogItems[itemName]] ?? "",
-                            variationId: row[itemVariations[variationId]],
-                            variationName: row[itemVariations[variationName]] ?? "",
-                            matchingValue: row[itemVariations[variationSku]] ?? ""
-                        )
-                        duplicates.append(duplicate)
-                    }
-
-                    continuation.resume(returning: duplicates)
-                } catch {
-                    continuation.resume(throwing: error)
+        let db = databaseManager.getContext()
+        
+        // Create separate predicates to avoid complex predicate compilation issues
+        let descriptor: FetchDescriptor<ItemVariationModel>
+        
+        if let excludeId = excludeItemId {
+            descriptor = FetchDescriptor<ItemVariationModel>(
+                predicate: #Predicate { variation in
+                    variation.sku == sku && !variation.isDeleted && variation.itemId != excludeId
                 }
+            )
+        } else {
+            descriptor = FetchDescriptor<ItemVariationModel>(
+                predicate: #Predicate { variation in
+                    variation.sku == sku && !variation.isDeleted
+                }
+            )
+        }
+        
+        let variations = try db.fetch(descriptor)
+
+        var duplicates: [DuplicateItem] = []
+
+        for variation in variations {
+            // Capture the itemId value for the predicate
+            let variationItemId = variation.itemId
+            
+            // Fetch the parent item using the itemId
+            let itemDescriptor = FetchDescriptor<CatalogItemModel>(
+                predicate: #Predicate { item in
+                    item.id == variationItemId && !item.isDeleted
+                }
+            )
+            
+            if let parentItem = try db.fetch(itemDescriptor).first {
+                let duplicate = DuplicateItem(
+                    itemId: parentItem.id,
+                    itemName: parentItem.name ?? "",
+                    variationId: variation.id,
+                    variationName: variation.name ?? "",
+                    matchingValue: variation.sku ?? ""
+                )
+                duplicates.append(duplicate)
             }
         }
+
+        return duplicates
     }
     
     private func findDuplicatesByUPC(_ upc: String, excludeItemId: String?) async throws -> [DuplicateItem] {
-        return try await withCheckedThrowingContinuation { continuation in
-            Task {
-                do {
-                    guard let db = databaseManager.getConnection() else {
-                        continuation.resume(throwing: NSError(domain: "DuplicateDetection", code: 1, userInfo: [NSLocalizedDescriptionKey: "Database not connected"]))
-                        return
-                    }
-
-                    // Use SQLite.swift syntax for querying
-                    let catalogItems = Table("catalog_items")
-                    let itemVariations = Table("item_variations")
-
-                    let itemId = Expression<String>("id")
-                    let itemName = Expression<String?>("name")
-                    let itemIsDeleted = Expression<Bool>("is_deleted")
-
-                    let variationId = Expression<String>("id")
-                    let variationItemId = Expression<String?>("item_id")
-                    let variationName = Expression<String?>("name")
-                    let variationUpc = Expression<String?>("upc")
-                    let variationIsDeleted = Expression<Bool>("is_deleted")
-
-                    var query = catalogItems
-                        .join(itemVariations, on: catalogItems[itemId] == itemVariations[variationItemId])
-                        .select(catalogItems[itemId], catalogItems[itemName], itemVariations[variationId], itemVariations[variationName], itemVariations[variationUpc])
-                        .where(itemVariations[variationUpc] == upc && catalogItems[itemIsDeleted] == false && itemVariations[variationIsDeleted] == false)
-
-                    if let excludeId = excludeItemId {
-                        query = query.where(catalogItems[itemId] != excludeId)
-                    }
-
-                    var duplicates: [DuplicateItem] = []
-
-                    for row in try db.prepare(query) {
-                        let duplicate = DuplicateItem(
-                            itemId: row[catalogItems[itemId]],
-                            itemName: row[catalogItems[itemName]] ?? "",
-                            variationId: row[itemVariations[variationId]],
-                            variationName: row[itemVariations[variationName]] ?? "",
-                            matchingValue: row[itemVariations[variationUpc]] ?? ""
-                        )
-                        duplicates.append(duplicate)
-                    }
-
-                    continuation.resume(returning: duplicates)
-                } catch {
-                    continuation.resume(throwing: error)
+        let db = databaseManager.getContext()
+        
+        // Create separate predicates to avoid complex predicate compilation issues
+        let descriptor: FetchDescriptor<ItemVariationModel>
+        
+        if let excludeId = excludeItemId {
+            descriptor = FetchDescriptor<ItemVariationModel>(
+                predicate: #Predicate { variation in
+                    variation.upc == upc && !variation.isDeleted && variation.itemId != excludeId
                 }
+            )
+        } else {
+            descriptor = FetchDescriptor<ItemVariationModel>(
+                predicate: #Predicate { variation in
+                    variation.upc == upc && !variation.isDeleted
+                }
+            )
+        }
+        
+        let variations = try db.fetch(descriptor)
+
+        var duplicates: [DuplicateItem] = []
+
+        for variation in variations {
+            // Capture the itemId value for the predicate
+            let variationItemId = variation.itemId
+            
+            // Fetch the parent item using the itemId
+            let itemDescriptor = FetchDescriptor<CatalogItemModel>(
+                predicate: #Predicate { item in
+                    item.id == variationItemId && !item.isDeleted
+                }
+            )
+            
+            if let parentItem = try db.fetch(itemDescriptor).first {
+                let duplicate = DuplicateItem(
+                    itemId: parentItem.id,
+                    itemName: parentItem.name ?? "",
+                    variationId: variation.id,
+                    variationName: variation.name ?? "",
+                    matchingValue: variation.upc ?? ""
+                )
+                duplicates.append(duplicate)
             }
         }
+
+        return duplicates
     }
 }
 

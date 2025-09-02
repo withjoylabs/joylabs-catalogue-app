@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import UIKit
 import OSLog
 
@@ -117,38 +118,39 @@ class SimpleImageService: ObservableObject {
     
     /// Get the primary image ID from Square's catalog data (image_ids[0])
     private func getPrimaryImageIdFromSquare(itemId: String) -> String? {
-        guard let db = databaseManager.getConnection() else {
-            logger.error("❌ Database not connected")
-            return nil
-        }
+        let db = databaseManager.getContext()
         
         do {
-            // Get catalog item data to extract image_ids array
-            let selectQuery = "SELECT data_json FROM catalog_items WHERE id = ? AND is_deleted = 0"
+            // Get catalog item data to extract image_ids array using SwiftData
+            let descriptor = FetchDescriptor<CatalogItemModel>(
+                predicate: #Predicate { item in
+                    item.id == itemId && !item.isDeleted
+                }
+            )
             
-            for row in try db.prepare(selectQuery, itemId) {
-                guard let dataJson = row[0] as? String,
-                      let data = dataJson.data(using: .utf8) else {
-                    continue
+            guard let catalogItem = try db.fetch(descriptor).first,
+                  let dataJson = catalogItem.dataJson,
+                  let data = dataJson.data(using: String.Encoding.utf8) else {
+                logger.warning("Failed to get catalog item data for image update")
+                return nil
+            }
+            
+            // Parse JSON as dictionary to access image_ids array
+            if let catalogData = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                var imageIds: [String]? = nil
+                
+                // Try nested under item_data first (current format with underscores)
+                if let itemData = catalogData["item_data"] as? [String: Any] {
+                    imageIds = itemData["image_ids"] as? [String]
                 }
                 
-                // Parse JSON as dictionary to access image_ids array
-                if let catalogData = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                    var imageIds: [String]? = nil
-                    
-                    // Try nested under item_data first (current format with underscores)
-                    if let itemData = catalogData["item_data"] as? [String: Any] {
-                        imageIds = itemData["image_ids"] as? [String]
-                    }
-                    
-                    // Fallback to root level (legacy format or direct storage)
-                    if imageIds == nil {
-                        imageIds = catalogData["image_ids"] as? [String]
-                    }
-                    
-                    // Return first image ID from Square's array (primary image)
-                    return imageIds?.first
+                // Fallback to root level (legacy format or direct storage)
+                if imageIds == nil {
+                    imageIds = catalogData["image_ids"] as? [String]
                 }
+                
+                // Return first image ID from Square's array (primary image)
+                return imageIds?.first
             }
         } catch {
             logger.error("❌ Failed to get primary image ID from Square data: \(error)")
@@ -176,59 +178,60 @@ class SimpleImageService: ObservableObject {
     
     /// Update the local catalog_items.data_json with the new image ID
     private func updateLocalCatalogWithNewImage(imageId: String, itemId: String) async throws {
-        guard let db = databaseManager.getConnection() else {
-            logger.error("❌ Database not connected for local catalog update")
-            return
-        }
+        let db = databaseManager.getContext()
         
         do {
-            // Get current data_json for the item
-            let selectQuery = "SELECT data_json FROM catalog_items WHERE id = ? AND is_deleted = 0"
+            // Get current data_json for the item using SwiftData
+            let descriptor = FetchDescriptor<CatalogItemModel>(
+                predicate: #Predicate { item in
+                    item.id == itemId && !item.isDeleted
+                }
+            )
             
-            for row in try db.prepare(selectQuery, itemId) {
-                guard let dataJson = row[0] as? String,
-                      let data = dataJson.data(using: .utf8) else {
-                    continue
+            guard let catalogItem = try db.fetch(descriptor).first,
+                  let dataJson = catalogItem.dataJson,
+                  let data = dataJson.data(using: String.Encoding.utf8) else {
+                logger.warning("Failed to get catalog item data for local update")
+                return
+            }
+                
+            // Parse JSON and update image_ids array
+            if var catalogData = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                
+                // Handle nested item_data structure (current format)
+                if var itemData = catalogData["item_data"] as? [String: Any] {
+                    var imageIds = itemData["image_ids"] as? [String] ?? []
+                    
+                    // Remove if already exists, then add as primary (first in array)
+                    imageIds.removeAll { $0 == imageId }
+                    imageIds.insert(imageId, at: 0)
+                    
+                    itemData["image_ids"] = imageIds
+                    catalogData["item_data"] = itemData
+                    
+                    logger.info("🔄 Updated image_ids in item_data: \(imageIds)")
+                } else {
+                    // Handle root level structure (legacy format)
+                    var imageIds = catalogData["image_ids"] as? [String] ?? []
+                    
+                    // Remove if already exists, then add as primary (first in array)
+                    imageIds.removeAll { $0 == imageId }
+                    imageIds.insert(imageId, at: 0)
+                    
+                    catalogData["image_ids"] = imageIds
+                    
+                    logger.info("🔄 Updated image_ids at root level: \(imageIds)")
                 }
                 
-                // Parse JSON and update image_ids array
-                if var catalogData = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                    
-                    // Handle nested item_data structure (current format)
-                    if var itemData = catalogData["item_data"] as? [String: Any] {
-                        var imageIds = itemData["image_ids"] as? [String] ?? []
-                        
-                        // Remove if already exists, then add as primary (first in array)
-                        imageIds.removeAll { $0 == imageId }
-                        imageIds.insert(imageId, at: 0)
-                        
-                        itemData["image_ids"] = imageIds
-                        catalogData["item_data"] = itemData
-                        
-                        logger.info("🔄 Updated image_ids in item_data: \(imageIds)")
-                    } else {
-                        // Handle root level structure (legacy format)
-                        var imageIds = catalogData["image_ids"] as? [String] ?? []
-                        
-                        // Remove if already exists, then add as primary (first in array)
-                        imageIds.removeAll { $0 == imageId }
-                        imageIds.insert(imageId, at: 0)
-                        
-                        catalogData["image_ids"] = imageIds
-                        
-                        logger.info("🔄 Updated image_ids at root level: \(imageIds)")
-                    }
-                    
-                    // Convert back to JSON and update database
-                    let updatedData = try JSONSerialization.data(withJSONObject: catalogData)
-                    let updatedJson = String(data: updatedData, encoding: .utf8) ?? ""
-                    
-                    let updateQuery = "UPDATE catalog_items SET data_json = ? WHERE id = ?"
-                    try db.run(updateQuery, updatedJson, itemId)
-                    
-                    logger.info("✅ Local catalog updated with new primary image: \(itemId) -> \(imageId)")
-                    break
-                }
+                // Convert back to JSON and update SwiftData model
+                let updatedData = try JSONSerialization.data(withJSONObject: catalogData)
+                let updatedJson = String(data: updatedData, encoding: .utf8) ?? ""
+                
+                // Update using SwiftData
+                catalogItem.dataJson = updatedJson
+                try db.save()
+                
+                logger.info("✅ Local catalog updated with new primary image: \(itemId) -> \(imageId)")
             }
         } catch {
             logger.error("❌ Failed to update local catalog with new image: \(error)")

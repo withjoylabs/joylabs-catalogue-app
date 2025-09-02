@@ -1,17 +1,17 @@
 import Foundation
-import SQLite
+import SwiftData
 import os.log
 
 /// Simple, elegant service for bidirectional ID↔Name conversion
 /// Extends existing database patterns without breaking current sync functionality
 /// Used for CRUD operations to convert UI selections (names) back to Square IDs
 class SquareDataConverter {
-    private let databaseManager: SQLiteSwiftCatalogManager
+    private let databaseManager: SwiftDataCatalogManager
     private let logger = Logger(subsystem: "com.joylabs.native", category: "SquareDataConverter")
     
     // MARK: - Initialization
     
-    init(databaseManager: SQLiteSwiftCatalogManager) {
+    init(databaseManager: SwiftDataCatalogManager) {
         self.databaseManager = databaseManager
         logger.info("SquareDataConverter initialized")
     }
@@ -20,11 +20,9 @@ class SquareDataConverter {
     
     /// Convert category name to Square category ID
     /// Used when preparing data for Square API calls
+    @MainActor
     func getCategoryId(byName name: String) -> String? {
-        guard let db = databaseManager.getConnection() else {
-            logger.error("No database connection available for category lookup")
-            return nil
-        }
+        let context = databaseManager.getContext()
         
         guard !name.isEmpty else {
             logger.warning("Empty category name provided")
@@ -32,15 +30,16 @@ class SquareDataConverter {
         }
         
         do {
-            let query = CatalogTableDefinitions.categories
-                .select(CatalogTableDefinitions.categoryId)
-                .filter(CatalogTableDefinitions.categoryName == name && 
-                       CatalogTableDefinitions.categoryIsDeleted == false)
+            let descriptor = FetchDescriptor<CategoryModel>(
+                predicate: #Predicate { category in
+                    category.name == name && !category.isDeleted
+                }
+            )
             
-            if let row = try db.pluck(query) {
-                let categoryId = try row.get(CatalogTableDefinitions.categoryId)
-                logger.debug("Found category ID '\(categoryId)' for name '\(name)'")
-                return categoryId
+            let categories = try context.fetch(descriptor)
+            if let category = categories.first {
+                logger.debug("Found category ID '\(category.id)' for name '\(name)'")
+                return category.id
             } else {
                 logger.warning("No category found for name '\(name)'")
             }
@@ -52,11 +51,9 @@ class SquareDataConverter {
     
     /// Convert tax names to Square tax IDs
     /// Used when preparing data for Square API calls
+    @MainActor
     func getTaxIds(byNames names: [String]) -> [String] {
-        guard let db = databaseManager.getConnection() else {
-            logger.error("No database connection available for tax lookup")
-            return []
-        }
+        let context = databaseManager.getContext()
         
         guard !names.isEmpty else {
             return []
@@ -68,16 +65,16 @@ class SquareDataConverter {
             guard !name.isEmpty else { continue }
             
             do {
-                let query = CatalogTableDefinitions.taxes
-                    .select(CatalogTableDefinitions.taxId)
-                    .filter(CatalogTableDefinitions.taxName == name && 
-                           CatalogTableDefinitions.taxIsDeleted == false &&
-                           CatalogTableDefinitions.taxEnabled == true)
+                let descriptor = FetchDescriptor<TaxModel>(
+                    predicate: #Predicate { tax in
+                        tax.name == name && !tax.isDeleted && (tax.enabled ?? false)
+                    }
+                )
                 
-                if let row = try db.pluck(query) {
-                    let taxId = try row.get(CatalogTableDefinitions.taxId)
-                    taxIds.append(taxId)
-                    logger.debug("Found tax ID '\(taxId)' for name '\(name)'")
+                let taxes = try context.fetch(descriptor)
+                if let tax = taxes.first {
+                    taxIds.append(tax.id)
+                    logger.debug("Found tax ID '\(tax.id)' for name '\(name)'")
                 } else {
                     logger.warning("No tax found for name '\(name)'")
                 }
@@ -92,11 +89,9 @@ class SquareDataConverter {
     
     /// Convert modifier list names to Square modifier list IDs
     /// Used when preparing data for Square API calls
+    @MainActor
     func getModifierListIds(byNames names: [String]) -> [String] {
-        guard let db = databaseManager.getConnection() else {
-            logger.error("No database connection available for modifier lookup")
-            return []
-        }
+        let context = databaseManager.getContext()
         
         guard !names.isEmpty else {
             return []
@@ -108,15 +103,16 @@ class SquareDataConverter {
             guard !name.isEmpty else { continue }
             
             do {
-                let query = CatalogTableDefinitions.modifierLists
-                    .select(CatalogTableDefinitions.modifierListPrimaryId)
-                    .filter(CatalogTableDefinitions.modifierListName == name && 
-                           CatalogTableDefinitions.modifierListIsDeleted == false)
+                let descriptor = FetchDescriptor<ModifierListModel>(
+                    predicate: #Predicate { modifierList in
+                        modifierList.name == name && !modifierList.isDeleted
+                    }
+                )
                 
-                if let row = try db.pluck(query) {
-                    let modifierId = try row.get(CatalogTableDefinitions.modifierListPrimaryId)
-                    modifierIds.append(modifierId)
-                    logger.debug("Found modifier list ID '\(modifierId)' for name '\(name)'")
+                let modifierLists = try context.fetch(descriptor)
+                if let modifierList = modifierLists.first {
+                    modifierIds.append(modifierList.id)
+                    logger.debug("Found modifier list ID '\(modifierList.id)' for name '\(name)'")
                 } else {
                     logger.warning("No modifier list found for name '\(name)'")
                 }
@@ -133,22 +129,23 @@ class SquareDataConverter {
     
     /// Check if a category ID exists and is not deleted
     /// Used to validate references before sending to Square API
+    @MainActor
     func validateCategoryExists(id: String) -> Bool {
-        guard let db = databaseManager.getConnection() else {
-            logger.error("No database connection available for category validation")
-            return false
-        }
+        let context = databaseManager.getContext()
         
         guard !id.isEmpty else {
             return false
         }
         
         do {
-            let query = CatalogTableDefinitions.categories
-                .filter(CatalogTableDefinitions.categoryId == id && 
-                       CatalogTableDefinitions.categoryIsDeleted == false)
+            let descriptor = FetchDescriptor<CategoryModel>(
+                predicate: #Predicate { category in
+                    category.id == id && !category.isDeleted
+                }
+            )
             
-            let exists = try db.pluck(query) != nil
+            let categories = try context.fetch(descriptor)
+            let exists = !categories.isEmpty
             logger.debug("Category ID '\(id)' validation: \(exists)")
             return exists
         } catch {
@@ -159,21 +156,21 @@ class SquareDataConverter {
 
     /// Check if a single tax ID exists and is enabled
     /// Used to validate individual tax references before sending to Square API
+    @MainActor
     func validateTaxExists(id: String) -> Bool {
-        guard let db = databaseManager.getConnection() else {
-            logger.error("No database connection available for tax validation")
-            return false
-        }
+        let context = databaseManager.getContext()
 
         guard !id.isEmpty else { return false }
 
         do {
-            let query = CatalogTableDefinitions.taxes
-                .filter(CatalogTableDefinitions.taxId == id &&
-                       CatalogTableDefinitions.taxIsDeleted == false &&
-                       CatalogTableDefinitions.taxEnabled == true)
+            let descriptor = FetchDescriptor<TaxModel>(
+                predicate: #Predicate { tax in
+                    tax.id == id && !tax.isDeleted && (tax.enabled ?? false)
+                }
+            )
 
-            let exists = try db.pluck(query) != nil
+            let taxes = try context.fetch(descriptor)
+            let exists = !taxes.isEmpty
             logger.debug("Tax ID '\(id)' validation: \(exists)")
             return exists
         } catch {
@@ -184,11 +181,9 @@ class SquareDataConverter {
 
     /// Check if tax IDs exist and are enabled
     /// Used to validate references before sending to Square API
+    @MainActor
     func validateTaxIds(_ ids: [String]) -> [String] {
-        guard let db = databaseManager.getConnection() else {
-            logger.error("No database connection available for tax validation")
-            return []
-        }
+        let context = databaseManager.getContext()
         
         var validIds: [String] = []
         
@@ -196,12 +191,14 @@ class SquareDataConverter {
             guard !id.isEmpty else { continue }
             
             do {
-                let query = CatalogTableDefinitions.taxes
-                    .filter(CatalogTableDefinitions.taxId == id && 
-                           CatalogTableDefinitions.taxIsDeleted == false &&
-                           CatalogTableDefinitions.taxEnabled == true)
+                let descriptor = FetchDescriptor<TaxModel>(
+                    predicate: #Predicate { tax in
+                        tax.id == id && !tax.isDeleted && (tax.enabled ?? false)
+                    }
+                )
                 
-                if try db.pluck(query) != nil {
+                let taxes = try context.fetch(descriptor)
+                if !taxes.isEmpty {
                     validIds.append(id)
                     logger.debug("Tax ID '\(id)' is valid")
                 } else {
@@ -218,11 +215,9 @@ class SquareDataConverter {
     
     /// Check if modifier list IDs exist and are not deleted
     /// Used to validate references before sending to Square API
+    @MainActor
     func validateModifierListIds(_ ids: [String]) -> [String] {
-        guard let db = databaseManager.getConnection() else {
-            logger.error("No database connection available for modifier validation")
-            return []
-        }
+        let context = databaseManager.getContext()
         
         var validIds: [String] = []
         
@@ -230,11 +225,14 @@ class SquareDataConverter {
             guard !id.isEmpty else { continue }
             
             do {
-                let query = CatalogTableDefinitions.modifierLists
-                    .filter(CatalogTableDefinitions.modifierListPrimaryId == id && 
-                           CatalogTableDefinitions.modifierListIsDeleted == false)
+                let descriptor = FetchDescriptor<ModifierListModel>(
+                    predicate: #Predicate { modifierList in
+                        modifierList.id == id && !modifierList.isDeleted
+                    }
+                )
                 
-                if try db.pluck(query) != nil {
+                let modifierLists = try context.fetch(descriptor)
+                if !modifierLists.isEmpty {
                     validIds.append(id)
                     logger.debug("Modifier list ID '\(id)' is valid")
                 } else {

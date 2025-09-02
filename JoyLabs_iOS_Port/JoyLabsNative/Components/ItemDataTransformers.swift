@@ -112,11 +112,11 @@ class ItemDataTransformers {
                     isComplete: false,
                     authorId: teamData.owner ?? "unknown",
                     authorName: teamData.owner ?? "Unknown",
-                    createdAt: teamData.createdAt,
-                    updatedAt: teamData.updatedAt
+                    createdAt: ISO8601DateFormatter().string(from: teamData.createdAt),
+                    updatedAt: ISO8601DateFormatter().string(from: teamData.updatedAt)
                 )] : [],
                 owner: teamData.owner,
-                lastSyncAt: teamData.lastSyncAt
+                lastSyncAt: teamData.lastSyncAt != nil ? ISO8601DateFormatter().string(from: teamData.lastSyncAt!) : nil
             )
         }
         
@@ -502,6 +502,7 @@ class ItemDataTransformers {
     // MARK: - Future Name-Based Conversion Helpers
 
     /// Convert category names to IDs (for future UI implementations that work with names)
+    @MainActor
     static func convertCategoryNamesToIds(_ categoryNames: [String], using converter: SquareDataConverter) -> [String] {
         var categoryIds: [String] = []
         for name in categoryNames {
@@ -513,11 +514,13 @@ class ItemDataTransformers {
     }
 
     /// Convert tax names to IDs (for future UI implementations that work with names)
+    @MainActor
     static func convertTaxNamesToIds(_ taxNames: [String], using converter: SquareDataConverter) -> [String] {
         return converter.getTaxIds(byNames: taxNames)
     }
 
     /// Convert modifier names to IDs (for future UI implementations that work with names)
+    @MainActor
     static func convertModifierNamesToIds(_ modifierNames: [String], using converter: SquareDataConverter) -> [String] {
         return converter.getModifierListIds(byNames: modifierNames)
     }

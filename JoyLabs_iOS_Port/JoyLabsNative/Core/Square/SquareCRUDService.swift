@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import os.log
 
 /// Comprehensive CRUD service that ensures perfect synchronization between Square API and local database
@@ -737,38 +738,43 @@ extension SquareCRUDService {
         currentVariationIds: Set<String>, 
         timestamp: String
     ) async throws {
-        guard let db = databaseManager.getConnection() else {
-            throw SquareCRUDError.syncFailed("Database not connected")
-        }
+        let db = databaseManager.getContext()
         
         do {
             // Find all variations in database for this item that are not in Square's current response
-            let selectQuery = """
-                SELECT id FROM item_variations 
-                WHERE item_id = ? AND is_deleted = 0
-            """
+            let descriptor = FetchDescriptor<ItemVariationModel>(
+                predicate: #Predicate { variation in
+                    variation.itemId == itemId && !variation.isDeleted
+                }
+            )
             
             var variationsToDelete: [String] = []
+            let variations = try db.fetch(descriptor)
             
-            for row in try db.prepare(selectQuery, itemId) {
-                if let variationId = row[0] as? String {
-                    // If this variation ID is not in Square's current response, it was removed
-                    if !currentVariationIds.contains(variationId) {
-                        variationsToDelete.append(variationId)
-                    }
+            for variation in variations {
+                let variationId = variation.id
+                // If this variation ID is not in Square's current response, it was removed
+                if !currentVariationIds.contains(variationId) {
+                    variationsToDelete.append(variationId)
                 }
             }
             
             // Mark removed variations as deleted
             if !variationsToDelete.isEmpty {
                 for variationId in variationsToDelete {
-                    let updateQuery = """
-                        UPDATE item_variations 
-                        SET is_deleted = 1, updated_at = ? 
-                        WHERE id = ?
-                    """
-                    try db.run(updateQuery, timestamp, variationId)
-                    logger.info("🗑️ Marked variation \(variationId) as deleted in database")
+                    // Find the variation to update using SwiftData
+                    let updateDescriptor = FetchDescriptor<ItemVariationModel>(
+                        predicate: #Predicate { variation in
+                            variation.id == variationId
+                        }
+                    )
+                    
+                    if let variationToUpdate = try db.fetch(updateDescriptor).first {
+                        variationToUpdate.isDeleted = true
+                        variationToUpdate.updatedAt = ISO8601DateFormatter().date(from: timestamp) ?? Date()
+                        try db.save()
+                        logger.info("🗑️ Marked variation \(variationId) as deleted in database")
+                    }
                 }
                 logger.info("🗑️ Marked \(variationsToDelete.count) removed variations as deleted")
             }
@@ -782,33 +788,34 @@ extension SquareCRUDService {
     /// Get current image IDs for an item from the database
     /// Used to preserve existing images during item updates
     private func getCurrentImageIds(for itemId: String) async throws -> [String] {
-        guard let db = databaseManager.getConnection() else {
-            throw SquareCRUDError.syncFailed("Database not connected")
-        }
+        let db = databaseManager.getContext()
         
         do {
-            let selectQuery = "SELECT data_json FROM catalog_items WHERE id = ? AND is_deleted = 0"
+            let descriptor = FetchDescriptor<CatalogItemModel>(
+                predicate: #Predicate { item in
+                    item.id == itemId && !item.isDeleted
+                }
+            )
             
-            for row in try db.prepare(selectQuery, itemId) {
-                guard let dataJson = row[0] as? String,
-                      let data = dataJson.data(using: .utf8) else {
-                    continue
+            guard let catalogItem = try db.fetch(descriptor).first,
+                  let dataJson = catalogItem.dataJson,
+                  let data = dataJson.data(using: String.Encoding.utf8) else {
+                return []
+            }
+            
+            // Parse JSON to extract image_ids
+            if let catalogData = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                // Try nested under item_data first (current format)
+                if let itemData = catalogData["item_data"] as? [String: Any],
+                   let imageIds = itemData["image_ids"] as? [String] {
+                    logger.debug("📷 Found \(imageIds.count) existing images in item_data for: \(itemId)")
+                    return imageIds
                 }
                 
-                // Parse JSON to extract image_ids
-                if let catalogData = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                    // Try nested under item_data first (current format)
-                    if let itemData = catalogData["item_data"] as? [String: Any],
-                       let imageIds = itemData["image_ids"] as? [String] {
-                        logger.debug("📷 Found \(imageIds.count) existing images in item_data for: \(itemId)")
-                        return imageIds
-                    }
-                    
-                    // Fallback to root level (legacy format)
-                    if let imageIds = catalogData["image_ids"] as? [String] {
-                        logger.debug("📷 Found \(imageIds.count) existing images at root level for: \(itemId)")
-                        return imageIds
-                    }
+                // Fallback to root level (legacy format)
+                if let imageIds = catalogData["image_ids"] as? [String] {
+                    logger.debug("📷 Found \(imageIds.count) existing images at root level for: \(itemId)")
+                    return imageIds
                 }
             }
         } catch {

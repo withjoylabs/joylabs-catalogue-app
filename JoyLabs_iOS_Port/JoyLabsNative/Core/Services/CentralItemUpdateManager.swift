@@ -183,7 +183,9 @@ class CentralItemUpdateManager: ObservableObject {
         // ReordersView: New items don't affect existing reorder items - no action needed
         
         // CatalogManagementView: Refresh statistics when new items are created
-        catalogStatsService?.refreshStats()
+        Task {
+            await catalogStatsService?.refreshStats()
+        }
         
         // Future views: Add handling here as needed
     }
@@ -223,7 +225,9 @@ class CentralItemUpdateManager: ObservableObject {
         reorderBarcodeManager?.refreshSearchResults()
         
         // CatalogManagementView: Refresh statistics when items are updated
-        catalogStatsService?.refreshStats()
+        Task {
+            await catalogStatsService?.refreshStats()
+        }
         
         // ItemDetailsModal: Refresh any active modal showing this item
         await refreshItemDetailsModal(itemId: itemId)
@@ -252,7 +256,9 @@ class CentralItemUpdateManager: ObservableObject {
         // Legacy ReorderDataManager removed - using SwiftData ReorderService only
         
         // CatalogManagementView: Refresh statistics when items are deleted
-        catalogStatsService?.refreshStats()
+        Task {
+            await catalogStatsService?.refreshStats()
+        }
         
         // Future views: Add handling here as needed
     }

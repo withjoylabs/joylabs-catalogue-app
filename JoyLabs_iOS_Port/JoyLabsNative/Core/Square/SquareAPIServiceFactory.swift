@@ -12,9 +12,9 @@ class SquareAPIServiceFactory {
 
     /// Cached service instances - SINGLE INSTANCES ONLY
     private var cachedSquareAPIService: SquareAPIService?
-    private var cachedDatabaseManager: SQLiteSwiftCatalogManager?
-    private var cachedSyncCoordinator: SQLiteSwiftSyncCoordinator?
-    private var cachedCatalogSyncService: SQLiteSwiftCatalogSyncService?
+    private var cachedDatabaseManager: SwiftDataCatalogManager?  // SwiftData only
+    private var cachedSyncCoordinator: SwiftDataSyncCoordinator?  // SwiftData only
+    private var cachedCatalogSyncService: SwiftDataCatalogSyncService?  // SwiftData only
     private var cachedTokenService: TokenService?
     private var cachedHTTPClient: SquareHTTPClient?
     private var cachedImageURLManager: ImageURLManager?
@@ -44,55 +44,60 @@ class SquareAPIServiceFactory {
         return service
     }
 
-    /// Get or create the database manager instance
-    static func createDatabaseManager() -> SQLiteSwiftCatalogManager {
+    /// Get or create the database manager instance (SwiftData)
+    static func createDatabaseManager() -> SwiftDataCatalogManager {
         return shared.getOrCreateDatabaseManager()
     }
-
-    private func getOrCreateDatabaseManager() -> SQLiteSwiftCatalogManager {
+    
+    private func getOrCreateDatabaseManager() -> SwiftDataCatalogManager {
         if let cachedManager = cachedDatabaseManager {
-            // Remove this debug log to reduce console noise
+            logger.debug("[Factory] Returning cached SwiftDataCatalogManager instance")
             return cachedManager
         }
-
-        logger.debug("[Factory] Creating NEW SQLiteSwiftCatalogManager instance")
-        let manager = SQLiteSwiftCatalogManager()
-        cachedDatabaseManager = manager
-        return manager
+        
+        do {
+            logger.debug("[Factory] Creating NEW SwiftDataCatalogManager instance")
+            let manager = try SwiftDataCatalogManager()
+            cachedDatabaseManager = manager
+            return manager
+        } catch {
+            logger.error("[Factory] Failed to create SwiftDataCatalogManager: \(error)")
+            fatalError("Failed to create SwiftDataCatalogManager: \(error)")
+        }
     }
 
-    /// Get or create the sync coordinator instance
-    static func createSyncCoordinator() -> SQLiteSwiftSyncCoordinator {
+    /// Get or create the sync coordinator instance (SwiftData)
+    static func createSyncCoordinator() -> SwiftDataSyncCoordinator {
         return shared.getOrCreateSyncCoordinator()
     }
 
-    private func getOrCreateSyncCoordinator() -> SQLiteSwiftSyncCoordinator {
+    private func getOrCreateSyncCoordinator() -> SwiftDataSyncCoordinator {
         if let cachedCoordinator = cachedSyncCoordinator {
-            logger.debug("[Factory] Returning cached SQLiteSwiftSyncCoordinator instance")
+            logger.debug("[Factory] Returning cached SwiftDataSyncCoordinator instance")
             return cachedCoordinator
         }
 
-        logger.debug("[Factory] Creating NEW SQLiteSwiftSyncCoordinator instance")
+        logger.debug("[Factory] Creating NEW SwiftDataSyncCoordinator instance")
         let squareService = getOrCreateSquareAPIService()
-        let coordinator = SQLiteSwiftSyncCoordinator(squareAPIService: squareService)
+        let coordinator = SwiftDataSyncCoordinator(squareAPIService: squareService)
         cachedSyncCoordinator = coordinator
         return coordinator
     }
 
-    /// Get or create the catalog sync service instance
-    static func createCatalogSyncService() -> SQLiteSwiftCatalogSyncService {
+    /// Get or create the catalog sync service instance (SwiftData)
+    static func createCatalogSyncService() -> SwiftDataCatalogSyncService {
         return shared.getOrCreateCatalogSyncService()
     }
 
-    private func getOrCreateCatalogSyncService() -> SQLiteSwiftCatalogSyncService {
+    private func getOrCreateCatalogSyncService() -> SwiftDataCatalogSyncService {
         if let cachedService = cachedCatalogSyncService {
-            logger.debug("[Factory] Returning cached SQLiteSwiftCatalogSyncService instance")
+            logger.debug("[Factory] Returning cached SwiftDataCatalogSyncService instance")
             return cachedService
         }
 
-        logger.debug("[Factory] Creating NEW SQLiteSwiftCatalogSyncService instance")
+        logger.debug("[Factory] Creating NEW SwiftDataCatalogSyncService instance")
         let squareService = getOrCreateSquareAPIService()
-        let service = SQLiteSwiftCatalogSyncService(squareAPIService: squareService)
+        let service = SwiftDataCatalogSyncService(squareAPIService: squareService)
         cachedCatalogSyncService = service
         return service
     }
@@ -142,9 +147,9 @@ class SquareAPIServiceFactory {
             return cachedManager
         }
 
-        logger.debug("[Factory] Creating NEW ImageURLManager instance")
+        logger.debug("[Factory] Creating NEW SwiftDataImageURLManager instance")
         let databaseManager = getOrCreateDatabaseManager()
-        let manager = ImageURLManager(databaseManager: databaseManager)
+        let manager = SwiftDataImageURLManager(databaseManager: databaseManager)
         cachedImageURLManager = manager
         return manager
     }

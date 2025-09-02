@@ -1,5 +1,5 @@
 import Foundation
-import SQLite
+import SwiftData
 import os.log
 
 /// Simple, effective fuzzy search using tokenized prefix matching
@@ -520,21 +520,4 @@ class FuzzySearch {
 }
 
 // MARK: - Supporting Types
-
-struct CandidateItem {
-    let id: String
-    let name: String?
-    let sku: String?
-    let barcode: String?
-    let categoryName: String?
-    let categoryId: String?
-    let price: Double?
-    let images: [CatalogImage]?
-    let hasTax: Bool
-}
-
-struct SearchResultWithScore {
-    let item: SearchResultItem
-    let score: Double
-    let explanation: String
-}
+// Note: CandidateItem and SearchResultWithScore are now defined in SwiftDataFuzzySearch.swift

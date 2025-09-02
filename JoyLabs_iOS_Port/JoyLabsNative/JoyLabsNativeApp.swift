@@ -9,20 +9,43 @@ struct JoyLabsNativeApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     private let logger = Logger(subsystem: "com.joylabs.native", category: "App")
     
-    // SwiftData model container for persistent storage
-    let modelContainer: ModelContainer
+    // SwiftData model containers for persistent storage
+    let catalogContainer: ModelContainer
+    let reorderContainer: ModelContainer
 
     init() {
-        // Initialize SwiftData container FIRST
+        // Initialize catalog SwiftData container FIRST
         do {
-            let schema = Schema([
+            let catalogSchema = Schema([
+                CatalogItemModel.self,
+                ItemVariationModel.self,
+                CategoryModel.self,
+                TaxModel.self,
+                ModifierListModel.self,
+                ModifierModel.self,
+                ImageModel.self,
+                TeamDataModel.self,
+                ImageURLMappingModel.self,
+                DiscountModel.self,
+                SyncStatusModel.self
+            ])
+            let catalogConfig = ModelConfiguration("catalog-v2.store", schema: catalogSchema, isStoredInMemoryOnly: false)
+            self.catalogContainer = try ModelContainer(for: catalogSchema, configurations: [catalogConfig])
+            print("✅ [SwiftData] Catalog ModelContainer initialized")
+        } catch {
+            fatalError("Failed to initialize Catalog ModelContainer: \(error)")
+        }
+        
+        // Initialize reorder SwiftData container
+        do {
+            let reorderSchema = Schema([
                 ReorderItemModel.self
             ])
-            let modelConfiguration = ModelConfiguration("reorders-v2.store", schema: schema, isStoredInMemoryOnly: false)
-            self.modelContainer = try ModelContainer(for: schema, configurations: [modelConfiguration])
-            print("✅ [SwiftData] ModelContainer initialized")
+            let reorderConfig = ModelConfiguration("reorders-v2.store", schema: reorderSchema, isStoredInMemoryOnly: false)
+            self.reorderContainer = try ModelContainer(for: reorderSchema, configurations: [reorderConfig])
+            print("✅ [SwiftData] Reorder ModelContainer initialized")
         } catch {
-            fatalError("Failed to initialize ModelContainer: \(error)")
+            fatalError("Failed to initialize Reorder ModelContainer: \(error)")
         }
         
         // Initialize critical services SYNCHRONOUSLY first to prevent race conditions
@@ -32,10 +55,10 @@ struct JoyLabsNativeApp: App {
         // This affects ALL TextFields in the app, preventing InputAccessoryGenerator creation
         UITextField.swizzleInputAccessoryView()
         
-        // Initialize ReorderService with model context
-        let mainContext = modelContainer.mainContext
+        // Initialize ReorderService with reorder model context
+        let reorderContext = reorderContainer.mainContext
         Task { @MainActor in
-            ReorderService.shared.setModelContext(mainContext)
+            ReorderService.shared.setModelContext(reorderContext)
         }
         
         // Then initialize remaining services asynchronously
@@ -45,7 +68,8 @@ struct JoyLabsNativeApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .modelContainer(modelContainer)  // Provide SwiftData context to all views
+                .modelContainer(catalogContainer)  // Provide catalog SwiftData context to all views
+                .reorderModelContainer(reorderContainer)  // Provide reorder context via environment
                 .onOpenURL { url in
                     logger.info("App received URL: \(url.absoluteString)")
                     handleIncomingURL(url)
@@ -82,14 +106,9 @@ struct JoyLabsNativeApp: App {
         // Initialize field configuration manager synchronously
         let _ = FieldConfigurationManager.shared
         
-        // Initialize database manager and connect immediately to prevent multiple connections
-        let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
-        do {
-            try databaseManager.connect()
-            logger.info("[App] Phase 1: Database connected successfully")
-        } catch {
-            logger.error("[App] Phase 1: Database connection failed: \(error)")
-        }
+        // Initialize SwiftData catalog manager 
+        let _ = SquareAPIServiceFactory.createDatabaseManager()
+        logger.info("[App] Phase 1: SwiftData catalog manager initialized")
         
         // SimpleImageService uses native URLCache - no complex initialization needed
         
@@ -138,8 +157,8 @@ struct JoyLabsNativeApp: App {
                     // Load locations first (required for item modals)
                     await LocationCacheManager.shared.loadLocations()
                     
-                    // Then perform catch-up sync
-                    await performAppLaunchCatchUpSync()
+                    // Catch-up sync disabled per user request
+                    // await performAppLaunchCatchUpSync()
                     
                     // PHASE 3: Initialize webhook system AFTER catch-up sync completes
                     await MainActor.run {
