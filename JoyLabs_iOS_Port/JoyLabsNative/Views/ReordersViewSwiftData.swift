@@ -74,7 +74,7 @@ struct ReordersViewSwiftData: SwiftUI.View {
     @State private var currentModalQuantity: Int = 1
     
     // Barcode scanning manager
-    @StateObject private var barcodeManager = ReorderBarcodeScanningManager(searchManager: SearchManager(databaseManager: SquareAPIServiceFactory.createDatabaseManager()))
+    @StateObject private var barcodeManager = ReorderBarcodeScanningManager(searchManager: SwiftDataSearchManager(databaseManager: SquareAPIServiceFactory.createDatabaseManager()))
     
     // Binding for focus state to pass up to ContentView
     let onFocusStateChanged: ((Bool) -> Void)?

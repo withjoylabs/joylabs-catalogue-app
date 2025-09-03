@@ -111,7 +111,7 @@ class SwiftDataFuzzySearch {
                 predicate: #Predicate { variation in
                     !variation.isDeleted && 
                     variation.sku != nil && 
-                    variation.sku!.localizedStandardContains(term)
+                    variation.sku?.localizedStandardContains(term) == true
                 }
             )
             
@@ -150,7 +150,7 @@ class SwiftDataFuzzySearch {
                 predicate: #Predicate { item in
                     !item.isDeleted && 
                     item.name != nil &&
-                    item.name!.localizedStandardContains(term)
+                    item.name?.localizedStandardContains(term) == true
                 }
             )
             
@@ -175,8 +175,8 @@ class SwiftDataFuzzySearch {
             let categoryDescriptor = FetchDescriptor<CatalogItemModel>(
                 predicate: #Predicate { item in
                     !item.isDeleted && 
-                    ((item.categoryName != nil && item.categoryName!.localizedStandardContains(term)) ||
-                     (item.reportingCategoryName != nil && item.reportingCategoryName!.localizedStandardContains(term)))
+                    ((item.categoryName != nil && item.categoryName?.localizedStandardContains(term) == true) ||
+                     (item.reportingCategoryName != nil && item.reportingCategoryName?.localizedStandardContains(term) == true))
                 }
             )
             
@@ -208,7 +208,7 @@ class SwiftDataFuzzySearch {
                 predicate: #Predicate { variation in
                     !variation.isDeleted && 
                     variation.sku != nil && 
-                    variation.sku!.localizedStandardContains(term)
+                    variation.sku?.localizedStandardContains(term) == true
                 }
             )
             

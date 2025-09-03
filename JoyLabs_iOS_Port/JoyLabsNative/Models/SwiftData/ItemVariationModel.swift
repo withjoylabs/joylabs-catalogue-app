@@ -14,8 +14,8 @@ final class ItemVariationModel {
     
     // Variation fields
     var name: String?
-    var sku: String?
-    var upc: String?
+    @Attribute(.spotlight) var sku: String?
+    @Attribute(.spotlight) var upc: String?
     var ordinal: Int?
     var pricingType: String?
     
@@ -32,6 +32,10 @@ final class ItemVariationModel {
     var sellable: Bool?
     var stockable: Bool?
     var measurementUnitId: String?
+    
+    // Additional fields from SQLite implementation
+    var basePriceMoney: String?  // JSON string
+    var defaultUnitCost: String?  // JSON string
     
     // Store complete variation data as JSON for complex operations
     var dataJson: String?
@@ -93,8 +97,8 @@ final class ItemVariationModel {
             self.stockable = variationData.stockable
             self.measurementUnitId = variationData.measurementUnitId
             
-            // Store full JSON for complex operations
-            if let jsonData = try? JSONEncoder().encode(variationData),
+            // Store full JSON for complex operations (store complete object, not just variationData)
+            if let jsonData = try? JSONEncoder().encode(object),
                let jsonString = String(data: jsonData, encoding: .utf8) {
                 self.dataJson = jsonString
             }

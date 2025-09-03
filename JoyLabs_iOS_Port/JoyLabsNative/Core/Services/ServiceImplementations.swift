@@ -36,7 +36,7 @@ class DatabaseProductRepository: ProductRepository {
     func searchProducts(_ query: String) async throws -> [SearchResultItem] {
         logger.debug("Repository: Searching products '\(query)' using native SearchManager")
 
-        let searchManager = SearchManager(databaseManager: await getSQLiteDB())
+        let searchManager = SwiftDataSearchManager(databaseManager: await getSQLiteDB())
         let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
 
         return await searchManager.performSearch(searchTerm: query, filters: filters)
@@ -45,7 +45,7 @@ class DatabaseProductRepository: ProductRepository {
     func getProductByBarcode(_ barcode: String) async throws -> SearchResultItem? {
         logger.debug("Repository: Getting product by barcode \(barcode)")
 
-        let searchManager = SearchManager(databaseManager: await getSQLiteDB())
+        let searchManager = SwiftDataSearchManager(databaseManager: await getSQLiteDB())
         let filters = SearchFilters(name: false, sku: false, barcode: true, category: false)
 
         let results = await searchManager.performSearch(searchTerm: barcode, filters: filters)

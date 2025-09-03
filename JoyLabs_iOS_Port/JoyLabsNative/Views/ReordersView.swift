@@ -54,7 +54,7 @@ class QuantityModalStateManager: ObservableObject {
 
 struct ReordersView: SwiftUI.View {
     @StateObject private var viewModel = ReorderViewModel()
-    @StateObject private var barcodeManager = ReorderBarcodeScanningManager(searchManager: SearchManager(databaseManager: SquareAPIServiceFactory.createDatabaseManager()))
+    @StateObject private var barcodeManager = ReorderBarcodeScanningManager(searchManager: SwiftDataSearchManager(databaseManager: SquareAPIServiceFactory.createDatabaseManager()))
     @StateObject private var dataManager = ReorderDataManager()
     // NOTE: Notification handling is now centralized in CentralItemUpdateManager
     // Remove focus monitor - using direct focus state instead

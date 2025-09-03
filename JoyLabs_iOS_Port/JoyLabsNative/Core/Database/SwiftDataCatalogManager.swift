@@ -131,6 +131,14 @@ class SwiftDataCatalogManager {
     
     // MARK: - Insert Operations
     
+    // TODO: TeamData Operations - Future Implementation
+    // TeamData model exists but CRUD operations are deferred for future implementation.
+    // When implementing, add:
+    // - insertTeamData(itemId: String, teamData: TeamDataModel)
+    // - fetchTeamData(for itemId: String) -> TeamDataModel?
+    // - updateTeamData(itemId: String, teamData: TeamDataModel)
+    // - deleteTeamData(for itemId: String)
+    
     /// Insert or update a catalog object from Square API
     func insertCatalogObject(_ object: CatalogObject) async throws {
         logger.trace("[Database] Processing \(object.type) object: \(object.id)")
@@ -563,6 +571,30 @@ class SwiftDataCatalogManager {
     }
     
     // MARK: - Helper Methods
+    
+    /// Encode any Codable object to JSON string
+    private func encodeJSON<T: Codable>(_ object: T?) -> String? {
+        guard let object = object else { return nil }
+        do {
+            let data = try JSONEncoder().encode(object)
+            return String(data: data, encoding: .utf8)
+        } catch {
+            logger.error("[Database] Failed to encode JSON: \(error)")
+            return nil
+        }
+    }
+    
+    /// Encode string array as JSON for database storage
+    private func encodeJSONArray(_ array: [String]?) -> String? {
+        guard let array = array, !array.isEmpty else { return nil }
+        do {
+            let data = try JSONEncoder().encode(array)
+            return String(data: data, encoding: .utf8)
+        } catch {
+            logger.error("[Database] Failed to encode JSON array: \(error)")
+            return nil
+        }
+    }
     
     private func getCategoryName(_ categoryId: String) async throws -> String? {
         let descriptor = FetchDescriptor<CategoryModel>(

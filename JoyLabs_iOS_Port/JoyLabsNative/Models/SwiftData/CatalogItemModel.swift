@@ -17,14 +17,21 @@ final class CatalogItemModel {
     var absentAtLocationIds: [String]?
     
     // Item fields
-    var name: String?
+    @Attribute(.spotlight) var name: String?
     var itemDescription: String?
-    var categoryId: String?
+    @Attribute(.spotlight) var categoryId: String?
     var categoryName: String?  // Pre-computed for search performance
     var reportingCategoryId: String?
     var reportingCategoryName: String?  // Pre-computed for search performance
     var taxNames: String?  // Comma-separated for display
     var modifierNames: String?  // Comma-separated for display
+    
+    // Additional fields from SQLite implementation
+    var itemType: String?
+    var labelColor: String?
+    var availableOnline: Bool?
+    var availableForPickup: Bool?
+    var availableElectronically: Bool?
     
     // Store complete Square API response for complex operations
     var dataJson: String?
@@ -81,6 +88,10 @@ final class CatalogItemModel {
             self.name = itemData.name
             self.itemDescription = itemData.description
             self.categoryId = itemData.categoryId
+            self.labelColor = itemData.labelColor
+            self.availableOnline = itemData.availableOnline
+            self.availableForPickup = itemData.availableForPickup
+            self.availableElectronically = itemData.availableElectronically
             
             // Store full JSON for complex operations
             if let jsonData = try? JSONEncoder().encode(object),
@@ -88,6 +99,9 @@ final class CatalogItemModel {
                 self.dataJson = jsonString
             }
         }
+        
+        // Store type at object level
+        self.itemType = object.type
     }
     
     // Convert back to CatalogObject when needed

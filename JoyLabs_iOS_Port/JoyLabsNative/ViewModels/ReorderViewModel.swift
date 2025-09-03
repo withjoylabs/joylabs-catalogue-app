@@ -106,7 +106,7 @@ class ReorderViewModel: ObservableObject {
     // MARK: - Initialization
     init() {
         let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
-        self.searchManager = SearchManager(databaseManager: databaseManager)
+        self.searchManager = SwiftDataSearchManager(databaseManager: databaseManager)
     }
     
     // MARK: - Data Management

@@ -33,7 +33,7 @@ class ImageCacheTests: ObservableObject {
         self.databaseManager = SQLiteSwiftCatalogManager()
         self.imageCacheService = ImageCacheService()
         self.imageURLManager = ImageURLManager(databaseManager: databaseManager)
-        self.searchManager = SearchManager(databaseManager: databaseManager)
+        self.searchManager = SwiftDataSearchManager(databaseManager: databaseManager)
         logger.info("ImageCacheTests initialized")
     }
     
