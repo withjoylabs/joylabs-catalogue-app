@@ -262,7 +262,7 @@ class SwiftDataFuzzySearch {
                     sku: !candidate.sku.isEmpty ? candidate.sku : nil,
                     price: nil, // Will be enriched later
                     barcode: !candidate.upc.isEmpty ? candidate.upc : nil,
-                    categoryId: nil, // Will be enriched later
+                    reportingCategoryId: nil, // Will be enriched later
                     categoryName: !candidate.categoryName.isEmpty ? candidate.categoryName : nil,
                     variationName: nil, // Will be enriched later
                     images: nil, // Will be enriched later

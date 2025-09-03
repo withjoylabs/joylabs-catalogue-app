@@ -51,8 +51,9 @@ class ItemDataTransformers {
             if let reportingCategory = itemData.reportingCategory {
                 itemDetails.reportingCategoryId = reportingCategory.id
             } else {
-                // Fallback to legacy categoryId for backward compatibility
-                itemDetails.reportingCategoryId = itemData.categoryId
+                // Log missing reporting category without fallback
+                logger.error("[ItemDataTransformers] Reporting category not found for item \(catalogObject.id) - reportingCategory is nil")
+                itemDetails.reportingCategoryId = nil
             }
 
             // Additional categories - combine reporting category + additional categories
@@ -143,11 +144,11 @@ class ItemDataTransformers {
         let itemId = (itemDetails.id?.isEmpty == false) ? itemDetails.id! : "#\(UUID().uuidString)"
 
         // Create item data - validation already done by SquareCRUDService
-        // CRITICAL: Map both reporting category and additional categories to Square API
+        // CRITICAL: Use Square's correct category structure: categories array + reportingCategory
         let itemData = ItemData(
             name: itemDetails.name.isEmpty ? nil : itemDetails.name,
             description: itemDetails.description.isEmpty ? nil : itemDetails.description,
-            categoryId: itemDetails.reportingCategoryId, // Legacy field for backward compatibility
+            categoryId: nil, // Don't use legacy categoryId field
             taxIds: itemDetails.taxIds.isEmpty ? nil : itemDetails.taxIds,
             variations: transformVariationsToAPI(itemDetails.variations, itemId: itemId, presentAtAllLocations: itemDetails.presentAtAllLocations, presentAtLocationIds: itemDetails.presentAtLocationIds, absentAtLocationIds: itemDetails.absentAtLocationIds),
             productType: transformProductTypeToAPI(itemDetails.productType),
@@ -160,8 +161,8 @@ class ItemDataTransformers {
             availableForPickup: itemDetails.availableForPickup,
             availableElectronically: itemDetails.availableElectronically,
             abbreviation: itemDetails.abbreviation.isEmpty ? nil : itemDetails.abbreviation,
-            categories: transformCategoriesToAPI(itemDetails.categoryIds), // Map additional categories
-            reportingCategory: itemDetails.reportingCategoryId != nil ? ReportingCategory(id: itemDetails.reportingCategoryId!) : nil, // Map reporting category
+            categories: transformCategoriesToAPI(itemDetails.categoryIds), // All categories in array
+            reportingCategory: itemDetails.reportingCategoryId != nil ? ReportingCategory(id: itemDetails.reportingCategoryId!, ordinal: nil) : nil, // Designated reporting category
             imageIds: nil, // CRITICAL: Set to nil so field is omitted from JSON - images handled separately via SimpleImageService
             
             // CRITICAL SQUARE API FIELDS - Previously missing
@@ -207,7 +208,7 @@ class ItemDataTransformers {
         let itemData = ItemData(
             name: itemDetails.name.isEmpty ? nil : itemDetails.name,
             description: itemDetails.description.isEmpty ? nil : itemDetails.description,
-            categoryId: itemDetails.reportingCategoryId,
+            categoryId: nil, // Don't use legacy categoryId field
             taxIds: itemDetails.taxIds.isEmpty ? nil : itemDetails.taxIds,
             variations: transformVariationsToAPI(itemDetails.variations, itemId: itemDetails.id ?? "#\(UUID().uuidString)", presentAtAllLocations: itemDetails.presentAtAllLocations, presentAtLocationIds: itemDetails.presentAtLocationIds, absentAtLocationIds: itemDetails.absentAtLocationIds),
             productType: transformProductTypeToAPI(itemDetails.productType),
@@ -220,8 +221,8 @@ class ItemDataTransformers {
             availableForPickup: itemDetails.availableForPickup,
             availableElectronically: itemDetails.availableElectronically,
             abbreviation: itemDetails.abbreviation.isEmpty ? nil : itemDetails.abbreviation,
-            categories: nil, // Use categoryId instead of categories array
-            reportingCategory: nil, // Use categoryId instead of reportingCategory
+            categories: transformCategoriesToAPI(itemDetails.categoryIds), // All categories in array
+            reportingCategory: itemDetails.reportingCategoryId != nil ? ReportingCategory(id: itemDetails.reportingCategoryId!, ordinal: nil) : nil, // Designated reporting category
             imageIds: nil, // CRITICAL: Set to nil so field is omitted from JSON - images handled separately via SimpleImageService
             
             // CRITICAL SQUARE API FIELDS - Previously missing (legacy version)

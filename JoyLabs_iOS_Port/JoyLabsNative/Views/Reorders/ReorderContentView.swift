@@ -212,7 +212,7 @@ struct ReorderContentView: View {
             sku: item.sku,
             price: item.price,
             barcode: item.barcode,
-            categoryId: nil,
+            reportingCategoryId: nil,
             categoryName: item.categoryName,
             variationName: item.variationName,
             images: images,

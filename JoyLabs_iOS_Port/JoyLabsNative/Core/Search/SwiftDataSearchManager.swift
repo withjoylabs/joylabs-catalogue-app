@@ -149,13 +149,13 @@ class SwiftDataSearchManager: ObservableObject {
             let variation = item.variations?.first { !$0.isDeleted }
             
             // Create enriched search result
-            return SearchResultItem(
+            let searchResult = SearchResultItem(
                 id: item.id,
                 name: item.name,
                 sku: variation?.sku,
                 price: variation?.priceInDollars,
                 barcode: variation?.upc,
-                categoryId: item.categoryId,
+                reportingCategoryId: item.reportingCategoryId,
                 categoryName: item.categoryName ?? item.reportingCategoryName,
                 variationName: variation?.name,
                 images: item.images?.map { $0.toCatalogImage() },
@@ -165,6 +165,13 @@ class SwiftDataSearchManager: ObservableObject {
                 caseUpcData: nil,
                 hasTax: (item.taxes?.count ?? 0) > 0
             )
+            
+            // Debug logging for reporting category
+            if item.reportingCategoryId == nil {
+                logger.warning("[SwiftDataSearchManager] Item \(item.id) has nil reportingCategoryId")
+            }
+            
+            return searchResult
             
         } catch {
             logger.error("[Search] Failed to enrich item \(itemId): \(error)")
@@ -197,7 +204,7 @@ class SwiftDataSearchManager: ObservableObject {
                     sku: variation?.sku,
                     price: teamData.caseCost,
                     barcode: teamData.caseUpc,
-                    categoryId: item.categoryId,
+                    reportingCategoryId: item.reportingCategoryId,
                     categoryName: item.categoryName ?? item.reportingCategoryName,
                     variationName: variation?.name,
                     images: item.images?.map { $0.toCatalogImage() },
@@ -258,7 +265,7 @@ class SwiftDataSearchManager: ObservableObject {
                     sku: variation?.sku,
                     price: variation?.priceInDollars,
                     barcode: variation?.upc,
-                    categoryId: item.categoryId,
+                    reportingCategoryId: item.reportingCategoryId,
                     categoryName: item.categoryName ?? item.reportingCategoryName,
                     variationName: variation?.name,
                     images: item.images?.map { $0.toCatalogImage() },
@@ -408,7 +415,7 @@ class SwiftDataSearchManager: ObservableObject {
                     sku: variation.sku,
                     price: variation.priceInDollars,
                     barcode: variation.upc,
-                    categoryId: item.categoryId,
+                    reportingCategoryId: item.reportingCategoryId,
                     categoryName: item.categoryName ?? item.reportingCategoryName,
                     variationName: variation.name,
                     images: item.images?.map { $0.toCatalogImage() },
@@ -443,7 +450,7 @@ class SwiftDataSearchManager: ObservableObject {
                     sku: variation.sku,
                     price: variation.priceInDollars,
                     barcode: variation.upc,
-                    categoryId: item.categoryId,
+                    reportingCategoryId: item.reportingCategoryId,
                     categoryName: item.categoryName ?? item.reportingCategoryName,
                     variationName: variation.name,
                     images: item.images?.map { $0.toCatalogImage() },

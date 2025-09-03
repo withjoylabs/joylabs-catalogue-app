@@ -451,6 +451,11 @@ struct SearchResultsList: View {
     }
     
     private func printItem(_ item: SearchResultItem) {
+        print("[ScanView] Printing item with reportingCategoryId: \(item.reportingCategoryId ?? "nil")")
+        print("[ScanView] Item category name: \(item.categoryName ?? "nil")")
+        print("[ScanView] Item name: \(item.name ?? "nil")")
+        print("[ScanView] Item price: \(item.price?.description ?? "nil")")
+        
         let printService = LabelLivePrintService.shared
         
         Task {
@@ -464,7 +469,7 @@ struct SearchResultsList: View {
                     upc: item.barcode,
                     sku: item.sku,
                     categoryName: item.categoryName,
-                    categoryId: item.categoryId,
+                    categoryId: item.reportingCategoryId,
                     description: nil, // SearchResultItem doesn't have description
                     createdAt: nil,
                     updatedAt: nil,

@@ -427,8 +427,6 @@ struct AddDiscountRuleSheet: View {
     @State private var availableCategories: [(id: String, name: String)] = []
     @State private var isLoadingCategories = false
     
-    private let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
-    
     var body: some View {
         NavigationView {
             Form {
@@ -522,7 +520,8 @@ struct AddDiscountRuleSheet: View {
         
         Task {
             do {
-                let db = databaseManager.getContext()
+                let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
+                let modelContext = databaseManager.getContext()
                 
                 let descriptor = FetchDescriptor<CategoryModel>(
                     predicate: #Predicate { category in
@@ -531,7 +530,7 @@ struct AddDiscountRuleSheet: View {
                     sortBy: [SortDescriptor(\.name)]
                 )
                 
-                let categoryModels = try db.fetch(descriptor)
+                let categoryModels = try modelContext.fetch(descriptor)
                 var categories: [(id: String, name: String)] = []
                 
                 for categoryModel in categoryModels {

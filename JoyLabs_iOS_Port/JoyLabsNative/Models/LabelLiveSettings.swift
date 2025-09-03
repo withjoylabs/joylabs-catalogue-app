@@ -120,10 +120,25 @@ class LabelLiveSettingsService: ObservableObject {
     }
     
     func getActiveDiscountRule(for categoryId: String?) -> DiscountRule? {
-        guard let categoryId = categoryId else { return nil }
-        return settings.discountRules.first { rule in
+        print("[LabelLiveSettings] Looking for discount rule with reportingCategoryId: \(categoryId ?? "nil")")
+        print("[LabelLiveSettings] Available discount rules: \(settings.discountRules.map { "\($0.categoryName): \($0.categoryId) (enabled: \($0.isEnabled))" })")
+        
+        guard let categoryId = categoryId else { 
+            print("[LabelLiveSettings] No reportingCategoryId provided")
+            return nil 
+        }
+        
+        let matchingRule = settings.discountRules.first { rule in
             rule.categoryId == categoryId && rule.isEnabled
         }
+        
+        if let rule = matchingRule {
+            print("[LabelLiveSettings] Found matching rule: \(rule.categoryName) - \(rule.discountPercentage)%")
+        } else {
+            print("[LabelLiveSettings] No matching enabled rule found")
+        }
+        
+        return matchingRule
     }
     
     func calculateDiscountedPrice(_ originalPrice: String?, discountPercentage: Double) -> String? {

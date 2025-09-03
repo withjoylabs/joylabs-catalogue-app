@@ -561,7 +561,7 @@ struct SearchBarWithClear: View {
         sku: "COF001",
         price: 19.99,
         barcode: "1234567890",
-        categoryId: "coffee",
+        reportingCategoryId: "coffee",
         categoryName: "Coffee & Tea",
         variationName: "Dark Roast",
         images: [],

@@ -177,8 +177,15 @@ class LabelLivePrintService: ObservableObject {
             throw LabelLivePrintError.invalidConfiguration("No enabled variable mappings found")
         }
         
-        // Check for discount rule for this item's category
+        // Check for discount rule for this item's reporting category
+        print("[LabelLivePrint] Checking discount rule for reportingCategoryId: \(data.categoryId ?? "nil") (stored in PrintData.categoryId)")
         let discountRule = settingsService.getActiveDiscountRule(for: data.categoryId)
+        
+        if let rule = discountRule {
+            print("[LabelLivePrint] Found discount rule: \(rule.categoryName) - \(rule.discountPercentage)%")
+        } else {
+            print("[LabelLivePrint] No discount rule found for category")
+        }
         
         var variables: [String] = []
         

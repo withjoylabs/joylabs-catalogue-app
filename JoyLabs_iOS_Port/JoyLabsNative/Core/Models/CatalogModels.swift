@@ -76,7 +76,7 @@ struct SearchResultItem: Identifiable, Hashable {
     let sku: String?
     let price: Double?
     let barcode: String?
-    let categoryId: String?
+    let reportingCategoryId: String?  // Square's primary category for reporting purposes
     let categoryName: String?
     let variationName: String?
     let images: [CatalogImage]?
@@ -300,6 +300,7 @@ struct CategoryReference: Codable {
 
 struct ReportingCategory: Codable {
     let id: String
+    let ordinal: Int64?  // Use Int64 for Square API's "integer(64-bit)"
 }
 
 struct ItemVariation: Codable {

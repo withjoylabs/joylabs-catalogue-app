@@ -401,7 +401,7 @@ extension ComprehensiveItemData {
             categoryId = config.classificationFields.defaultCategoryId
         }
         if reportingCategory == nil && config.classificationFields.defaultReportingCategoryId != nil {
-            reportingCategory = ReportingCategory(id: config.classificationFields.defaultReportingCategoryId!)
+            reportingCategory = ReportingCategory(id: config.classificationFields.defaultReportingCategoryId!, ordinal: nil)
         }
         productType = config.classificationFields.defaultProductType
         
