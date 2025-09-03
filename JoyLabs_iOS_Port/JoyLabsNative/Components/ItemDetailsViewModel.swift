@@ -435,12 +435,12 @@ class ItemDetailsViewModel: ObservableObject {
     private var shouldApplyTaxDefaults = false
 
     // Service dependencies
-    private let databaseManager: SQLiteSwiftCatalogManager
+    private let databaseManager: SwiftDataCatalogManager
     private let crudService: SquareCRUDService
 
     // MARK: - Initialization
 
-    init(databaseManager: SQLiteSwiftCatalogManager? = nil) {
+    init(databaseManager: SwiftDataCatalogManager? = nil) {
         self.databaseManager = databaseManager ?? SquareAPIServiceFactory.createDatabaseManager()
         self.crudService = SquareAPIServiceFactory.createCRUDService()
         setupValidationAndTracking()
@@ -775,8 +775,8 @@ class ItemDetailsViewModel: ObservableObject {
     private func loadExistingItem(itemId: String) async {
         print("[ItemDetailsModal] Loading existing item: \(itemId)")
 
-        // Use the shared database manager - no need to connect again
-        let catalogManager = SquareAPIServiceFactory.createDatabaseManager()
+        // Use the instance database manager
+        let catalogManager = self.databaseManager
 
         do {
             if let catalogObject = try catalogManager.fetchItemById(itemId) {
@@ -821,8 +821,8 @@ class ItemDetailsViewModel: ObservableObject {
             return
         }
         
-        // Use the shared database manager to reload the item
-        let catalogManager = SquareAPIServiceFactory.createDatabaseManager()
+        // Use the instance database manager to reload the item
+        let catalogManager = self.databaseManager
         
         do {
             if let catalogObject = try catalogManager.fetchItemById(itemId) {
@@ -1071,14 +1071,14 @@ class ItemDetailsViewModel: ObservableObject {
 
     // MARK: - Unified Image Integration
 
-    /// Get primary image info by reading database image_ids array in correct order
+    /// Get primary image info using SwiftData relationships
     private func getPrimaryImageInfo(for itemId: String) -> (imageURL: String, imageId: String)? {
         logger.info("🔍 [MODAL] Getting primary image info for item: \(itemId)")
 
         do {
             let db = databaseManager.getContext()
             
-            // Get item's image_ids array from database using SwiftData
+            // Get item with its image relationships
             let descriptor = FetchDescriptor<CatalogItemModel>(
                 predicate: #Predicate { item in
                     item.id == itemId && item.isDeleted == false
@@ -1086,38 +1086,20 @@ class ItemDetailsViewModel: ObservableObject {
             )
             
             let catalogItems = try db.fetch(descriptor)
-            for catalogItem in catalogItems {
-                let dataJsonString = catalogItem.dataJson ?? "{}"
-                let dataJsonData = dataJsonString.data(using: String.Encoding.utf8) ?? Data()
+            if let catalogItem = catalogItems.first,
+               let images = catalogItem.images,
+               let primaryImage = images.first {
                 
-                if let currentData = try JSONSerialization.jsonObject(with: dataJsonData) as? [String: Any] {
-                    var imageIds: [String]? = nil
-                    
-                    // Try nested under item_data first (current format)
-                    if let itemData = currentData["item_data"] as? [String: Any] {
-                        imageIds = itemData["image_ids"] as? [String]
-                    }
-                    
-                    // Fallback to root level (legacy format)
-                    if imageIds == nil {
-                        imageIds = currentData["image_ids"] as? [String]
-                    }
-                    
-                    if let imageIdArray = imageIds, let primaryImageId = imageIdArray.first {
-                        logger.info("🔍 [MODAL] Found primary image ID from database: \(primaryImageId)")
-                        
-                        // Get image mapping for this specific image ID
-                        let imageMappings = try imageURLManager.getImageMappings(for: itemId, objectType: "ITEM")
-                        if let mapping = imageMappings.first(where: { $0.squareImageId == primaryImageId }) {
-                            logger.info("🔍 [MODAL] ✅ Found mapping for primary image: \(primaryImageId) -> \(mapping.originalAwsUrl)")
-                            return (imageURL: mapping.originalAwsUrl, imageId: primaryImageId)
-                        } else {
-                            logger.error("🔍 [MODAL] ❌ No mapping found for primary image ID: \(primaryImageId)")
-                        }
-                    } else {
-                        logger.error("🔍 [MODAL] ❌ No image_ids found in database for item: \(itemId)")
-                    }
+                logger.info("🔍 [MODAL] Found primary image via SwiftData relationship: \(primaryImage.id)")
+                
+                if let imageUrl = primaryImage.url {
+                    logger.info("🔍 [MODAL] ✅ Found image URL from SwiftData: \(primaryImage.id) -> \(imageUrl)")
+                    return (imageURL: imageUrl, imageId: primaryImage.id)
+                } else {
+                    logger.warning("🔍 [MODAL] ⚠️ Image found but no URL: \(primaryImage.id)")
                 }
+            } else {
+                logger.info("🔍 [MODAL] ❌ No images found via SwiftData relationships for item: \(itemId)")
             }
             
         } catch {

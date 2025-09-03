@@ -14,7 +14,7 @@ class SquareCRUDService: ObservableObject {
     // MARK: - Dependencies
     
     private let squareAPIService: SquareAPIService
-    private let databaseManager: SQLiteSwiftCatalogManager
+    private let databaseManager: SwiftDataCatalogManager
     private let dataConverter: SquareDataConverter
     private let logger = Logger(subsystem: "com.joylabs.native", category: "SquareCRUDService")
     
@@ -28,7 +28,7 @@ class SquareCRUDService: ObservableObject {
     
     init(
         squareAPIService: SquareAPIService,
-        databaseManager: SQLiteSwiftCatalogManager,
+        databaseManager: SwiftDataCatalogManager,
         dataConverter: SquareDataConverter
     ) {
         self.squareAPIService = squareAPIService
@@ -785,7 +785,7 @@ extension SquareCRUDService {
         }
     }
     
-    /// Get current image IDs for an item from the database
+    /// Get current image IDs for an item using SwiftData relationships
     /// Used to preserve existing images during item updates
     private func getCurrentImageIds(for itemId: String) async throws -> [String] {
         let db = databaseManager.getContext()
@@ -797,34 +797,24 @@ extension SquareCRUDService {
                 }
             )
             
-            guard let catalogItem = try db.fetch(descriptor).first,
-                  let dataJson = catalogItem.dataJson,
-                  let data = dataJson.data(using: String.Encoding.utf8) else {
+            guard let catalogItem = try db.fetch(descriptor).first else {
+                logger.debug("📷 No item found for: \(itemId)")
                 return []
             }
             
-            // Parse JSON to extract image_ids
-            if let catalogData = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                // Try nested under item_data first (current format)
-                if let itemData = catalogData["item_data"] as? [String: Any],
-                   let imageIds = itemData["image_ids"] as? [String] {
-                    logger.debug("📷 Found \(imageIds.count) existing images in item_data for: \(itemId)")
-                    return imageIds
-                }
-                
-                // Fallback to root level (legacy format)
-                if let imageIds = catalogData["image_ids"] as? [String] {
-                    logger.debug("📷 Found \(imageIds.count) existing images at root level for: \(itemId)")
-                    return imageIds
-                }
+            // Use SwiftData relationships to get images
+            if let images = catalogItem.images {
+                let imageIds = images.map { $0.id }
+                logger.debug("📷 Found \(imageIds.count) existing images via SwiftData relationships for: \(itemId)")
+                return imageIds
+            } else {
+                logger.debug("📷 No images relationship found for item: \(itemId)")
+                return []
             }
+            
         } catch {
             logger.error("❌ Failed to get existing image IDs for item \(itemId): \(error)")
             throw error
         }
-        
-        // No images found
-        logger.debug("📷 No existing images found for item: \(itemId)")
-        return []
     }
 }
