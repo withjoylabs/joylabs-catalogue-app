@@ -7,7 +7,7 @@ import OSLog
 @MainActor
 class DuplicateDetectionService: ObservableObject {
     private let logger = Logger(subsystem: "com.joylabs.native", category: "DuplicateDetection")
-    private let databaseManager: SQLiteSwiftCatalogManager
+    private let modelContext: ModelContext
     
     // MARK: - Published Properties
     @Published var duplicateWarnings: [DuplicateWarning] = []
@@ -15,12 +15,12 @@ class DuplicateDetectionService: ObservableObject {
     
     // MARK: - Private Properties
     private var debounceTimer: Timer?
-    private let debounceDelay: TimeInterval = 0.5 // 500ms debounce (reduced for better UX)
+    private let debounceDelay: TimeInterval = 0.5
     private var lastSearchSku: String = ""
     private var lastSearchUpc: String = ""
     
-    init(databaseManager: SQLiteSwiftCatalogManager? = nil) {
-        self.databaseManager = databaseManager ?? SquareAPIServiceFactory.createDatabaseManager()
+    init(modelContext: ModelContext) {
+        self.modelContext = modelContext
     }
     
     // MARK: - Public Methods
@@ -133,9 +133,7 @@ class DuplicateDetectionService: ObservableObject {
     }
     
     private func findDuplicatesBySKU(_ sku: String, excludeItemId: String?) async throws -> [DuplicateItem] {
-        let db = databaseManager.getContext()
-        
-        // Create separate predicates to avoid complex predicate compilation issues
+        // Create predicates for SKU search
         let descriptor: FetchDescriptor<ItemVariationModel>
         
         if let excludeId = excludeItemId {
@@ -152,7 +150,7 @@ class DuplicateDetectionService: ObservableObject {
             )
         }
         
-        let variations = try db.fetch(descriptor)
+        let variations = try modelContext.fetch(descriptor)
 
         var duplicates: [DuplicateItem] = []
 
@@ -167,7 +165,7 @@ class DuplicateDetectionService: ObservableObject {
                 }
             )
             
-            if let parentItem = try db.fetch(itemDescriptor).first {
+            if let parentItem = try modelContext.fetch(itemDescriptor).first {
                 let duplicate = DuplicateItem(
                     itemId: parentItem.id,
                     itemName: parentItem.name ?? "",
@@ -183,7 +181,6 @@ class DuplicateDetectionService: ObservableObject {
     }
     
     private func findDuplicatesByUPC(_ upc: String, excludeItemId: String?) async throws -> [DuplicateItem] {
-        let db = databaseManager.getContext()
         
         // Create separate predicates to avoid complex predicate compilation issues
         let descriptor: FetchDescriptor<ItemVariationModel>
@@ -202,7 +199,7 @@ class DuplicateDetectionService: ObservableObject {
             )
         }
         
-        let variations = try db.fetch(descriptor)
+        let variations = try modelContext.fetch(descriptor)
 
         var duplicates: [DuplicateItem] = []
 
@@ -217,7 +214,7 @@ class DuplicateDetectionService: ObservableObject {
                 }
             )
             
-            if let parentItem = try db.fetch(itemDescriptor).first {
+            if let parentItem = try modelContext.fetch(itemDescriptor).first {
                 let duplicate = DuplicateItem(
                     itemId: parentItem.id,
                     itemName: parentItem.name ?? "",

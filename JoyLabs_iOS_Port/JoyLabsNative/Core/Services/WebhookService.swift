@@ -11,9 +11,8 @@ class WebhookService: ObservableObject {
     static let shared = WebhookService()
     
     // MARK: - Dependencies
-    // SimpleImageView uses native URLCache - no custom service needed
     private let simpleImageService: SimpleImageService
-    private let databaseManager: SQLiteSwiftCatalogManager
+    private let databaseManager: SwiftDataCatalogManager
     private let logger = Logger(subsystem: "com.joylabs.native", category: "WebhookService")
     
     // MARK: - Published Properties

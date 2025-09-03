@@ -531,7 +531,7 @@ class ItemDetailsViewModel: ObservableObject {
 
     /// Check if all UPCs in variations are valid according to Square's requirements
     private var allUPCsValid: Bool {
-        let duplicateService = DuplicateDetectionService()
+        let duplicateService = DuplicateDetectionService(modelContext: databaseManager.getContext())
 
         for variation in variations {
             if let upc = variation.upc, !upc.isEmpty {

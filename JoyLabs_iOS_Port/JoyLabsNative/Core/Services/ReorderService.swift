@@ -1,6 +1,5 @@
 import Foundation
 import SwiftData
-import SQLite
 
 // MARK: - Reorder Service (Single Source of Truth)
 // Manages all reorder operations through SwiftData
@@ -199,7 +198,7 @@ final class ReorderService: ObservableObject {
     
     func updateItemsFromCatalog(itemId: String) async {
         guard let context = modelContext else { return }
-        guard let db = databaseManager.getConnection() else { return }
+        let db = databaseManager.getContext()
         
         // Find all reorder items referencing this catalog item
         let descriptor = FetchDescriptor<ReorderItemModel>(
@@ -250,7 +249,7 @@ final class ReorderService: ObservableObject {
     
     // MARK: - Helper Methods
     
-    private func fetchCatalogData(itemId: String, db: Connection) async -> CatalogData? {
+    private func fetchCatalogData(itemId: String, db: ModelContext) async -> CatalogData? {
         do {
             // Query catalog_items using SwiftData
             let itemDescriptor = FetchDescriptor<CatalogItemModel>(

@@ -1,14 +1,15 @@
 import Foundation
+import SwiftData
 import os.log
 
 /// Service responsible for loading items from database and transforming them for UI
 @MainActor
 class ItemLoadingService: ObservableObject {
     private let logger = Logger(subsystem: "com.joylabs.native", category: "ItemLoadingService")
-    private let databaseManager: SQLiteSwiftCatalogManager
+    private let modelContext: ModelContext
     
-    init(databaseManager: SQLiteSwiftCatalogManager = SQLiteSwiftCatalogManager.shared) {
-        self.databaseManager = databaseManager
+    init(modelContext: ModelContext) {
+        self.modelContext = modelContext
     }
     
     // MARK: - Item Loading Methods
@@ -17,33 +18,31 @@ class ItemLoadingService: ObservableObject {
     func loadItemById(_ itemId: String) async throws -> ItemDetailsData? {
         logger.info("Loading item by ID: \(itemId)")
         
-        return try await withCheckedThrowingContinuation { continuation in
-            Task.detached {
-                do {
-                    // Fetch the catalog object from database
-                    guard let catalogObject = try self.databaseManager.fetchItemById(itemId) else {
-                        self.logger.warning("Item not found in database: \(itemId)")
-                        continuation.resume(returning: nil)
-                        return
-                    }
-                    
-                    // Fetch team data if available
-                    let teamData = try self.databaseManager.fetchTeamDataForItem(itemId)
-                    
-                    // Transform to UI model
-                    let itemDetails = ItemDataTransformers.transformCatalogObjectToItemDetails(
-                        catalogObject,
-                        teamData: teamData
-                    )
-                    
-                    self.logger.info("Successfully loaded and transformed item: \(itemId)")
-                    continuation.resume(returning: itemDetails)
-                    
-                } catch {
-                    self.logger.error("Failed to load item \(itemId): \(error)")
-                    continuation.resume(throwing: error)
+        do {
+            // Fetch item from SwiftData
+            let descriptor = FetchDescriptor<CatalogItemModel>(
+                predicate: #Predicate { item in
+                    item.id == itemId && !item.isDeleted
                 }
+            )
+            
+            guard let catalogItem = try modelContext.fetch(descriptor).first else {
+                logger.warning("Item not found in database: \(itemId)")
+                return nil
             }
+            
+            // Fetch team data if available
+            let teamData = catalogItem.teamData
+            
+            // Transform to ItemDetailsData
+            let itemDetails = transformCatalogItemToItemDetails(catalogItem, teamData: teamData)
+            
+            logger.info("Successfully loaded and transformed item: \(itemId)")
+            return itemDetails
+            
+        } catch {
+            logger.error("Failed to load item \(itemId): \(error)")
+            throw ItemLoadingError.databaseError(error)
         }
     }
     
@@ -67,16 +66,19 @@ class ItemLoadingService: ObservableObject {
     func itemExists(_ itemId: String) async throws -> Bool {
         logger.debug("Checking if item exists: \(itemId)")
         
-        return try await withCheckedThrowingContinuation { continuation in
-            Task.detached {
-                do {
-                    let catalogObject = try self.databaseManager.fetchItemById(itemId)
-                    continuation.resume(returning: catalogObject != nil)
-                } catch {
-                    self.logger.error("Failed to check item existence \(itemId): \(error)")
-                    continuation.resume(throwing: error)
+        do {
+            let descriptor = FetchDescriptor<CatalogItemModel>(
+                predicate: #Predicate { item in
+                    item.id == itemId && !item.isDeleted
                 }
-            }
+            )
+            
+            let count = try modelContext.fetchCount(descriptor)
+            return count > 0
+            
+        } catch {
+            logger.error("Failed to check item existence \(itemId): \(error)")
+            throw ItemLoadingError.databaseError(error)
         }
     }
     
@@ -125,33 +127,106 @@ class ItemLoadingService: ObservableObject {
     func getItemSummary(_ itemId: String) async throws -> ItemSummary? {
         logger.debug("Getting item summary: \(itemId)")
         
-        return try await withCheckedThrowingContinuation { continuation in
-            Task.detached {
-                do {
-                    guard let catalogObject = try self.databaseManager.fetchItemById(itemId) else {
-                        continuation.resume(returning: nil)
-                        return
-                    }
-                    
-                    let summary = ItemSummary(
-                        id: catalogObject.id,
-                        name: catalogObject.itemData?.name ?? "Unnamed Item",
-                        description: catalogObject.itemData?.description,
-                        categoryId: catalogObject.itemData?.categoryId,
-                        hasVariations: !(catalogObject.itemData?.variations?.isEmpty ?? true),
-                        variationCount: catalogObject.itemData?.variations?.count ?? 0,
-                        isDeleted: catalogObject.isDeleted,
-                        updatedAt: catalogObject.updatedAt
-                    )
-                    
-                    continuation.resume(returning: summary)
-                    
-                } catch {
-                    self.logger.error("Failed to get item summary \(itemId): \(error)")
-                    continuation.resume(throwing: error)
+        do {
+            let descriptor = FetchDescriptor<CatalogItemModel>(
+                predicate: #Predicate { item in
+                    item.id == itemId && !item.isDeleted
                 }
+            )
+            
+            guard let catalogItem = try modelContext.fetch(descriptor).first else {
+                return nil
             }
+            
+            let summary = ItemSummary(
+                id: catalogItem.id,
+                name: catalogItem.name ?? "Unnamed Item",
+                description: catalogItem.itemDescription,
+                categoryId: catalogItem.categoryId,
+                hasVariations: catalogItem.hasVariations,
+                variationCount: catalogItem.variations?.count ?? 0,
+                isDeleted: catalogItem.isDeleted,
+                updatedAt: catalogItem.updatedAt.description
+            )
+            
+            return summary
+            
+        } catch {
+            logger.error("Failed to get item summary \(itemId): \(error)")
+            throw ItemLoadingError.databaseError(error)
         }
+    }
+    
+    // MARK: - Private Methods
+    
+    /// Transform CatalogItemModel to ItemDetailsData
+    private func transformCatalogItemToItemDetails(_ item: CatalogItemModel, teamData: TeamDataModel?) -> ItemDetailsData {
+        var itemDetails = ItemDetailsData()
+        
+        // Core identification
+        itemDetails.id = item.id
+        itemDetails.version = Int64(item.version) ?? 0
+        
+        // Basic information
+        itemDetails.name = item.name ?? ""
+        itemDetails.description = item.itemDescription ?? ""
+        
+        // Categories
+        itemDetails.reportingCategoryId = item.reportingCategoryId
+        itemDetails.categoryIds = [] // TODO: Implement additional categories
+        
+        // Transform variations
+        if let variations = item.variations {
+            itemDetails.variations = variations.map { variation in
+                var variationData = ItemDetailsVariationData()
+                variationData.id = variation.id
+                variationData.version = Int64(variation.version) ?? 0
+                variationData.name = variation.name
+                variationData.sku = variation.sku
+                variationData.upc = variation.upc
+                variationData.ordinal = Int(variation.ordinal ?? 0)
+                
+                // Price data
+                if let priceAmount = variation.priceAmount,
+                   let priceCurrency = variation.priceCurrency {
+                    variationData.priceMoney = MoneyData(amount: Int(priceAmount), currency: priceCurrency)
+                }
+                
+                return variationData
+            }
+        } else {
+            // Default variation if none exist
+            itemDetails.variations = [ItemDetailsVariationData()]
+        }
+        
+        // Location settings
+        itemDetails.presentAtAllLocations = item.presentAtAllLocations ?? true
+        itemDetails.presentAtLocationIds = item.presentAtLocationIds ?? []
+        itemDetails.absentAtLocationIds = item.absentAtLocationIds ?? []
+        
+        // Images
+        if let images = item.images, let primaryImage = images.first {
+            itemDetails.imageURL = primaryImage.url
+            itemDetails.imageId = primaryImage.id
+        }
+        
+        // Team data
+        if let teamData = teamData {
+            itemDetails.teamData = TeamItemData(
+                caseUpc: teamData.caseUpc,
+                caseCost: teamData.caseCost,
+                caseQuantity: Int(teamData.caseQuantity),
+                vendor: teamData.vendor,
+                discontinued: teamData.discontinued,
+                notes: teamData.notes
+            )
+        }
+        
+        // Metadata
+        itemDetails.isDeleted = item.isDeleted
+        itemDetails.updatedAt = item.updatedAt.description
+        
+        return itemDetails
     }
 }
 

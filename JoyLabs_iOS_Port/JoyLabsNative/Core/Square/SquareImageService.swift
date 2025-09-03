@@ -15,11 +15,10 @@ struct SquareImageUploadResult {
 class SquareImageService: ObservableObject {
 
     private let httpClient: SquareHTTPClient
-    // SimpleImageService handles image uploads now
-    private let databaseManager: SQLiteSwiftCatalogManager
+    private let databaseManager: SwiftDataCatalogManager
     private let logger = Logger(subsystem: "com.joylabs.native", category: "SquareImageService")
 
-    init(httpClient: SquareHTTPClient, databaseManager: SQLiteSwiftCatalogManager) {
+    init(httpClient: SquareHTTPClient, databaseManager: SwiftDataCatalogManager) {
         self.httpClient = httpClient
         self.databaseManager = databaseManager
         logger.info("SquareImageService initialized")

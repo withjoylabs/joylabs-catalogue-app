@@ -14,7 +14,7 @@ class SimpleImageService: ObservableObject {
     
     // MARK: - Dependencies
     private let httpClient: SquareHTTPClient
-    private let databaseManager: SQLiteSwiftCatalogManager
+    private let databaseManager: SwiftDataCatalogManager
     private let imageURLManager: ImageURLManager
     private let logger = Logger(subsystem: "com.joylabs.native", category: "SimpleImageService")
     

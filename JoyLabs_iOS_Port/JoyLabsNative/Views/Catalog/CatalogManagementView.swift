@@ -1055,9 +1055,7 @@ class CategoriesViewModel: ObservableObject {
 
         do {
             try databaseManager.connect()
-            guard let db = databaseManager.getConnection() else {
-                throw NSError(domain: "Database", code: 1, userInfo: [NSLocalizedDescriptionKey: "No database connection"])
-            }
+            let db = databaseManager.getContext()
 
             let descriptor = FetchDescriptor<CategoryModel>(
                 predicate: #Predicate { _ in true },

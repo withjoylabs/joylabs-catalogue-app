@@ -128,7 +128,7 @@ class ItemDataTransformers {
     
     /// Transform ItemDetailsData from UI to CatalogObject for database/API
     /// Now includes validation and safety checks using SquareDataConverter
-    static func transformItemDetailsToCatalogObject(_ itemDetails: ItemDetailsData, databaseManager: SQLiteSwiftCatalogManager) -> CatalogObject {
+    static func transformItemDetailsToCatalogObject(_ itemDetails: ItemDetailsData, databaseManager: SwiftDataCatalogManager) -> CatalogObject {
         logger.info("Transforming ItemDetailsData to CatalogObject: \(itemDetails.id ?? "new")")
 
         // Note: Validation is handled by SquareCRUDService before calling this transformer
