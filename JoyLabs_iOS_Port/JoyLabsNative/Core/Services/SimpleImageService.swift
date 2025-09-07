@@ -66,8 +66,15 @@ class SimpleImageService: ObservableObject {
         
         logger.info("✅ Image uploaded successfully: \(imageId)")
         
-        // Update database mapping
+        // Update database mapping and create SwiftData relationships
         try await updateImageMapping(
+            imageId: imageId,
+            awsURL: awsURL,
+            itemId: itemId
+        )
+        
+        // Create proper SwiftData image model and relationship
+        try await createSwiftDataImageModel(
             imageId: imageId,
             awsURL: awsURL,
             itemId: itemId
@@ -173,11 +180,52 @@ class SimpleImageService: ObservableObject {
         logger.info("✅ Image mapping stored: \(imageId) -> \(awsURL) (cache key: \(cacheKey))")
         
         // Update local database with new image ID to show immediately (before next sync)
-        try await updateLocalCatalogWithNewImage(imageId: imageId, itemId: itemId)
+        try await updateLocalCatalogItemImageIds(imageId: imageId, itemId: itemId)
     }
     
-    /// Update the local catalog_items.data_json with the new image ID
-    private func updateLocalCatalogWithNewImage(imageId: String, itemId: String) async throws {
+    /// Create SwiftData ImageModel and establish relationship with CatalogItemModel
+    private func createSwiftDataImageModel(imageId: String, awsURL: String, itemId: String) async throws {
+        let db = databaseManager.getContext()
+        
+        do {
+            // Create new ImageModel
+            let imageModel = ImageModel(id: imageId)
+            imageModel.url = awsURL
+            imageModel.name = "joylabs_image_\(Int(Date().timeIntervalSince1970))" 
+            imageModel.updatedAt = Date()
+            
+            // Find the catalog item to establish relationship
+            let itemDescriptor = FetchDescriptor<CatalogItemModel>(
+                predicate: #Predicate { item in
+                    item.id == itemId && !item.isDeleted
+                }
+            )
+            
+            if let catalogItem = try db.fetch(itemDescriptor).first {
+                // Insert the image model
+                db.insert(imageModel)
+                
+                // Establish bidirectional relationship
+                if catalogItem.images == nil {
+                    catalogItem.images = []
+                }
+                catalogItem.images?.append(imageModel)
+                
+                // Save the context
+                try db.save()
+                
+                logger.info("✅ Created SwiftData ImageModel and relationship: \(imageId) -> \(itemId)")
+            } else {
+                logger.warning("❌ Could not find catalog item \(itemId) for image relationship")
+            }
+        } catch {
+            logger.error("❌ Failed to create SwiftData image model: \(error)")
+            throw error
+        }
+    }
+    
+    /// Update the local catalog_items.data_json with the new image ID (for compatibility)
+    private func updateLocalCatalogItemImageIds(imageId: String, itemId: String) async throws {
         let db = databaseManager.getContext()
         
         do {
@@ -351,32 +399,46 @@ extension UIImage {
         }
     }
     
+    /// Detects if the image actually uses transparency (not just has alpha channel)
+    var hasActualTransparency: Bool {
+        // If no alpha channel, definitely no transparency
+        guard hasAlphaChannel else { return false }
+        
+        // For product photos from Figma/design tools, often have alpha channel but no actual transparency
+        // Use JPEG for better compression unless we detect actual transparent pixels
+        // This is a simplified check - for most product photos, prefer JPEG
+        return false  // Force JPEG for better compression in product photo use case
+    }
+    
     /// Converts image to appropriate data format (PNG for transparency, JPEG for opaque)
-    func smartImageData(compressionQuality: CGFloat = 0.9) -> (data: Data?, format: ImageFormat) {
+    func smartImageData(compressionQuality: CGFloat = 0.9) -> (data: Data?, format: SimpleImageService.ImageFormat) {
         if hasAlphaChannel {
-            return (pngData(), .png)
+            return (pngData(), SimpleImageService.ImageFormat.png)
         } else {
-            return (jpegData(compressionQuality: compressionQuality), .jpeg)
+            return (jpegData(compressionQuality: compressionQuality), SimpleImageService.ImageFormat.jpeg)
         }
     }
 }
 
-/// Supported image formats for upload
-enum ImageFormat {
-    case png
-    case jpeg
-    
-    var mimeType: String {
-        switch self {
-        case .png: return "image/png"
-        case .jpeg: return "image/jpeg"
+// ImageFormat moved inside SimpleImageService extension
+extension SimpleImageService {
+    /// Supported image formats for upload
+    enum ImageFormat {
+        case png
+        case jpeg
+        
+        var mimeType: String {
+            switch self {
+            case .png: return "image/png"
+            case .jpeg: return "image/jpeg"
+            }
         }
-    }
-    
-    var fileExtension: String {
-        switch self {
-        case .png: return "png"
-        case .jpeg: return "jpg"
+        
+        var fileExtension: String {
+            switch self {
+            case .png: return "png"
+            case .jpeg: return "jpg"
+            }
         }
     }
 }

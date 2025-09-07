@@ -28,6 +28,7 @@
 		343A5BEB820EB07235EEFE35 /* ItemDetailsPricingSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65695EAA6350279F084BF63B /* ItemDetailsPricingSection.swift */; };
 		365F26C4447BAB5ECB3E7AB8 /* ZoomableImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F87ABC339104C2473194A151 /* ZoomableImageView.swift */; };
 		37E79365D45FBBB720767A29 /* ItemModifiersSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97248AB2D5A526439B92B9E2 /* ItemModifiersSection.swift */; };
+		38ABD53A924C800B73958281 /* ImageSaveService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1194A1F3F91FB0E4ACE16CAE /* ImageSaveService.swift */; };
 		39D14EE39E617F642FD943A9 /* ExportOptionsModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11E2C4538C893D6DC9BF4311 /* ExportOptionsModal.swift */; };
 		3BBC4FF8ED45BE409B7E36BF /* DiscountModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 772E9D5C057E6CFA53E18852 /* DiscountModel.swift */; };
 		3D033F23814EAC17F1F30659 /* ItemSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DC776666D9E1A98076720A2 /* ItemSettingsView.swift */; };
@@ -56,6 +57,7 @@
 		727C46D51FB7521A15C78324 /* ReorderBarcodeScanningManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 612C9E33A082AEB63A3A1DC3 /* ReorderBarcodeScanningManager.swift */; };
 		781904893982448D104465D8 /* CategoryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3151236638CB10CA4CF5127B /* CategoryModel.swift */; };
 		7995B042235CA11634DB6A93 /* ReorderService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AE1BE4622C5C0A85C6CAA3E /* ReorderService.swift */; };
+		7DFE6CF6196B175FAD5BC8DB /* SquareCropView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B15E92D9D11628C1A160231 /* SquareCropView.swift */; };
 		823B57DE36146918AC79FFAE /* ShareableFileData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B59E873AFBCFBE04460F20A8 /* ShareableFileData.swift */; };
 		85126E4554FBE0F2C78D3609 /* ToastNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1645309EC63E18A4589C1AC3 /* ToastNotificationService.swift */; };
 		8588F632020178AE73B13ED8 /* SwiftDataImageURLManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB1211BB191A34ECDEE64F14 /* SwiftDataImageURLManager.swift */; };
@@ -70,6 +72,7 @@
 		99246C9B894AF2AE6D86F627 /* SquareCRUDService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35AB2C1793F03C8E7C4FDE80 /* SquareCRUDService.swift */; };
 		99776EE3F97CD95D3C775838 /* ItemFieldConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = D96C042150C12C4387D96347 /* ItemFieldConfiguration.swift */; };
 		9C3AE080A9C601FD9E3A08A7 /* LocationCacheManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA8C5B246DFF28C031178155 /* LocationCacheManager.swift */; };
+		9D7855B629B0AFB4487D02B1 /* ImageProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BE2C4DD20187084BC60DE7C /* ImageProcessor.swift */; };
 		9F1D75B816578F431F48DA54 /* WebhookManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F2B7DCDFE09A9CB0B24D0EA /* WebhookManager.swift */; };
 		A135F89195224732ABA3AAF3 /* ToastWindowManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55BCF27BAD920DC02CC1E42D /* ToastWindowManager.swift */; };
 		A1B2C3D4E5F6789012345678 /* JoyLabsNativeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345679 /* JoyLabsNativeApp.swift */; };
@@ -146,6 +149,7 @@
 		0C4809FBB6B3D2AD55C570A9 /* ReorderModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderModels.swift; path = Models/ReorderModels.swift; sourceTree = "<group>"; };
 		0E3B3F77BC194AF2CF9CED6F /* ItemMeasurementSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemMeasurementSection.swift; path = Components/ItemMeasurementSection.swift; sourceTree = "<group>"; };
 		109D8EF3405D7C8718DCDF2B /* ItemCustomAttributesSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemCustomAttributesSection.swift; path = Components/ItemCustomAttributesSection.swift; sourceTree = "<group>"; };
+		1194A1F3F91FB0E4ACE16CAE /* ImageSaveService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ImageSaveService.swift; path = Core/Services/ImageSaveService.swift; sourceTree = "<group>"; };
 		11C6F817152E7F615D5CB415 /* LabelLiveSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LabelLiveSettingsView.swift; path = Views/LabelLiveSettingsView.swift; sourceTree = "<group>"; };
 		11E2C4538C893D6DC9BF4311 /* ExportOptionsModal.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExportOptionsModal.swift; path = Components/ExportOptionsModal.swift; sourceTree = "<group>"; };
 		13EC93BCF0BD62D28B142C6C /* SwiftDataTypeAliases.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SwiftDataTypeAliases.swift; path = Core/Database/SwiftDataTypeAliases.swift; sourceTree = "<group>"; };
@@ -169,6 +173,7 @@
 		49800521F9B080A23DC72541 /* NotificationExtensions.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NotificationExtensions.swift; path = Core/Notifications/NotificationExtensions.swift; sourceTree = "<group>"; };
 		4981CED987E3E9524BAF9231 /* SyncStatusModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SyncStatusModel.swift; path = Models/SwiftData/SyncStatusModel.swift; sourceTree = "<group>"; };
 		4AFAF5D9F92448678D1A1EE2 /* ItemEcommerceSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemEcommerceSection.swift; path = Components/ItemEcommerceSection.swift; sourceTree = "<group>"; };
+		4BE2C4DD20187084BC60DE7C /* ImageProcessor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ImageProcessor.swift; path = Core/ImageProcessing/ImageProcessor.swift; sourceTree = "<group>"; };
 		4F11337D485EAEE728164CE7 /* CentralItemUpdateManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CentralItemUpdateManager.swift; path = Core/Services/CentralItemUpdateManager.swift; sourceTree = "<group>"; };
 		522EA5712FAC74516DFC29CF /* NotificationsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NotificationsView.swift; path = Views/NotificationsView.swift; sourceTree = "<group>"; };
 		55BCF27BAD920DC02CC1E42D /* ToastWindowManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ToastWindowManager.swift; path = Core/Services/ToastWindowManager.swift; sourceTree = "<group>"; };
@@ -181,6 +186,7 @@
 		65695EAA6350279F084BF63B /* ItemDetailsPricingSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsPricingSection.swift; path = Components/ItemDetailsPricingSection.swift; sourceTree = "<group>"; };
 		68CAE024F232AEDA149CF627 /* ItemDeleteSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDeleteSection.swift; path = Components/ItemDeleteSection.swift; sourceTree = "<group>"; };
 		6934794797FCA6EBD6A89E3F /* ModifierModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ModifierModel.swift; path = Models/SwiftData/ModifierModel.swift; sourceTree = "<group>"; };
+		6B15E92D9D11628C1A160231 /* SquareCropView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SquareCropView.swift; path = Components/SquareCropView.swift; sourceTree = "<group>"; };
 		6ECE051541206A85FCA7DCFC /* WebhookNotificationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WebhookNotificationService.swift; path = Core/Services/WebhookNotificationService.swift; sourceTree = "<group>"; };
 		6F2B7DCDFE09A9CB0B24D0EA /* WebhookManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WebhookManager.swift; path = Core/Services/WebhookManager.swift; sourceTree = "<group>"; };
 		7034F57676BBD40AAF7206B6 /* ItemTaxSettingsSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemTaxSettingsSection.swift; path = Components/ItemTaxSettingsSection.swift; sourceTree = "<group>"; };
@@ -387,6 +393,7 @@
 				B59E873AFBCFBE04460F20A8 /* ShareableFileData.swift */,
 				1F3EB3C38F152ED431D193F3 /* VariationCardComponents.swift */,
 				FB694A8277941E8AAF1C9EAE /* ItemDetailsVariationCard.swift */,
+				6B15E92D9D11628C1A160231 /* SquareCropView.swift */,
 			);
 			name = Components;
 			sourceTree = "<group>";
@@ -438,6 +445,14 @@
 				13EC93BCF0BD62D28B142C6C /* SwiftDataTypeAliases.swift */,
 			);
 			name = Database;
+			sourceTree = "<group>";
+		};
+		84DD1A26A23F82BFE77EE5B9 /* ImageProcessing */ = {
+			isa = PBXGroup;
+			children = (
+				4BE2C4DD20187084BC60DE7C /* ImageProcessor.swift */,
+			);
+			name = ImageProcessing;
 			sourceTree = "<group>";
 		};
 		9601B05E5815DAB861EC09D2 /* Views */ = {
@@ -589,6 +604,7 @@
 				EA65834124AA651116B2DF7A /* UITextField+NoInputAccessory.swift */,
 				7E3BFAC1A920D456F00628B8 /* Database */,
 				A49920AAB503F9434EB325F0 /* Environment */,
+				84DD1A26A23F82BFE77EE5B9 /* ImageProcessing */,
 			);
 			name = Core;
 			sourceTree = "<group>";
@@ -622,6 +638,7 @@
 				CA8C5B246DFF28C031178155 /* LocationCacheManager.swift */,
 				0AE1BE4622C5C0A85C6CAA3E /* ReorderService.swift */,
 				4F11337D485EAEE728164CE7 /* CentralItemUpdateManager.swift */,
+				1194A1F3F91FB0E4ACE16CAE /* ImageSaveService.swift */,
 			);
 			name = Services;
 			sourceTree = "<group>";
@@ -861,6 +878,9 @@
 				8C7B8A0752F820E8136FADDE /* SwiftDataTypeAliases.swift in Sources */,
 				B279269216A213D7664CB81E /* VariationCardComponents.swift in Sources */,
 				D26299835D6943163B61C770 /* ItemDetailsVariationCard.swift in Sources */,
+				38ABD53A924C800B73958281 /* ImageSaveService.swift in Sources */,
+				7DFE6CF6196B175FAD5BC8DB /* SquareCropView.swift in Sources */,
+				9D7855B629B0AFB4487D02B1 /* ImageProcessor.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

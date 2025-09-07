@@ -4,16 +4,14 @@ import Photos
 import OSLog
 import UIKit
 
-/// Unified Image Picker Modal - Instagram-style image picker with 1:1 crop preview
-/// Features: Header, 1:1 square crop preview, iOS photo library grid
+/// Unified Image Picker Modal - Simple image picker without processing
+/// Features: Header, image selection, iOS photo library grid
 struct UnifiedImagePickerModal: View {
     let context: ImageUploadContext
     let onDismiss: () -> Void
     let onImageUploaded: (ImageUploadResult) -> Void
 
     @State private var selectedImage: UIImage?
-    @State private var croppedImage: UIImage?
-    @State private var cropRect: CGRect = .zero
     @State private var isUploading = false
     @State private var uploadError: String?
     @State private var showingErrorAlert = false
@@ -23,8 +21,13 @@ struct UnifiedImagePickerModal: View {
     @State private var showingCamera = false
     @State private var hasMorePhotos = true
     @State private var isLoadingMorePhotos = false
+    @State private var cropViewKey = UUID() // Force recreation of crop view when image changes
+    @State private var squareCropViewRef: SquareCropView?
+    @StateObject private var scrollViewState = ScrollViewState() // Stable state for transform extraction
 
     @StateObject private var imageService = SimpleImageService.shared
+    @StateObject private var imageSaveService = ImageSaveService.shared
+    private let imageProcessor = ImageProcessor()
 
     private let logger = Logger(subsystem: "com.joylabs.native", category: "UnifiedImagePickerModal")
 
@@ -67,10 +70,18 @@ struct UnifiedImagePickerModal: View {
                     Spacer()
                     
                     Button("Upload") {
-                        handleUpload()
+                        guard let image = selectedImage else {
+                            uploadError = "No image selected"
+                            showingErrorAlert = true
+                            return
+                        }
+                        
+                        Task {
+                            await handleUpload(image: image)
+                        }
                     }
-                    .disabled(croppedImage == nil || isUploading)
-                    .foregroundColor(croppedImage != nil && !isUploading ? .blue : .gray)
+                    .disabled(selectedImage == nil || isUploading)
+                    .foregroundColor(selectedImage != nil && !isUploading ? .blue : .gray)
                     .fontWeight(.semibold)
                     .frame(minWidth: 60, minHeight: 44)
                     .contentShape(Rectangle())
@@ -88,8 +99,36 @@ struct UnifiedImagePickerModal: View {
                 )
                 .zIndex(1) // Ensure header is above other content
                 
-            // Responsive image preview - uses full modal width, 1:1 aspect ratio (borderless)
-            cropPreviewSection(containerWidth: modalWidth)
+            // Square crop view for selected image
+            if let selectedImage = selectedImage {
+                let cropView = SquareCropView(image: selectedImage, scrollViewState: scrollViewState)
+                cropView
+                    .frame(height: 400)
+                    .id(cropViewKey) // Force recreation when image changes
+                    .onAppear {
+                        squareCropViewRef = cropView
+                        print("[UnifiedImagePickerModal] SquareCropView reference stored (cropViewKey: \(cropViewKey))")
+                    }
+                    .onDisappear {
+                        print("[UnifiedImagePickerModal] SquareCropView disappeared (cropViewKey: \(cropViewKey))")
+                    }
+            } else {
+                // Placeholder when no image selected
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color(.systemGray6))
+                    .frame(height: 300)
+                    .overlay(
+                        VStack(spacing: 12) {
+                            Image(systemName: "photo")
+                                .font(.system(size: 40))
+                                .foregroundColor(.gray)
+                            Text("Select a photo to crop")
+                                .font(.headline)
+                                .foregroundColor(Color.secondary)
+                        }
+                    )
+                    .padding(.horizontal, 16)
+            }
 
             // Divider
             Divider()
@@ -119,6 +158,7 @@ struct UnifiedImagePickerModal: View {
                 onImageCaptured: { image in
                     // Set the captured image in preview
                     selectedImage = image
+                    cropViewKey = UUID() // Force recreation of crop view
                     // Close camera view
                     showingCamera = false
                     print("[UnifiedImagePickerModal] Camera photo set in preview, staying in modal for cropping")
@@ -133,45 +173,6 @@ struct UnifiedImagePickerModal: View {
     }
     
     // MARK: - UI Sections
-    
-    private func cropPreviewSection(containerWidth: CGFloat) -> some View {
-        // Responsive 1:1 Square Crop Preview - uses full modal width
-        ZStack {
-            Rectangle()
-                .fill(Color.black)
-                .frame(width: containerWidth, height: containerWidth) // Perfect square, full width
-
-            if let selectedImage = selectedImage {
-                SquareCropView(
-                    image: selectedImage,
-                    onCropChanged: { croppedImg, rect in
-                        self.croppedImage = croppedImg
-                        self.cropRect = rect
-                    }
-                )
-                .frame(width: containerWidth, height: containerWidth) // Perfect square, full width
-                .id(selectedImage) // Force view recreation when image changes to ensure proper initialization
-            } else {
-                VStack(spacing: 12) {
-                    Image(systemName: "photo")
-                        .font(.system(size: 40))
-                        .foregroundColor(.gray)
-                    Text("Select a photo below")
-                        .font(.headline)
-                        .foregroundColor(Color.secondary)
-                    Text("1:1 square crop")
-                        .font(.caption)
-                        .foregroundColor(Color.secondary)
-                }
-            }
-
-            if isUploading {
-                Color.black.opacity(0.5)
-                ProgressView("Uploading...")
-                    .foregroundColor(.white)
-            }
-        }
-    }
     
     private func photoLibrarySectionWithPermissions(containerWidth: CGFloat) -> some View {
         VStack(spacing: 0) {
@@ -341,13 +342,14 @@ struct UnifiedImagePickerModal: View {
 
     private func requestPhotoLibraryPermission() {
         print("[UnifiedImagePickerModal] User requested photo library permission")
-        PHPhotoLibrary.requestAuthorization(for: .readWrite) { status in
+        Task {
+            let status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
             print("[UnifiedImagePickerModal] Permission request result: \(status.rawValue)")
-            DispatchQueue.main.async {
-                self.authorizationStatus = status
+            await MainActor.run {
+                authorizationStatus = status
                 if status == .authorized || status == .limited {
                     print("[UnifiedImagePickerModal] Permission granted, loading assets")
-                    self.loadPhotoAssets()
+                    Task { await loadPhotoAssets() }
                 } else {
                     print("[UnifiedImagePickerModal] Permission denied or restricted")
                 }
@@ -362,16 +364,17 @@ struct UnifiedImagePickerModal: View {
         switch authorizationStatus {
         case .authorized, .limited:
             print("[UnifiedImagePickerModal] Photo access granted, loading assets")
-            loadPhotoAssets()
+            Task { await loadPhotoAssets() }
         case .notDetermined:
             print("[UnifiedImagePickerModal] Requesting photo library permission...")
-            PHPhotoLibrary.requestAuthorization(for: .readWrite) { status in
+            Task {
+                let status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
                 print("[UnifiedImagePickerModal] Permission result: \(status.rawValue)")
-                DispatchQueue.main.async {
-                    self.authorizationStatus = status
+                await MainActor.run {
+                    authorizationStatus = status
                     if status == .authorized || status == .limited {
                         print("[UnifiedImagePickerModal] Permission granted, loading assets")
-                        self.loadPhotoAssets()
+                        Task { await loadPhotoAssets() }
                     } else {
                         print("[UnifiedImagePickerModal] Permission denied or restricted")
                     }
@@ -386,23 +389,24 @@ struct UnifiedImagePickerModal: View {
         }
     }
 
-    private func loadPhotoAssets() {
+    private func loadPhotoAssets() async {
         print("[UnifiedImagePickerModal] Starting to load initial photo assets...")
-        isLoadingPhotos = true
-        photoAssets = [] // Reset array
-        hasMorePhotos = true
+        await MainActor.run {
+            isLoadingPhotos = true
+            photoAssets = [] // Reset array
+            hasMorePhotos = true
+        }
         
-        loadPhotoBatch(startIndex: 0, batchSize: 40) { assets, hasMore in
-            DispatchQueue.main.async {
-                self.photoAssets = assets
-                self.hasMorePhotos = hasMore
-                self.isLoadingPhotos = false
-                print("[UnifiedImagePickerModal] Initial photo assets loaded: \(assets.count), hasMore: \(hasMore)")
-                
-                // Auto-preview the first photo if available
-                if let firstAsset = assets.first {
-                    self.selectPhoto(firstAsset.asset)
-                }
+        let (assets, hasMore) = await loadPhotoBatch(startIndex: 0, batchSize: 40)
+        await MainActor.run {
+            photoAssets = assets
+            hasMorePhotos = hasMore
+            isLoadingPhotos = false
+            print("[UnifiedImagePickerModal] Initial photo assets loaded: \(assets.count), hasMore: \(hasMore)")
+            
+            // Auto-preview the first photo if available
+            if let firstAsset = assets.first {
+                selectPhoto(firstAsset.asset)
             }
         }
     }
@@ -410,158 +414,248 @@ struct UnifiedImagePickerModal: View {
     private func loadMorePhotos() {
         guard hasMorePhotos && !isLoadingMorePhotos else { return }
         
-        print("[UnifiedImagePickerModal] Loading more photos from index \(photoAssets.count)...")
-        isLoadingMorePhotos = true
-        
-        let startIndex = photoAssets.count
-        loadPhotoBatch(startIndex: startIndex, batchSize: 20) { newAssets, hasMore in
-            DispatchQueue.main.async {
-                self.photoAssets.append(contentsOf: newAssets)
-                self.hasMorePhotos = hasMore
-                self.isLoadingMorePhotos = false
-                print("[UnifiedImagePickerModal] Loaded \(newAssets.count) more photos, total: \(self.photoAssets.count), hasMore: \(hasMore)")
+        Task {
+            await MainActor.run {
+                print("[UnifiedImagePickerModal] Loading more photos from index \(photoAssets.count)...")
+                isLoadingMorePhotos = true
+            }
+            
+            let startIndex = await MainActor.run { photoAssets.count }
+            let (newAssets, hasMore) = await loadPhotoBatch(startIndex: startIndex, batchSize: 20)
+            
+            await MainActor.run {
+                photoAssets.append(contentsOf: newAssets)
+                hasMorePhotos = hasMore
+                isLoadingMorePhotos = false
+                print("[UnifiedImagePickerModal] Loaded \(newAssets.count) more photos, total: \(photoAssets.count), hasMore: \(hasMore)")
             }
         }
     }
     
-    private func loadPhotoBatch(startIndex: Int, batchSize: Int, completion: @escaping ([PhotoAsset], Bool) -> Void) {
-        DispatchQueue.global(qos: .userInitiated).async {
-            let fetchOptions = PHFetchOptions()
-            fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-            
-            let allAssets = PHAsset.fetchAssets(with: .image, options: fetchOptions)
-            print("[UnifiedImagePickerModal] Found \(allAssets.count) total assets in photo library")
-            
-            let endIndex = min(startIndex + batchSize, allAssets.count)
-            let hasMore = endIndex < allAssets.count
-            
-            guard startIndex < allAssets.count else {
-                completion([], false)
-                return
-            }
-            
-            let imageManager = PHImageManager.default()
-            let requestOptions = PHImageRequestOptions()
-            requestOptions.deliveryMode = .highQualityFormat // High quality thumbnails
-            requestOptions.resizeMode = .exact // Exact size for sharp thumbnails
-            requestOptions.isNetworkAccessAllowed = true // Allow network for iCloud photos
-            requestOptions.isSynchronous = false // Use async to prevent blocking and daemon timeouts
-            
-            let assetsToProcess = endIndex - startIndex
-            print("[UnifiedImagePickerModal] Processing \(assetsToProcess) assets from index \(startIndex) to \(endIndex-1)")
-            
-            // Use DispatchGroup for async image loading to prevent daemon errors
-            let dispatchGroup = DispatchGroup()
-            var photoAssets: [PhotoAsset] = []
-            // Calculate proper thumbnail size based on screen and column count
-            let screenWidth = UIScreen.main.bounds.width
-            let columnCount: CGFloat = 4
-            let spacing = columnCount - 1
-            let itemWidth = (screenWidth - spacing) / columnCount
-            // Use 2x scale for retina quality thumbnails
-            let targetSize = CGSize(width: itemWidth * 2, height: itemWidth * 2)
-            
-            for i in startIndex..<endIndex {
-                let asset = allAssets.object(at: i)
-                dispatchGroup.enter()
+    private func loadPhotoBatch(startIndex: Int, batchSize: Int) async -> ([PhotoAsset], Bool) {
+        return await withCheckedContinuation { continuation in
+            autoreleasepool {
+                let fetchOptions = PHFetchOptions()
+                fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
                 
-                imageManager.requestImage(
-                    for: asset,
-                    targetSize: targetSize,
-                    contentMode: .aspectFill,
-                    options: requestOptions
-                ) { image, info in
-                    defer { dispatchGroup.leave() }
-                    
-                    // Comprehensive error checking
-                    if let info = info {
-                        // Check for errors
-                        if let error = info[PHImageErrorKey] as? Error {
-                            print("[UnifiedImagePickerModal] Image request error: \(error.localizedDescription)")
-                            return
-                        }
-                        
-                        // Check if image request was cancelled
-                        if let cancelled = info[PHImageCancelledKey] as? Bool, cancelled {
-                            print("[UnifiedImagePickerModal] Image request was cancelled")
-                            return
-                        }
-                        
-                        // Check if this is a degraded image we should ignore
-                        if let degraded = info[PHImageResultIsDegradedKey] as? Bool, degraded {
-                            print("[UnifiedImagePickerModal] Ignoring degraded image")
-                            return
-                        }
-                    }
-                    
-                    // Only use the image if it exists and is valid
-                    guard let image = image, image.size.width > 0, image.size.height > 0 else {
-                        print("[UnifiedImagePickerModal] Invalid or nil image")
-                        return
-                    }
-                    
-                    let photoAsset = PhotoAsset(asset: asset, thumbnail: image)
-                    photoAssets.append(photoAsset)
+                let allAssets = PHAsset.fetchAssets(with: .image, options: fetchOptions)
+                print("[UnifiedImagePickerModal] Found \(allAssets.count) total assets in photo library")
+                
+                let endIndex = min(startIndex + batchSize, allAssets.count)
+                let hasMore = endIndex < allAssets.count
+                
+                guard startIndex < allAssets.count else {
+                    continuation.resume(returning: ([], false))
+                    return
                 }
-            }
-            
-            dispatchGroup.notify(queue: .main) {
-                print("[UnifiedImagePickerModal] Successfully processed \(photoAssets.count) photo assets")
-                completion(photoAssets, hasMore)
+                
+                let imageManager = PHImageManager.default()
+                let requestOptions = PHImageRequestOptions()
+                requestOptions.deliveryMode = .highQualityFormat // High quality thumbnails
+                requestOptions.resizeMode = .exact
+                requestOptions.isNetworkAccessAllowed = true
+                requestOptions.isSynchronous = false
+                
+                let assetsToProcess = endIndex - startIndex
+                print("[UnifiedImagePickerModal] Processing \(assetsToProcess) assets from index \(startIndex) to \(endIndex-1)")
+                
+                let dispatchGroup = DispatchGroup()
+                var photoAssets: [PhotoAsset] = []
+                
+                // Calculate proper thumbnail size - smaller for memory efficiency
+                let screenWidth = UIScreen.main.bounds.width
+                let columnCount: CGFloat = 4
+                let spacing = columnCount - 1
+                let itemWidth = (screenWidth - spacing) / columnCount
+                // Use 2x scale for retina quality thumbnails
+                let targetSize = CGSize(width: itemWidth * 2, height: itemWidth * 2)
+                
+                for i in startIndex..<endIndex {
+                    let asset = allAssets.object(at: i)
+                    dispatchGroup.enter()
+                    
+                    imageManager.requestImage(
+                        for: asset,
+                        targetSize: targetSize,
+                        contentMode: .aspectFill,
+                        options: requestOptions
+                    ) { image, info in
+                        autoreleasepool {
+                            defer { dispatchGroup.leave() }
+                            
+                            // Comprehensive error checking
+                            if let info = info {
+                                if let error = info[PHImageErrorKey] as? Error {
+                                    print("[UnifiedImagePickerModal] Image request error: \(error.localizedDescription)")
+                                    return
+                                }
+                                
+                                if let cancelled = info[PHImageCancelledKey] as? Bool, cancelled {
+                                    print("[UnifiedImagePickerModal] Image request was cancelled")
+                                    return
+                                }
+                                
+                                if let degraded = info[PHImageResultIsDegradedKey] as? Bool, degraded {
+                                    return // Skip degraded images silently
+                                }
+                            }
+                            
+                            guard let image = image, image.size.width > 0, image.size.height > 0 else {
+                                return
+                            }
+                            
+                            let photoAsset = PhotoAsset(asset: asset, thumbnail: image)
+                            photoAssets.append(photoAsset)
+                        }
+                    }
+                }
+                
+                dispatchGroup.notify(queue: .main) {
+                    print("[UnifiedImagePickerModal] Successfully processed \(photoAssets.count) photo assets")
+                    continuation.resume(returning: (photoAssets, hasMore))
+                }
             }
         }
     }
 
     private func selectPhoto(_ asset: PHAsset) {
-        print("[UnifiedImagePickerModal] Selecting photo for preview")
-        let imageManager = PHImageManager.default()
-        let requestOptions = PHImageRequestOptions()
-        requestOptions.deliveryMode = .highQualityFormat
-        requestOptions.isNetworkAccessAllowed = true
-
-        imageManager.requestImage(
-            for: asset,
-            targetSize: PHImageManagerMaximumSize,
-            contentMode: .aspectFit,
-            options: requestOptions
-        ) { image, _ in
-            DispatchQueue.main.async {
+        print("[UnifiedImagePickerModal] ========== PHOTO SELECTION START ==========")
+        print("[UnifiedImagePickerModal] Asset dimensions: \(asset.pixelWidth) x \(asset.pixelHeight)")
+        print("[UnifiedImagePickerModal] Asset creation date: \(asset.creationDate ?? Date())")
+        print("[UnifiedImagePickerModal] Asset media type: \(asset.mediaType.rawValue)")
+        
+        Task {
+            let image = await withCheckedContinuation { (continuation: CheckedContinuation<UIImage?, Never>) in
+                autoreleasepool {
+                    let imageManager = PHImageManager.default()
+                    let requestOptions = PHImageRequestOptions()
+                    requestOptions.deliveryMode = .highQualityFormat
+                    requestOptions.isNetworkAccessAllowed = true
+                    requestOptions.isSynchronous = false
+                    
+                    // Get raw image data and EXIF to read correct dimensions
+                    imageManager.requestImageDataAndOrientation(for: asset, options: requestOptions) { imageData, dataUTI, orientation, info in
+                        if let info = info {
+                            print("[UnifiedImagePickerModal] Image data load info:")
+                            if let isDegraded = info[PHImageResultIsDegradedKey] as? Bool {
+                                print("[UnifiedImagePickerModal]   - Is degraded: \(isDegraded)")
+                            }
+                            if let error = info[PHImageErrorKey] as? Error {
+                                print("[UnifiedImagePickerModal]   - Error: \(error.localizedDescription)")
+                            }
+                        }
+                        
+                        guard let imageData = imageData else {
+                            print("[UnifiedImagePickerModal] ERROR: No image data received")
+                            continuation.resume(returning: nil)
+                            return
+                        }
+                        
+                        print("[UnifiedImagePickerModal] ---------- RAW IMAGE DATA INFO ----------")
+                        print("[UnifiedImagePickerModal] Data size: \(imageData.count) bytes")
+                        print("[UnifiedImagePickerModal] Data UTI: \(dataUTI ?? "unknown")")
+                        print("[UnifiedImagePickerModal] EXIF orientation: \(orientation.rawValue)")
+                        
+                        // Create UIImage from raw data (gets EXIF dimensions)
+                        guard let image = UIImage(data: imageData) else {
+                            print("[UnifiedImagePickerModal] ERROR: Failed to create UIImage from data")
+                            continuation.resume(returning: nil)
+                            return
+                        }
+                        
+                        print("[UnifiedImagePickerModal] UIImage from raw data - size: \(image.size), orientation: \(image.imageOrientation.rawValue)")
+                        continuation.resume(returning: image)
+                    }
+                }
+            }
+            
+            await MainActor.run {
                 if let image = image {
-                    selectedImage = image
-                    // The SquareCropView will handle cropping automatically
+                    print("[UnifiedImagePickerModal] ---------- LOADED IMAGE INFO ----------")
+                    print("[UnifiedImagePickerModal] Raw UIImage size: \(String(format: "%.0fx%.0f", image.size.width, image.size.height))")
+                    print("[UnifiedImagePickerModal] Raw UIImage scale: \(image.scale)")
+                    print("[UnifiedImagePickerModal] Raw UIImage orientation: \(image.imageOrientation.rawValue)")
+                    if let cgImage = image.cgImage {
+                        print("[UnifiedImagePickerModal] CGImage dimensions: \(cgImage.width) x \(cgImage.height)")
+                        print("[UnifiedImagePickerModal] CGImage bytes per row: \(cgImage.bytesPerRow)")
+                    }
+                    
+                    // Normalize image orientation (YOUR REQUIREMENT)
+                    let normalizedImage = image.fixedOrientation()
+                    
+                    print("[UnifiedImagePickerModal] ---------- NORMALIZED IMAGE INFO ----------")
+                    print("[UnifiedImagePickerModal] Normalized size: \(String(format: "%.0fx%.0f", normalizedImage.size.width, normalizedImage.size.height))")
+                    print("[UnifiedImagePickerModal] Normalized scale: \(normalizedImage.scale)")
+                    print("[UnifiedImagePickerModal] Normalized orientation: \(normalizedImage.imageOrientation.rawValue)")
+                    if let cgImage = normalizedImage.cgImage {
+                        print("[UnifiedImagePickerModal] Normalized CGImage: \(cgImage.width) x \(cgImage.height)")
+                    }
+                    print("[UnifiedImagePickerModal] Orientation changed: \(image.imageOrientation.rawValue != normalizedImage.imageOrientation.rawValue)")
+                    print("[UnifiedImagePickerModal] Size changed: \(image.size != normalizedImage.size)")
+                    
+                    selectedImage = normalizedImage
+                    cropViewKey = UUID() // Force recreation of crop view
+                    
+                    print("[UnifiedImagePickerModal] ========== PHOTO SELECTION END ==========")
+                } else {
+                    print("[UnifiedImagePickerModal] ERROR: Failed to load image from asset")
                 }
             }
         }
     }
 
-    private func handleUpload() {
-        guard let image = croppedImage else {
-            uploadError = "No cropped image available"
-            showingErrorAlert = true
-            return
-        }
+    private func handleUpload(image: UIImage) async {
+        do {
+                await MainActor.run {
+                    isUploading = true
+                }
+                logger.info("[ImagePicker] Starting image processing and upload")
 
-        Task {
-            do {
-                isUploading = true
-
-                // Convert image to appropriate format (PNG for transparency, JPEG for opaque)
-                let (imageData, imageFormat) = image.smartImageData(compressionQuality: 0.9)
-                guard let data = imageData else {
-                    throw UnifiedImageError.invalidImageData
+                // Get transform matrix directly from stable ScrollViewState (Instagram model)
+                // Use dynamic viewport size from SquareCropView to prevent mismatched coordinates
+                let squareSize = squareCropViewRef?.getViewportSize() ?? 400 // Fallback to 400 if ref missing
+                let containerSize = CGSize(width: squareSize, height: squareSize)
+                print("[UnifiedImagePickerModal] Getting transform from stable ScrollViewState: \(Unmanaged.passUnretained(scrollViewState).toOpaque())")
+                print("[UnifiedImagePickerModal] Using dynamic viewport size: \(squareSize)")
+                print("[UnifiedImagePickerModal] Stable state - zoomScale: \(scrollViewState.zoomScale), contentOffset: \(scrollViewState.contentOffset)")
+                let transform = ImageTransform(
+                    scale: scrollViewState.zoomScale,
+                    offset: CGSize(
+                        width: scrollViewState.contentOffset.x,
+                        height: scrollViewState.contentOffset.y
+                    ),
+                    squareSize: squareSize,
+                    containerSize: containerSize
+                )
+                print("[UnifiedImagePickerModal] Using transform matrix: \(transform.description)")
+                print("[UnifiedImagePickerModal] Transform details - scale: \(transform.scale), offset: \(transform.offset)")
+                
+                // Process image with transform matrix (background thread)
+                let processedResult = try await imageProcessor.processImage(image, with: transform)
+                logger.info("[ImagePicker] Image processed - Final size: \(String(format: "%.0fx%.0f", processedResult.finalSize.width, processedResult.finalSize.height)), Format: \(String(describing: processedResult.format))")
+                
+                // Save to camera roll if enabled
+                await MainActor.run {
+                    if imageSaveService.saveProcessedImages {
+                        imageSaveService.saveProcessedImage(
+                            processedResult.image,
+                            originalSize: processedResult.originalSize,
+                            cropTransform: transform,
+                            previewSize: containerSize
+                        )
+                    }
                 }
                 
                 let itemId = getItemId()
                 
                 if itemId.isEmpty {
-                    // NEW ITEM: No itemId yet - return image data to be included in item creation
-                    logger.info("📦 New item detected - preparing image data for inclusion in item creation")
+                    // NEW ITEM: No itemId yet - return processed image data for item creation
+                    logger.info("[ImagePicker] New item detected - preparing processed image data for inclusion in item creation")
                     
-                    // Convert image data to base64 for temporary storage in ItemDetailsData
-                    let base64Image = data.base64EncodedString()
-                    let dataURL = "data:\(imageFormat.mimeType);base64,\(base64Image)"
+                    // Convert processed image data to base64 for temporary storage
+                    let base64Image = processedResult.data.base64EncodedString()
+                    let dataURL = "data:\(processedResult.format.mimeType);base64,\(base64Image)"
                     
-                    // Create result with data URL for new items
                     let result = ImageUploadResult(
                         squareImageId: "", // Will be set after item creation
                         awsUrl: dataURL, // Base64 data URL for temporary storage
@@ -571,22 +665,21 @@ struct UnifiedImagePickerModal: View {
                     
                     await MainActor.run {
                         isUploading = false
-                        logger.info("✅ Image data prepared for new item creation")
+                        logger.info("[ImagePicker] Processed image data prepared for new item creation")
                         onImageUploaded(result)
                     }
                 } else {
-                    // IMMEDIATE UPLOAD: Existing item with ID - upload normally
-                    logger.info("🚀 Uploading image immediately for existing item: \(itemId)")
+                    // IMMEDIATE UPLOAD: Existing item with ID - upload processed image
+                    logger.info("[ImagePicker] Uploading processed image immediately for existing item: \(itemId)")
                     
-                    let fileName = "joylabs_image_\(Int(Date().timeIntervalSince1970))_\(Int.random(in: 1000...9999)).\(imageFormat.fileExtension)"
+                    let fileName = "joylabs_square_\(Int(Date().timeIntervalSince1970))_\(Int.random(in: 1000...9999)).\(processedResult.format.fileExtension)"
                     
                     let awsURL = try await imageService.uploadImage(
-                        imageData: data,
+                        imageData: processedResult.data,
                         fileName: fileName,
                         itemId: itemId
                     )
                     
-                    // Create result object for compatibility
                     let result = ImageUploadResult(
                         squareImageId: "", // SimpleImageService doesn't return this
                         awsUrl: awsURL,
@@ -596,7 +689,7 @@ struct UnifiedImagePickerModal: View {
 
                     await MainActor.run {
                         isUploading = false
-                        logger.info("✅ Image upload completed successfully")
+                        logger.info("[ImagePicker] Processed image upload completed successfully")
                         logger.info("AWS URL: \(result.awsUrl)")
                         onImageUploaded(result)
                     }
@@ -606,8 +699,8 @@ struct UnifiedImagePickerModal: View {
                     isUploading = false
                     uploadError = error.localizedDescription
                     showingErrorAlert = true
+                    logger.error("[ImagePicker] Image processing/upload failed: \(error.localizedDescription)")
                 }
-            }
         }
     }
 
@@ -746,155 +839,98 @@ struct CameraView: UIViewControllerRepresentable {
     }
 }
 
-// MARK: - Square Crop View
+// MARK: - Image Orientation Normalization
 
-/// Square crop view that ACTUALLY fills the container without padding
-struct SquareCropView: View {
-    let image: UIImage
-    let onCropChanged: (UIImage, CGRect) -> Void
-
-    @State private var scale: CGFloat = 1.0
-    @State private var offset: CGSize = .zero
-    @State private var lastScale: CGFloat = 1.0
-    @State private var lastOffset: CGSize = .zero
-
-    var body: some View {
-        GeometryReader { geometry in
-            let containerSize = min(geometry.size.width, geometry.size.height)
-            let imageSize = image.size
-            
-            // Calculate the scale needed to fill the square container
-            let fillScale = max(containerSize / imageSize.width, containerSize / imageSize.height)
-            let totalScale = scale * fillScale
-            
-            // Calculate actual display size
-            let displayWidth = imageSize.width * totalScale
-            let displayHeight = imageSize.height * totalScale
-            
-            ZStack {
-                // Black background
-                Rectangle()
-                    .fill(Color.black)
-                    .frame(width: containerSize, height: containerSize)
-                
-                // Image that fills the entire container
-                Image(uiImage: image)
-                    .resizable()
-                    .frame(width: displayWidth, height: displayHeight)
-                    .offset(constrainedOffset(containerSize: containerSize, displayWidth: displayWidth, displayHeight: displayHeight))
-                    .gesture(
-                        SimultaneousGesture(
-                            DragGesture()
-                                .onChanged { value in
-                                    offset = CGSize(
-                                        width: lastOffset.width + value.translation.width,
-                                        height: lastOffset.height + value.translation.height
-                                    )
-                                    updateCroppedImage(containerSize: containerSize, fillScale: fillScale)
-                                }
-                                .onEnded { _ in
-                                    lastOffset = offset
-                                },
-
-                            MagnificationGesture()
-                                .onChanged { value in
-                                    scale = max(1.0, lastScale * value)
-                                    updateCroppedImage(containerSize: containerSize, fillScale: fillScale)
-                                }
-                                .onEnded { _ in
-                                    lastScale = scale
-                                }
-                        )
-                    )
-
-                // Crop frame overlay - ensure it doesn't block touches
-                Rectangle()
-                    .stroke(Color.white, lineWidth: 2)
-                    .frame(width: containerSize, height: containerSize)
-                    .allowsHitTesting(false) // Critical: don't block touches
-            }
-            .frame(width: containerSize, height: containerSize)
-            .clipped()
-            .onAppear {
-                scale = 1.0
-                lastScale = 1.0
-                offset = .zero
-                lastOffset = .zero
-                updateCroppedImage(containerSize: containerSize, fillScale: fillScale)
-            }
-        }
-    }
-
-    private func constrainedOffset(containerSize: CGFloat, displayWidth: CGFloat, displayHeight: CGFloat) -> CGSize {
-        // Calculate max offset to prevent showing black areas
-        let maxOffsetX = max(0, (displayWidth - containerSize) / 2)
-        let maxOffsetY = max(0, (displayHeight - containerSize) / 2)
+extension UIImage {
+    /// Fix image orientation by redrawing the image in the correct orientation
+    /// This prevents the 4000x6000 → 10404x10404 scaling bug from Photos framework
+    func fixedOrientation() -> UIImage {
+        print("[UIImage+Orientation] ========== ORIENTATION FIX START ==========")
+        print("[UIImage+Orientation] Input orientation: \(imageOrientation.rawValue) (0=up, 1=down, 2=left, 3=right, 4=upMirrored, 5=downMirrored, 6=leftMirrored, 7=rightMirrored)")
+        print("[UIImage+Orientation] Input size: \(size)")
+        print("[UIImage+Orientation] Input scale: \(scale)")
         
-        return CGSize(
-            width: max(-maxOffsetX, min(maxOffsetX, offset.width)),
-            height: max(-maxOffsetY, min(maxOffsetY, offset.height))
-        )
-    }
-
-    private func updateCroppedImage(containerSize: CGFloat, fillScale: CGFloat) {
-        let totalScale = scale * fillScale
-        let displayWidth = image.size.width * totalScale
-        let displayHeight = image.size.height * totalScale
-        
-        let constrainedOffsetValue = constrainedOffset(containerSize: containerSize, displayWidth: displayWidth, displayHeight: displayHeight)
-        
-        // Calculate crop area in original image coordinates
-        let cropX = ((displayWidth - containerSize) / 2 - constrainedOffsetValue.width) / totalScale
-        let cropY = ((displayHeight - containerSize) / 2 - constrainedOffsetValue.height) / totalScale
-        
-        // Ensure crop coordinates are within image bounds
-        let clampedCropX = max(0, min(cropX, image.size.width - 1))
-        let clampedCropY = max(0, min(cropY, image.size.height - 1))
-        
-        // Calculate crop dimensions ensuring they don't exceed image bounds
-        let cropWidth = min(containerSize / totalScale, image.size.width - clampedCropX)
-        let cropHeight = min(containerSize / totalScale, image.size.height - clampedCropY)
-        
-        // Ensure positive dimensions
-        let validCropWidth = max(1, cropWidth)
-        let validCropHeight = max(1, cropHeight)
-        
-        let cropRect = CGRect(
-            x: clampedCropX,
-            y: clampedCropY,
-            width: validCropWidth,
-            height: validCropHeight
-        )
-        
-        if let croppedImage = cropImage(image: image, to: cropRect) {
-            onCropChanged(croppedImage, cropRect)
-        }
-    }
-
-    private func cropImage(image: UIImage, to rect: CGRect) -> UIImage? {
-        guard let cgImage = image.cgImage else {
-            return nil
+        // If orientation is already correct, return self
+        if imageOrientation == .up {
+            print("[UIImage+Orientation] Orientation already correct (.up), returning original")
+            print("[UIImage+Orientation] ========== ORIENTATION FIX END ==========")
+            return self
         }
         
-        // Convert crop rect to pixel coordinates
-        let pixelRect = CGRect(
-            x: max(0, rect.origin.x * image.scale),
-            y: max(0, rect.origin.y * image.scale),
-            width: min(CGFloat(cgImage.width) - rect.origin.x * image.scale, rect.size.width * image.scale),
-            height: min(CGFloat(cgImage.height) - rect.origin.y * image.scale, rect.size.height * image.scale)
-        )
+        // Calculate the appropriate transform for the orientation
+        var transform = CGAffineTransform.identity
         
-        // Validate pixel rect
-        guard pixelRect.width > 0 && pixelRect.height > 0 &&
-              pixelRect.origin.x >= 0 && pixelRect.origin.y >= 0 &&
-              pixelRect.maxX <= CGFloat(cgImage.width) && pixelRect.maxY <= CGFloat(cgImage.height) else {
-            return nil
+        switch imageOrientation {
+        case .down, .downMirrored:
+            transform = transform.translatedBy(x: size.width, y: size.height)
+            transform = transform.rotated(by: .pi)
+        case .left, .leftMirrored:
+            transform = transform.translatedBy(x: size.width, y: 0)
+            transform = transform.rotated(by: .pi / 2)
+        case .right, .rightMirrored:
+            transform = transform.translatedBy(x: 0, y: size.height)
+            transform = transform.rotated(by: -.pi / 2)
+        default:
+            break
         }
         
-        guard let croppedCGImage = cgImage.cropping(to: pixelRect) else {
-            return nil
+        switch imageOrientation {
+        case .upMirrored, .downMirrored:
+            transform = transform.translatedBy(x: size.width, y: 0)
+            transform = transform.scaledBy(x: -1, y: 1)
+        case .leftMirrored, .rightMirrored:
+            transform = transform.translatedBy(x: size.height, y: 0)
+            transform = transform.scaledBy(x: -1, y: 1)
+        default:
+            break
         }
         
-        return UIImage(cgImage: croppedCGImage, scale: image.scale, orientation: image.imageOrientation)
+        // Create a new image context and apply the transform
+        guard let cgImage = cgImage else { return self }
+        
+        let contextWidth: Int
+        let contextHeight: Int
+        
+        switch imageOrientation {
+        case .left, .leftMirrored, .right, .rightMirrored:
+            contextWidth = Int(size.height)
+            contextHeight = Int(size.width)
+        default:
+            contextWidth = Int(size.width)
+            contextHeight = Int(size.height)
+        }
+        
+        guard let context = CGContext(
+            data: nil,
+            width: contextWidth,
+            height: contextHeight,
+            bitsPerComponent: cgImage.bitsPerComponent,
+            bytesPerRow: 0,
+            space: cgImage.colorSpace ?? CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: cgImage.bitmapInfo.rawValue
+        ) else {
+            return self
+        }
+        
+        context.concatenate(transform)
+        
+        switch imageOrientation {
+        case .left, .leftMirrored, .right, .rightMirrored:
+            context.draw(cgImage, in: CGRect(origin: .zero, size: CGSize(width: size.height, height: size.width)))
+        default:
+            context.draw(cgImage, in: CGRect(origin: .zero, size: size))
+        }
+        
+        guard let newCGImage = context.makeImage() else { 
+            print("[UIImage+Orientation] ERROR: Failed to create new CGImage, returning original")
+            return self 
+        }
+        
+        let fixedImage = UIImage(cgImage: newCGImage, scale: scale, orientation: .up)
+        print("[UIImage+Orientation] Fixed image size: \(fixedImage.size)")
+        print("[UIImage+Orientation] Fixed image orientation: \(fixedImage.imageOrientation.rawValue)")
+        print("[UIImage+Orientation] ========== ORIENTATION FIX END ==========")
+        
+        return fixedImage
     }
 }
