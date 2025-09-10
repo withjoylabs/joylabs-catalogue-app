@@ -111,6 +111,17 @@ struct SquareCropScrollView: UIViewRepresentable {
         
         // Update frame
         scrollView.frame = CGRect(origin: .zero, size: CGSize(width: squareSize, height: squareSize))
+        
+        // Always center image when frame is valid
+        if scrollView.bounds.size.width > 0 {
+            DispatchQueue.main.async {
+                let imageSize = imageView.frame.size
+                let centerX = max(0, (imageSize.width - self.squareSize) / 2)
+                let centerY = max(0, (imageSize.height - self.squareSize) / 2)
+                scrollView.contentOffset = CGPoint(x: centerX, y: centerY)
+                print("[SquareCropView] Centered image to offset: (\(centerX), \(centerY))")
+            }
+        }
     }
     
     private func setupImageView(_ imageView: UIImageView, in scrollView: UIScrollView) {
@@ -126,8 +137,7 @@ struct SquareCropScrollView: UIViewRepresentable {
         print("[SquareCropView] ScrollView content size: \(scrollView.contentSize)")
         print("[SquareCropView] ScrollView frame: \(scrollView.frame)")
         
-        // Center image initially
-        centerImageView(imageView, in: scrollView)
+        // Note: Centering will happen in updateUIView when frame is properly set
         
         print("[SquareCropView] ScrollView zoom scale: \(scrollView.zoomScale)")
         print("[SquareCropView] ScrollView content offset: \(scrollView.contentOffset)")
@@ -164,6 +174,14 @@ struct SquareCropScrollView: UIViewRepresentable {
             bottom: verticalSpace,
             right: horizontalSpace
         )
+        
+        // Center the visible portion of the image
+        let centerOffsetX = max(0, (imageViewSize.width - scrollViewSize.width) / 2)
+        let centerOffsetY = max(0, (imageViewSize.height - scrollViewSize.height) / 2)
+        
+        scrollView.contentOffset = CGPoint(x: centerOffsetX, y: centerOffsetY)
+        
+        print("[SquareCropView] Centered image - contentOffset: \(scrollView.contentOffset)")
     }
     
     func makeCoordinator() -> Coordinator {
@@ -185,20 +203,12 @@ struct SquareCropScrollView: UIViewRepresentable {
         }
         
         func scrollViewDidZoom(_ scrollView: UIScrollView) {
-            // Update state for transform extraction
-            print("[SquareCropView] BEFORE zoom update - state.zoomScale: \(scrollViewState.zoomScale), scrollView.zoomScale: \(scrollView.zoomScale)")
             scrollViewState.zoomScale = scrollView.zoomScale
-            print("[SquareCropView] AFTER zoom update - state.zoomScale: \(scrollViewState.zoomScale)")
-            
-            // Re-center image during zoom
             centerImageViewIfNeeded(scrollView)
         }
         
         func scrollViewDidScroll(_ scrollView: UIScrollView) {
-            // Update state for transform extraction
-            print("[SquareCropView] BEFORE scroll update - state.contentOffset: \(scrollViewState.contentOffset), scrollView.contentOffset: \(scrollView.contentOffset)")
             scrollViewState.contentOffset = scrollView.contentOffset
-            print("[SquareCropView] AFTER scroll update - state.contentOffset: \(scrollViewState.contentOffset)")
         }
         
         private func centerImageViewIfNeeded(_ scrollView: UIScrollView) {

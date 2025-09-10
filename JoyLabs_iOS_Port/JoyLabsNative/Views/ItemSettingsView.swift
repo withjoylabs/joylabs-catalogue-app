@@ -4,6 +4,7 @@ import SwiftUI
 /// Comprehensive settings page for customizing item defaults and field visibility
 struct ItemSettingsView: View {
     @StateObject private var configManager = FieldConfigurationManager.shared
+    @StateObject private var imageSaveService = ImageSaveService.shared
     @State private var showingResetAlert = false
     @State private var showingValidationErrors = false
     @State private var validationErrors: [ConfigurationValidationError] = []
@@ -16,6 +17,7 @@ struct ItemSettingsView: View {
             // presetSection // Commented out for now - not in current scope
             fieldVisibilitySection
             defaultValuesSection
+            imageOptionsSection
             squareAPISection
             actionsSection
         }
@@ -156,6 +158,47 @@ struct ItemSettingsView: View {
 
                     Spacer()
                 }
+            }
+        }
+    }
+    
+    // MARK: - Image Options Section
+    private var imageOptionsSection: some View {
+        Section("Image Options") {
+            HStack {
+                Image(systemName: "camera.viewfinder")
+                    .foregroundColor(.blue)
+                    .frame(width: 24)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Save Processed Images")
+                        .font(.headline)
+                    Text("Automatically save cropped images to camera roll")
+                        .font(.caption)
+                        .foregroundColor(Color.secondary)
+                }
+
+                Spacer()
+
+                Toggle("", isOn: $imageSaveService.saveProcessedImages)
+                    .labelsHidden()
+                    .onChange(of: imageSaveService.saveProcessedImages) { _, _ in
+                        imageSaveService.saveSettings()
+                    }
+            }
+            .padding(.vertical, 4)
+            
+            if imageSaveService.saveProcessedImages {
+                HStack {
+                    Image(systemName: "info.circle")
+                        .foregroundColor(.blue)
+                        .font(.caption)
+                    
+                    Text("Processed images will be saved to your camera roll with crop details and processing metadata.")
+                        .font(.caption)
+                        .foregroundColor(Color.secondary)
+                }
+                .padding(.top, 4)
             }
         }
     }

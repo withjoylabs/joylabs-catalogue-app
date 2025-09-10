@@ -580,8 +580,8 @@ struct UnifiedImagePickerModal: View {
                         print("[UnifiedImagePickerModal] CGImage bytes per row: \(cgImage.bytesPerRow)")
                     }
                     
-                    // Normalize image orientation (YOUR REQUIREMENT)
-                    let normalizedImage = image.fixedOrientation()
+                    // Photos framework already provides correctly oriented images - no need to fix orientation
+                    let normalizedImage = image
                     
                     print("[UnifiedImagePickerModal] ---------- NORMALIZED IMAGE INFO ----------")
                     print("[UnifiedImagePickerModal] Normalized size: \(String(format: "%.0fx%.0f", normalizedImage.size.width, normalizedImage.size.height))")
