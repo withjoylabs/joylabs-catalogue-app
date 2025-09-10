@@ -81,7 +81,7 @@ final class ToastWindowManager: ObservableObject {
         self.toastWindow = window
         self.hostingController = hosting
         
-        // Make window non-interactive initially
+        // Keep window permanently non-interactive so touches pass through
         window.isUserInteractionEnabled = false
     }
     
@@ -121,8 +121,7 @@ final class ToastWindowManager: ObservableObject {
         // Create window if needed
         createWindowIfNeeded()
         
-        // Make window interactive
-        toastWindow?.isUserInteractionEnabled = true
+        // Window stays non-interactive - touches pass through
         
         // Update the view with snappy animation
         updateToastDisplay()
@@ -157,9 +156,8 @@ final class ToastWindowManager: ObservableObject {
         // Update display with cascade animation
         updateToastDisplay()
         
-        // Make window non-interactive if no toasts
+        // Destroy window if no toasts left
         if activeToasts.isEmpty {
-            toastWindow?.isUserInteractionEnabled = false
             destroyWindowIfNotNeeded()
         }
     }
@@ -177,7 +175,6 @@ final class ToastWindowManager: ObservableObject {
         updateToastDisplay()
         
         // Clean up window
-        toastWindow?.isUserInteractionEnabled = false
         destroyWindowIfNotNeeded()
     }
     
@@ -239,7 +236,6 @@ private struct EnhancedToastContainerView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .allowsHitTesting(!activeToasts.isEmpty) // Only intercept touches when showing toasts
     }
 }
 
