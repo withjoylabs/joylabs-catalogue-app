@@ -54,6 +54,9 @@ struct ContentView: View {
     
     // Capture the original size class for child views
     @Environment(\.horizontalSizeClass) var originalSizeClass
+    
+    // Access the reorder model container to pass to ReordersView
+    @Environment(\.reorderModelContainer) var reorderContainer
 
     var body: some View {
         // Sheet presentation at app level - OUTSIDE size class override to ensure proper iPad behavior
@@ -73,6 +76,7 @@ struct ContentView: View {
                 ReordersViewSwiftData(onFocusStateChanged: { isFocused in
                     isAnyTextFieldFocused = isFocused
                 })
+                    .modelContainer(reorderContainer!)  // Use the distinct reorder container for @Query
                     .environment(\.horizontalSizeClass, originalSizeClass)
                     .tabItem {
                         Image(systemName: "receipt")

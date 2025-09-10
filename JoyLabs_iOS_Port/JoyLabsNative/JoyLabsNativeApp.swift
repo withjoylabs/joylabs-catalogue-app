@@ -57,9 +57,8 @@ struct JoyLabsNativeApp: App {
         
         // Initialize ReorderService with reorder model context
         let reorderContext = reorderContainer.mainContext
-        Task { @MainActor in
-            ReorderService.shared.setModelContext(reorderContext)
-        }
+        ReorderService.shared.setModelContext(reorderContext)
+        print("✅ [App] ReorderService initialized with model context")
         
         // Then initialize remaining services asynchronously
         initializeRemainingServicesAsync()

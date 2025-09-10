@@ -15,13 +15,17 @@ final class ReorderService: ObservableObject {
     // MARK: - Setup
     func setModelContext(_ context: ModelContext) {
         self.modelContext = context
+        print("✅ [ReorderService] Model context has been set successfully")
     }
     
     
     // MARK: - CRUD Operations
     
     func addOrUpdateItem(from searchResult: SearchResultItem, quantity: Int) {
-        guard let context = modelContext else { return }
+        guard let context = modelContext else {
+            print("⚠️ [ReorderService] addOrUpdateItem failed - modelContext is nil")
+            return
+        }
         
         // Capture the search result ID for predicate
         let searchResultId = searchResult.id
@@ -71,7 +75,10 @@ final class ReorderService: ObservableObject {
     }
     
     func updateItemStatus(_ itemId: String, status: ReorderItemStatus) {
-        guard let context = modelContext else { return }
+        guard let context = modelContext else {
+            print("⚠️ [ReorderService] updateItemStatus failed - modelContext is nil")
+            return
+        }
         
         let descriptor = FetchDescriptor<ReorderItemModel>(
             predicate: #Predicate { item in item.id == itemId }
@@ -106,7 +113,10 @@ final class ReorderService: ObservableObject {
     }
     
     func updateItemQuantity(_ itemId: String, quantity: Int) {
-        guard let context = modelContext else { return }
+        guard let context = modelContext else {
+            print("⚠️ [ReorderService] updateItemQuantity failed - modelContext is nil")
+            return
+        }
         
         let descriptor = FetchDescriptor<ReorderItemModel>(
             predicate: #Predicate { item in item.id == itemId }
@@ -124,7 +134,10 @@ final class ReorderService: ObservableObject {
     }
     
     func removeItem(_ itemId: String) {
-        guard let context = modelContext else { return }
+        guard let context = modelContext else {
+            print("⚠️ [ReorderService] removeItem failed - modelContext is nil")
+            return
+        }
         
         let descriptor = FetchDescriptor<ReorderItemModel>(
             predicate: #Predicate { item in item.id == itemId }
@@ -142,7 +155,10 @@ final class ReorderService: ObservableObject {
     }
     
     func clearAllItems() {
-        guard let context = modelContext else { return }
+        guard let context = modelContext else {
+            print("⚠️ [ReorderService] clearAllItems failed - modelContext is nil")
+            return
+        }
         
         do {
             try context.delete(model: ReorderItemModel.self)
@@ -155,7 +171,10 @@ final class ReorderService: ObservableObject {
     
     // MARK: - Badge Count Support
     func getUnpurchasedCount() async -> Int {
-        guard let context = modelContext else { return 0 }
+        guard let context = modelContext else {
+            print("⚠️ [ReorderService] getUnpurchasedCount failed - modelContext is nil")
+            return 0
+        }
         
         let descriptor = FetchDescriptor<ReorderItemModel>(
             predicate: #Predicate { item in item.status == "added" }
@@ -171,7 +190,10 @@ final class ReorderService: ObservableObject {
     }
     
     func markAllAsReceived() {
-        guard let context = modelContext else { return }
+        guard let context = modelContext else {
+            print("⚠️ [ReorderService] markAllAsReceived failed - modelContext is nil")
+            return
+        }
         
         let descriptor = FetchDescriptor<ReorderItemModel>(
             predicate: #Predicate { item in item.status == "added" }
@@ -197,7 +219,10 @@ final class ReorderService: ObservableObject {
     // MARK: - Catalog Updates (Called by CentralItemUpdateManager)
     
     func updateItemsFromCatalog(itemId: String) async {
-        guard let context = modelContext else { return }
+        guard let context = modelContext else {
+            print("⚠️ [ReorderService] updateItemsFromCatalog failed - modelContext is nil")
+            return
+        }
         let db = databaseManager.getContext()
         
         // Find all reorder items referencing this catalog item
