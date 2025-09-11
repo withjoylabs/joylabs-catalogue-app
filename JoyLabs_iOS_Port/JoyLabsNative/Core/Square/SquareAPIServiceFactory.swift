@@ -21,7 +21,7 @@ class SquareAPIServiceFactory {
     private var cachedCatalogSyncService: SwiftDataCatalogSyncService?  // SwiftData only
     private var cachedTokenService: TokenService?
     private var cachedHTTPClient: SquareHTTPClient?
-    private var cachedImageURLManager: ImageURLManager?
+    // ImageURLManager removed - using pure SwiftData for images
     private var cachedCRUDService: SquareCRUDService?
 
     private let logger = Logger(subsystem: "com.joylabs.native", category: "SquareAPIServiceFactory")
@@ -151,21 +151,7 @@ class SquareAPIServiceFactory {
     }
 
     /// Get or create the image URL manager instance
-    static func createImageURLManager() -> ImageURLManager {
-        return shared.getOrCreateImageURLManager()
-    }
-
-    private func getOrCreateImageURLManager() -> ImageURLManager {
-        if let cachedManager = cachedImageURLManager {
-            return cachedManager
-        }
-
-        logger.debug("[Factory] Creating NEW SwiftDataImageURLManager instance")
-        let databaseManager = getOrCreateDatabaseManager()
-        let manager = SwiftDataImageURLManager(databaseManager: databaseManager)
-        cachedImageURLManager = manager
-        return manager
-    }
+    // ImageURLManager factory methods removed - using pure SwiftData for images
 
     /// Get or create the CRUD service instance
     static func createCRUDService() -> SquareCRUDService {
@@ -201,7 +187,7 @@ class SquareAPIServiceFactory {
         shared.cachedCatalogSyncService = nil
         shared.cachedTokenService = nil
         shared.cachedHTTPClient = nil
-        shared.cachedImageURLManager = nil
+        // cachedImageURLManager removed
         shared.cachedCRUDService = nil
     }
 
@@ -214,7 +200,7 @@ class SquareAPIServiceFactory {
             "SQLiteSwiftCatalogSyncService": shared.cachedCatalogSyncService != nil,
             "TokenService": shared.cachedTokenService != nil,
             "SquareHTTPClient": shared.cachedHTTPClient != nil,
-            "ImageURLManager": shared.cachedImageURLManager != nil,
+            // "ImageURLManager": removed,
             "SquareCRUDService": shared.cachedCRUDService != nil
         ]
     }

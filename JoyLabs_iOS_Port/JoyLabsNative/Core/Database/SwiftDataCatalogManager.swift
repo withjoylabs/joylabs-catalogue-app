@@ -28,7 +28,7 @@ class SwiftDataCatalogManager {
             ModifierModel.self,
             ImageModel.self,
             TeamDataModel.self,
-            ImageURLMappingModel.self,
+            // ImageURLMappingModel.self, // Removed - using pure SwiftData for images
             DiscountModel.self,
             SyncStatusModel.self
         ])
@@ -131,7 +131,7 @@ class SwiftDataCatalogManager {
             try modelContext.delete(model: ModifierModel.self)
             try modelContext.delete(model: ImageModel.self)
             try modelContext.delete(model: TeamDataModel.self)
-            try modelContext.delete(model: ImageURLMappingModel.self)
+            // try modelContext.delete(model: ImageURLMappingModel.self) // Removed
             try modelContext.delete(model: DiscountModel.self)
             try modelContext.delete(model: SyncStatusModel.self)
             
@@ -266,6 +266,11 @@ class SwiftDataCatalogManager {
             let modifierListIds = modifierListInfo.compactMap { $0.modifierListId }
             let modifierNames = try await getModifierListNames(modifierListIds)
             item.modifierNames = modifierNames.joined(separator: ", ")
+        }
+        
+        // Link images to item if imageIds present
+        if let itemData = object.itemData, let imageIds = itemData.imageIds, !imageIds.isEmpty {
+            try await linkImagesToItem(itemId: object.id, imageIds: imageIds)
         }
         
         try modelContext.save()
@@ -403,6 +408,88 @@ class SwiftDataCatalogManager {
         discount.updateFromCatalogObject(object)
         try modelContext.save()
         logger.trace("[Database] Inserted/updated discount: \(object.id)")
+    }
+    
+    // MARK: - Image Relationship Management
+    
+    /// Link images to a catalog item based on imageIds array
+    @MainActor
+    func linkImagesToItem(itemId: String, imageIds: [String]) async throws {
+        let itemDescriptor = FetchDescriptor<CatalogItemModel>(
+            predicate: #Predicate { $0.id == itemId }
+        )
+        
+        guard let item = try modelContext.fetch(itemDescriptor).first else {
+            logger.warning("[Database] Cannot link images - item not found: \(itemId)")
+            return
+        }
+        
+        // Initialize images array if needed
+        if item.images == nil {
+            item.images = []
+        } else {
+            // Clear existing images for clean rebuild
+            item.images?.removeAll()
+        }
+        
+        // Add each image to the relationship
+        for imageId in imageIds {
+            let imageDescriptor = FetchDescriptor<ImageModel>(
+                predicate: #Predicate { $0.id == imageId }
+            )
+            
+            if let image = try modelContext.fetch(imageDescriptor).first {
+                item.images?.append(image)
+                logger.trace("[Database] Linked image \(imageId) to item \(itemId)")
+            } else {
+                logger.warning("[Database] Image not found for linking: \(imageId)")
+            }
+        }
+        
+        try modelContext.save()
+        logger.debug("[Database] Linked \(imageIds.count) images to item: \(itemId)")
+    }
+    
+    /// Create all image relationships after bulk sync
+    @MainActor
+    func createAllImageRelationships() async throws {
+        logger.info("[Database] Creating image relationships for all items...")
+        
+        let itemDescriptor = FetchDescriptor<CatalogItemModel>(
+            predicate: #Predicate { !$0.isDeleted }
+        )
+        let items = try modelContext.fetch(itemDescriptor)
+        
+        var linkedCount = 0
+        for item in items {
+            // Parse imageIds from dataJson
+            guard let dataJson = item.dataJson,
+                  let data = dataJson.data(using: .utf8),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                continue
+            }
+            
+            // Extract imageIds (check both nested and root locations)
+            var imageIds: [String]?
+            
+            // Try nested under item_data first (current format with underscores)
+            if let itemData = json["item_data"] as? [String: Any] {
+                imageIds = itemData["image_ids"] as? [String]
+            }
+            
+            // Fallback to root level
+            if imageIds == nil {
+                imageIds = json["imageIds"] as? [String]
+            }
+            
+            // Link images if found
+            if let imageIds = imageIds, !imageIds.isEmpty {
+                try await linkImagesToItem(itemId: item.id, imageIds: imageIds)
+                linkedCount += 1
+            }
+        }
+        
+        logger.info("[Database] Created image relationships for \(linkedCount) items")
     }
     
     // MARK: - Fetch Operations

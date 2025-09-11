@@ -8,7 +8,7 @@ import SwiftData
 typealias SQLiteSwiftCatalogManager = SwiftDataCatalogManager
 typealias CatalogStatsService = SwiftDataCatalogStatsService
 typealias SearchManager = SwiftDataSearchManager
-typealias ImageURLManager = SwiftDataImageURLManager
+// ImageURLManager removed - using pure SwiftData for images
 
 // MARK: - Connection Type Aliases
 // SQLite.swift used Connection, SwiftData uses ModelContext

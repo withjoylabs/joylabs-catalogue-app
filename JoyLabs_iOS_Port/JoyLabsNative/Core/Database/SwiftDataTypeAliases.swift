@@ -7,7 +7,7 @@ import SwiftData
 // MARK: - Service Aliases
 typealias CatalogStatsService = SwiftDataCatalogStatsService
 typealias SearchManager = SwiftDataSearchManager
-typealias ImageURLManager = SwiftDataImageURLManager
+// ImageURLManager removed - using pure SwiftData for images
 
 // MARK: - Model Aliases  
 typealias TeamData = TeamDataModel

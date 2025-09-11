@@ -436,10 +436,8 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
 
             try await databaseManager.insertCatalogObject(object)
 
-            // Process image URL mappings for on-demand loading
-            if object.type == "IMAGE" {
-                await processImageURLMapping(object)
-            }
+            // IMAGE objects are already stored in SwiftData by databaseManager.insertCatalogObject()
+            // No need for separate image URL mapping - use SwiftData relationships
 
             // Count items specifically as we process them
             if object.type == "ITEM" {
@@ -463,7 +461,11 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
         }
 
         logger.debug("[CatalogSync] Completed: \(processedItems) items, \(objects.count) objects")
-        logger.debug("[CatalogSync] Image mappings created for on-demand loading")
+        
+        // Create image relationships after all objects are processed
+        logger.info("[CatalogSync] Creating image relationships...")
+        try await databaseManager.createAllImageRelationships()
+        logger.debug("[CatalogSync] Image relationships created using SwiftData")
     }
 
     /// Get processing priority for object types (lower number = higher priority)
@@ -607,197 +609,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
 
 
 
-    /// Process image URL mapping for on-demand loading
-    private func processImageURLMapping(_ object: CatalogObject) async {
-        guard let imageData = object.imageData else {
-            logger.warning("📷 IMAGE object \(object.id) missing imageData")
-            return
-        }
-
-        guard let awsUrl = imageData.url, !awsUrl.isEmpty else {
-            logger.warning("📷 IMAGE object \(object.id) missing URL")
-            return
-        }
-
-
-
-        // Skip processing deleted images to avoid wasting overhead
-        if object.safeIsDeleted {
-            return
-        }
-
-        // Store the URL mapping for on-demand loading (don't download yet)
-        do {
-            let imageURLManager = SquareAPIServiceFactory.createImageURLManager()
-            let _ = try imageURLManager.storeImageMapping(
-                squareImageId: object.id,
-                awsUrl: awsUrl,
-                objectType: "IMAGE",
-                objectId: object.id
-                // No imageType - removed PRIMARY/SECONDARY tracking
-            )
-
-
-
-            // NOW create item-to-image mappings for any items that reference this image
-            await createItemToImageMappingsForImage(imageId: object.id, awsUrl: awsUrl, imageURLManager: imageURLManager)
-
-        } catch {
-            logger.error("❌ Failed to store image URL mapping: \(error)")
-        }
-
-    }
-
-    /// Create item-to-image mappings when processing an IMAGE object (CORRECT APPROACH)
-    private func createItemToImageMappingsForImage(imageId: String, awsUrl: String, imageURLManager: ImageURLManager) async {
-        guard let db = databaseManager.getConnection() else {
-            logger.error("❌ No database connection for item-to-image mappings")
-            return
-        }
-
-        do {
-            // Find all ITEM objects that reference this image ID in their imageIds array
-            let sql = "SELECT id, data_json FROM catalog_items WHERE data_json LIKE ? AND is_deleted = 0"
-            let statement = try db.prepare(sql)
-            let searchPattern = "%\"\(imageId)\"%"
-
-
-
-            var mappingsCreated = 0
-            var itemsFound = 0
-            for row in try statement.run(searchPattern) {
-                itemsFound += 1
-                guard let itemId = row[0] as? String,
-                      let dataJsonString = row[1] as? String,
-                      let dataJsonData = dataJsonString.data(using: .utf8) else {
-
-                    continue
-                }
-
-                logger.debug("🔍 FOUND POTENTIAL ITEM: \(itemId)")
-                logger.debug("🔍 ITEM JSON: \(dataJsonString.prefix(200))...")
-
-                // Parse the JSON to verify this image ID is actually in the imageIds array
-                if let catalogObject = try? JSONSerialization.jsonObject(with: dataJsonData) as? [String: Any] {
-                    var imageIds: [String]? = nil
-                    
-                    // Try nested under item_data first (current format with underscores)
-                    if let itemData = catalogObject["item_data"] as? [String: Any] {
-                        imageIds = itemData["image_ids"] as? [String]
-                    }
-                    
-                    // Fallback to root level (legacy format or direct storage)
-                    if imageIds == nil {
-                        imageIds = catalogObject["image_ids"] as? [String]
-                    }
-                    
-                    if let imageIdArray = imageIds, imageIdArray.contains(imageId) {
-                        // Create the item-to-image mapping without type tag
-                        // Square's image_ids array order determines display priority
-                        let _ = try imageURLManager.storeImageMapping(
-                            squareImageId: imageId,
-                            awsUrl: awsUrl,
-                            objectType: "ITEM",
-                            objectId: itemId
-                            // No imageType - using Square's array order as truth
-                        )
-
-                        mappingsCreated += 1
-                        logger.debug("✅ Created image mapping for item \(itemId): \(imageId) -> \(awsUrl)")
-                    }
-                }
-            }
-
-            if mappingsCreated == 0 {
-
-                // Check if any items reference this image, including deleted ones
-                let debugSql = "SELECT id, name, is_deleted FROM catalog_items WHERE data_json LIKE ?"
-                let debugStatement = try db.prepare(debugSql)
-                let debugPattern = "%\(imageId)%"
-
-                var debugCount = 0
-                for _ in try debugStatement.run(debugPattern) {
-                    debugCount += 1
-                }
-
-                // If no items found, this is an orphaned image from Square's deleted items
-                if debugCount == 0 {
-                    logger.warning("🚨 ORPHANED IMAGE DETECTED: \(imageId) has no associated items in database")
-                    logger.warning("🚨 EXPLANATION: Square's ListCatalog excludes deleted items but includes their orphaned images")
-                    logger.warning("🚨 This image was processed but wastes storage/bandwidth - removing mapping")
-
-                    // Mark the orphaned image mapping as deleted to free up space
-                    do {
-                        let imageURLManager = SquareAPIServiceFactory.createImageURLManager()
-                        try imageURLManager.markImageAsDeleted(squareImageId: imageId)
-                    } catch {
-                        logger.error("❌ Failed to mark orphaned image mapping as deleted: \(error)")
-                    }
-                }
-            }
-
-        } catch {
-            logger.error("❌ Failed to create item-to-image mappings: \(error)")
-        }
-    }
-
-    /// DEPRECATED: Create item-to-image mappings when processing an ITEM object (WRONG APPROACH - IMAGES NOT PROCESSED YET)
-    private func processItemToImageMappings(_ object: CatalogObject) async {
-        guard let itemData = object.itemData,
-              let imageIds = itemData.imageIds,
-              !imageIds.isEmpty else {
-            logger.debug("📷 Item \(object.id) has no imageIds")
-            return
-        }
-
-        logger.debug("📷 Processing item \(object.id) with \(imageIds.count) image references: \(imageIds)")
-
-        guard let db = databaseManager.getConnection() else {
-            logger.error("❌ No database connection for item-to-image mappings")
-            return
-        }
-
-        let imageURLManager = SquareAPIServiceFactory.createImageURLManager()
-        var mappingsCreated = 0
-
-        for (_, imageId) in imageIds.enumerated() {
-            do {
-                // Look up the IMAGE object to get its AWS URL
-                let sql = "SELECT url FROM images WHERE id = ? AND is_deleted = 0"
-                let statement = try db.prepare(sql)
-
-                var awsUrl: String?
-                for row in try statement.run(imageId) {
-                    awsUrl = row[0] as? String
-                    break
-                }
-
-                if let awsUrl = awsUrl, !awsUrl.isEmpty {
-                    // Create the item-to-image mapping without type tag
-                    // Square's image_ids array order determines display priority
-                    let cacheKey = try imageURLManager.storeImageMapping(
-                        squareImageId: imageId,
-                        awsUrl: awsUrl,
-                        objectType: "ITEM",
-                        objectId: object.id
-                        // No imageType - using Square's array order as truth
-                    )
-
-                    mappingsCreated += 1
-                    logger.debug("✅ Created item-to-image mapping: Item \(object.id) -> Image \(imageId) -> \(cacheKey)")
-                } else {
-                    logger.debug("⚠️ Image \(imageId) not found for item \(object.id) - will be processed when IMAGE object is encountered")
-                }
-
-            } catch {
-                logger.error("❌ Failed to create item-to-image mapping: \(error)")
-            }
-        }
-
-        if mappingsCreated > 0 {
-            logger.debug("📷 Created \(mappingsCreated) item-to-image mappings for item \(object.id)")
-        }
-    }
+    // ImageURLManager methods removed - using pure SwiftData relationships
 
     private func extractObjectName(from object: CatalogObject) -> String {
         switch object.type {

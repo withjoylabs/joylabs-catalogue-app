@@ -312,9 +312,7 @@ class SQLiteSwiftCatalogManager {
     func createTables() throws {
         guard let db = db else { throw SQLiteSwiftError.noConnection }
 
-        // Create image URL mapping table first (only if not already created)
-        let imageURLManager = ImageURLManager(databaseManager: self)
-        try imageURLManager.createImageMappingTable()
+        // ImageURLManager removed - using pure SwiftData for images
 
         // Use table creator component
         try tableCreator.createTables(in: db)
@@ -325,9 +323,7 @@ class SQLiteSwiftCatalogManager {
 
         logger.info("[Database] Ensuring catalog database tables exist...")
 
-        // Create image URL mapping table first (only if not already created)
-        let imageURLManager = ImageURLManager(databaseManager: self)
-        try imageURLManager.createImageMappingTable()
+        // ImageURLManager removed - using pure SwiftData for images
 
         // Use table creator component
         try tableCreator.createTables(in: db)
@@ -361,10 +357,9 @@ class SQLiteSwiftCatalogManager {
         try tableCreator.createTables(in: db)
         logger.info("Tables recreated with current schema")
 
-        // Create image URL mapping table
-        let imageURLManager = ImageURLManager(databaseManager: self)
-        try imageURLManager.createImageMappingTable()
-        logger.info("Image mapping table recreated")
+        // Image URL mapping table removed - using pure SwiftData for images
+        // SwiftData handles table creation automatically through ModelContainer
+        logger.info("Database recreation completed - using pure SwiftData for images")
     }
     
     func insertCatalogObject(_ object: CatalogObject) async throws {

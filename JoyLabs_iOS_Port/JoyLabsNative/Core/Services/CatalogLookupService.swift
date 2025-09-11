@@ -34,7 +34,9 @@ class CatalogLookupService {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.clearCache()
+            MainActor.assumeIsolated {
+                self?.clearCache()
+            }
         }
     }
     
@@ -108,9 +110,15 @@ class CatalogLookupService {
         return cachedItems + fetchedItems
     }
     
-    /// Get primary image URL for item
+    /// Get primary image URL for item (synchronous, from SwiftData)
+    func getPrimaryImageUrl(for itemId: String) -> String? {
+        let item = getItem(id: itemId)
+        return item?.primaryImageUrl  // Uses CatalogItemModel's computed property
+    }
+    
+    /// Get primary image URL for item (async, for compatibility)
     func getPrimaryImageURL(for itemId: String) async -> String? {
-        return await SimpleImageService.shared.getPrimaryImageURL(for: itemId)
+        return getPrimaryImageUrl(for: itemId)
     }
     
     /// Get current price for item (from variation data)

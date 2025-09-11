@@ -390,9 +390,8 @@ class ReorderDataManager: ObservableObject {
     }
     
     private func getPrimaryImageForReorderItem(itemId: String) async -> String? {
-        // Use centralized SimpleImageService instead of parsing JSON directly
-        let imageService = SimpleImageService.shared
-        return await imageService.getPrimaryImageURL(for: itemId)
+        // Use CatalogLookupService for Single Source of Truth from SwiftData
+        return CatalogLookupService.shared.getPrimaryImageUrl(for: itemId)
     }
     
     // MARK: - Statistics Calculation

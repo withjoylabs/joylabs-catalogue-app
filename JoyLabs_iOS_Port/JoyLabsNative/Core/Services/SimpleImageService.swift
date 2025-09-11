@@ -15,14 +15,12 @@ class SimpleImageService: ObservableObject {
     // MARK: - Dependencies
     private let httpClient: SquareHTTPClient
     private let databaseManager: SwiftDataCatalogManager
-    private let imageURLManager: ImageURLManager
     private let logger = Logger(subsystem: "com.joylabs.native", category: "SimpleImageService")
     
     // MARK: - Initialization
     private init() {
         self.httpClient = SquareAPIServiceFactory.createHTTPClient()
         self.databaseManager = SquareAPIServiceFactory.createDatabaseManager()
-        self.imageURLManager = SquareAPIServiceFactory.createImageURLManager()
         
         logger.info("[SimpleImage] SimpleImageService initialized")
     }
@@ -66,14 +64,7 @@ class SimpleImageService: ObservableObject {
         
         logger.info("✅ Image uploaded successfully: \(imageId)")
         
-        // Update database mapping and create SwiftData relationships
-        try await updateImageMapping(
-            imageId: imageId,
-            awsURL: awsURL,
-            itemId: itemId
-        )
-        
-        // Create proper SwiftData image model and relationship
+        // Create SwiftData image model and link to item (Pure SwiftData approach)
         try await createSwiftDataImageModel(
             imageId: imageId,
             awsURL: awsURL,
@@ -98,90 +89,13 @@ class SimpleImageService: ObservableObject {
         return awsURL
     }
     
-    /// Get primary image URL for an item using Square's image_ids array order as truth
+    /// Get primary image URL for an item using SwiftData relationships (Pure SwiftData approach)
     func getPrimaryImageURL(for itemId: String) async -> String? {
-        // Get the primary image ID from Square's catalog data (image_ids[0])
-        guard let primaryImageId = getPrimaryImageIdFromSquare(itemId: itemId) else {
-            return nil
-        }
-        
-        do {
-            // Get all image mappings for this item
-            let mappings = try imageURLManager.getImageMappings(for: itemId, objectType: "ITEM")
-            
-            // Find the mapping for the primary image ID from Square
-            if let primaryMapping = mappings.first(where: { $0.squareImageId == primaryImageId }) {
-                return primaryMapping.originalAwsUrl
-            } else {
-                logger.warning("⚠️ Primary image ID \(primaryImageId) not found in mappings for item \(itemId)")
-                // Fallback to first available mapping
-                return mappings.first?.originalAwsUrl
-            }
-        } catch {
-            logger.error("❌ Failed to get image mappings: \(error)")
-            return nil
-        }
-    }
-    
-    /// Get the primary image ID from Square's catalog data (image_ids[0])
-    private func getPrimaryImageIdFromSquare(itemId: String) -> String? {
-        let db = databaseManager.getContext()
-        
-        do {
-            // Get catalog item data to extract image_ids array using SwiftData
-            let descriptor = FetchDescriptor<CatalogItemModel>(
-                predicate: #Predicate { item in
-                    item.id == itemId && !item.isDeleted
-                }
-            )
-            
-            guard let catalogItem = try db.fetch(descriptor).first,
-                  let dataJson = catalogItem.dataJson,
-                  let data = dataJson.data(using: String.Encoding.utf8) else {
-                logger.warning("Failed to get catalog item data for image update")
-                return nil
-            }
-            
-            // Parse JSON as dictionary to access image_ids array
-            if let catalogData = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                var imageIds: [String]? = nil
-                
-                // Try nested under item_data first (current format with underscores)
-                if let itemData = catalogData["item_data"] as? [String: Any] {
-                    imageIds = itemData["image_ids"] as? [String]
-                }
-                
-                // Fallback to root level (legacy format or direct storage)
-                if imageIds == nil {
-                    imageIds = catalogData["image_ids"] as? [String]
-                }
-                
-                // Return first image ID from Square's array (primary image)
-                return imageIds?.first
-            }
-        } catch {
-            logger.error("❌ Failed to get primary image ID from Square data: \(error)")
-        }
-        
-        return nil
+        // Use CatalogLookupService for Single Source of Truth
+        return CatalogLookupService.shared.getPrimaryImageUrl(for: itemId)
     }
     
     // MARK: - Private Methods
-    
-    private func updateImageMapping(imageId: String, awsURL: String, itemId: String) async throws {
-        // Store image mapping without type tag - Square's image_ids array order determines priority
-        let cacheKey = try imageURLManager.storeImageMapping(
-            squareImageId: imageId,
-            awsUrl: awsURL,
-            objectType: "ITEM",
-            objectId: itemId
-            // No imageType parameter - using default (no type tracking)
-        )
-        logger.info("✅ Image mapping stored: \(imageId) -> \(awsURL) (cache key: \(cacheKey))")
-        
-        // Update local database with new image ID to show immediately (before next sync)
-        try await updateLocalCatalogItemImageIds(imageId: imageId, itemId: itemId)
-    }
     
     /// Create SwiftData ImageModel and establish relationship with CatalogItemModel
     private func createSwiftDataImageModel(imageId: String, awsURL: String, itemId: String) async throws {
@@ -220,69 +134,6 @@ class SimpleImageService: ObservableObject {
             }
         } catch {
             logger.error("❌ Failed to create SwiftData image model: \(error)")
-            throw error
-        }
-    }
-    
-    /// Update the local catalog_items.data_json with the new image ID (for compatibility)
-    private func updateLocalCatalogItemImageIds(imageId: String, itemId: String) async throws {
-        let db = databaseManager.getContext()
-        
-        do {
-            // Get current data_json for the item using SwiftData
-            let descriptor = FetchDescriptor<CatalogItemModel>(
-                predicate: #Predicate { item in
-                    item.id == itemId && !item.isDeleted
-                }
-            )
-            
-            guard let catalogItem = try db.fetch(descriptor).first,
-                  let dataJson = catalogItem.dataJson,
-                  let data = dataJson.data(using: String.Encoding.utf8) else {
-                logger.warning("Failed to get catalog item data for local update")
-                return
-            }
-                
-            // Parse JSON and update image_ids array
-            if var catalogData = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                
-                // Handle nested item_data structure (current format)
-                if var itemData = catalogData["item_data"] as? [String: Any] {
-                    var imageIds = itemData["image_ids"] as? [String] ?? []
-                    
-                    // Remove if already exists, then add as primary (first in array)
-                    imageIds.removeAll { $0 == imageId }
-                    imageIds.insert(imageId, at: 0)
-                    
-                    itemData["image_ids"] = imageIds
-                    catalogData["item_data"] = itemData
-                    
-                    logger.info("🔄 Updated image_ids in item_data: \(imageIds)")
-                } else {
-                    // Handle root level structure (legacy format)
-                    var imageIds = catalogData["image_ids"] as? [String] ?? []
-                    
-                    // Remove if already exists, then add as primary (first in array)
-                    imageIds.removeAll { $0 == imageId }
-                    imageIds.insert(imageId, at: 0)
-                    
-                    catalogData["image_ids"] = imageIds
-                    
-                    logger.info("🔄 Updated image_ids at root level: \(imageIds)")
-                }
-                
-                // Convert back to JSON and update SwiftData model
-                let updatedData = try JSONSerialization.data(withJSONObject: catalogData)
-                let updatedJson = String(data: updatedData, encoding: .utf8) ?? ""
-                
-                // Update using SwiftData
-                catalogItem.dataJson = updatedJson
-                try db.save()
-                
-                logger.info("✅ Local catalog updated with new primary image: \(itemId) -> \(imageId)")
-            }
-        } catch {
-            logger.error("❌ Failed to update local catalog with new image: \(error)")
             throw error
         }
     }

@@ -558,7 +558,7 @@ class ItemDetailsViewModel: ObservableObject {
     
     // MARK: - Private Properties
     private var cancellables = Set<AnyCancellable>()
-    private let imageURLManager = SquareAPIServiceFactory.createImageURLManager()
+    // ImageURLManager removed - using CatalogLookupService for pure SwiftData approach
     private let logger = Logger(subsystem: "com.joylabs.native", category: "ItemDetailsViewModel")
 
     // MARK: - Additional Initialization
@@ -1109,28 +1109,19 @@ class ItemDetailsViewModel: ObservableObject {
         return nil
     }
 
-    /// Get primary image URL using DIRECT image mapping lookup
+    /// Get primary image URL using SwiftData relationships (Pure SwiftData approach)
     private func getPrimaryImageURL(for itemId: String) -> String? {
         logger.info("🔍 [MODAL] Getting primary image URL for item: \(itemId)")
-
-        do {
-            // DIRECTLY get image mappings for this item - NO JSON PARSING!
-            let imageMappings = try imageURLManager.getImageMappings(for: itemId, objectType: "ITEM")
-            logger.info("🔍 [MODAL] Found \(imageMappings.count) image mappings for item: \(itemId)")
-
-            // Get the first mapping (primary image)
-            if let primaryMapping = imageMappings.first {
-                logger.info("🔍 [MODAL] ✅ Found primary image mapping: \(primaryMapping.squareImageId) -> \(primaryMapping.originalAwsUrl)")
-                return primaryMapping.originalAwsUrl
-            } else {
-                logger.error("🔍 [MODAL] ❌ No image mappings found for item: \(itemId)")
-                return nil
-            }
-
-        } catch {
-            logger.error("🔍 [MODAL] ❌ Failed to get primary image URL for item \(itemId): \(error)")
-            return nil
+        
+        let imageURL = CatalogLookupService.shared.getPrimaryImageUrl(for: itemId)
+        
+        if let imageURL = imageURL {
+            logger.info("🔍 [MODAL] ✅ Found primary image URL: \(imageURL)")
+        } else {
+            logger.warning("🔍 [MODAL] ⚠️ No image URL found for item: \(itemId)")
         }
+        
+        return imageURL
     }
 
     /// Load variations from database for the current item

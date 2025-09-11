@@ -25,7 +25,7 @@ struct JoyLabsNativeApp: App {
                 ModifierModel.self,
                 ImageModel.self,
                 TeamDataModel.self,
-                ImageURLMappingModel.self,
+                // ImageURLMappingModel.self, // Removed - using pure SwiftData for images
                 DiscountModel.self,
                 SyncStatusModel.self
             ])
@@ -120,7 +120,7 @@ struct JoyLabsNativeApp: App {
         let _ = SquareAPIServiceFactory.createHTTPClient()
         let _ = SquareAPIServiceFactory.createService() // SquareAPIService
         let _ = SquareAPIServiceFactory.createSyncCoordinator()
-        let _ = SquareAPIServiceFactory.createImageURLManager() // Pre-init for modals
+        // ImageURLManager removed - using pure SwiftData for images
         let _ = SquareAPIServiceFactory.createCRUDService() // Pre-init for modals
         
         // Pre-initialize singleton services to prevent creation during Phase 2

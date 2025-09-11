@@ -11,7 +11,6 @@
 		07FA0F8F4F59535DAEBD861D /* ReorderEnvironmentKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A56785054025FCAA660B73E /* ReorderEnvironmentKey.swift */; };
 		0C6000FC83DF6D91C933D873 /* SimpleImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F730ECB41F35B30ADCEEF069 /* SimpleImageView.swift */; };
 		12164AA2F419705C7AED0835 /* ReordersViewSwiftData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07327BB46D9122D3CFCDB559 /* ReordersViewSwiftData.swift */; };
-		123AD2BD28267B87AA8A1644 /* ImageURLMappingModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3C679348A38CAB11CD4D4F7 /* ImageURLMappingModel.swift */; };
 		135161F2D6150929CEF0A9D1 /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B03008BCC45D5E32B158F66F /* NotificationSettingsView.swift */; };
 		140CE30F96C5476776E42C34 /* UnifiedImagePickerModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CC3C5DBAC897BD5BAD446F8 /* UnifiedImagePickerModal.swift */; };
 		1569B20890AD45422D438BC1 /* FieldVisibilityModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF8BABE731647487EFC23A76 /* FieldVisibilityModifier.swift */; };
@@ -61,7 +60,6 @@
 		7DFE6CF6196B175FAD5BC8DB /* SquareCropView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B15E92D9D11628C1A160231 /* SquareCropView.swift */; };
 		823B57DE36146918AC79FFAE /* ShareableFileData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B59E873AFBCFBE04460F20A8 /* ShareableFileData.swift */; };
 		85126E4554FBE0F2C78D3609 /* ToastNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1645309EC63E18A4589C1AC3 /* ToastNotificationService.swift */; };
-		8588F632020178AE73B13ED8 /* SwiftDataImageURLManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB1211BB191A34ECDEE64F14 /* SwiftDataImageURLManager.swift */; };
 		8796DF07A71B45B6C419C13A /* SwipeableReorderCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9656EA400096ADC30614CEB4 /* SwipeableReorderCard.swift */; };
 		8B116CC361677097DC4B1FBF /* SyncStatusModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4981CED987E3E9524BAF9231 /* SyncStatusModel.swift */; };
 		8C7B8A0752F820E8136FADDE /* SwiftDataTypeAliases.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13EC93BCF0BD62D28B142C6C /* SwiftDataTypeAliases.swift */; };
@@ -263,10 +261,8 @@
 		D98DAE4298918395B51B620F /* PDFGenerator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PDFGenerator.swift; path = Utils/PDFGenerator.swift; sourceTree = "<group>"; };
 		E05265C6905F14EE507527F2 /* ItemEnabledLocationsSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemEnabledLocationsSection.swift; path = Components/ItemEnabledLocationsSection.swift; sourceTree = "<group>"; };
 		E2D5FAE44721EA24C8E50126 /* ItemImageSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemImageSection.swift; path = Components/ItemImageSection.swift; sourceTree = "<group>"; };
-		E3C679348A38CAB11CD4D4F7 /* ImageURLMappingModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ImageURLMappingModel.swift; path = Models/SwiftData/ImageURLMappingModel.swift; sourceTree = "<group>"; };
 		E7C7A71E405D29DA8DA233CD /* ItemDetailsAdvancedSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsAdvancedSection.swift; path = Components/ItemDetailsAdvancedSection.swift; sourceTree = "<group>"; };
 		EA65834124AA651116B2DF7A /* UITextField+NoInputAccessory.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "UITextField+NoInputAccessory.swift"; path = "Core/UITextField+NoInputAccessory.swift"; sourceTree = "<group>"; };
-		EB1211BB191A34ECDEE64F14 /* SwiftDataImageURLManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SwiftDataImageURLManager.swift; path = Core/Images/SwiftDataImageURLManager.swift; sourceTree = "<group>"; };
 		EB32D29A7FF02592B9894919 /* QuantitySelectionModal.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = QuantitySelectionModal.swift; path = Components/QuantitySelectionModal.swift; sourceTree = "<group>"; };
 		ECE3FAA42B58C68978179AFA /* SquareImageService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SquareImageService.swift; path = Core/Square/SquareImageService.swift; sourceTree = "<group>"; };
 		F32EEA3114D99A383F2B69FC /* ReorderPhotoCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderPhotoCard.swift; path = JoyLabsNative/Components/Reorder/ReorderPhotoCard.swift; sourceTree = "<group>"; };
@@ -539,7 +535,6 @@
 		A32330C34ABEC2315839317A /* Images */ = {
 			isa = PBXGroup;
 			children = (
-				EB1211BB191A34ECDEE64F14 /* SwiftDataImageURLManager.swift */,
 			);
 			name = Images;
 			sourceTree = "<group>";
@@ -673,7 +668,6 @@
 				9205940EA8E08457B4F5C3D5 /* ImageModel.swift */,
 				98F2E6829B284312D54C99A7 /* TeamDataModel.swift */,
 				6934794797FCA6EBD6A89E3F /* ModifierModel.swift */,
-				E3C679348A38CAB11CD4D4F7 /* ImageURLMappingModel.swift */,
 				772E9D5C057E6CFA53E18852 /* DiscountModel.swift */,
 				4981CED987E3E9524BAF9231 /* SyncStatusModel.swift */,
 			);
@@ -874,8 +868,6 @@
 				F3ABB8397F5F1D67F06A03EF /* SwiftDataFuzzySearch.swift in Sources */,
 				D14A1B7029E109C02B8511B5 /* SwiftDataCatalogStatsService.swift in Sources */,
 				95D3B3258E2DBEA210DD741B /* ModifierModel.swift in Sources */,
-				123AD2BD28267B87AA8A1644 /* ImageURLMappingModel.swift in Sources */,
-				8588F632020178AE73B13ED8 /* SwiftDataImageURLManager.swift in Sources */,
 				3BBC4FF8ED45BE409B7E36BF /* DiscountModel.swift in Sources */,
 				8B116CC361677097DC4B1FBF /* SyncStatusModel.swift in Sources */,
 				8C7B8A0752F820E8136FADDE /* SwiftDataTypeAliases.swift in Sources */,

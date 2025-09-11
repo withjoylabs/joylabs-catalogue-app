@@ -188,9 +188,11 @@ struct ReorderContentView: View {
     // MARK: - Helper Function
     private func createSearchResultItem(from item: ReorderItem) -> SearchResultItem {
         var images: [CatalogImage] = []
-        if let imageUrl = item.imageUrl, let imageId = item.imageId {
+        if let imageUrl = item.imageUrl {
+            // Create a simple image structure for display
+            // ID can be generated since it's not used for lookups
             let catalogImage = CatalogImage(
-                id: imageId,
+                id: item.imageId ?? "img_\(item.itemId)",
                 type: "IMAGE",
                 updatedAt: ISO8601DateFormatter().string(from: Date()),
                 version: nil,

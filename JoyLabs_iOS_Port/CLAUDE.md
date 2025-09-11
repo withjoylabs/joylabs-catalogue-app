@@ -223,61 +223,28 @@ Task { @MainActor in
 }
 ```
 
+## Pure SwiftData Image Architecture
+
+**Single Source of Truth**: All images stored exclusively in SwiftData `ImageModel` with direct relationships to `CatalogItemModel.images`. Eliminates duplicate storage and mapping tables.
+
+**Core Pattern**: `CatalogItemModel.primaryImageUrl` → `images?.first?.url` via native SwiftData relationships. Follows computed property pattern for automatic fresh data.
+
+**Sync Process**: IMAGE objects stored in `ImageModel`, ITEM objects auto-linked to images during sync, post-sync relationship creation ensures all connections.
+
+**Upload Process**: Upload to Square → Create `ImageModel` → Link via SwiftData relationships → Automatic UI updates via computed properties.
+
+**Benefits**: Native SwiftData caching, automatic relationship management, ~50% less code, eliminates data inconsistency, leverages CoreData performance optimizations.
+
+**Migration**: Removed ImageURLManager system entirely - all image operations now use SwiftData relationships through CatalogLookupService for consistency.
+
 ## Service Initialization Architecture
 
-### Optimized 4-Phase Startup Sequence (Eliminates Duplicate Processes)
+### 4-Phase Startup Sequence
 
-Our startup orchestration was completely redesigned to eliminate duplicate processes, race conditions, and cascade service creation. All services are now properly sequenced and cached.
-
-#### **Phase 1: Critical Services (Synchronous - `initializeCriticalServicesSync()`)**
-**Location**: `JoyLabsNativeApp.swift` init method - runs synchronously before any async operations
-
-```swift
-// 1. Field Configuration
-let _ = FieldConfigurationManager.shared
-
-// 2. Database (SINGLE connection for entire app)
-let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
-try databaseManager.connect() // Connects immediately, only once
-
-// 3. SimpleImageService uses native URLCache - no complex initialization needed
-
-// 4. ALL Square Services (prevents cascade creation during sync)
-let _ = SquareAPIServiceFactory.createTokenService()        // OAuth tokens
-let _ = SquareAPIServiceFactory.createHTTPClient()          // HTTP client
-let _ = SquareAPIServiceFactory.createService()             // SquareAPIService
-let _ = SquareAPIServiceFactory.createSyncCoordinator()     // Sync coordinator
-
-// 5. ALL Singleton Services (prevents creation during operations)
-let _ = PushNotificationService.shared          // Push notifications
-let _ = SimpleImageService.shared               // Image upload service
-let _ = WebhookService.shared                   // Webhook handling
-let _ = WebhookManager.shared                   // Webhook coordination
-let _ = WebhookNotificationService.shared       // In-app notifications
-let _ = NotificationSettingsService.shared      // Notification preferences
-```
-
-**Phase 1 Result**: ALL services are pre-initialized and cached. No "Creating NEW" messages should appear after this phase.
-
-#### **Phase 2: Catch-up Sync (`initializeRemainingServicesAsync()`)**
-**Location**: Async task launched after Phase 1 completes
-
-```swift
-// Uses ONLY cached services from Phase 1
-await performAppLaunchCatchUpSync()
-```
-
-**Phase 2 Result**: All factory calls return "Returning cached" instances. Zero service creation overhead.
-
-#### **Phase 3: Webhook System Activation**
-```swift
-WebhookManager.shared.startWebhookProcessing()
-```
-
-#### **Phase 4: Push Notification Finalization**
-```swift
-appDelegate.notifyCatchUpSyncComplete() // Enables token registration
-```
+1. **Critical Services** (sync): Database, Square services, singletons pre-initialized
+2. **Catch-up Sync** (async): Uses cached services for app launch sync
+3. **Webhook Activation**: Start webhook processing
+4. **Push Notifications**: Enable token registration
 
 ### Service Initialization Guidelines
 
@@ -320,234 +287,35 @@ Phase 4: Push Token Registration
 
 ### Critical Performance Rules
 
-#### **✅ DO - Proper Service Access**:
-```swift
-// Use factory for cached services
-let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
-let syncCoordinator = SquareAPIServiceFactory.createSyncCoordinator()
+### Service Access Rules
 
-// Access singletons directly (already initialized in Phase 1)
-PushNotificationService.shared.someMethod()
-WebhookManager.shared.startProcessing()
-```
+**Use**: SquareAPIServiceFactory for cached services, direct singleton access after Phase 1.
+**Avoid**: Direct service creation, singleton access in property initialization.
 
-#### **❌ DON'T - Direct Service Creation**:
-```swift
-// NEVER create services directly - bypasses cache
-let database = SQLiteSwiftCatalogManager()          // Creates duplicate!
-let coordinator = SQLiteSwiftSyncCoordinator(...)   // Creates cascade!
+**Logging**: `[ServiceName]` format for Database, Factory, PushNotification, WebhookManager, CatalogSync, App operations.
 
-// NEVER access singletons in property initialization
-class SomeService {
-    private let webhook = WebhookManager.shared      // Can cause cascade creation
-}
-```
+## Item Details Modal Styling System
 
-### Service Access During Operations
+**Centralized styling** via `ItemDetailsStyles.swift` with three spacing values: sectionSpacing (20), compactSpacing (7), minimalSpacing (4).
 
-#### **During Sync Operations**:
-- All `SquareAPIServiceFactory.create*()` calls return cached instances
-- Console shows: `[Factory] Returning cached XYZ instance`
-- Zero initialization overhead
+**Components**: ItemDetailsSection, ItemDetailsCard, ItemDetailsFieldRow, ItemDetailsTextField, ItemDetailsButton, ItemDetailsToggleRow.
 
-#### **During UI Operations**:
-- Singleton services are already initialized
-- No lazy loading delays
-- Instant service availability
-
-### Logging and Debugging
-
-#### **Startup Sequence Logs**:
-```
-[App] Phase 1: Initializing critical services synchronously...
-[Factory] Creating NEW SQLiteSwiftCatalogManager instance     ← ONLY "NEW" logs
-[Factory] Creating NEW TokenService instance
-[Factory] Creating NEW SquareHTTPClient instance
-[Factory] Creating NEW SquareAPIService instance
-[Factory] Creating NEW SQLiteSwiftSyncCoordinator instance
-[PushNotification] PushNotificationService initialized
-[WebhookManager] WebhookManager initialized
-[App] Phase 1: Critical services initialized synchronously
-
-[App] Phase 2: Starting catch-up sync...
-[Factory] Returning cached TokenService instance               ← All "cached" logs
-[Factory] Returning cached SQLiteSwiftSyncCoordinator instance
-[App] Phase 3: Webhook system initialized
-[App] Phase 4: Push notification setup finalized
-```
-
-#### **Service Labels**:
-All services use consistent `[ServiceName]` logging format:
-- `[Database]` - Database operations
-- `[Factory]` - Service factory operations  
-- `[PushNotification]` - Push notification system
-- `[WebhookManager]` - Webhook processing
-- `[CatalogSync]` - Sync operations
-- `[App]` - App lifecycle events
-
-## Item Details Modal Centralized Styling System
-
-### Overview
-The Item Details Modal uses a fully centralized styling system defined in `ItemDetailsStyles.swift`. This ensures 100% consistency across all modal components with zero style overrides or hardcoded values.
-
-### Core Spacing System
-```swift
-// Only THREE spacing values for the entire modal:
-ItemDetailsSpacing.sectionSpacing = 20  // Between major sections only
-ItemDetailsSpacing.compactSpacing = 7   // Universal spacing for ALL fields/elements
-ItemDetailsSpacing.minimalSpacing = 4   // Extra tight for closely related items
-```
-
-### Centralized Components (ALWAYS use these)
-- **ItemDetailsSection** - Section container with header
-- **ItemDetailsCard** - Gray background card wrapper
-- **ItemDetailsFieldRow** - Field container with 7px vertical padding
-- **ItemDetailsTextField** - Text input with consistent styling
-- **ItemDetailsButton** - Buttons with proper padding/colors
-- **ItemDetailsToggleRow** - Toggle switches with descriptions
-- **ItemDetailsFieldSeparator** - Horizontal dividers
-- **ItemDetailsInfoView** - Info/warning messages
-
-### Critical Rules
-1. **NEVER use hardcoded values** - No `.padding(16)`, use `ItemDetailsSpacing.compactSpacing`
-2. **NEVER use system colors directly** - No `.blue`, use `.itemDetailsAccent`
-3. **NEVER create custom field layouts** - Always use centralized components
-4. **ALL vertical spacing is 7px** - No exceptions for fields, toggles, or buttons
-
-### Example Pattern
-```swift
-ItemDetailsSection(title: "Section Name", icon: "icon.name") {
-    ItemDetailsCard {
-        VStack(spacing: 0) {
-            ItemDetailsFieldRow {
-                ItemDetailsTextField(
-                    title: "Field Name",
-                    text: $binding
-                )
-            }
-            
-            ItemDetailsFieldSeparator()
-            
-            ItemDetailsFieldRow {
-                ItemDetailsToggleRow(
-                    title: "Toggle Name",
-                    isOn: $binding
-                )
-            }
-        }
-    }
-}
-```
+**Rules**: Use centralized components, no hardcoded spacing, consistent 7px field spacing.
 
 ## Component Usage Guidelines
 
-### Swipe Gesture Implementation (Search Result Cards)
-Our SwipeableScanResultCard implements smooth, iOS-native-feeling swipe gestures with the following pattern:
+### Swipe Gesture Implementation
 
-```swift
-// Key principles for smooth swipe gestures:
-// 1. Use ZStack with proper layering - buttons in background, content in foreground
-// 2. Fixed card height prevents button overflow
-// 3. Text stability during swipe prevents jarring reflows
-
-@State private var offset: CGFloat = 0
-
-var body: some View {
-    ZStack {
-        // Background layer - action buttons
-        HStack(spacing: 0) {
-            if offset > 0 {
-                SwipeActionButton(icon: "printer.fill", title: "Print", 
-                                color: .blue, width: offset, cardHeight: cardHeight)
-            }
-            Spacer()
-            if offset < 0 {
-                SwipeActionButton(icon: "plus.circle.fill", title: "Add", 
-                                color: .green, width: abs(offset), cardHeight: cardHeight)
-            }
-        }
-        
-        // Foreground layer - main content
-        content
-            .frame(height: cardHeight)
-            .background(Color(.systemBackground))
-            .offset(x: offset)
-            .simultaneousGesture(
-                DragGesture()
-                    .onChanged { value in
-                        // Simple resistance-based movement (no complex thresholds)
-                        let translation = value.translation.width
-                        let resistance: CGFloat = 0.7
-                        
-                        if translation > 0 {
-                            offset = min(translation * resistance, 100)
-                        } else {
-                            offset = max(translation * resistance, -100)
-                        }
-                    }
-                    .onEnded { value in
-                        // Simple threshold for action completion
-                        let translation = value.translation.width
-                        let velocity = value.velocity.width
-                        
-                        if abs(translation) > 60 || abs(velocity) > 500 {
-                            // Trigger action
-                            translation > 0 ? onPrint() : onAddToReorder()
-                        }
-                        
-                        // Always snap back with spring animation
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            offset = 0
-                        }
-                    }
-            )
-    }
-}
-
-// Text stability during swipe - critical for professional feel:
-// - Fixed width for item title: .frame(width: 200, alignment: .leading)
-// - Fixed size for category/UPC: .fixedSize(horizontal: true, vertical: false)
-// - Allow SKU truncation: .truncationMode(.tail) without fixedSize
-```
-
-**Key Success Factors:**
-- **No jitter**: Simple resistance factor (0.7) instead of complex threshold math
-- **Proper z-ordering**: ZStack with background buttons, foreground content
-- **Text stability**: Fixed widths prevent reflow during gesture
-- **Spring animations**: Natural iOS feel with `.spring(response: 0.3, dampingFraction: 0.8)`
-- **Smart truncation**: Priority system - category/UPC fixed, SKU can truncate
+**Pattern**: ZStack with background action buttons, foreground content with .offset(). Use resistance factor (0.7), fixed text widths prevent reflow, spring animations for natural feel.
 
 ## Component Usage Guidelines
 
-### Image Display
-Always use `SimpleImageView` with factory methods for consistent sizing:
-```swift
-SimpleImageView.thumbnail(imageURL: url, size: 50)
-SimpleImageView.catalogItem(imageURL: url, size: 100)  
-SimpleImageView.large(imageURL: url, size: 200)
-```
+### Component Usage
 
-### Image Upload
-Use `UnifiedImagePickerModal` for all image upload scenarios (uses SimpleImageService internally):
-```swift
-UnifiedImagePickerModal(
-    context: .itemDetails(itemId: itemId),
-    onDismiss: { /* ... */ },
-    onImageUploaded: { result in /* ... */ }
-)
-```
-
-### Item Details
-Use comprehensive `ItemDetailsModal` for item creation/editing:
-```swift
-ItemDetailsModal(
-    context: .createNew, // or .editExisting(item)
-    onDismiss: { /* ... */ },
-    onSave: { itemData in /* ... */ }
-)
-```
-
-**Real-time Updates**: ItemDetailsModal automatically refreshes data when catalog sync completes (webhook-triggered updates). Uses `.onReceive(NotificationCenter.default.publisher(for: .catalogSyncCompleted))` to reload item data without losing user changes.
+**Images**: SimpleImageView factory methods (.thumbnail, .catalogItem, .large)
+**Uploads**: UnifiedImagePickerModal for all image upload scenarios
+**Item Details**: ItemDetailsModal with .createNew/.editExisting contexts
+**Updates**: Automatic refresh on catalog sync via NotificationCenter
 
 ### Modal Presentation Sizing
 Use standardized presentation patterns for consistent iPad/iPhone modal behavior:
@@ -676,110 +444,13 @@ struct CatalogObject {
 }
 ```
 
-#### Step 2: Mandatory Fetch-Before-Update
-```swift
-func updateCatalogObject(id: String, changes: Changes) {
-    // 1. ALWAYS fetch current state first
-    let current = await squareAPI.fetchObject(id)
-    
-    // 2. Apply changes while preserving versions
-    let updated = applyChanges(changes, to: current)
-    
-    // 3. Send complete object with versions
-    await squareAPI.updateObject(updated)
-}
-```
+**Pattern**: Fetch current object → Apply changes while preserving versions → Send complete object. VERSION_MISMATCH = missing/incorrect version fields.
 
-#### Step 3: Version Propagation
-When transforming data, preserve version information through the entire pipeline:
-```
-Database → Domain Model → API Request
-   ↓           ↓           ↓
-version    version     version (preserved at every step)
-```
+## Square Location Logic
 
-### Debugging VERSION_MISMATCH
-1. **Log request body** - Check all version fields are present
-2. **Verify object hierarchy** - Ensure child objects have versions
-3. **Check timing** - Versions change rapidly, fetch immediately before update
-4. **Test with simple objects first** - Start with items without variations
+**Structure**: Master toggle + individual location toggles. `present_at_all_locations` + `present_at_location_ids`/`absent_at_location_ids` arrays (mutually exclusive).
 
-### Key Takeaway
-**VERSION_MISMATCH = Missing or incorrect version field somewhere in your object hierarchy.** Always fetch current state, include all version fields, and never hardcode version values.
-
-## Square Location Logic (ItemDetailsModal)
-
-### Square Dashboard Terminology
-- **"Locations"** - Master toggle controlling if item has ANY location availability
-- **Individual Location Toggles** - Show when master is ON, control specific locations  
-- **"Available at All Future Locations"** - Controls `present_at_all_locations` boolean
-
-### Square API Data Structure
-```swift
-present_at_all_locations: Bool     // Future locations toggle
-present_at_location_ids: [String]  // Specific enabled locations
-absent_at_location_ids: [String]   // Exceptions when present_at_all_locations=true
-```
-
-### Implementation (`ItemDetailsStaticData`)
-- **Master Toggle**: `locationsEnabled` = `present_at_all_locations || !present_at_location_ids.isEmpty`
-- **Individual Logic**: `isLocationEnabled()` uses present_at_all_locations + absent/present arrays
-- **Auto-Enable**: Selecting any location auto-enables master toggle
-- **UI Display**: Individual toggles show when master ON, hidden when master OFF
-
-### 5 Square Scenarios Supported
-1. **Everything ON**: `present_at_all_locations: true` (no arrays)
-2. **Specific locations**: `present_at_all_locations: false` + `present_at_location_ids: ["loc1","loc2"]`  
-3. **Future only**: `present_at_all_locations: true` + `absent_at_location_ids: ["loc1","loc2"]`
-4. **One location**: `present_at_all_locations: false` + `present_at_location_ids: ["loc1"]`
-5. **One + future**: `present_at_all_locations: true` + `absent_at_location_ids: ["loc2"]`
-
-### Critical Square API Location Rules (CRUD Operations)
-
-#### **Mutually Exclusive Arrays Rule**
-Square API **REQUIRES** mutually exclusive location arrays to prevent "duplicate attributes" errors:
-
-```swift
-// ✅ CORRECT - When presentAtAllLocations: true
-{
-  "present_at_all_locations": true,
-  "present_at_location_ids": null,           // MUST be omitted/null
-  "absent_at_location_ids": ["loc2"]         // Exceptions only
-}
-
-// ✅ CORRECT - When presentAtAllLocations: false  
-{
-  "present_at_all_locations": false,
-  "present_at_location_ids": ["loc1"],       // Specific locations
-  "absent_at_location_ids": null             // MUST be omitted/null
-}
-
-// ❌ WRONG - Causes "duplicate attributes" error
-{
-  "present_at_all_locations": true,
-  "present_at_location_ids": ["loc1", "loc2"],  // Creates duplicate reference
-  "absent_at_location_ids": ["loc2"]            // Same location in both arrays
-}
-```
-
-#### **API Transformation Logic**
-Both ITEM and ITEM_VARIATION objects must follow these rules in `ItemDataTransformers.swift`:
-
-```swift
-// For ITEM objects
-presentAtLocationIds: presentAtAllLocations ? nil : (locationIds.isEmpty ? nil : locationIds)
-
-// For ITEM_VARIATION objects (inherit from parent)
-presentAtLocationIds: presentAtAllLocations ? nil : (parentLocationIds.isEmpty ? nil : parentLocationIds)
-```
-
-#### **Location Inheritance Chain**
-ITEM_VARIATION objects **MUST** inherit complete location configuration from parent ITEM:
-- `present_at_all_locations` → Copy from parent
-- `present_at_location_ids` → Copy from parent (when presentAtAllLocations=false)
-- `absent_at_location_ids` → Copy from parent (when presentAtAllLocations=true)
-
-**Failure to maintain consistency causes Square API rejection with "object is enabled at unit X, but referenced object is not" errors.**
+**Rule**: Arrays must be null when not used to prevent "duplicate attributes" errors. ITEM_VARIATION inherits complete location config from parent ITEM.
 
 ## Error Handling Patterns
 
@@ -801,44 +472,11 @@ Always validate API responses for reasonable data sizes before processing.
 
 ## Performance Considerations
 
-### Batch Processing with UI Updates
-```swift
-// Allow UI updates every 50 objects
-if index % 50 == 0 {
-    try await Task.sleep(nanoseconds: 5_000_000) // 5ms
-}
-```
+### Performance & Notifications
 
-**Database CRUD Support**: All 8 object types have complete insert/update handlers in `SQLiteSwiftCatalogManager.insertCatalogObject()` using `insert(or: .replace,` for proper upsert operations.
+**Batch Processing**: UI updates every 50 objects (5ms sleep). All 8 object types support upsert operations.
 
-### Notification System
-The app uses multiple notification systems:
-
-**iOS NotificationCenter** for cross-component communication:
-- `.catalogSyncCompleted` - Triggers statistics refresh and search result updates
-- `.forceImageRefresh` - Updates images across all views (global refresh)
-- `.imageUpdated` - Notifies of specific image changes (individual item updates)
-
-**Real-time Image Updates**: Both ScanView and ReordersView listen to all three notifications:
-- `catalogSyncCompleted`: Refreshes search results when catalog sync happens
-- `imageUpdated`: Refreshes search results and reorder list when images are uploaded/updated
-- `forceImageRefresh`: Forces complete refresh of images and data when needed
-This ensures that image uploads trigger immediate updates in both search results and reorder list without requiring manual refresh.
-
-**Push Notification Architecture**:
-- `UNUserNotificationCenter.current().delegate = PushNotificationService.shared` in AppDelegate
-- **Background notifications**: `application(_:didReceiveRemoteNotification:fetchCompletionHandler:)` in AppDelegate
-- **Foreground notifications**: `userNotificationCenter(_:willPresent:withCompletionHandler:)` in PushNotificationService
-- **Notification taps**: `userNotificationCenter(_:didReceive:withCompletionHandler:)` in PushNotificationService (UI only, no processing)
-
-**In-App Notification Center**:
-- `WebhookNotificationService.shared` manages in-app notification display
-- All sync results (silent and visible) appear here regardless of iOS notification permissions
-- Includes detailed sync statistics (items updated, sync timing, event IDs)
-
-**Notification Settings**:
-- `NotificationSettingsService.shared` manages user preferences for different notification types
-- Badge count management integrated with system settings
+**Notification System**: NotificationCenter (.catalogSyncCompleted, .imageUpdated, .forceImageRefresh), Push notifications via AppDelegate, In-app WebhookNotificationService, NotificationSettingsService for preferences.
 
 ### Memory Management
 - Use `@StateObject` for view-owned observable objects
@@ -848,106 +486,22 @@ This ensures that image uploads trigger immediate updates in both search results
 
 ## Backend Integration Requirements
 
-### AWS Lambda Webhook Handler
-The backend `src/webhookHandlers.js` must send **silent push notifications** for catalog sync:
+### Backend Integration
 
-```javascript
-// CORRECT - Silent notification (no user spam)
-const notification = new apn.Notification({
-  alert: '', // Empty alert = no visible notification banner
-  sound: '', // No sound
-  contentAvailable: 1, // Background notification triggers app processing
-  payload: {
-    data: {
-      type: 'catalog_updated',
-      eventId: eventId,
-      merchantId: merchantId,
-      updatedAt: catalogUpdatedAt || new Date().toISOString(),
-    },
-  },
-  topic: 'com.joylabs.native',
-});
+**AWS Lambda**: Send silent push notifications (contentAvailable: 1, empty alert/sound) for catalog sync.
+**APNs Environment**: Production builds need PRODUCTION APNs, development uses DEVELOPMENT.
 
-// WRONG - Visible notification (creates user spam)
-const notification = new apn.Notification({
-  alert: { title: 'Catalog Updated', body: 'Your Square catalog...' },
-  sound: 'default',
-  badge: 1,
-  // ...
-});
-```
+## Image System
 
-### APNs Environment Configuration
-- **Production builds**: Require PRODUCTION APNs environment
-- **Development builds**: Use DEVELOPMENT APNs environment
-- Backend uses `NODE_ENV` to determine APNs environment
-- Physical iPhone devices always require PRODUCTION APNs, even during development
+**SimpleImageView** (AsyncImage wrapper) + **SimpleImageService** (upload only). Native URLCache handles caching automatically. Use factory methods: `.thumbnail()`, `.catalogItem()`, `.large()`.
 
-## Image System Overhaul (2025-02-01)
+## HID Scanner Architecture
 
-#### **After (Industry Standard)**:
-- **2 simple classes**: `SimpleImageView` (AsyncImage wrapper) + `SimpleImageService` (upload only)
-- Native AsyncImage with built-in loading states, error handling, and URLCache integration
-- Zero custom cache management - iOS handles everything automatically
-- Clean separation of concerns: UI display vs upload functionality
-- ~400 lines of focused, maintainable code
-- Native iOS performance and responsiveness
-- Automatic memory management and efficient scrolling
-
-#### **Migration Pattern**:
-```swift
-// NEW (industry standard)
-SimpleImageView.thumbnail(imageURL: url, size: 50)
-```
-
-## HID Scanner Architecture (AppLevelHIDScanner)
-
-### Core Principles
-- **UIKeyCommand approach**: HID scanners work like game controllers - capture raw key events without TextField competition
-- **Zero keyboard issues**: No hidden TextFields, no virtual keyboards, no responder conflicts
-- **Context-aware**: Single app-level scanner serves both ScanView and ReordersView
-- **Smart focus detection**: Pauses when visible TextFields are focused to prevent interference
-- **Intelligent barcode detection**: Speed/pattern analysis distinguishes HID scans from manual keyboard input
-
-### Key Components
-- `AppLevelHIDScanner.swift` - Pure UIKeyCommand implementation
-- Context switching for different views (`.scanView`, `.reordersView`)
-- Speed-based detection (HID scanners type much faster than humans)
-- Pattern matching for barcode formats (numeric, alphanumeric)
-- Display scanned barcodes in headers, not text fields
+**AppLevelHIDScanner** uses UIKeyCommand approach (like game controllers). Context-aware for different views, speed-based detection distinguishes HID scans from manual input, smart focus detection prevents TextField conflicts.
 
 ## SwiftData Computed Properties Pattern
 
-### Cross-Container Data Access
-ReorderItemModel uses elegant computed properties for catalog data:
-```swift
-@Model class ReorderItemModel {
-    var catalogItemId: String  // Reference only
-    
-    // Computed properties fetch fresh data automatically
-    var name: String {
-        return MainActor.assumeIsolated {
-            CatalogLookupService.shared.getItem(id: catalogItemId)?.name
-        } ?? "Unknown Item"
-    }
-    
-    var price: Double? {
-        return MainActor.assumeIsolated {
-            CatalogLookupService.shared.getCurrentPrice(for: catalogItemId)
-        }
-    }
-}
-```
-
-### Update Pattern (Simplified)
-No manual synchronization needed - cache clearing triggers fresh computed property lookups:
-```swift
-// Old (complex): Manual data synchronization across containers
-reorderService.updateItemsFromCatalog(itemId: itemId)
-
-// New (elegant): Simple cache clearing
-reorderService.refreshCatalogCache()  // Computed properties fetch fresh data
-```
+**Cross-Container Access**: ReorderItemModel stores only `catalogItemId` reference, uses computed properties to fetch fresh data via CatalogLookupService. Cache clearing triggers automatic refresh.
 
 ### Model Requirements for UI Updates
 Any model displayed in ForEach must implement Hashable/Equatable with ALL mutable fields:
