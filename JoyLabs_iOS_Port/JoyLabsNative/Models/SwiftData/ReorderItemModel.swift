@@ -1,21 +1,15 @@
 import Foundation
 import SwiftData
 
-// MARK: - SwiftData Model for Reorder Items
-// Single source of truth - SwiftData handles all persistence automatically
+// MARK: - SwiftData Model for Reorder Items  
+// Elegant computed properties eliminate data duplication
 @Model
 final class ReorderItemModel {
     // Core identifiers
     @Attribute(.unique) var id: String
-    var itemId: String  // Reference to Square catalog item
+    var catalogItemId: String  // Reference to Square catalog item (renamed for clarity)
     
-    // Item details (mutable, updated from catalog)
-    var name: String
-    var sku: String?
-    var barcode: String?
-    var variationName: String?
-    
-    // Reorder-specific data
+    // Reorder-specific data ONLY (no catalog duplicates)
     var quantity: Int
     var status: String
     var addedDate: Date
@@ -23,26 +17,68 @@ final class ReorderItemModel {
     var receivedDate: Date?
     var notes: String?
     var priority: String
-    
-    // Team data fields (from team_data table)
-    var vendor: String?
-    var unitCost: Double?
-    var caseUpc: String?
-    var caseCost: Double?
-    var caseQuantity: Int?
-    
-    // Catalog data fields
-    var categoryName: String?
-    var price: Double?
-    var imageUrl: String?
-    var imageId: String?
-    var hasTax: Bool
-    
-    // Timestamp for updates
     var lastUpdated: Date
     
+    // Optional overrides (only store if different from catalog)
+    var nameOverride: String?      // Custom name if different from catalog
+    var notesInternal: String?     // Internal notes separate from catalog
     
-    // Computed properties for enum access
+    // MARK: - Computed Properties (Live Catalog Lookups)
+    
+    /// Get catalog item (cached lookup)
+    var catalogItem: CatalogItemModel? {
+        return CatalogLookupService.shared.getItem(id: catalogItemId)
+    }
+    
+    /// Item name (override or catalog)
+    var name: String {
+        return nameOverride ?? catalogItem?.name ?? "Unknown Item"
+    }
+    
+    /// Current catalog SKU
+    var sku: String? {
+        return catalogItem?.sku
+    }
+    
+    /// Current catalog barcode/UPC
+    var barcode: String? {
+        return catalogItem?.barcode
+    }
+    
+    /// Current catalog variation name
+    var variationName: String? {
+        return catalogItem?.variationName
+    }
+    
+    /// Current catalog category name
+    var categoryName: String? {
+        return catalogItem?.reportingCategoryName ?? catalogItem?.categoryName
+    }
+    
+    /// Current catalog price (live lookup)
+    var price: Double? {
+        return CatalogLookupService.shared.getCurrentPrice(for: catalogItemId)
+    }
+    
+    /// Current catalog image URL (live lookup)  
+    var imageUrl: String? {
+        // Note: This is async but we need sync for SwiftUI
+        // Consider using @State in views for image loading
+        return nil // Will implement async version below
+    }
+    
+    /// Tax status from catalog
+    var hasTax: Bool {
+        return catalogItem?.hasTax ?? false
+    }
+    
+    /// Get current image URL asynchronously
+    func getCurrentImageUrl() async -> String? {
+        return await CatalogLookupService.shared.getPrimaryImageURL(for: catalogItemId)
+    }
+    
+    // MARK: - Enum Computed Properties
+    
     var statusEnum: ReorderItemStatus {
         get { ReorderItemStatus(rawValue: status) ?? .added }
         set { status = newValue.rawValue }
@@ -53,59 +89,48 @@ final class ReorderItemModel {
         set { priority = newValue.rawValue }
     }
     
+    // MARK: - Initialization
+    
     init(
         id: String = UUID().uuidString,
-        itemId: String,
-        name: String,
-        sku: String? = nil,
-        barcode: String? = nil,
-        variationName: String? = nil,
+        catalogItemId: String,
         quantity: Int = 1,
         status: ReorderItemStatus = .added,
         addedDate: Date = Date(),
         notes: String? = nil,
-        priority: ReorderItemPriority = .normal
+        priority: ReorderItemPriority = .normal,
+        nameOverride: String? = nil
     ) {
         self.id = id
-        self.itemId = itemId
-        self.name = name
-        self.sku = sku
-        self.barcode = barcode
-        self.variationName = variationName
+        self.catalogItemId = catalogItemId
         self.quantity = quantity
         self.status = status.rawValue
         self.addedDate = addedDate
         self.notes = notes
         self.priority = priority.rawValue
-        self.hasTax = false
+        self.nameOverride = nameOverride
         self.lastUpdated = Date()
     }
     
-    // Update catalog fields from fresh data
-    func updateFromCatalog(
-        name: String? = nil,
-        sku: String? = nil,
-        barcode: String? = nil,
-        price: Double? = nil,
-        categoryName: String? = nil,
-        hasTax: Bool? = nil,
-        vendor: String? = nil,
-        caseUpc: String? = nil,
-        caseCost: Double? = nil,
-        caseQuantity: Int? = nil,
-        imageUrl: String? = nil
+    // MARK: - Helper Methods
+    
+    /// Update reorder-specific fields only (catalog data updates automatically)
+    func updateReorderData(
+        quantity: Int? = nil,
+        notes: String? = nil,
+        priority: ReorderItemPriority? = nil,
+        nameOverride: String? = nil
     ) {
-        if let name = name { self.name = name }
-        if let sku = sku { self.sku = sku }
-        if let barcode = barcode { self.barcode = barcode }
-        if let price = price { self.price = price }
-        if let categoryName = categoryName { self.categoryName = categoryName }
-        if let hasTax = hasTax { self.hasTax = hasTax }
-        if let vendor = vendor { self.vendor = vendor }
-        if let caseUpc = caseUpc { self.caseUpc = caseUpc }
-        if let caseCost = caseCost { self.caseCost = caseCost }
-        if let caseQuantity = caseQuantity { self.caseQuantity = caseQuantity }
-        if let imageUrl = imageUrl { self.imageUrl = imageUrl }
+        if let quantity = quantity { self.quantity = quantity }
+        if let notes = notes { self.notes = notes }
+        if let priority = priority { self.priority = priority.rawValue }
+        if let nameOverride = nameOverride { self.nameOverride = nameOverride }
+        self.lastUpdated = Date()
+    }
+    
+    /// Clear any custom overrides to use pure catalog data
+    func clearOverrides() {
+        self.nameOverride = nil
         self.lastUpdated = Date()
     }
 }

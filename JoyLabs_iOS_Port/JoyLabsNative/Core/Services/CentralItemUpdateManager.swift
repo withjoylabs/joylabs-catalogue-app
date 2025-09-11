@@ -221,10 +221,10 @@ class CentralItemUpdateManager: ObservableObject {
             print("[CentralItemUpdateManager] Updated \(updatedCount) SearchManager(s)")
         }
         
-        // ReordersView: Update reorder items that reference this catalog item (SwiftData)
+        // ReordersView: Clear cache so computed properties fetch fresh data automatically
         if let reorderService = reorderService {
-            await reorderService.updateItemsFromCatalog(itemId: itemId)
-            print("[CentralItemUpdateManager] Updated SwiftData ReorderService for item: \(itemId)")
+            reorderService.refreshCatalogCache()
+            print("[CentralItemUpdateManager] Cleared ReorderService catalog cache for fresh computed data")
         } else {
             print("[CentralItemUpdateManager] ReorderService not available")
         }
@@ -312,10 +312,10 @@ class CentralItemUpdateManager: ObservableObject {
                 }
             }
             
-            // ReordersView: Update reorder items that reference this catalog item
+            // ReordersView: Clear cache so computed properties fetch fresh image data automatically
             if let reorderService = reorderService {
-                await reorderService.updateItemsFromCatalog(itemId: itemId)
-                print("[CentralItemUpdateManager] Updated ReorderService images for item: \(itemId)")
+                reorderService.refreshCatalogCache()
+                print("[CentralItemUpdateManager] Cleared ReorderService cache for fresh image data: \(itemId)")
             } else {
                 print("[CentralItemUpdateManager] ReorderService not available for image update")
             }

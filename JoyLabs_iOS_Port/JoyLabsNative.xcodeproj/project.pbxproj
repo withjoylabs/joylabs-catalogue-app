@@ -48,6 +48,7 @@
 		611221FE14DD319E9DC39D50 /* ItemEcommerceSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AFAF5D9F92448678D1A1EE2 /* ItemEcommerceSection.swift */; };
 		62E17EEFBD0A30493327D374 /* ViewExtensions+ModalPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EFA46CC1207E812F353D29F /* ViewExtensions+ModalPresentation.swift */; };
 		633EAA03A1AACAFBDA6DCEC6 /* WebhookService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CB9D6E0060770E50822CE1D /* WebhookService.swift */; };
+		645853E561B6680131B3E716 /* CatalogLookupService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C520DA18887B1353B7282355 /* CatalogLookupService.swift */; };
 		65577A06B7D6A9FED610402A /* ReorderPhotoCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F32EEA3114D99A383F2B69FC /* ReorderPhotoCard.swift */; };
 		690DEB5BE22908836C5ABF87 /* SimpleImageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BF09157ED1FEE7951EC8474 /* SimpleImageService.swift */; };
 		6EA41FDD40E6B3236E5DC902 /* FloatingActionButtons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3773602C0EF0A589CED63975 /* FloatingActionButtons.swift */; };
@@ -249,6 +250,7 @@
 		BA6CAB610624BBFC8C7C36B6 /* ItemDataTransformers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDataTransformers.swift; path = Components/ItemDataTransformers.swift; sourceTree = "<group>"; };
 		BF8BABE731647487EFC23A76 /* FieldVisibilityModifier.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FieldVisibilityModifier.swift; path = Components/FieldVisibilityModifier.swift; sourceTree = "<group>"; };
 		C10C1591BFB7D2F8055FE469 /* CatalogItemModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CatalogItemModel.swift; path = Models/SwiftData/CatalogItemModel.swift; sourceTree = "<group>"; };
+		C520DA18887B1353B7282355 /* CatalogLookupService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CatalogLookupService.swift; path = Core/Services/CatalogLookupService.swift; sourceTree = "<group>"; };
 		CA8C5B246DFF28C031178155 /* LocationCacheManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LocationCacheManager.swift; path = Core/Services/LocationCacheManager.swift; sourceTree = "<group>"; };
 		CB4FFBEDCA62E7D539B408D1 /* SwiftDataSearchManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SwiftDataSearchManager.swift; path = Core/Search/SwiftDataSearchManager.swift; sourceTree = "<group>"; };
 		CDE4F13329B14CC37A8AB1C4 /* SwiftDataFuzzySearch.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SwiftDataFuzzySearch.swift; path = Core/Search/SwiftDataFuzzySearch.swift; sourceTree = "<group>"; };
@@ -639,6 +641,7 @@
 				0AE1BE4622C5C0A85C6CAA3E /* ReorderService.swift */,
 				4F11337D485EAEE728164CE7 /* CentralItemUpdateManager.swift */,
 				1194A1F3F91FB0E4ACE16CAE /* ImageSaveService.swift */,
+				C520DA18887B1353B7282355 /* CatalogLookupService.swift */,
 			);
 			name = Services;
 			sourceTree = "<group>";
@@ -881,6 +884,7 @@
 				38ABD53A924C800B73958281 /* ImageSaveService.swift in Sources */,
 				7DFE6CF6196B175FAD5BC8DB /* SquareCropView.swift in Sources */,
 				9D7855B629B0AFB4487D02B1 /* ImageProcessor.swift in Sources */,
+				645853E561B6680131B3E716 /* CatalogLookupService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
