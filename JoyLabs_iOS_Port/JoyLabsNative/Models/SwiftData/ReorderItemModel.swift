@@ -25,39 +25,59 @@ final class ReorderItemModel {
     
     // MARK: - Computed Properties (Live Catalog Lookups)
     
-    /// Get catalog item (cached lookup)
+    /// Get catalog item (cached lookup) - MainActor required
+    @MainActor
     var catalogItem: CatalogItemModel? {
         return CatalogLookupService.shared.getItem(id: catalogItemId)
     }
     
     /// Item name (override or catalog)
     var name: String {
-        return nameOverride ?? catalogItem?.name ?? "Unknown Item"
+        if let nameOverride = nameOverride {
+            return nameOverride
+        }
+        
+        // Use MainActor.assumeIsolated for synchronous access in computed properties
+        let catalogName = MainActor.assumeIsolated {
+            CatalogLookupService.shared.getItem(id: catalogItemId)?.name
+        }
+        return catalogName ?? "Unknown Item"
     }
     
     /// Current catalog SKU
     var sku: String? {
-        return catalogItem?.sku
+        return MainActor.assumeIsolated {
+            CatalogLookupService.shared.getSku(for: catalogItemId)
+        }
     }
     
     /// Current catalog barcode/UPC
     var barcode: String? {
-        return catalogItem?.barcode
+        return MainActor.assumeIsolated {
+            CatalogLookupService.shared.getBarcode(for: catalogItemId)
+        }
     }
     
     /// Current catalog variation name
     var variationName: String? {
-        return catalogItem?.variationName
+        return MainActor.assumeIsolated {
+            CatalogLookupService.shared.getVariationName(for: catalogItemId)
+        }
     }
     
     /// Current catalog category name
     var categoryName: String? {
-        return catalogItem?.reportingCategoryName ?? catalogItem?.categoryName
+        return MainActor.assumeIsolated {
+            let item = CatalogLookupService.shared.getItem(id: catalogItemId)
+            return item?.reportingCategoryName ?? item?.categoryName
+        }
     }
     
     /// Current catalog price (live lookup)
     var price: Double? {
-        return CatalogLookupService.shared.getCurrentPrice(for: catalogItemId)
+        return MainActor.assumeIsolated {
+            CatalogLookupService.shared.getCurrentPrice(for: catalogItemId)
+        }
     }
     
     /// Current catalog image URL (live lookup)  
@@ -69,10 +89,13 @@ final class ReorderItemModel {
     
     /// Tax status from catalog
     var hasTax: Bool {
-        return catalogItem?.hasTax ?? false
+        return MainActor.assumeIsolated {
+            CatalogLookupService.shared.getHasTax(for: catalogItemId)
+        }
     }
     
     /// Get current image URL asynchronously
+    @MainActor
     func getCurrentImageUrl() async -> String? {
         return await CatalogLookupService.shared.getPrimaryImageURL(for: catalogItemId)
     }

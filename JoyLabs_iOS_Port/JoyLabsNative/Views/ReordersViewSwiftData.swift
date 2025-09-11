@@ -435,7 +435,7 @@ struct ReordersViewSwiftData: SwiftUI.View {
         
         var reorderItem = ReorderItem(
             id: swiftDataItem.id,
-            itemId: swiftDataItem.itemId,
+            itemId: swiftDataItem.catalogItemId,  // Updated field name
             name: swiftDataItem.name,
             sku: swiftDataItem.sku,
             barcode: swiftDataItem.barcode,
@@ -446,16 +446,16 @@ struct ReordersViewSwiftData: SwiftUI.View {
             notes: swiftDataItem.notes
         )
         
-        // Set additional properties that aren't in the constructor
+        // Set additional properties from computed properties
         reorderItem.categoryName = swiftDataItem.categoryName
-        reorderItem.vendor = swiftDataItem.vendor
-        reorderItem.unitCost = swiftDataItem.unitCost
-        reorderItem.caseUpc = swiftDataItem.caseUpc
-        reorderItem.caseCost = swiftDataItem.caseCost
-        reorderItem.caseQuantity = swiftDataItem.caseQuantity
+        reorderItem.vendor = nil  // Team data not implemented yet
+        reorderItem.unitCost = nil  // Team data not implemented yet  
+        reorderItem.caseUpc = nil  // Team data not implemented yet
+        reorderItem.caseCost = nil  // Team data not implemented yet
+        reorderItem.caseQuantity = nil  // Team data not implemented yet
         reorderItem.price = swiftDataItem.price
         reorderItem.imageUrl = swiftDataItem.imageUrl
-        reorderItem.imageId = swiftDataItem.imageId
+        reorderItem.imageId = nil  // Not stored directly, use imageUrl
         reorderItem.hasTax = swiftDataItem.hasTax
         reorderItem.priority = swiftDataItem.priorityEnum
         reorderItem.purchasedDate = swiftDataItem.purchasedDate

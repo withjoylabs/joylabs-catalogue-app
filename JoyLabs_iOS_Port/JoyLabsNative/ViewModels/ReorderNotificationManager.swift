@@ -59,9 +59,9 @@ class CentralItemUpdateManager: ObservableObject {
             
             if !isAlreadyRegistered {
                 searchManagers.append(WeakReference(searchManager))
-                print("✅ [CentralItemUpdateManager] Registered SearchManager from \(viewName): \(ObjectIdentifier(searchManager))")
+                print(" [CentralItemUpdateManager] Registered SearchManager from \(viewName): \(ObjectIdentifier(searchManager))")
             } else {
-                print("⚠️ [CentralItemUpdateManager] SearchManager from \(viewName) already registered: \(ObjectIdentifier(searchManager))")
+                print(" [CentralItemUpdateManager] SearchManager from \(viewName) already registered: \(ObjectIdentifier(searchManager))")
             }
         }
         
@@ -69,9 +69,9 @@ class CentralItemUpdateManager: ObservableObject {
         if let reorderDataManager = reorderDataManager {
             if self.reorderDataManager == nil {
                 self.reorderDataManager = reorderDataManager
-                print("✅ [CentralItemUpdateManager] Registered ReorderDataManager from \(viewName)")
+                print(" [CentralItemUpdateManager] Registered ReorderDataManager from \(viewName)")
             } else if self.reorderDataManager !== reorderDataManager {
-                print("⚠️ [CentralItemUpdateManager] ReorderDataManager already set, keeping existing one")
+                print(" [CentralItemUpdateManager] ReorderDataManager already set, keeping existing one")
             }
         }
         
@@ -79,7 +79,7 @@ class CentralItemUpdateManager: ObservableObject {
         if let reorderBarcodeManager = reorderBarcodeManager {
             if self.reorderBarcodeManager == nil {
                 self.reorderBarcodeManager = reorderBarcodeManager
-                print("✅ [CentralItemUpdateManager] Registered ReorderBarcodeManager from \(viewName)")
+                print(" [CentralItemUpdateManager] Registered ReorderBarcodeManager from \(viewName)")
             }
         }
         
@@ -87,7 +87,7 @@ class CentralItemUpdateManager: ObservableObject {
         if let catalogStatsService = catalogStatsService {
             if self.catalogStatsService == nil {
                 self.catalogStatsService = catalogStatsService
-                print("✅ [CentralItemUpdateManager] Registered CatalogStatsService from \(viewName)")
+                print(" [CentralItemUpdateManager] Registered CatalogStatsService from \(viewName)")
             }
         }
         
@@ -100,9 +100,9 @@ class CentralItemUpdateManager: ObservableObject {
         // Log current state
         print("📊 [CentralItemUpdateManager] Current state:")
         print("   - SearchManagers registered: \(searchManagers.compactMap { $0.value }.count)")
-        print("   - ReorderDataManager: \(reorderDataManager != nil ? "✅" : "❌")")
-        print("   - ReorderBarcodeManager: \(reorderBarcodeManager != nil ? "✅" : "❌")")
-        print("   - CatalogStatsService: \(catalogStatsService != nil ? "✅" : "❌")")
+        print("   - ReorderDataManager: \(reorderDataManager != nil ? "" : "❌")")
+        print("   - ReorderBarcodeManager: \(reorderBarcodeManager != nil ? "" : "❌")")
+        print("   - CatalogStatsService: \(catalogStatsService != nil ? "" : "❌")")
     }
     
     private func setupNotificationObservers() {
@@ -165,7 +165,7 @@ class CentralItemUpdateManager: ObservableObject {
             case "delete":
                 await handleItemDeletion(itemId: itemId)
             default:
-                print("⚠️ [CentralItemUpdateManager] Unknown operation: \(operation)")
+                print(" [CentralItemUpdateManager] Unknown operation: \(operation)")
             }
         }
     }
@@ -212,23 +212,23 @@ class CentralItemUpdateManager: ObservableObject {
         }
         
         if updatedCount == 0 {
-            print("⚠️ [CentralItemUpdateManager] No SearchManagers registered to update")
+            print(" [CentralItemUpdateManager] No SearchManagers registered to update")
         } else {
-            print("✅ [CentralItemUpdateManager] Updated \(updatedCount) SearchManager(s)")
+            print(" [CentralItemUpdateManager] Updated \(updatedCount) SearchManager(s)")
         }
         
-        // ReordersView: Update reorder items that reference this catalog item (SwiftData)
+        // ReordersView: Clear cache so computed properties fetch fresh data automatically
         if let reorderService = reorderService {
-            await reorderService.updateItemsFromCatalog(itemId: itemId)
-            print("✅ [CentralItemUpdateManager] Updated SwiftData ReorderService for item: \(itemId)")
+            reorderService.refreshCatalogCache()
+            print("[CentralItemUpdateManager] Cleared ReorderService catalog cache for fresh computed data")
         } else {
-            print("⚠️ [CentralItemUpdateManager] ReorderService not available")
+            print("[CentralItemUpdateManager] ReorderService not available")
         }
         
         // Legacy ReorderDataManager (for backward compatibility during transition)
         if let reorderDataManager = reorderDataManager {
             await reorderDataManager.updateReorderItemsReferencingCatalogItem(itemId: itemId)
-            print("✅ [CentralItemUpdateManager] Updated legacy ReorderDataManager for item: \(itemId)")
+            print(" [CentralItemUpdateManager] Updated legacy ReorderDataManager for item: \(itemId)")
         }
         
         // ReordersView: Refresh barcode search if active

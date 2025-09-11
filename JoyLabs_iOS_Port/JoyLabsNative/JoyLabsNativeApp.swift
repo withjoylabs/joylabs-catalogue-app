@@ -41,7 +41,7 @@ struct JoyLabsNativeApp: App {
             let reorderSchema = Schema([
                 ReorderItemModel.self
             ])
-            let reorderConfig = ModelConfiguration("reorders-v2.store", schema: reorderSchema, isStoredInMemoryOnly: false)
+            let reorderConfig = ModelConfiguration("reorders-v3.store", schema: reorderSchema, isStoredInMemoryOnly: false)
             self.reorderContainer = try ModelContainer(for: reorderSchema, configurations: [reorderConfig])
             print("✅ [SwiftData] Reorder ModelContainer initialized")
         } catch {

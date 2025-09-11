@@ -4,6 +4,7 @@ import OSLog
 
 /// Efficient cross-container catalog lookup service
 /// Provides computed access to catalog data from any container
+/// Thread-safe for use in computed properties
 @MainActor
 class CatalogLookupService {
     static let shared = CatalogLookupService()
@@ -11,13 +12,13 @@ class CatalogLookupService {
     private let catalogContext: ModelContext
     private let logger = Logger(subsystem: "com.joylabs.native", category: "CatalogLookupService")
     
-    // In-memory cache for frequently accessed items
+    // Simple MainActor cache (no concurrent access needed for lookup service)
     private var itemCache: [String: CatalogItemModel] = [:]
     private var cacheTimestamp: Date = Date()
     private let cacheTimeout: TimeInterval = 300 // 5 minutes
     
     private init() {
-        // Get shared catalog database context
+        // Initialize with MainActor context - ModelContext requires MainActor
         let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
         self.catalogContext = databaseManager.getContext()
         
@@ -136,6 +137,81 @@ class CatalogLookupService {
         }
     }
     
+    /// Get SKU for item (from primary variation)
+    func getSku(for itemId: String) -> String? {
+        do {
+            let descriptor = FetchDescriptor<ItemVariationModel>(
+                predicate: #Predicate { variation in
+                    variation.itemId == itemId && !variation.isDeleted
+                }
+            )
+            
+            return try catalogContext.fetch(descriptor).first?.sku
+        } catch {
+            logger.error("[CatalogLookup] Failed to fetch SKU for item \(itemId): \(error)")
+            return nil
+        }
+    }
+    
+    /// Get barcode/UPC for item (from primary variation)
+    func getBarcode(for itemId: String) -> String? {
+        do {
+            let descriptor = FetchDescriptor<ItemVariationModel>(
+                predicate: #Predicate { variation in
+                    variation.itemId == itemId && !variation.isDeleted
+                }
+            )
+            
+            return try catalogContext.fetch(descriptor).first?.upc
+        } catch {
+            logger.error("[CatalogLookup] Failed to fetch barcode for item \(itemId): \(error)")
+            return nil
+        }
+    }
+    
+    /// Get variation name for item (from primary variation)
+    func getVariationName(for itemId: String) -> String? {
+        do {
+            let descriptor = FetchDescriptor<ItemVariationModel>(
+                predicate: #Predicate { variation in
+                    variation.itemId == itemId && !variation.isDeleted
+                }
+            )
+            
+            return try catalogContext.fetch(descriptor).first?.name
+        } catch {
+            logger.error("[CatalogLookup] Failed to fetch variation name for item \(itemId): \(error)")
+            return nil
+        }
+    }
+    
+    /// Check if item has tax (from tax relationships or dataJson)
+    func getHasTax(for itemId: String) -> Bool {
+        guard let item = getItem(id: itemId) else { return false }
+        
+        // Check tax relationships first
+        if let taxes = item.taxes, !taxes.isEmpty {
+            return true
+        }
+        
+        // Fallback to parsing dataJson for tax_ids
+        guard let dataJson = item.dataJson,
+              let data = dataJson.data(using: .utf8) else {
+            return false
+        }
+        
+        do {
+            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let taxIds = json["tax_ids"] as? [String] {
+                return !taxIds.isEmpty
+            }
+        } catch {
+            logger.error("[CatalogLookup] Failed to parse tax data for item \(itemId): \(error)")
+        }
+        
+        return false
+    }
+    
     /// Clear cache (call when catalog sync completes)
     func clearCache() {
         itemCache.removeAll()
@@ -151,7 +227,6 @@ class CatalogLookupService {
             clearCache()
             return nil
         }
-        
         return itemCache[id]
     }
     

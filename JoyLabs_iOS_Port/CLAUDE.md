@@ -146,13 +146,13 @@ The codebase follows a **modular service-oriented architecture** with these key 
 - **Performance**: Pre-processed category names for ultra-fast search without JOINs
 - **Caching**: Multi-level cache system for search results
 
-### Search Refresh Coordination
-- **Core Service**: `SearchRefreshService` (Core/Services/) - Centralized search refresh after item saves
-- **Purpose**: Ensures consistent search result updates after ItemDetailsModal save operations
-- **Coverage**: All views using ItemDetailsModal (ScanView, ReordersView, SearchComponents)
-- **Usage**: Automatically called in onSave handlers with original search query for reliable refresh
-- **Architecture**: Single source of truth prevents duplicate refresh logic and multiple failure points
-- **Integration**: Works alongside existing image notification system (images handle their own refresh)
+### SwiftData Single Source of Truth Architecture (2025-02-01)
+- **Core Service**: `CatalogLookupService` - Thread-safe cross-container catalog lookups
+- **Architecture**: Two separate ModelContainers (catalog + reorder) with computed property bridge
+- **Pattern**: ReorderItemModel stores only `catalogItemId` reference, all catalog data via computed properties
+- **Benefits**: Eliminates data duplication, automatic fresh data, ~200 fewer lines of sync code
+- **Cache Strategy**: Smart cache with automatic clearing on catalog sync notifications
+- **Thread Safety**: MainActor isolation with proper Swift 6 Sendable compliance
 
 ### Webhook Processing Flow  
 - **Trigger**: Square catalog changes → AWS webhook → Silent push notification → iOS app
@@ -916,21 +916,38 @@ SimpleImageView.thumbnail(imageURL: url, size: 50)
 - Pattern matching for barcode formats (numeric, alphanumeric)
 - Display scanned barcodes in headers, not text fields
 
-## Centralized Item Update System
+## SwiftData Computed Properties Pattern
 
-### Setup Pattern for New Views
-When adding a view that displays catalog items, register with CentralItemUpdateManager in `.onAppear`:
+### Cross-Container Data Access
+ReorderItemModel uses elegant computed properties for catalog data:
 ```swift
-.onAppear {
-    CentralItemUpdateManager.shared.setup(
-        searchManager: yourSearchManager,  // Optional: if view has search
-        reorderDataManager: dataManager,   // Optional: if view manages reorders
-        viewName: "YourViewName"          // Required: for debugging
-    )
+@Model class ReorderItemModel {
+    var catalogItemId: String  // Reference only
+    
+    // Computed properties fetch fresh data automatically
+    var name: String {
+        return MainActor.assumeIsolated {
+            CatalogLookupService.shared.getItem(id: catalogItemId)?.name
+        } ?? "Unknown Item"
+    }
+    
+    var price: Double? {
+        return MainActor.assumeIsolated {
+            CatalogLookupService.shared.getCurrentPrice(for: catalogItemId)
+        }
+    }
 }
 ```
 
-**The setup() method is ADDITIVE** - multiple views can register without conflict.
+### Update Pattern (Simplified)
+No manual synchronization needed - cache clearing triggers fresh computed property lookups:
+```swift
+// Old (complex): Manual data synchronization across containers
+reorderService.updateItemsFromCatalog(itemId: itemId)
+
+// New (elegant): Simple cache clearing
+reorderService.refreshCatalogCache()  // Computed properties fetch fresh data
+```
 
 ### Model Requirements for UI Updates
 Any model displayed in ForEach must implement Hashable/Equatable with ALL mutable fields:
