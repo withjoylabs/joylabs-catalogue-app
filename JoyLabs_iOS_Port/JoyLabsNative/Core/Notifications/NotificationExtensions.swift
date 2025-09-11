@@ -11,9 +11,6 @@ extension Notification.Name {
     /// Posted when catalog sync completes
     static let catalogSyncCompleted = Notification.Name("catalogSyncCompleted")
     
-    /// Posted when catalog sync starts
-    static let catalogSyncStarted = Notification.Name("catalogSyncStarted")
-    
     /// Posted to navigate to notification settings in profile
     static let navigateToNotificationSettings = Notification.Name("navigateToNotificationSettings")
 }

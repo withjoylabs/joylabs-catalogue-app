@@ -420,7 +420,7 @@ struct SearchResultsList: View {
                             printItem(result)
                         },
                         onItemUpdated: {
-                            refreshSearchResults()
+                            // Item updates now handled automatically via shared SwiftData container
                         }
                     )
                     .id(result.id)
@@ -428,15 +428,6 @@ struct SearchResultsList: View {
             }
         }
     }
-    
-    // MARK: - Search Refresh Function
-    
-    private func refreshSearchResults() {
-        // DEPRECATED: This method is no longer needed as search refresh
-        // is handled automatically via catalogSyncCompleted notifications
-        // Keeping method stub for backward compatibility, but it does nothing
-    }
-    
     
     // MARK: - Reorder and Print Functions
     

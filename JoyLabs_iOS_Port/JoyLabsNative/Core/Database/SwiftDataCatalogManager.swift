@@ -53,6 +53,22 @@ class SwiftDataCatalogManager {
         // Configure context for better performance
         self.modelContext.autosaveEnabled = false  // Manual saves for batch operations
         
+        logger.info("[Database] SwiftDataCatalogManager initialized with NEW container")
+    }
+    
+    /// Initialize with existing container (for shared container architecture)
+    init(existingContainer: ModelContainer) throws {
+        logger.info("[Database] Initializing SwiftDataCatalogManager with existing container")
+        
+        // Use the provided container
+        self.modelContainer = existingContainer
+        
+        // Get the main context
+        self.modelContext = existingContainer.mainContext
+        
+        // Configure context for better performance
+        self.modelContext.autosaveEnabled = false  // Manual saves for batch operations
+        
         logger.info("[Database] SwiftDataCatalogManager initialized successfully")
     }
     

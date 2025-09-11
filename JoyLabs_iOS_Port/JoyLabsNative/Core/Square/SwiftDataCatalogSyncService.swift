@@ -34,14 +34,10 @@ class SwiftDataCatalogSyncService: ObservableObject {
     init(squareAPIService: SquareAPIService) {
         self.squareAPIService = squareAPIService
         
-        do {
-            self.catalogManager = try SwiftDataCatalogManager()
-        } catch {
-            logger.error("[Sync] Failed to initialize SwiftDataCatalogManager: \(error)")
-            fatalError("Failed to initialize SwiftDataCatalogManager: \(error)")
-        }
+        // Use factory to get shared database manager
+        self.catalogManager = SquareAPIServiceFactory.createDatabaseManager()
         
-        logger.info("[Sync] SwiftDataCatalogSyncService initialized")
+        logger.info("[Sync] SwiftDataCatalogSyncService initialized with shared database manager")
     }
     
     // MARK: - Public Methods

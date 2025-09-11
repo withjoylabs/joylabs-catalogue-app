@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import OSLog
 
 /// SINGLE SERVICE FACTORY - Eliminates ALL duplicate service instances
@@ -9,6 +10,9 @@ class SquareAPIServiceFactory {
 
     /// Shared instance for singleton access
     static let shared = SquareAPIServiceFactory()
+
+    /// Shared catalog container (from app)
+    private var sharedCatalogContainer: ModelContainer?
 
     /// Cached service instances - SINGLE INSTANCES ONLY
     private var cachedSquareAPIService: SquareAPIService?
@@ -24,6 +28,12 @@ class SquareAPIServiceFactory {
 
     private init() {
         logger.info("[Factory] SquareAPIServiceFactory initialized - SINGLE INSTANCE FACTORY")
+    }
+
+    /// Initialize factory with shared catalog container from app
+    static func initialize(with catalogContainer: ModelContainer) {
+        shared.sharedCatalogContainer = catalogContainer
+        shared.logger.info("[Factory] Initialized with shared catalog container")
     }
 
     /// Create or return cached SquareAPIService instance
@@ -56,8 +66,11 @@ class SquareAPIServiceFactory {
         }
         
         do {
-            logger.debug("[Factory] Creating NEW SwiftDataCatalogManager instance")
-            let manager = try SwiftDataCatalogManager()
+            logger.debug("[Factory] Creating NEW SwiftDataCatalogManager instance with shared container")
+            guard let container = sharedCatalogContainer else {
+                fatalError("[Factory] Shared catalog container not initialized. Call SquareAPIServiceFactory.initialize(with:) first.")
+            }
+            let manager = try SwiftDataCatalogManager(existingContainer: container)
             cachedDatabaseManager = manager
             return manager
         } catch {

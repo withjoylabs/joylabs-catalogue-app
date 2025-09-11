@@ -48,6 +48,10 @@ struct JoyLabsNativeApp: App {
             fatalError("Failed to initialize Reorder ModelContainer: \(error)")
         }
         
+        // Initialize factory with shared catalog container BEFORE creating services
+        SquareAPIServiceFactory.initialize(with: catalogContainer)
+        print("✅ [App] SquareAPIServiceFactory initialized with shared catalog container")
+        
         // Initialize critical services SYNCHRONOUSLY first to prevent race conditions
         initializeCriticalServicesSync()
         
