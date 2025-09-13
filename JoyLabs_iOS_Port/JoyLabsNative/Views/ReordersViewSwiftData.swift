@@ -65,6 +65,11 @@ struct ReordersViewSwiftData: SwiftUI.View {
     @State private var showingClearAlert = false
     @State private var showingMarkAllReceivedAlert = false
     
+    // PERFORMANCE FIX: Cache converted items to prevent expensive recomputation
+    @State private var cachedBridgedItems: [ReorderItem] = []
+    @State private var cachedStats: (total: Int, unpurchased: Int, purchased: Int, quantity: Int) = (0, 0, 0, 0)
+    @State private var lastReorderItemsCount: Int = 0
+    
     // Scanner state
     @State private var scannerSearchText = ""
     @FocusState private var isScannerFieldFocused: Bool
@@ -86,14 +91,49 @@ struct ReordersViewSwiftData: SwiftUI.View {
     
     // MARK: - Professional Bridge: SwiftData → ReorderItem Conversion
     private var bridgedReorderItems: [ReorderItem] {
-        reorderItems.map { convertToReorderItem($0) }
+        // PERFORMANCE: Return cached items instead of converting every access
+        return cachedBridgedItems
+    }
+    
+    // Update cache when source data changes
+    private func updateCachedBridgedItems() {
+        // Only update if items actually changed
+        if reorderItems.count != lastReorderItemsCount {
+            cachedBridgedItems = reorderItems.map { convertToReorderItem($0) }
+            lastReorderItemsCount = reorderItems.count
+            
+            // PERFORMANCE: Also update stats cache in single pass
+            updateCachedStats()
+        }
+    }
+    
+    private func updateCachedStats() {
+        var total = 0
+        var unpurchased = 0
+        var purchased = 0
+        var quantity = 0
+        
+        for item in cachedBridgedItems {
+            total += 1
+            quantity += item.quantity
+            
+            switch item.status {
+            case .added:
+                unpurchased += 1
+            case .purchased, .received:
+                purchased += 1
+            }
+        }
+        
+        cachedStats = (total, unpurchased, purchased, quantity)
     }
     
     // MARK: - Computed Properties (Professional Implementation Restored)
-    var totalItems: Int { bridgedReorderItems.count }
-    var unpurchasedItems: Int { bridgedReorderItems.filter { $0.status == .added }.count }
-    var purchasedItems: Int { bridgedReorderItems.filter { $0.status == .purchased || $0.status == .received }.count }
-    var totalQuantity: Int { bridgedReorderItems.reduce(0) { $0 + $1.quantity } }
+    // PERFORMANCE: Use cached stats instead of recomputing
+    var totalItems: Int { cachedStats.total }
+    var unpurchasedItems: Int { cachedStats.unpurchased }
+    var purchasedItems: Int { cachedStats.purchased }
+    var totalQuantity: Int { cachedStats.quantity }
     
     // Professional filtered items (using original logic)
     var filteredItems: [ReorderItem] {
@@ -193,6 +233,12 @@ struct ReordersViewSwiftData: SwiftUI.View {
         }
         .onAppear {
             setupServices()
+            // PERFORMANCE: Initialize cache on appear
+            updateCachedBridgedItems()
+        }
+        .onChange(of: reorderItems.count) { _, _ in
+            // PERFORMANCE: Update cache when items change
+            updateCachedBridgedItems()
         }
         .onChange(of: isScannerFieldFocused) { oldValue, newValue in
             // Notify ContentView of focus state changes for AppLevelHIDScanner
