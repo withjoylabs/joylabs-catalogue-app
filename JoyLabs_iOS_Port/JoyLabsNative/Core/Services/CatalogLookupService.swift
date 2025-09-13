@@ -14,6 +14,7 @@ class CatalogLookupService {
     
     // Simple MainActor cache (no concurrent access needed for lookup service)
     private var itemCache: [String: CatalogItemModel] = [:]
+    private var variationCache: [String: ItemVariationModel] = [:]
     private var cacheTimestamp: Date = Date()
     private let cacheTimeout: TimeInterval = 300 // 5 minutes
     
@@ -123,6 +124,16 @@ class CatalogLookupService {
     
     /// Get current price for item (from variation data)
     func getCurrentPrice(for itemId: String) -> Double? {
+        // Check cache first
+        if let cachedVariation = getCachedVariation(itemId: itemId) {
+            guard let priceAmount = cachedVariation.priceAmount, priceAmount > 0 else {
+                return nil
+            }
+            let convertedPrice = Double(priceAmount) / 100.0
+            return convertedPrice.isFinite && !convertedPrice.isNaN && convertedPrice > 0 ? convertedPrice : nil
+        }
+        
+        // Fetch from database
         do {
             let descriptor = FetchDescriptor<ItemVariationModel>(
                 predicate: #Predicate { variation in
@@ -130,15 +141,18 @@ class CatalogLookupService {
                 }
             )
             
-            guard let variation = try catalogContext.fetch(descriptor).first,
-                  let priceAmount = variation.priceAmount,
-                  priceAmount > 0 else {
-                return nil
+            if let variation = try catalogContext.fetch(descriptor).first {
+                // Cache the variation for future lookups
+                cacheVariation(variation, forItemId: itemId)
+                
+                guard let priceAmount = variation.priceAmount, priceAmount > 0 else {
+                    return nil
+                }
+                
+                let convertedPrice = Double(priceAmount) / 100.0
+                return convertedPrice.isFinite && !convertedPrice.isNaN && convertedPrice > 0 ? convertedPrice : nil
             }
-            
-            let convertedPrice = Double(priceAmount) / 100.0
-            return convertedPrice.isFinite && !convertedPrice.isNaN && convertedPrice > 0 ? convertedPrice : nil
-            
+            return nil
         } catch {
             logger.error("[CatalogLookup] Failed to fetch price for item \(itemId): \(error)")
             return nil
@@ -147,6 +161,12 @@ class CatalogLookupService {
     
     /// Get SKU for item (from primary variation)
     func getSku(for itemId: String) -> String? {
+        // Check cache first
+        if let cachedVariation = getCachedVariation(itemId: itemId) {
+            return cachedVariation.sku
+        }
+        
+        // Fetch from database
         do {
             let descriptor = FetchDescriptor<ItemVariationModel>(
                 predicate: #Predicate { variation in
@@ -154,7 +174,12 @@ class CatalogLookupService {
                 }
             )
             
-            return try catalogContext.fetch(descriptor).first?.sku
+            if let variation = try catalogContext.fetch(descriptor).first {
+                // Cache the variation for future lookups
+                cacheVariation(variation, forItemId: itemId)
+                return variation.sku
+            }
+            return nil
         } catch {
             logger.error("[CatalogLookup] Failed to fetch SKU for item \(itemId): \(error)")
             return nil
@@ -163,6 +188,12 @@ class CatalogLookupService {
     
     /// Get barcode/UPC for item (from primary variation)
     func getBarcode(for itemId: String) -> String? {
+        // Check cache first
+        if let cachedVariation = getCachedVariation(itemId: itemId) {
+            return cachedVariation.upc
+        }
+        
+        // Fetch from database
         do {
             let descriptor = FetchDescriptor<ItemVariationModel>(
                 predicate: #Predicate { variation in
@@ -170,7 +201,12 @@ class CatalogLookupService {
                 }
             )
             
-            return try catalogContext.fetch(descriptor).first?.upc
+            if let variation = try catalogContext.fetch(descriptor).first {
+                // Cache the variation for future lookups
+                cacheVariation(variation, forItemId: itemId)
+                return variation.upc
+            }
+            return nil
         } catch {
             logger.error("[CatalogLookup] Failed to fetch barcode for item \(itemId): \(error)")
             return nil
@@ -179,6 +215,12 @@ class CatalogLookupService {
     
     /// Get variation name for item (from primary variation)
     func getVariationName(for itemId: String) -> String? {
+        // Check cache first
+        if let cachedVariation = getCachedVariation(itemId: itemId) {
+            return cachedVariation.name
+        }
+        
+        // Fetch from database
         do {
             let descriptor = FetchDescriptor<ItemVariationModel>(
                 predicate: #Predicate { variation in
@@ -186,7 +228,12 @@ class CatalogLookupService {
                 }
             )
             
-            return try catalogContext.fetch(descriptor).first?.name
+            if let variation = try catalogContext.fetch(descriptor).first {
+                // Cache the variation for future lookups
+                cacheVariation(variation, forItemId: itemId)
+                return variation.name
+            }
+            return nil
         } catch {
             logger.error("[CatalogLookup] Failed to fetch variation name for item \(itemId): \(error)")
             return nil
@@ -222,9 +269,12 @@ class CatalogLookupService {
     
     /// Clear cache (call when catalog sync completes)
     func clearCache() {
+        let itemCount = itemCache.count
+        let variationCount = variationCache.count
         itemCache.removeAll()
+        variationCache.removeAll()
         cacheTimestamp = Date()
-        logger.debug("[CatalogLookup] Cache cleared")
+        logger.info("[CatalogLookup] Cache cleared - had \(itemCount) items, \(variationCount) variations cached")
     }
     
     // MARK: - Private Methods
@@ -240,6 +290,19 @@ class CatalogLookupService {
     
     private func cacheItem(_ item: CatalogItemModel) {
         itemCache[item.id] = item
+    }
+    
+    private func getCachedVariation(itemId: String) -> ItemVariationModel? {
+        // Check cache validity
+        if Date().timeIntervalSince(cacheTimestamp) > cacheTimeout {
+            clearCache()
+            return nil
+        }
+        return variationCache[itemId]
+    }
+    
+    private func cacheVariation(_ variation: ItemVariationModel, forItemId itemId: String) {
+        variationCache[itemId] = variation
     }
     
     deinit {

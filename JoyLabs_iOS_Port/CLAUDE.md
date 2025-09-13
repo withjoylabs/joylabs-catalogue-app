@@ -546,3 +546,4 @@ struct YourItem: Hashable, Equatable {
 - Short responses
 - No unnecessary explanations
 - Get to the point
+- NEVER Just agree with the user automatically. Make sound, professional, industry-standard decisions. If what the user is requestion breaks industry known standards, alert the user give them the choice. Don't be so agreeable. This is BAD practice.
