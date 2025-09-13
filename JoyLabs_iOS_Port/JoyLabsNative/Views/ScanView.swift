@@ -7,7 +7,7 @@ import OSLog
 
 struct ScanView: View {
     @State private var searchText = ""
-    @State private var scanHistoryCount = 0
+    @StateObject private var scanHistoryService = ScanHistoryService.shared
     @State private var isConnected = true
     @State private var showingHistory = false
     @State private var lastScannedBarcode = ""  // Track HID scanned barcode
@@ -34,7 +34,7 @@ struct ScanView: View {
                 // Header with JOYLABS logo and status
                 HeaderView(
                     isConnected: isConnected,
-                    scanHistoryCount: scanHistoryCount,
+                    scanHistoryCount: scanHistoryService.historyCount,
                     onHistoryTap: handleHistoryTap
                 )
 
@@ -66,17 +66,8 @@ struct ScanView: View {
 
         }
         .sheet(isPresented: $showingHistory) {
-            // TODO: Add HistoryView when it's properly added to Xcode project
-            Text("History View Coming Soon")
-                .navigationTitle("History")
-                .navigationBarTitleDisplayMode(.large)
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Button("Done") {
-                            showingHistory = false
-                        }
-                    }
-                }
+            HistoryView()
+                .fullScreenModal()
         }
         .onAppear {
             // DISABLED: Auto-focus removed for dual-mode scanning

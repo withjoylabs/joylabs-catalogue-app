@@ -102,6 +102,7 @@
 		A1B2C3D4E5F6789012345869 /* LabelComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345870 /* LabelComponents.swift */; };
 		A1B2C3D4E5F6789012345871 /* ReorderComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345872 /* ReorderComponents.swift */; };
 		A285779AFC5B5E43CA497F39 /* LabelLiveSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11C6F817152E7F615D5CB415 /* LabelLiveSettingsView.swift */; };
+		A99C337FE3F75BE05BEB57D9 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D54BA6CB15FA90E0F4AF3C6 /* HistoryView.swift */; };
 		A9C706605B21C6648E3B386E /* ReorderExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FF78A1593BC7C4F813F02A7 /* ReorderExportService.swift */; };
 		AA5102A379E2429BBA60C844 /* NotificationPermissionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B0C0220C8486FC50DA6F922 /* NotificationPermissionView.swift */; };
 		AD8B808F513840B42B80FC25 /* ImageModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9205940EA8E08457B4F5C3D5 /* ImageModel.swift */; };
@@ -133,6 +134,7 @@
 		F3ABB8397F5F1D67F06A03EF /* SwiftDataFuzzySearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDE4F13329B14CC37A8AB1C4 /* SwiftDataFuzzySearch.swift */; };
 		F691E68C7ADFDA1137A12D8D /* ItemDeleteSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68CAE024F232AEDA149CF627 /* ItemDeleteSection.swift */; };
 		F734B51CB83D78322A781674 /* QuantitySelectionModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB32D29A7FF02592B9894919 /* QuantitySelectionModal.swift */; };
+		F7C69334112B308503A838E4 /* ScanHistoryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8538789665F0E91648E2EB2B /* ScanHistoryService.swift */; };
 		F807F15659615F6ED5E8E97D /* ReorderModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C4809FBB6B3D2AD55C570A9 /* ReorderModels.swift */; };
 		FB639BE785F378A20A1A5252 /* ItemMeasurementSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E3B3F77BC194AF2CF9CED6F /* ItemMeasurementSection.swift */; };
 		FBD9A264FF0F76391E23E3E1 /* DuplicateWarningView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84F97B5C958182F299BA523E /* DuplicateWarningView.swift */; };
@@ -202,7 +204,9 @@
 		83B4630F284C9954C9B0E498 /* SwiftDataCatalogStatsService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SwiftDataCatalogStatsService.swift; path = Core/Database/SwiftDataCatalogStatsService.swift; sourceTree = "<group>"; };
 		83DA115A5CBAC2BEC0885E7F /* SwiftDataSyncCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SwiftDataSyncCoordinator.swift; path = Core/Square/SwiftDataSyncCoordinator.swift; sourceTree = "<group>"; };
 		84F97B5C958182F299BA523E /* DuplicateWarningView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DuplicateWarningView.swift; path = Components/DuplicateWarningView.swift; sourceTree = "<group>"; };
+		8538789665F0E91648E2EB2B /* ScanHistoryService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ScanHistoryService.swift; path = Core/Services/ScanHistoryService.swift; sourceTree = "<group>"; };
 		8A51CB94E5784E7C6B6DF51E /* CustomConfirmationDialog.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CustomConfirmationDialog.swift; path = Components/CustomConfirmationDialog.swift; sourceTree = "<group>"; };
+		8D54BA6CB15FA90E0F4AF3C6 /* HistoryView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = HistoryView.swift; path = Views/HistoryView.swift; sourceTree = "<group>"; };
 		9205940EA8E08457B4F5C3D5 /* ImageModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ImageModel.swift; path = Models/SwiftData/ImageModel.swift; sourceTree = "<group>"; };
 		93826EA70F24FEB3F6F59BD6 /* AppDelegate.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = JoyLabsNative/AppDelegate.swift; sourceTree = "<group>"; };
 		94D98163B152C53C35F66FD4 /* NotificationSettingsService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Core/Services/NotificationSettingsService.swift; sourceTree = "<group>"; };
@@ -328,6 +332,7 @@
 				522EA5712FAC74516DFC29CF /* NotificationsView.swift */,
 				11C6F817152E7F615D5CB415 /* LabelLiveSettingsView.swift */,
 				07327BB46D9122D3CFCDB559 /* ReordersViewSwiftData.swift */,
+				8D54BA6CB15FA90E0F4AF3C6 /* HistoryView.swift */,
 			);
 			name = Views;
 			sourceTree = "<group>";
@@ -637,6 +642,7 @@
 				4F11337D485EAEE728164CE7 /* CentralItemUpdateManager.swift */,
 				1194A1F3F91FB0E4ACE16CAE /* ImageSaveService.swift */,
 				C520DA18887B1353B7282355 /* CatalogLookupService.swift */,
+				8538789665F0E91648E2EB2B /* ScanHistoryService.swift */,
 			);
 			name = Services;
 			sourceTree = "<group>";
@@ -877,6 +883,8 @@
 				7DFE6CF6196B175FAD5BC8DB /* SquareCropView.swift in Sources */,
 				9D7855B629B0AFB4487D02B1 /* ImageProcessor.swift in Sources */,
 				645853E561B6680131B3E716 /* CatalogLookupService.swift in Sources */,
+				F7C69334112B308503A838E4 /* ScanHistoryService.swift in Sources */,
+				A99C337FE3F75BE05BEB57D9 /* HistoryView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

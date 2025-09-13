@@ -21,6 +21,11 @@ class CentralItemUpdateManager: ObservableObject {
         return ReorderService.shared  // Always use the singleton
     }
     
+    // Scan History Service for tracking item operations
+    private var scanHistoryService: ScanHistoryService {
+        return ScanHistoryService.shared
+    }
+    
     // CENTRALIZED: Registry for ItemDetailsModals that need refreshing
     private var activeItemDetailsModals: [String: WeakReference<ItemDetailsViewModel>] = [:]
     
@@ -197,6 +202,9 @@ class CentralItemUpdateManager: ObservableObject {
             await catalogStatsService?.refreshStats()
         }
         
+        // Scan History: Track newly created items
+        await addItemToScanHistory(itemId: itemId, operation: .created)
+        
         // Future views: Add handling here as needed
     }
     
@@ -241,6 +249,9 @@ class CentralItemUpdateManager: ObservableObject {
         
         // ItemDetailsModal: Refresh any active modal showing this item
         await refreshItemDetailsModal(itemId: itemId)
+        
+        // Scan History: Track updated items  
+        await addItemToScanHistory(itemId: itemId, operation: .updated)
         
         // Future views: Add handling here as needed
     }
@@ -391,6 +402,48 @@ class CentralItemUpdateManager: ObservableObject {
         try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
         
         await viewModel.refreshItemData(itemId: itemId)
+    }
+    
+    /// Adds an item to scan history by fetching its current data from the database
+    private func addItemToScanHistory(itemId: String, operation: ScanHistoryOperation) async {
+        print("[CentralItemUpdateManager] Adding item to scan history: \(itemId) (\(operation.rawValue))")
+        
+        // Use CatalogLookupService to get item data
+        let catalogLookupService = CatalogLookupService.shared
+        
+        // Fetch the item data
+        guard let itemData = catalogLookupService.getItem(id: itemId) else {
+            print("[CentralItemUpdateManager] Item not found in catalog: \(itemId)")
+            return
+        }
+        
+        // Extract relevant data for history
+        let name = itemData.name
+        let sku = catalogLookupService.getSku(for: itemId)
+        let price = catalogLookupService.getCurrentPrice(for: itemId)
+        let barcode = catalogLookupService.getBarcode(for: itemId)
+        let categoryId = itemData.reportingCategoryId ?? itemData.categoryId  // Fallback pattern
+        let categoryName = itemData.reportingCategoryName ?? itemData.categoryName  // Match search results fallback
+        
+        // Debug logging to verify data
+        print("[History Debug] reportingCategoryName: '\(itemData.reportingCategoryName ?? "nil")'")
+        print("[History Debug] categoryName: '\(itemData.categoryName ?? "nil")'")
+        print("[History Debug] final categoryName: '\(categoryName ?? "nil")')")
+        
+        // Add to scan history on main actor
+        await MainActor.run {
+            scanHistoryService.addHistoryItem(
+                itemId: itemId,
+                name: name,
+                sku: sku,
+                price: price,
+                barcode: barcode,
+                categoryId: categoryId,
+                categoryName: categoryName,
+                operation: operation,
+                searchContext: nil  // Could be enhanced to track search context
+            )
+        }
     }
     
     deinit {

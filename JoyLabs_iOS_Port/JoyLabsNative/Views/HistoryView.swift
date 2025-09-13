@@ -3,21 +3,29 @@ import OSLog
 
 struct HistoryView: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var historyItems: [ScanHistoryItem] = []
+    @StateObject private var scanHistoryService = ScanHistoryService.shared
     @State private var isLoading = false
+    @State private var selectedItem: ScanHistoryItem?
+    @State private var showingItemDetails = false
     
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
                 if isLoading {
                     LoadingHistoryView()
-                } else if historyItems.isEmpty {
+                } else if scanHistoryService.historyItems.isEmpty {
                     EmptyHistoryView()
                 } else {
-                    HistoryListView(items: historyItems)
+                    HistoryListView(
+                        items: scanHistoryService.historyItems,
+                        onItemTap: { item in
+                            selectedItem = item
+                            showingItemDetails = true
+                        }
+                    )
                 }
             }
-            .navigationTitle("History")
+            .navigationTitle("Scan History")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -25,63 +33,56 @@ struct HistoryView: View {
                         dismiss()
                     }
                 }
+                
+                // Clear history button if there are items
+                if !scanHistoryService.historyItems.isEmpty {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button("Clear All") {
+                            scanHistoryService.clearHistory()
+                        }
+                        .foregroundColor(.red)
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showingItemDetails) {
+            if let selectedItem = selectedItem {
+                ItemDetailsModal(
+                    context: .editExisting(itemId: selectedItem.itemId),
+                    onDismiss: {
+                        showingItemDetails = false
+                        self.selectedItem = nil
+                    },
+                    onSave: { _ in
+                        showingItemDetails = false
+                        self.selectedItem = nil
+                    }
+                )
+                .fullScreenModal()
             }
         }
         .onAppear {
-            loadHistoryItems()
+            // No need to load - ScanHistoryService already loads on init
         }
     }
     
-    // MARK: - Actions
-    private func loadHistoryItems() {
-        isLoading = true
-        
-        // TODO: Load actual history items from database
-        // For now, create some mock data
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            historyItems = createMockHistoryItems()
-            isLoading = false
-        }
-    }
-    
-    private func createMockHistoryItems() -> [ScanHistoryItem] {
-        return [
-            ScanHistoryItem(
-                id: "1",
-                scanId: "scan_1",
-                scanTime: ISO8601DateFormatter().string(from: Date().addingTimeInterval(-3600)),
-                name: "Sample Product 1",
-                sku: "SKU001",
-                price: 19.99,
-                barcode: "1234567890123",
-                categoryId: "cat1",
-                categoryName: "Electronics"
-            ),
-            ScanHistoryItem(
-                id: "2",
-                scanId: "scan_2",
-                scanTime: ISO8601DateFormatter().string(from: Date().addingTimeInterval(-7200)),
-                name: "Sample Product 2",
-                sku: "SKU002",
-                price: 29.99,
-                barcode: "2345678901234",
-                categoryId: "cat2",
-                categoryName: "Home & Garden"
-            )
-        ]
-    }
 }
 
 // MARK: - History List View
 struct HistoryListView: View {
     let items: [ScanHistoryItem]
+    let onItemTap: (ScanHistoryItem) -> Void
     
     var body: some View {
-        List(items) { item in
-            HistoryItemCard(item: item)
+        List(Array(items.enumerated()), id: \.element.id) { index, item in
+            HistoryItemCard(item: item, index: index + 1)
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets())
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    onItemTap(item)
+                }
         }
         .listStyle(PlainListStyle())
         .scrollContentBackground(.hidden)
@@ -91,94 +92,158 @@ struct HistoryListView: View {
 // MARK: - History Item Card
 struct HistoryItemCard: View {
     let item: ScanHistoryItem
+    let index: Int
+    @State private var itemImageUrl: String?
+    @State private var variationName: String?
     
     var body: some View {
         HStack(spacing: 12) {
-            // Placeholder image
-            Rectangle()
-                .fill(Color(.systemGray5))
-                .frame(width: 50, height: 50)
-                .cornerRadius(6)
-                .overlay(
-                    Image(systemName: "photo")
-                        .foregroundColor(Color.secondary)
-                        .font(.system(size: 16))
-                )
+            // Index number
+            Text("\(index)")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(Color.secondary)
+                .frame(width: 20, alignment: .center)
             
-            // Item details
-            VStack(alignment: .leading, spacing: 6) {
-                Text(item.name ?? "Unknown Item")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.primary)
-                    .lineLimit(2)
-                
-                HStack(spacing: 8) {
-                    if let categoryName = item.categoryName, !categoryName.isEmpty {
-                        Text(categoryName)
-                            .font(.system(size: 11, weight: .medium))
+            // Item thumbnail using SimpleImageView
+            SimpleImageView.thumbnail(
+                imageURL: itemImageUrl,
+                size: 50
+            )
+            
+            // Item details - two row layout
+            VStack(alignment: .leading, spacing: 4) {
+                // Row 1: Name + variation (left) | Badge + Time (right)
+                HStack {
+                    // Left side: Name with variation
+                    HStack(spacing: 4) {
+                        Text(item.name ?? "Unknown Item")
+                            .font(.system(size: 16, weight: .medium))
                             .foregroundColor(.primary)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color(.systemGray4))
-                            .cornerRadius(4)
-                    }
-                    
-                    if let barcode = item.barcode, !barcode.isEmpty {
-                        Text(barcode)
-                            .font(.system(size: 11))
-                            .foregroundColor(Color.secondary)
-                    }
-
-                    // Bullet point separator (only if both UPC and SKU are present)
-                    if let barcode = item.barcode, !barcode.isEmpty,
-                       let sku = item.sku, !sku.isEmpty {
-                        Text("•")
-                            .font(.system(size: 11))
-                            .foregroundColor(Color.secondary)
-                    }
-
-                    if let sku = item.sku, !sku.isEmpty {
-                        Text(sku)
-                            .font(.system(size: 11))
-                            .foregroundColor(Color.secondary)
+                            .lineLimit(1)
+                        
+                        // Variation name with bullet separator
+                        if let variation = variationName, !variation.isEmpty {
+                            Text("•")
+                                .font(.system(size: 14))
+                                .foregroundColor(Color.secondary)
+                            
+                            Text(variation)
+                                .font(.system(size: 14, weight: .regular))
+                                .foregroundColor(Color.secondary)
+                                .lineLimit(1)
+                        }
                     }
                     
                     Spacer()
+                    
+                    // Right side: Timestamp + operation badge
+                    HStack(spacing: 6) {
+                        if let scanTime = ISO8601DateFormatter().date(from: item.scanTime) {
+                            Text(formatScanTime(scanTime))
+                                .font(.system(size: 10))
+                                .foregroundColor(Color.secondary)
+                        }
+                        
+                        Text(item.operation.displayName)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(operationColor)
+                            .cornerRadius(8)
+                    }
                 }
                 
-                // Scan time
-                if let scanTime = ISO8601DateFormatter().date(from: item.scanTime) {
-                    Text(formatScanTime(scanTime))
-                        .font(.system(size: 10))
-                        .foregroundColor(Color.secondary)
+                // Row 2: Category + UPC + SKU (left) | Price (right)
+                HStack {
+                    // Left side: Category badge and identifiers
+                    HStack(spacing: 8) {
+                        if let categoryName = item.categoryName, !categoryName.isEmpty {
+                            Text(categoryName)
+                                .font(.system(size: 11, weight: .regular))
+                                .foregroundColor(Color.secondary)
+                                .fixedSize(horizontal: true, vertical: false)
+                                .lineLimit(1)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color(.systemGray5))
+                                .cornerRadius(4)
+                        }
+                        
+                        if let barcode = item.barcode, !barcode.isEmpty {
+                            Text("•")
+                                .font(.system(size: 11))
+                                .foregroundColor(Color.secondary)
+                            
+                            Text(barcode)
+                                .font(.system(size: 11))
+                                .foregroundColor(Color.secondary)
+                                .lineLimit(1)
+                        }
+
+                        if let sku = item.sku, !sku.isEmpty {
+                            Text("•")
+                                .font(.system(size: 11))
+                                .foregroundColor(Color.secondary)
+                            
+                            Text(sku)
+                                .font(.system(size: 11))
+                                .foregroundColor(Color.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    // Right side: Price
+                    if let price = item.price, price.isFinite && !price.isNaN {
+                        Text("$\(price, specifier: "%.2f")")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.primary)
+                    }
                 }
-            }
-            
-            Spacer()
-            
-            // Price
-            if let price = item.price, price.isFinite && !price.isNaN {
-                Text("$\(price, specifier: "%.2f")")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.primary)
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.vertical, 12)
         .background(Color(.systemBackground))
         .overlay(
-            // Subtle divider line
+            // Bottom separator line
             VStack {
                 Spacer()
-                HStack {
-                    Spacer()
-                        .frame(width: 62)
-                    Rectangle()
-                        .fill(Color(.separator))
-                        .frame(height: 0.5)
-                }
+                Rectangle()
+                    .fill(Color(.separator))
+                    .frame(height: 0.5)
+                    .padding(.leading, 98) // Indent to align with content
             }
         )
+        .onAppear {
+            loadItemData()
+        }
+    }
+    
+    private var operationColor: Color {
+        switch item.operation {
+        case .created:
+            return .green
+        case .updated:
+            return .blue
+        }
+    }
+    
+    private func loadItemData() {
+        Task {
+            let catalogLookupService = CatalogLookupService.shared
+            if let catalogItem = catalogLookupService.getItem(id: item.itemId) {
+                let variation = catalogLookupService.getVariationName(for: item.itemId)
+                
+                await MainActor.run {
+                    itemImageUrl = catalogItem.primaryImageUrl
+                    variationName = variation
+                }
+            }
+        }
     }
     
     private func formatScanTime(_ date: Date) -> String {
@@ -213,14 +278,15 @@ struct EmptyHistoryView: View {
                 .foregroundColor(Color.secondary)
             
             VStack(spacing: 8) {
-                Text("No History Yet")
+                Text("No Scan History")
                     .font(.headline)
                     .foregroundColor(.primary)
                 
-                Text("Items you scan or modify will appear here")
+                Text("Items you create or edit will appear here for easy access")
                     .font(.subheadline)
                     .foregroundColor(Color.secondary)
                     .multilineTextAlignment(.center)
+                    .padding(.horizontal)
             }
             
             Spacer()

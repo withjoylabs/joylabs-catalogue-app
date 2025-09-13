@@ -46,9 +46,9 @@ struct SearchFilters {
 }
 
 // MARK: - Scan History Models
-struct ScanHistoryItem: Identifiable, Codable {
+struct ScanHistoryItem: Identifiable, Codable, Hashable {
     let id: String
-    let scanId: String
+    let itemId: String  // Catalog item ID for editing
     let scanTime: String
     let name: String?
     let sku: String?
@@ -56,10 +56,24 @@ struct ScanHistoryItem: Identifiable, Codable {
     let barcode: String?
     let categoryId: String?
     let categoryName: String?
+    let operation: ScanHistoryOperation  // Created or Updated
+    let searchContext: String?  // Original search query or scan context
 
-    init(id: String, scanId: String, scanTime: String, name: String?, sku: String?, price: Double?, barcode: String?, categoryId: String?, categoryName: String?) {
+    init(
+        id: String,
+        itemId: String,
+        scanTime: String,
+        name: String?,
+        sku: String?,
+        price: Double?,
+        barcode: String?,
+        categoryId: String?,
+        categoryName: String?,
+        operation: ScanHistoryOperation = .created,
+        searchContext: String? = nil
+    ) {
         self.id = id
-        self.scanId = scanId
+        self.itemId = itemId
         self.scanTime = scanTime
         self.name = name
         self.sku = sku
@@ -67,6 +81,66 @@ struct ScanHistoryItem: Identifiable, Codable {
         self.barcode = barcode
         self.categoryId = categoryId
         self.categoryName = categoryName
+        self.operation = operation
+        self.searchContext = searchContext
+    }
+    
+    // Hashable conformance for SwiftUI ForEach
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(itemId)
+        hasher.combine(operation)
+        hasher.combine(name)
+        hasher.combine(price)
+        hasher.combine(sku)
+        hasher.combine(barcode)
+        hasher.combine(categoryName)
+        hasher.combine(scanTime)
+    }
+    
+    static func == (lhs: ScanHistoryItem, rhs: ScanHistoryItem) -> Bool {
+        return lhs.id == rhs.id &&
+               lhs.itemId == rhs.itemId &&
+               lhs.operation == rhs.operation &&
+               lhs.name == rhs.name &&
+               lhs.price == rhs.price &&
+               lhs.sku == rhs.sku &&
+               lhs.barcode == rhs.barcode &&
+               lhs.categoryName == rhs.categoryName &&
+               lhs.scanTime == rhs.scanTime
+    }
+}
+
+// MARK: - Scan History Operation Type
+enum ScanHistoryOperation: String, Codable, CaseIterable {
+    case created = "created"
+    case updated = "updated"
+    
+    var displayName: String {
+        switch self {
+        case .created:
+            return "Created"
+        case .updated:
+            return "Updated"
+        }
+    }
+    
+    var systemImage: String {
+        switch self {
+        case .created:
+            return "plus.circle.fill"
+        case .updated:
+            return "pencil.circle.fill"
+        }
+    }
+    
+    var color: String {
+        switch self {
+        case .created:
+            return "green"
+        case .updated:
+            return "blue"
+        }
     }
 }
 
