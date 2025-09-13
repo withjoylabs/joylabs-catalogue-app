@@ -13,7 +13,7 @@ struct ScanView: View {
     @State private var lastScannedBarcode = ""  // Track HID scanned barcode
     @State private var originalSearchQuery = ""  // Track original search query for refresh
     @StateObject private var searchManager: SearchManager = {
-        // Use the shared database manager that's already connected in Phase 1
+        // Use factory method to get shared database manager instance  
         let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
         return SwiftDataSearchManager(databaseManager: databaseManager)
     }()

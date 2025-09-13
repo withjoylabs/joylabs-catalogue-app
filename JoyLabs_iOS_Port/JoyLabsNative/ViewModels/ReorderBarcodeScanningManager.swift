@@ -18,6 +18,10 @@ class ReorderBarcodeScanningManager: ObservableObject {
     let searchManager: SearchManager  // Made public for CentralItemUpdateManager access
     private weak var reorderService: ReorderService?  // SwiftData support
     
+    // Task management for preventing race conditions
+    private var currentSearchTask: Task<Void, Never>?
+    private var currentChainScanTask: Task<Void, Never>?
+    
     // Closure-based modal handlers (instead of weak protocol reference)
     private var showQuantityModalHandler: ((SearchResultItem) -> Void)?
     private var isModalShowingHandler: (() -> Bool)?
@@ -86,8 +90,11 @@ class ReorderBarcodeScanningManager: ObservableObject {
         let currentQuantity = getCurrentQuantityHandler?() ?? 1
         print("🔗 CHAIN SCAN DEBUG: Submitting '\(currentItem.name ?? "Unknown")' with quantity: \(currentQuantity)")
         
+        // Cancel any existing chain scan task
+        currentChainScanTask?.cancel()
+        
         // Submit current item asynchronously using ReorderService
-        Task {
+        currentChainScanTask = Task {
             await MainActor.run {
                 print("📱 Chain scan: submitting \(currentItem.name ?? "Unknown") with quantity: \(currentQuantity)")
                 reorderService?.addOrUpdateItem(from: currentItem, quantity: currentQuantity)
@@ -117,9 +124,23 @@ class ReorderBarcodeScanningManager: ObservableObject {
         // CRITICAL FIX: Clear search manager state to ensure fresh search with offset 0
         searchManager.clearSearch()
         
+        // Cancel any existing search task to prevent race conditions
+        currentSearchTask?.cancel()
+        
         // Use optimized HID scanner search - 10x faster than fuzzy search for exact barcode lookups
-        Task {
+        currentSearchTask = Task {
+            guard !Task.isCancelled else {
+                await MainActor.run { isProcessingBarcode = false }
+                return
+            }
+            
             let results = await searchManager.performAppLevelHIDScannerSearch(barcode: barcode)
+            
+            // Check cancellation before processing results
+            guard !Task.isCancelled else {
+                await MainActor.run { isProcessingBarcode = false }
+                return
+            }
             
             // Process results immediately (same performance as scan page)
             await MainActor.run {
@@ -149,6 +170,12 @@ class ReorderBarcodeScanningManager: ObservableObject {
     // MARK: - State Management
     func resetProcessingState() {
         isProcessingBarcode = false
+        
+        // Cancel any pending tasks to prevent race conditions
+        currentSearchTask?.cancel()
+        currentChainScanTask?.cancel()
+        currentSearchTask = nil
+        currentChainScanTask = nil
     }
     
     func clearSearchText() {

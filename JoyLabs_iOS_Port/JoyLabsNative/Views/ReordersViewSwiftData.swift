@@ -99,12 +99,25 @@ struct ReordersViewSwiftData: SwiftUI.View {
     private func updateCachedBridgedItems() {
         // Only update if items actually changed
         if reorderItems.count != lastReorderItemsCount {
-            cachedBridgedItems = reorderItems.map { convertToReorderItem($0) }
+            // PERFORMANCE OPTIMIZATION: Use batch conversion to reduce database queries
+            cachedBridgedItems = convertToReorderItemsBatch(reorderItems)
             lastReorderItemsCount = reorderItems.count
             
             // PERFORMANCE: Also update stats cache in single pass
             updateCachedStats()
         }
+    }
+    
+    // Force update cache regardless of count changes (for property changes like status updates)
+    private func forceUpdateCachedBridgedItems() {
+        // FIX: Always update cache when individual item properties change
+        cachedBridgedItems = convertToReorderItemsBatch(reorderItems)
+        lastReorderItemsCount = reorderItems.count
+        
+        // Update stats cache to reflect status changes
+        updateCachedStats()
+        
+        print("🔄 [ReordersViewSwiftData] Force updated cached bridged items due to property changes")
     }
     
     private func updateCachedStats() {
@@ -237,8 +250,12 @@ struct ReordersViewSwiftData: SwiftUI.View {
             updateCachedBridgedItems()
         }
         .onChange(of: reorderItems.count) { _, _ in
-            // PERFORMANCE: Update cache when items change
+            // PERFORMANCE: Update cache when item count changes
             updateCachedBridgedItems()
+        }
+        .onChange(of: reorderItems) { _, _ in
+            // FIX: Update cache when individual item properties change (status, quantity, etc.)
+            forceUpdateCachedBridgedItems()
         }
         .onChange(of: isScannerFieldFocused) { oldValue, newValue in
             // Notify ContentView of focus state changes for AppLevelHIDScanner
@@ -371,6 +388,12 @@ struct ReordersViewSwiftData: SwiftUI.View {
     private func updateItemStatus(_ itemId: String, _ newStatus: ReorderItemStatus) {
         ReorderService.shared.updateItemStatus(itemId, status: newStatus)
         
+        // FIX: Force immediate cache refresh to ensure UI updates instantly
+        // The onChange(of: reorderItems) will also trigger, but this ensures immediate response
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
+            self.forceUpdateCachedBridgedItems()
+        }
+        
         let statusName = newStatus.displayName
         ToastNotificationService.shared.showSuccess("Item marked as \(statusName)")
     }
@@ -475,6 +498,67 @@ struct ReordersViewSwiftData: SwiftUI.View {
     }
     
     // MARK: - CRITICAL: Professional Bridge Conversion Functions
+    
+    /// Batch conversion method that pre-fetches all catalog data to avoid N+1 queries
+    private func convertToReorderItemsBatch(_ swiftDataItems: [ReorderItemModel]) -> [ReorderItem] {
+        guard !swiftDataItems.isEmpty else { return [] }
+        
+        // PERFORMANCE: Collect all unique catalog item IDs for batch lookup
+        let catalogItemIds = Array(Set(swiftDataItems.map { $0.catalogItemId }))
+        
+        // PERFORMANCE: Batch fetch all catalog items needed in one query
+        let catalogItems = CatalogLookupService.shared.getItems(ids: catalogItemIds)
+        let catalogItemsDict = Dictionary(uniqueKeysWithValues: catalogItems.map { ($0.id, $0) })
+        
+        // Convert all items using pre-fetched catalog data
+        return swiftDataItems.map { swiftDataItem in
+            convertToReorderItemWithCatalogData(swiftDataItem, catalogItem: catalogItemsDict[swiftDataItem.catalogItemId])
+        }
+    }
+    
+    /// Convert single item using pre-fetched catalog data (eliminates computed property database calls)
+    private func convertToReorderItemWithCatalogData(_ swiftDataItem: ReorderItemModel, catalogItem: CatalogItemModel?) -> ReorderItem {
+        var reorderItem = ReorderItem(
+            id: swiftDataItem.id,
+            itemId: swiftDataItem.catalogItemId,
+            name: swiftDataItem.nameOverride ?? catalogItem?.name ?? "Unknown Item",
+            sku: catalogItem?.variations?.first(where: { !$0.isDeleted })?.sku,
+            barcode: catalogItem?.variations?.first(where: { !$0.isDeleted })?.upc,
+            variationName: catalogItem?.variations?.first(where: { !$0.isDeleted })?.name,
+            quantity: swiftDataItem.quantity,
+            status: swiftDataItem.statusEnum,
+            addedDate: swiftDataItem.addedDate,
+            notes: swiftDataItem.notes
+        )
+        
+        // Set additional properties from catalog data (not computed properties)
+        reorderItem.categoryName = catalogItem?.reportingCategoryName ?? catalogItem?.categoryName
+        reorderItem.vendor = nil  // Team data not implemented yet
+        reorderItem.unitCost = nil  // Team data not implemented yet  
+        reorderItem.caseUpc = nil  // Team data not implemented yet
+        reorderItem.caseCost = nil  // Team data not implemented yet
+        reorderItem.caseQuantity = nil  // Team data not implemented yet
+        
+        // Calculate price from variation data directly
+        if let variation = catalogItem?.variations?.first(where: { !$0.isDeleted }),
+           let priceAmount = variation.priceAmount, priceAmount > 0 {
+            let convertedPrice = Double(priceAmount) / 100.0
+            reorderItem.price = convertedPrice.isFinite && !convertedPrice.isNaN && convertedPrice > 0 ? convertedPrice : nil
+        }
+        
+        // Get image URL from catalog data directly
+        reorderItem.imageUrl = catalogItem?.primaryImageUrl
+        reorderItem.imageId = nil  // Not stored directly, use imageUrl
+        
+        // Calculate tax status from catalog data directly
+        reorderItem.hasTax = (catalogItem?.taxes?.count ?? 0) > 0
+        
+        reorderItem.priority = swiftDataItem.priorityEnum
+        reorderItem.purchasedDate = swiftDataItem.purchasedDate
+        reorderItem.receivedDate = swiftDataItem.receivedDate
+        
+        return reorderItem
+    }
     
     private func convertToReorderItem(_ swiftDataItem: ReorderItemModel) -> ReorderItem {
         // Professional conversion: SwiftData → ReorderItem for UI compatibility
