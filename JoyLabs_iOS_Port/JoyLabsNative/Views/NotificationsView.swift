@@ -4,7 +4,6 @@ import OSLog
 /// Notifications View - Shows real-time notifications and system status
 struct NotificationsView: View {
     @ObservedObject private var webhookNotificationService = WebhookNotificationService.shared
-    @ObservedObject private var webhookManager = WebhookManager.shared
     @ObservedObject private var pushNotificationService = PushNotificationService.shared
     @Environment(\.dismiss) private var dismiss
     @State private var selectedTab = 0
@@ -53,12 +52,6 @@ struct NotificationsView: View {
                         Button("Clear All") {
                             webhookNotificationService.clearAllNotifications()
                             ToastNotificationService.shared.showSuccess("All notifications cleared")
-                        }
-                        
-                        Divider()
-                        
-                        Button("Test Webhook") {
-                            testWebhook()
                         }
                         
                         Divider()
@@ -313,15 +306,6 @@ struct NotificationsView: View {
     
     // MARK: - Helper Methods
     
-    private func testWebhook() {
-        Task {
-            await webhookManager.simulateWebhookForTesting(
-                eventType: "catalog.object.updated",
-                objectId: "test-item-\(Int.random(in: 1000...9999))",
-                objectType: "ITEM"
-            )
-        }
-    }
     
     
     private func formatDate(_ date: Date) -> String {

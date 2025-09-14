@@ -62,6 +62,9 @@ class SwiftDataCatalogSyncService: ObservableObject {
                 await MainActor.run {
                     self.syncState = .completed
                     self.logger.info("[Sync] Full sync completed successfully")
+
+                    // Notify completion for statistics refresh and cache clearing
+                    NotificationCenter.default.post(name: .catalogSyncCompleted, object: nil, userInfo: nil)
                 }
                 
             } catch is CancellationError {
@@ -104,6 +107,9 @@ class SwiftDataCatalogSyncService: ObservableObject {
                 await MainActor.run {
                     self.syncState = .completed
                     self.logger.info("[Sync] Incremental sync completed successfully")
+
+                    // Notify completion for statistics refresh and cache clearing
+                    NotificationCenter.default.post(name: .catalogSyncCompleted, object: nil, userInfo: nil)
                 }
                 
             } catch is CancellationError {

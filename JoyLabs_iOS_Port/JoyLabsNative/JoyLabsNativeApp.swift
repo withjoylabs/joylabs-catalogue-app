@@ -65,7 +65,7 @@ struct JoyLabsNativeApp: App {
         print("✅ [App] ReorderService initialized with model context")
         
         // Then initialize remaining services asynchronously
-        initializeRemainingServicesAsync()
+        initializeRemainingServicesAsync(appDelegate: appDelegate)
     }
 
     var body: some Scene {
@@ -126,8 +126,6 @@ struct JoyLabsNativeApp: App {
         // Pre-initialize singleton services to prevent creation during Phase 2
         let _ = PushNotificationService.shared
         let _ = SimpleImageService.shared
-        let _ = WebhookService.shared
-        let _ = WebhookManager.shared
         let _ = WebhookNotificationService.shared
         let _ = NotificationSettingsService.shared
         let _ = LocationCacheManager.shared
@@ -149,34 +147,29 @@ struct JoyLabsNativeApp: App {
         }
     }
     
-    private func initializeRemainingServicesAsync() {
+    private func initializeRemainingServicesAsync(appDelegate: AppDelegate) {
         logger.info("[App] Phase 2: Starting catch-up sync and service initialization...")
-        
+
         Task.detached(priority: .high) {
+            logger.info("[App] Phase 2: Starting catch-up sync and location loading...")
+
+            // Load locations first (required for item modals)
+            await LocationCacheManager.shared.loadLocations()
+
+            // Catch-up sync enabled - performs incremental sync on app launch
+            await performAppLaunchCatchUpSync()
+
+            // PHASE 3: Enable push token registration now that catch-up sync is complete
             await MainActor.run {
+                logger.info("[App] Phase 3: Push notification system ready")
+
+                // PHASE 4: Enable push token registration now that catch-up sync is complete
+                logger.info("[App] Calling appDelegate.notifyCatchUpSyncComplete() directly...")
+                appDelegate.notifyCatchUpSyncComplete()
+                logger.info("[App] appDelegate.notifyCatchUpSyncComplete() completed")
+
                 Task {
-                    logger.info("[App] Phase 2: Starting catch-up sync and location loading...")
-                    
-                    // Load locations first (required for item modals)
-                    await LocationCacheManager.shared.loadLocations()
-                    
-                    // Catch-up sync disabled per user request
-                    // await performAppLaunchCatchUpSync()
-                    
-                    // PHASE 3: Initialize webhook system AFTER catch-up sync completes
-                    await MainActor.run {
-                        WebhookManager.shared.startWebhookProcessing()
-                        logger.info("[App] Phase 3: Webhook system initialized after catch-up sync")
-                        
-                        // PHASE 4: Enable push token registration now that catch-up sync is complete
-                        if let appDelegate = UIApplication.shared.delegate as? AppDelegate {
-                            appDelegate.notifyCatchUpSyncComplete()
-                        }
-                        
-                        Task {
-                            await finalizePushNotificationSetup()
-                        }
-                    }
+                    await finalizePushNotificationSetup()
                 }
             }
         }
@@ -231,6 +224,9 @@ struct JoyLabsNativeApp: App {
             // This should be incremental sync, not full resync
             // The sync coordinator should only fetch objects modified since the last cursor/timestamp
             await syncCoordinator.performIncrementalSync()
+
+            // Wait for sync to actually complete (performIncrementalSync returns immediately but runs Task.detached)
+            await waitForSyncCompletion(syncCoordinator: syncCoordinator)
             
             // Count items after sync to see what changed
             // Database is already connected from Phase 1
@@ -240,9 +236,20 @@ struct JoyLabsNativeApp: App {
             logger.info("[App] Phase 2: App launch incremental catch-up sync completed successfully - \(itemsUpdated) items updated")
             
             // Always create in-app notification about sync results (silent - no iOS notification banner)
-            // Use actual sync result data instead of flawed item count difference
-            let syncResult = syncCoordinator.lastSyncResult
-            await createInAppNotificationForSync(syncResult: syncResult, reason: "app launch")
+            // Use fresh sync progress data from the sync that just completed
+            let freshSyncProgress = syncCoordinator.catalogSyncService.syncProgress
+            let freshSyncResult = SyncResult(
+                syncType: .incremental,
+                duration: 0, // Duration not critical for UI notification
+                totalProcessed: freshSyncProgress.syncedObjects,
+                itemsProcessed: freshSyncProgress.syncedItems,
+                inserted: 0,
+                updated: freshSyncProgress.syncedObjects,
+                deleted: 0,
+                errors: [],
+                timestamp: Date()
+            )
+            await createInAppNotificationForSync(syncResult: freshSyncResult, reason: "app launch")
             
             // Post notification to update UI with detailed sync results
             NotificationCenter.default.post(
@@ -367,5 +374,18 @@ struct JoyLabsNativeApp: App {
         } else {
             logger.debug("URL is not a Square callback: \(url.absoluteString)")
         }
+    }
+
+    /// Wait for sync coordinator to actually complete (since performIncrementalSync returns immediately)
+    private func waitForSyncCompletion(syncCoordinator: SwiftDataSyncCoordinator) async {
+        logger.info("[App] Waiting for sync coordinator to finish actual sync work...")
+
+        // Poll sync state until it's no longer syncing
+        while syncCoordinator.syncState == SwiftDataSyncCoordinator.SyncState.syncing {
+            logger.debug("[App] Sync still running, waiting 100ms...")
+            try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
+        }
+
+        logger.info("[App] Sync coordinator finished with state: \(syncCoordinator.syncState.description)")
     }
 }

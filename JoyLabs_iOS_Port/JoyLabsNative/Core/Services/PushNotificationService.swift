@@ -324,21 +324,6 @@ extension PushNotificationService {
             logger.info("[PushNotification] Creating webhook notification...")
             await createInAppNotificationForWebhookSync(syncResult: syncResult, eventId: eventId, isSilent: isSilent)
             
-            // Post notification to update UI with detailed sync results
-            NotificationCenter.default.post(
-                name: .catalogSyncCompleted,
-                object: nil,
-                userInfo: [
-                    "reason": "catalog_updated_via_push_notification",
-                    "eventId": eventId,
-                    "merchantId": merchantId,
-                    "itemsUpdated": itemsUpdated,
-                    "itemCountBefore": itemCountBefore,
-                    "itemCountAfter": itemCountAfter,
-                    "timestamp": ISO8601DateFormatter().string(from: Date())
-                ]
-            )
-            
         } catch {
             logger.error("❌ Catalog sync failed for webhook event \(eventId): \(error)")
             

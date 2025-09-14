@@ -90,25 +90,9 @@ extension WebhookNotificationService {
     
     /// Setup observers for webhook-related notifications
     private func setupWebhookObservers() {
-        // Observe webhook status changes (but don't create confusing UI notifications)
-        WebhookManager.shared.$isActive
-            .dropFirst() // Skip initial false value to avoid "stopped" message on startup
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] isActive in
-                self?.isWebhookActive = isActive
-                // Only log actual state changes, not initial states
-                self?.logger.debug("[WebhookNotification] Webhook system \(isActive ? "started" : "stopped")")
-            }
-            .store(in: &cancellables)
-        
-        // Observe webhook processing results
-        WebhookManager.shared.$lastProcessedWebhook
-            .compactMap { $0 }
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] processedWebhook in
-                self?.handleProcessedWebhook(processedWebhook)
-            }
-            .store(in: &cancellables)
+        // Direct webhook processing is no longer supported
+        // Push notification-based webhooks are handled by PushNotificationService
+        isWebhookActive = true // Push notifications are always active when configured
         
         // Observe image refresh notifications
         NotificationCenter.default.publisher(for: .forceImageRefresh)
@@ -129,29 +113,6 @@ extension WebhookNotificationService {
         logger.debug("[WebhookNotification] Webhook notification observers configured")
     }
     
-    /// Handle processed webhook events
-    private func handleProcessedWebhook(_ processedWebhook: ProcessedWebhook) {
-        lastWebhookReceived = processedWebhook.timestamp
-        webhookStats.totalReceived += 1
-        
-        if processedWebhook.success {
-            webhookStats.totalProcessed += 1
-            addWebhookNotification(
-                title: "Webhook Processed",
-                message: "Successfully processed \(processedWebhook.eventType) event",
-                type: .success,
-                eventType: processedWebhook.eventType
-            )
-        } else {
-            webhookStats.totalFailed += 1
-            addWebhookNotification(
-                title: "Webhook Failed",
-                message: processedWebhook.error ?? "Unknown error",
-                type: .error,
-                eventType: processedWebhook.eventType
-            )
-        }
-    }
     
     /// Handle image refresh notifications triggered by webhooks
     private func handleImageRefreshNotification(_ notification: Notification) {
