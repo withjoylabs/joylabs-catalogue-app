@@ -30,6 +30,7 @@ class CatalogLookupService {
     }
     
     private func setupCatalogSyncObserver() {
+        // Clear full cache when catalog sync completes
         NotificationCenter.default.addObserver(
             forName: .catalogSyncCompleted,
             object: nil,
@@ -37,6 +38,17 @@ class CatalogLookupService {
         ) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.clearCache()
+            }
+        }
+
+        // Clear image cache when images are specifically updated
+        NotificationCenter.default.addObserver(
+            forName: .imageUpdated,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            MainActor.assumeIsolated {
+                self?.clearImageCache()
             }
         }
     }
@@ -49,27 +61,23 @@ class CatalogLookupService {
         if let cachedItem = getCachedItem(id: id) {
             return cachedItem
         }
-        
+
         // Fetch from database
-        do {
-            let descriptor = FetchDescriptor<CatalogItemModel>(
-                predicate: #Predicate { item in
-                    item.id == id && !item.isDeleted
-                }
-            )
-            
-            let item = try catalogContext.fetch(descriptor).first
-            
-            // Cache the result
-            if let item = item {
-                cacheItem(item)
+        var descriptor = FetchDescriptor<CatalogItemModel>(
+            predicate: #Predicate { item in
+                item.id == id && !item.isDeleted
             }
-            
-            return item
-        } catch {
-            logger.error("[CatalogLookup] Failed to fetch item \(id): \(error)")
+        )
+        // Prefetch images relationship to ensure they're loaded
+        descriptor.relationshipKeyPathsForPrefetching = [\.images]
+
+        guard let item = try? catalogContext.fetch(descriptor).first else {
             return nil
         }
+
+        // Cache the result
+        cacheItem(item)
+        return item
     }
     
     /// Get multiple catalog items by IDs (batch lookup for efficiency)
@@ -91,20 +99,20 @@ class CatalogLookupService {
         // Fetch missing items from database
         var fetchedItems: [CatalogItemModel] = []
         if !missingIds.isEmpty {
-            do {
-                let descriptor = FetchDescriptor<CatalogItemModel>(
-                    predicate: #Predicate { item in
-                        missingIds.contains(item.id) && !item.isDeleted
-                    }
-                )
-                
-                fetchedItems = try catalogContext.fetch(descriptor)
-                
+            var descriptor = FetchDescriptor<CatalogItemModel>(
+                predicate: #Predicate { item in
+                    missingIds.contains(item.id) && !item.isDeleted
+                }
+            )
+            // Prefetch images relationship to ensure they're loaded
+            descriptor.relationshipKeyPathsForPrefetching = [\.images]
+
+            if let results = try? catalogContext.fetch(descriptor) {
+                fetchedItems = results
                 // Cache fetched items
                 fetchedItems.forEach { cacheItem($0) }
-                
-            } catch {
-                logger.error("[CatalogLookup] Failed to batch fetch items: \(error)")
+            } else {
+                logger.error("[CatalogLookup] Failed to batch fetch items for IDs: \(missingIds)")
             }
         }
         
@@ -275,6 +283,40 @@ class CatalogLookupService {
         variationCache.removeAll()
         cacheTimestamp = Date()
         logger.info("[CatalogLookup] Cache cleared - had \(itemCount) items, \(variationCount) variations cached")
+    }
+
+    /// Get catalog item by ID with fresh database lookup (bypasses cache)
+    /// Use this for image URLs to ensure they're always fresh
+    func getItemFresh(id: String) -> CatalogItemModel? {
+        var descriptor = FetchDescriptor<CatalogItemModel>(
+            predicate: #Predicate { item in
+                item.id == id && !item.isDeleted
+            }
+        )
+        // Always prefetch images for fresh lookups
+        descriptor.relationshipKeyPathsForPrefetching = [\.images]
+
+        guard let item = try? catalogContext.fetch(descriptor).first else {
+            return nil
+        }
+
+        // Update cache with fresh data
+        cacheItem(item)
+        return item
+    }
+
+    /// Get primary image URL with guaranteed fresh database lookup
+    func getPrimaryImageURLFresh(for itemId: String) -> String? {
+        let item = getItemFresh(id: itemId)
+        return item?.primaryImageUrl
+    }
+
+    /// Clear cache specifically for image-related data
+    func clearImageCache() {
+        // Clear item cache to force fresh image relationship loading
+        itemCache.removeAll()
+        cacheTimestamp = Date()
+        logger.info("[CatalogLookup] Image cache cleared - forcing fresh image relationship lookups")
     }
     
     // MARK: - Private Methods

@@ -80,11 +80,11 @@ final class ReorderItemModel {
         }
     }
     
-    /// Current catalog image URL (live lookup from SwiftData)  
+    /// Current catalog image URL (live lookup from SwiftData)
     var imageUrl: String? {
         return MainActor.assumeIsolated {
             let item = CatalogLookupService.shared.getItem(id: catalogItemId)
-            return item?.primaryImageUrl  // Uses CatalogItemModel.images?.first?.url
+            return item?.primaryImageUrl
         }
     }
     

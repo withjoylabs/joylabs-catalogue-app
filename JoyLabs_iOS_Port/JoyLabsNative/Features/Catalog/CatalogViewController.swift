@@ -301,19 +301,11 @@ struct CatalogItemRow: View {
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 12) {
-                // Item image
-                AsyncImage(url: item.images?.first?.imageData?.url.flatMap(URL.init)) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                } placeholder: {
-                    Rectangle()
-                        .fill(Color(.systemGray5))
-                        .overlay(
-                            Image(systemName: "photo")
-                                .foregroundColor(Color.secondary)
-                        )
-                }
+                // Item image using SimpleImageView
+                SimpleImageView.thumbnail(
+                    imageURL: item.images?.first?.imageData?.url,
+                    size: 50
+                )
                 .frame(width: 60, height: 60)
                 .cornerRadius(8)
                 .clipped()

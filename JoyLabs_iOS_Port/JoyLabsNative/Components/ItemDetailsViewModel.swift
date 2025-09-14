@@ -949,13 +949,13 @@ class ItemDetailsViewModel: ObservableObject {
             // PERFORMANCE OPTIMIZATION: Load pre-resolved tax and modifier names from database
             await loadPreResolvedNamesForCurrentItem()
 
-            // Images - use unified image service
+            // Images - use unified image service with CatalogLookupService
             if let itemId = self.staticData.id {
-                let primaryImageInfo = getPrimaryImageInfo(for: itemId)
-                if let imageInfo = primaryImageInfo {
-                    self.imageURL = imageInfo.imageURL
-                    self.imageId = imageInfo.imageId // Use actual Square Image ID
-                    logger.info("Loaded image for item modal: \(imageInfo.imageURL) (ID: \(imageInfo.imageId))")
+                let imageURL = getPrimaryImageURL(for: itemId)
+                if let imageURL = imageURL {
+                    self.imageURL = imageURL
+                    self.imageId = nil  // Use URL-based approach, not Square Image ID
+                    logger.info("Loaded image for item modal: \(imageURL)")
                 } else {
                     logger.info("No images found for item: \(itemId)")
                 }
@@ -1071,43 +1071,6 @@ class ItemDetailsViewModel: ObservableObject {
 
     // MARK: - Unified Image Integration
 
-    /// Get primary image info using SwiftData relationships
-    private func getPrimaryImageInfo(for itemId: String) -> (imageURL: String, imageId: String)? {
-        logger.info("🔍 [MODAL] Getting primary image info for item: \(itemId)")
-
-        do {
-            let db = databaseManager.getContext()
-            
-            // Get item with its image relationships
-            let descriptor = FetchDescriptor<CatalogItemModel>(
-                predicate: #Predicate { item in
-                    item.id == itemId && item.isDeleted == false
-                }
-            )
-            
-            let catalogItems = try db.fetch(descriptor)
-            if let catalogItem = catalogItems.first,
-               let images = catalogItem.images,
-               let primaryImage = images.first {
-                
-                logger.info("🔍 [MODAL] Found primary image via SwiftData relationship: \(primaryImage.id)")
-                
-                if let imageUrl = primaryImage.url {
-                    logger.info("🔍 [MODAL] ✅ Found image URL from SwiftData: \(primaryImage.id) -> \(imageUrl)")
-                    return (imageURL: imageUrl, imageId: primaryImage.id)
-                } else {
-                    logger.warning("🔍 [MODAL] ⚠️ Image found but no URL: \(primaryImage.id)")
-                }
-            } else {
-                logger.info("🔍 [MODAL] ❌ No images found via SwiftData relationships for item: \(itemId)")
-            }
-            
-        } catch {
-            logger.error("🔍 [MODAL] ❌ Failed to get primary image info for item \(itemId): \(error)")
-        }
-        
-        return nil
-    }
 
     /// Get primary image URL using SwiftData relationships (Pure SwiftData approach)
     private func getPrimaryImageURL(for itemId: String) -> String? {
