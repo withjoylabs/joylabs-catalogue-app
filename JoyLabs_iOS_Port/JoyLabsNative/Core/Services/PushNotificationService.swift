@@ -305,24 +305,30 @@ extension PushNotificationService {
             logger.info("[PushNotification] Sync state completion detected")
             
             // Count items after sync to see what changed
-            // Database connection should already be established, but ensure it's connected
-            try databaseManager.connect()
             let itemCountAfter = try await databaseManager.getItemCount()
             let itemsUpdated = Int(abs(Int32(itemCountAfter - itemCountBefore)))
             logger.debug("[PushNotification] Database item count after sync: \(itemCountAfter)")
             logger.info("[PushNotification] Item count difference: \(itemsUpdated) items")
             
-            // Create in-app notification about sync results - use sync coordinator data instead of item count
-            let syncResult = syncCoordinator.lastSyncResult
-            if let result = syncResult {
-                logger.info("[PushNotification] Sync result available: \(result.summary)")
-                logger.debug("[PushNotification] Sync result details - Objects: \(result.totalProcessed), Items: \(result.itemsProcessed), Duration: \(result.duration)s")
-            } else {
-                logger.warning("[PushNotification] No sync result available from coordinator!")
-            }
-            
+            // Create in-app notification about sync results - use FRESH sync progress data
+            // Use fresh sync progress data from the sync that just completed (like app startup does)
+            let freshSyncProgress = syncCoordinator.catalogSyncService.syncProgress
+            let freshSyncResult = SyncResult(
+                syncType: .incremental,
+                duration: freshSyncProgress.startTime.timeIntervalSinceNow * -1, // Calculate actual duration
+                totalProcessed: freshSyncProgress.syncedObjects,
+                itemsProcessed: freshSyncProgress.syncedItems,
+                inserted: 0,
+                updated: freshSyncProgress.syncedObjects,
+                deleted: 0,
+                errors: [],
+                timestamp: Date()
+            )
+            logger.info("[PushNotification] Fresh sync result: \(freshSyncResult.summary)")
+            logger.debug("[PushNotification] Fresh sync details - Objects: \(freshSyncResult.totalProcessed), Items: \(freshSyncResult.itemsProcessed), Duration: \(freshSyncResult.duration)s")
+
             logger.info("[PushNotification] Creating webhook notification...")
-            await createInAppNotificationForWebhookSync(syncResult: syncResult, eventId: eventId, isSilent: isSilent)
+            await createInAppNotificationForWebhookSync(syncResult: freshSyncResult, eventId: eventId, isSilent: isSilent)
             
         } catch {
             logger.error("❌ Catalog sync failed for webhook event \(eventId): \(error)")
