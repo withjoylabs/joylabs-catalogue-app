@@ -1,6 +1,17 @@
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+### VERSION AND DATE
+We are in late 2025. The most current versions:
+iOS = 26
+XCode = 26
+MacOS = 26 
+
+For XCODE release notes, use this as reference for the relevant version:
+https://developer.apple.com/documentation/xcode-release-notes
+
+Documentation for XCODE 26:
+https://developer.apple.com/documentation/xcode
 
 ### FORBIDDEN ACTIONS THAT CAUSE BUILD CONFLICTS
 
@@ -44,12 +55,6 @@ Before writing ANY new code, complete this checklist:
 - **Root Cause**: SwiftUI assumes on-screen keyboard but external keyboards use different layout system
 - **Fix**: Method swizzling in `UITextField+NoInputAccessory.swift` prevents ALL inputAccessoryView assignments app-wide
 - **Result**: Single line `UITextField.swizzleInputAccessoryView()` in app init fixes entire app permanently
-
-## Development Commands
-
-# IMPORTANT: Always use iPhone 16 iOS 18.5 simulator for builds
-xcodebuild -project JoyLabsNative.xcodeproj -scheme JoyLabsNative -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.5' build
-```
 
 **IMPORTANT**: Do not run build commands unless the user explicitly asks. Building takes many tokens. The user will build and report any compilation errors.
 

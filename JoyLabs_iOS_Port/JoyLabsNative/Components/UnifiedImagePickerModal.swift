@@ -44,16 +44,19 @@ struct UnifiedImagePickerModal: View {
     }
     
     // High-quality thumbnail size for better image quality
+    @Environment(\.displayScale) private var displayScale
+
     private func highQualityThumbnailSize(for containerWidth: CGFloat) -> CGFloat {
-        thumbnailSize(containerWidth: containerWidth) * UIScreen.main.scale // Multiply by screen scale for retina quality
+        thumbnailSize(containerWidth: containerWidth) * displayScale // Multiply by screen scale for retina quality
     }
     
     var body: some View {
-        // Calculate modal width directly (matches the presentation modifier)
-        let modalWidth = UIDevice.current.userInterfaceIdiom == .pad ? 
-            min(UIScreen.main.bounds.width * 0.6, 400) : UIScreen.main.bounds.width
-        
-        VStack(spacing: 0) {
+        GeometryReader { geometry in
+            // Calculate modal width directly (matches the presentation modifier)
+            let modalWidth = UIDevice.current.userInterfaceIdiom == .pad ?
+                min(geometry.size.width * 0.6, 400) : geometry.size.width
+
+            VStack(spacing: 0) {
                 // Header with title and buttons
                 HStack {
                     Button("Cancel") {
@@ -133,14 +136,15 @@ struct UnifiedImagePickerModal: View {
             // Divider
             Divider()
 
-            // iOS Photo Library Grid (Bottom) - matches modal width exactly
-            photoLibrarySectionWithPermissions(containerWidth: modalWidth)
-                .frame(minHeight: 250) // Give photo library minimum height (accounting for header + preview)
+                // iOS Photo Library Grid (Bottom) - matches modal width exactly
+                photoLibrarySectionWithPermissions(containerWidth: modalWidth)
+                    .frame(minHeight: 250) // Give photo library minimum height (accounting for header + preview)
+            }
+            .frame(
+                minHeight: min(600, geometry.size.height * 0.9),
+                maxHeight: geometry.size.height * 0.9
+            ) // Responsive to orientation - shrinks in landscape
         }
-        .frame(
-            minHeight: min(600, UIScreen.main.bounds.height * 0.9),
-            maxHeight: UIScreen.main.bounds.height * 0.9
-        ) // Responsive to orientation - shrinks in landscape
         .interactiveDismissDisabled(false)
         .presentationDragIndicator(.visible)
         .onAppear {
@@ -463,12 +467,11 @@ struct UnifiedImagePickerModal: View {
                 var photoAssets: [PhotoAsset] = []
                 
                 // Calculate proper thumbnail size - smaller for memory efficiency
-                let screenWidth = UIScreen.main.bounds.width
-                let columnCount: CGFloat = 4
-                let spacing = columnCount - 1
-                let itemWidth = (screenWidth - spacing) / columnCount
+                // Use a fixed thumbnail size that works well across devices
+                // Estimate a reasonable item width (will be properly sized in the view)
+                let estimatedItemWidth: CGFloat = 100
                 // Use 2x scale for retina quality thumbnails
-                let targetSize = CGSize(width: itemWidth * 2, height: itemWidth * 2)
+                let targetSize = CGSize(width: estimatedItemWidth * 2, height: estimatedItemWidth * 2)
                 
                 for i in startIndex..<endIndex {
                     let asset = allAssets.object(at: i)

@@ -18,7 +18,7 @@ struct FloatingActionButtons: View {
     @State private var isSaveAndPrintAction = false
     
     var body: some View {
-        HStack(spacing: 20) {
+        HStack(spacing: 15) {
             // Cancel Button with confirmation logic
             FloatingButton(
                 icon: "xmark",
@@ -121,36 +121,27 @@ struct FloatingButton: View {
     let color: Color
     let action: () -> Void
     let isDisabled: Bool
-    
+
     init(icon: String, color: Color, action: @escaping () -> Void, isDisabled: Bool = false) {
         self.icon = icon
         self.color = color
         self.action = action
         self.isDisabled = isDisabled
     }
-    
+
     var body: some View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.title2)
                 .fontWeight(.medium)
-                .foregroundColor(.white)
-                .frame(width: 56, height: 56)
-                .background(
-                    Circle()
-                        .fill(isDisabled ? Color.gray.opacity(0.5) : color)
-                        .shadow(
-                            color: isDisabled ? .clear : color.opacity(0.3),
-                            radius: 8,
-                            x: 0,
-                            y: 4
-                        )
-                )
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(.glassProminent)  // iOS 26 native Liquid Glass style
+        .tint(isDisabled ? Color.gray.opacity(0.5) : color)
+        .buttonBorderShape(.circle)
+        .controlSize(.large)  // Larger native size
         .disabled(isDisabled)
-        .scaleEffect(isDisabled ? 0.9 : 1.0)
-        .animation(.easeInOut(duration: 0.2), value: isDisabled)
+        .scaleEffect(isDisabled ? 0.95 : 1.0)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isDisabled)
     }
 }
 

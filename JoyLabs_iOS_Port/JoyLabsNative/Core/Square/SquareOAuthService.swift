@@ -285,9 +285,14 @@ extension SquareOAuthService: ASWebAuthenticationPresentationContextProviding {
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let window = windowScene.windows.first else {
             logger.warning("No window available for OAuth presentation")
-            return ASPresentationAnchor()
+            // Always try to get windowScene - available since iOS 13
+            if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                return ASPresentationAnchor(windowScene: scene)
+            }
+            // This should never happen in practice since we require iOS 18.5+
+            fatalError("No window scene available for authentication")
         }
-        
+
         return window
     }
 }

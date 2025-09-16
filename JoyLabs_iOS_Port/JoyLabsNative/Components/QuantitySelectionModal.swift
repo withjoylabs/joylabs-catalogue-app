@@ -42,23 +42,25 @@ struct EmbeddedQuantitySelectionModal: View {
     }
     
     var body: some View {
-        // Calculate modal width similar to image picker
-        let modalWidth = UIDevice.current.userInterfaceIdiom == .pad ? 
-            min(UIScreen.main.bounds.width * 0.6, 400) : UIScreen.main.bounds.width
-        
-        modalContent
-        .frame(width: modalWidth)
-        .frame(
-            minHeight: min(700, UIScreen.main.bounds.height * 0.9),
-            maxHeight: UIScreen.main.bounds.height * 0.9
-        ) // Responsive to orientation - shrinks in landscape and constrains width on iPad
-        .onChange(of: currentQuantity) { _, newQuantity in
-            onQuantityChange?(newQuantity)
-        }
-        .onChange(of: item.id) { _, newItemId in
-            // RESET MODAL STATE WHEN ITEM CHANGES (CHAIN SCANNING)
-            currentQuantity = initialQuantity
-            onQuantityChange?(initialQuantity)
+        GeometryReader { geometry in
+            // Calculate modal width similar to image picker
+            let modalWidth = UIDevice.current.userInterfaceIdiom == .pad ?
+                min(geometry.size.width * 0.6, 400) : geometry.size.width
+
+            modalContent
+            .frame(width: modalWidth)
+            .frame(
+                minHeight: min(700, geometry.size.height * 0.9),
+                maxHeight: geometry.size.height * 0.9
+            ) // Responsive to orientation - shrinks in landscape and constrains width on iPad
+            .onChange(of: currentQuantity) { _, newQuantity in
+                onQuantityChange?(newQuantity)
+            }
+            .onChange(of: item.id) { _, newItemId in
+                // RESET MODAL STATE WHEN ITEM CHANGES (CHAIN SCANNING)
+                currentQuantity = initialQuantity
+                onQuantityChange?(initialQuantity)
+            }
         }
     }
 

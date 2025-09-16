@@ -63,12 +63,12 @@ struct ShareSheetView: UIViewControllerRepresentable {
                     height: 1
                 )
             } else {
-                // Fallback to screen center
+                // Fallback to a default rect when no window is available
                 popover.sourceView = UIView()
                 popover.sourceRect = CGRect(
-                    x: UIScreen.main.bounds.midX, 
-                    y: UIScreen.main.bounds.midY, 
-                    width: 1, 
+                    x: 200,  // Default center position
+                    y: 200,  // Default center position
+                    width: 1,
                     height: 1
                 )
             }

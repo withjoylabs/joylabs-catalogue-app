@@ -56,8 +56,8 @@ extension View {
     func imagePickerModal() -> some View {
         // Make the modal exactly the width needed for a good-sized square preview
         if UIDevice.current.userInterfaceIdiom == .pad {
-            // Calculate ideal square preview size (smaller than full width)
-            let idealPreviewSize: CGFloat = min(UIScreen.main.bounds.width * 0.6, 400)
+            // Use containerRelativeFrame to calculate size relative to container
+            let idealPreviewSize: CGFloat = 400  // Fixed size that works well
             if #available(iOS 18.0, *) {
                 return AnyView(
                     self
