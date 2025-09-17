@@ -49,18 +49,21 @@ struct BottomSearchBar: View {
 struct SearchTextField: View {
     @Binding var searchText: String
     @FocusState.Binding var isSearchFieldFocused: Bool
-    
+
     var body: some View {
         HStack {
             Image(systemName: "magnifyingglass")
-                .foregroundColor(Color.secondary)
+                .foregroundColor(Color.primary.opacity(0.6))
+                .fontWeight(.medium)
 
             TextField("Search products, SKUs, barcodes...", text: $searchText)
                 .keyboardType(.numbersAndPunctuation)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .focused($isSearchFieldFocused)
-                
+                .foregroundColor(.primary)
+                .textFieldStyle(.plain)  // Remove default TextField styling
+
             // Clear button - only show when there's text
             if !searchText.isEmpty {
                 Button(action: {
@@ -68,16 +71,19 @@ struct SearchTextField: View {
                     // Don't auto-focus after clearing to prevent keyboard conflicts
                 }) {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(Color.secondary)
+                        .foregroundColor(Color.primary.opacity(0.5))
                         .font(.system(size: 16))
                 }
                 .buttonStyle(PlainButtonStyle())
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(Color(.systemGray6))
-        .cornerRadius(8)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .background(.clear)  // Clear underlying backgrounds
+        .glassEffect()  // Apply liquid glass morphism
+        .cornerRadius(10)
+        .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
+        .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
     }
 }
 
@@ -508,44 +514,6 @@ struct CaseInfoView: View {
     }
 }
 
-// MARK: - Search Bar with Clear Button
-struct SearchBarWithClear: View {
-    @Binding var searchText: String
-    @FocusState.Binding var isSearchFieldFocused: Bool
-    let placeholder: String
-    
-    init(searchText: Binding<String>, isSearchFieldFocused: FocusState<Bool>.Binding, placeholder: String = "Search...") {
-        self._searchText = searchText
-        self._isSearchFieldFocused = isSearchFieldFocused
-        self.placeholder = placeholder
-    }
-    
-    var body: some View {
-        HStack {
-            Image(systemName: "magnifyingglass")
-                .foregroundColor(Color.secondary)
-
-            TextField(placeholder, text: $searchText)
-                .keyboardType(.numbersAndPunctuation)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .focused($isSearchFieldFocused)
-                            
-            if !searchText.isEmpty {
-                Button(action: {
-                    searchText = ""
-                }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(Color.secondary)
-                }
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(Color(.systemGray6))
-        .cornerRadius(8)
-    }
-}
 
 #Preview("Bottom Search Bar") {
     @Previewable @State var searchText = ""
