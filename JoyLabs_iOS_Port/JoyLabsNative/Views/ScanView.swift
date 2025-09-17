@@ -53,16 +53,18 @@ struct ScanView: View {
                     EmptySearchState()
                 }
 
-                Spacer()
-
                 // Bottom search bar (matching React Native layout)
                 BottomSearchBar(searchText: $searchText, isSearchFieldFocused: $isSearchFieldFocused)
             }
             .background(Color(.systemBackground))
-            .onTapGesture {
-                // Dismiss keyboard when tapping background
-                isSearchFieldFocused = false
-            }
+            .background(
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        // Dismiss keyboard when tapping background
+                        isSearchFieldFocused = false
+                    }
+            )
 
         }
         .sheet(isPresented: $showingHistory) {

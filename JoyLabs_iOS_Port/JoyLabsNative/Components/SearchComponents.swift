@@ -171,26 +171,30 @@ struct SwipeableScanResultCard: View {
                         handleItemSelection()
                     }
                 }
-                .simultaneousGesture(
-                    DragGesture()
+                .gesture(
+                    DragGesture(minimumDistance: 30)  // iOS 26 industry standard for swipeable cards
                         .onChanged { value in
-                            isDragging = true
-                            
-                            let translation = value.translation.width
-                            let initialThreshold: CGFloat = 20  // Must drag at least 20px horizontally before gesture starts
-                            
-                            // Only start responding after initial threshold is met
-                            guard abs(translation) > initialThreshold else {
-                                return
+                            let translation = value.translation
+                            let horizontalThreshold: CGFloat = 30  // Increased threshold for horizontal movement
+
+                            // Calculate drag angle to determine if it's primarily horizontal
+                            let angle = atan2(abs(translation.height), abs(translation.width))
+                            let isHorizontalDrag = angle < 0.5  // Less than ~30 degrees = horizontal
+
+                            // Only respond to horizontal drags that exceed threshold
+                            guard isHorizontalDrag && abs(translation.width) > horizontalThreshold else {
+                                return  // Let vertical drags pass through to ScrollView
                             }
-                            
-                            // Apply resistance after initial threshold is overcome
-                            let adjustedTranslation = translation > 0 ? 
-                                translation - initialThreshold : 
-                                translation + initialThreshold
-                            let resistance: CGFloat = 0.5  // Moderate resistance after initiation
-                            
-                            if translation > 0 {
+
+                            isDragging = true
+
+                            // Apply resistance after threshold is overcome
+                            let adjustedTranslation = translation.width > 0 ?
+                                translation.width - horizontalThreshold :
+                                translation.width + horizontalThreshold
+                            let resistance: CGFloat = 0.5
+
+                            if translation.width > 0 {
                                 // Swipe right - reveal print (max 100px)
                                 offset = min(adjustedTranslation * resistance, 100)
                             } else {
@@ -199,25 +203,30 @@ struct SwipeableScanResultCard: View {
                             }
                         }
                         .onEnded { value in
-                            isDragging = false
-                            
-                            let translation = value.translation.width
-                            let initialThreshold: CGFloat = 20
-                            
-                            // Only consider action if we've overcome the initial threshold
-                            guard abs(translation) > initialThreshold else {
+                            let translation = value.translation
+                            let horizontalThreshold: CGFloat = 30
+
+                            // Calculate drag angle
+                            let angle = atan2(abs(translation.height), abs(translation.width))
+                            let isHorizontalDrag = angle < 0.5
+
+                            // Only process end action for horizontal drags
+                            guard isHorizontalDrag && abs(translation.width) > horizontalThreshold else {
+                                isDragging = false
                                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                                     offset = 0
                                 }
                                 return
                             }
-                            
-                            // Use adjusted translation (minus initial threshold) for action completion
-                            let adjustedTranslation = abs(translation) - initialThreshold
-                            
-                            // Higher thresholds to require very intentional gestures (150px beyond initial threshold)
-                            if adjustedTranslation > 150 {
-                                if translation > 0 {
+
+                            isDragging = false
+
+                            // Use adjusted translation for action completion
+                            let adjustedTranslation = abs(translation.width) - horizontalThreshold
+
+                            // Higher threshold to require intentional gestures (120px beyond initial threshold)
+                            if adjustedTranslation > 120 {
+                                if translation.width > 0 {
                                     // Complete print action
                                     onPrint()
                                 } else {
@@ -225,7 +234,7 @@ struct SwipeableScanResultCard: View {
                                     onAddToReorder()
                                 }
                             }
-                            
+
                             // Always snap back
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                                 offset = 0
