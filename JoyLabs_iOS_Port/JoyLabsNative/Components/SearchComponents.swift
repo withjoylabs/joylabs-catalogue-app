@@ -57,7 +57,7 @@ struct SearchTextField: View {
                 .fontWeight(.medium)
 
             TextField("Search products, SKUs, barcodes...", text: $searchText)
-                .keyboardType(.numbersAndPunctuation)
+                .keyboardType(.default)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .focused($isSearchFieldFocused)
@@ -112,7 +112,7 @@ struct SwipeableScanResultCard: View {
     @State private var isDragging = false
     
     // Standard card height to ensure buttons match exactly
-    private let cardHeight: CGFloat = 66
+    private let cardHeight: CGFloat = 76
 
     var body: some View {
         ZStack {
