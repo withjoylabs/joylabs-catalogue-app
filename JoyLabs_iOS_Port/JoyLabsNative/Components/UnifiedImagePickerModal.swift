@@ -31,32 +31,14 @@ struct UnifiedImagePickerModal: View {
 
     private let logger = Logger(subsystem: "com.joylabs.native", category: "UnifiedImagePickerModal")
 
-    // Responsive columns: 4 on iPad, 4 on iPhone (optimized for narrower modal)
+    // Responsive columns: 4 on iPad, 4 on iPhone
     private var columns: [GridItem] {
         let columnCount = 4
         return Array(repeating: GridItem(.flexible(), spacing: 1), count: columnCount)
     }
-
-    private func thumbnailSize(containerWidth: CGFloat) -> CGFloat {
-        let columnCount: CGFloat = 4
-        let spacing = columnCount - 1 // 1pt spacing between columns
-        return (containerWidth - spacing) / columnCount
-    }
-    
-    // High-quality thumbnail size for better image quality
-    @Environment(\.displayScale) private var displayScale
-
-    private func highQualityThumbnailSize(for containerWidth: CGFloat) -> CGFloat {
-        thumbnailSize(containerWidth: containerWidth) * displayScale // Multiply by screen scale for retina quality
-    }
     
     var body: some View {
-        GeometryReader { geometry in
-            // Calculate modal width directly (matches the presentation modifier)
-            let modalWidth = UIDevice.current.userInterfaceIdiom == .pad ?
-                min(geometry.size.width * 0.6, 400) : geometry.size.width
-
-            VStack(spacing: 0) {
+        VStack(spacing: 0) {
                 // Header with title and buttons
                 HStack {
                     Button("Cancel") {
@@ -110,10 +92,6 @@ struct UnifiedImagePickerModal: View {
                     .id(cropViewKey) // Force recreation when image changes
                     .onAppear {
                         squareCropViewRef = cropView
-                        print("[UnifiedImagePickerModal] SquareCropView reference stored (cropViewKey: \(cropViewKey))")
-                    }
-                    .onDisappear {
-                        print("[UnifiedImagePickerModal] SquareCropView disappeared (cropViewKey: \(cropViewKey))")
                     }
             } else {
                 // Placeholder when no image selected
@@ -136,20 +114,13 @@ struct UnifiedImagePickerModal: View {
             // Divider
             Divider()
 
-                // iOS Photo Library Grid (Bottom) - matches modal width exactly
-                photoLibrarySectionWithPermissions(containerWidth: modalWidth)
+                // iOS Photo Library Grid (Bottom)
+                photoLibrarySectionWithPermissions()
                     .frame(minHeight: 250) // Give photo library minimum height (accounting for header + preview)
-            }
-            .frame(
-                minHeight: min(600, geometry.size.height * 0.9),
-                maxHeight: geometry.size.height * 0.9
-            ) // Responsive to orientation - shrinks in landscape
         }
         .interactiveDismissDisabled(false)
         .presentationDragIndicator(.visible)
         .onAppear {
-            print("[UnifiedImagePickerModal] Modal appeared with context: \(context)")
-            print("[UnifiedImagePickerModal] Device: \(UIDevice.current.userInterfaceIdiom == .pad ? "iPad" : "iPhone")")
             requestPhotoLibraryAccess()
         }
         .alert("Upload Error", isPresented: $showingErrorAlert) {
@@ -165,7 +136,6 @@ struct UnifiedImagePickerModal: View {
                     cropViewKey = UUID() // Force recreation of crop view
                     // Close camera view
                     showingCamera = false
-                    print("[UnifiedImagePickerModal] Camera photo set in preview, staying in modal for cropping")
                 },
                 onCancel: {
                     // Close camera view
@@ -178,16 +148,14 @@ struct UnifiedImagePickerModal: View {
     
     // MARK: - UI Sections
     
-    private func photoLibrarySectionWithPermissions(containerWidth: CGFloat) -> some View {
+    private func photoLibrarySectionWithPermissions() -> some View {
         VStack(spacing: 0) {
             if authorizationStatus == .notDetermined {
                 // Permission not yet requested - show request UI in preview area
                 permissionRequestUI
-                    .onAppear { print("[UnifiedImagePickerModal] Showing permission request UI") }
             } else if authorizationStatus == .denied || authorizationStatus == .restricted {
                 // Permission denied - show guidance in preview area
                 permissionDeniedUI
-                    .onAppear { print("[UnifiedImagePickerModal] Showing permission denied UI") }
             } else if isLoadingPhotos {
                 // Loading state
                 VStack {
@@ -196,11 +164,13 @@ struct UnifiedImagePickerModal: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(.top, 40)
-                .onAppear { print("[UnifiedImagePickerModal] Showing loading state") }
             } else {
                 // Photo grid with camera button + pagination
-                let currentThumbnailSize = thumbnailSize(containerWidth: containerWidth)
-                let columnCount = 4
+                GeometryReader { geometry in
+                    let containerWidth = geometry.size.width
+                    let columnCount: CGFloat = 4
+                    let spacing = columnCount - 1 // 1pt spacing between columns
+                    let currentThumbnailSize = (containerWidth - spacing) / columnCount
                 
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: 1) {
@@ -209,8 +179,6 @@ struct UnifiedImagePickerModal: View {
                             // Check camera availability before showing
                             if UIImagePickerController.isSourceTypeAvailable(.camera) {
                                 showingCamera = true
-                            } else {
-                                print("[UnifiedImagePickerModal] Camera not available on this device")
                             }
                         }
                         
@@ -241,11 +209,11 @@ struct UnifiedImagePickerModal: View {
                             }
                             .frame(height: currentThumbnailSize)
                             .frame(maxWidth: .infinity)
-                            .gridCellColumns(columnCount)
+                            .gridCellColumns(4)
                         }
                     }
                 }
-                .onAppear { print("[UnifiedImagePickerModal] Showing photo grid with \(photoAssets.count) photos") }
+                } // Close GeometryReader
             }
         }
     }
@@ -345,14 +313,11 @@ struct UnifiedImagePickerModal: View {
     // MARK: - Private Methods
 
     private func requestPhotoLibraryPermission() {
-        print("[UnifiedImagePickerModal] User requested photo library permission")
         Task {
             let status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
-            print("[UnifiedImagePickerModal] Permission request result: \(status.rawValue)")
             await MainActor.run {
                 authorizationStatus = status
                 if status == .authorized || status == .limited {
-                    print("[UnifiedImagePickerModal] Permission granted, loading assets")
                     Task { await loadPhotoAssets() }
                 } else {
                     print("[UnifiedImagePickerModal] Permission denied or restricted")
@@ -377,8 +342,7 @@ struct UnifiedImagePickerModal: View {
                 await MainActor.run {
                     authorizationStatus = status
                     if status == .authorized || status == .limited {
-                        print("[UnifiedImagePickerModal] Permission granted, loading assets")
-                        Task { await loadPhotoAssets() }
+                            Task { await loadPhotoAssets() }
                     } else {
                         print("[UnifiedImagePickerModal] Permission denied or restricted")
                     }
@@ -522,10 +486,6 @@ struct UnifiedImagePickerModal: View {
     }
 
     private func selectPhoto(_ asset: PHAsset) {
-        print("[UnifiedImagePickerModal] ========== PHOTO SELECTION START ==========")
-        print("[UnifiedImagePickerModal] Asset dimensions: \(asset.pixelWidth) x \(asset.pixelHeight)")
-        print("[UnifiedImagePickerModal] Asset creation date: \(asset.creationDate ?? Date())")
-        print("[UnifiedImagePickerModal] Asset media type: \(asset.mediaType.rawValue)")
         
         Task {
             let image = await withCheckedContinuation { (continuation: CheckedContinuation<UIImage?, Never>) in
@@ -618,9 +578,6 @@ struct UnifiedImagePickerModal: View {
                 // Use dynamic viewport size from SquareCropView to prevent mismatched coordinates
                 let squareSize = squareCropViewRef?.getViewportSize() ?? 400 // Fallback to 400 if ref missing
                 let containerSize = CGSize(width: squareSize, height: squareSize)
-                print("[UnifiedImagePickerModal] Getting transform from stable ScrollViewState: \(Unmanaged.passUnretained(scrollViewState).toOpaque())")
-                print("[UnifiedImagePickerModal] Using dynamic viewport size: \(squareSize)")
-                print("[UnifiedImagePickerModal] Stable state - zoomScale: \(scrollViewState.zoomScale), contentOffset: \(scrollViewState.contentOffset)")
                 let transform = ImageTransform(
                     scale: scrollViewState.zoomScale,
                     offset: CGSize(
@@ -630,8 +587,6 @@ struct UnifiedImagePickerModal: View {
                     squareSize: squareSize,
                     containerSize: containerSize
                 )
-                print("[UnifiedImagePickerModal] Using transform matrix: \(transform.description)")
-                print("[UnifiedImagePickerModal] Transform details - scale: \(transform.scale), offset: \(transform.offset)")
                 
                 // Process image with transform matrix (background thread)
                 let processedResult = try await imageProcessor.processImage(image, with: transform)
