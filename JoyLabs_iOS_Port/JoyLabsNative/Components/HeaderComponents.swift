@@ -9,7 +9,7 @@ struct HeaderView: View {
     var body: some View {
         HStack {
             Text("JOYLABS")
-                .font(.title)
+                .font(.largeTitle)
                 .fontWeight(.bold)
                 .foregroundColor(.primary)
 
@@ -25,6 +25,28 @@ struct HeaderView: View {
                 // Notification bell
                 NotificationButton()
             }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(Color(.systemBackground))
+    }
+}
+
+// MARK: - Header Without Buttons (buttons moved to navigation toolbar)
+struct HeaderViewWithoutButtons: View {
+    let isConnected: Bool
+
+    var body: some View {
+        HStack {
+            Text("JOYLABS")
+                .font(.title)
+                .fontWeight(.bold)
+                .foregroundColor(.primary)
+
+            Spacer()
+
+            // Connection status only (buttons moved to toolbar)
+            ConnectionStatusView(isConnected: isConnected)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -55,25 +77,7 @@ struct ScanHistoryIconButton: View {
     let onTap: () -> Void
 
     var body: some View {
-        Button(action: onTap) {
-            ZStack {
-                Image(systemName: "clock.arrow.circlepath")
-                    .font(.title3)
-                    .foregroundColor(Color.secondary)
-
-                // Badge for count
-                if count > 0 {
-                    Text("\(count > 99 ? "99+" : "\(count)")")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, count > 9 ? 4 : 6)
-                        .padding(.vertical, 2)
-                        .background(Color.red)
-                        .clipShape(Capsule())
-                        .offset(x: 8, y: -8)
-                }
-            }
-        }
+        BadgeHeaderButton("clock.arrow.circlepath", badgeCount: count, action: onTap)
     }
 }
 
@@ -83,27 +87,11 @@ struct NotificationButton: View {
     @State private var showingWebhookNotifications = false
     
     var body: some View {
-        Button(action: {
-            showingWebhookNotifications = true
-        }) {
-            ZStack {
-                Image(systemName: webhookNotificationService.hasUnreadNotifications ? "bell.fill" : "bell")
-                    .font(.title3)
-                    .foregroundColor(webhookNotificationService.hasUnreadNotifications ? .blue : .secondary)
-                
-                // Badge for unread webhook notifications
-                if webhookNotificationService.unreadCount > 0 {
-                    Text("\(webhookNotificationService.unreadCount > 99 ? "99+" : "\(webhookNotificationService.unreadCount)")")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, webhookNotificationService.unreadCount > 9 ? 4 : 6)
-                        .padding(.vertical, 2)
-                        .background(Color.red)
-                        .clipShape(Capsule())
-                        .offset(x: 8, y: -8)
-                }
-            }
-        }
+        BadgeHeaderButton(
+            webhookNotificationService.hasUnreadNotifications ? "bell.fill" : "bell",
+            badgeCount: webhookNotificationService.unreadCount,
+            action: { showingWebhookNotifications = true }
+        )
         .sheet(isPresented: $showingWebhookNotifications) {
             NotificationsView()
                 .fullScreenModal()

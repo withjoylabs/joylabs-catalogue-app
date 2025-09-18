@@ -20,25 +20,19 @@ struct ReordersScrollableHeader: View {
 
                     Spacer()
 
-                    // Export button
-                    Button(action: onExportTap) {
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.title2)
-                            .foregroundColor(.blue)
-                    }
+                    HStack(spacing: 12) {
+                        // Export button
+                        IconHeaderButton("square.and.arrow.up", action: onExportTap)
 
-                    // Manage menu (without export option)
-                    Menu {
-                        Button("Mark All as Received") {
-                            onManagementAction(.markAllReceived)
+                        // Manage menu (without export option)
+                        MenuHeaderButton("gear") {
+                            Button("Mark All as Received") {
+                                onManagementAction(.markAllReceived)
+                            }
+                            Button("Clear All Items", role: .destructive) {
+                                onManagementAction(.clearAll)
+                            }
                         }
-                        Button("Clear All Items", role: .destructive) {
-                            onManagementAction(.clearAll)
-                        }
-                    } label: {
-                        Image(systemName: "gear")
-                            .font(.title2)
-                            .foregroundColor(.blue)
                     }
                 }
 

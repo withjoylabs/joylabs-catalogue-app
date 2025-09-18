@@ -29,14 +29,15 @@ struct ScanView: View {
     }
 
     var body: some View {
-        ZStack {
-            VStack(spacing: 0) {
-                // Header with JOYLABS logo and status
-                HeaderView(
-                    isConnected: isConnected,
-                    scanHistoryCount: scanHistoryService.historyCount,
-                    onHistoryTap: handleHistoryTap
-                )
+        NavigationStack {
+            ZStack {
+                VStack(spacing: 0) {
+                    // Header with JOYLABS logo, status AND buttons
+                    HeaderView(
+                        isConnected: isConnected,
+                        scanHistoryCount: scanHistoryService.historyCount,
+                        onHistoryTap: handleHistoryTap
+                    )
 
                 // Main content area
                 if !searchManager.isDatabaseReady {
@@ -67,6 +68,7 @@ struct ScanView: View {
             )
 
         }
+        } // Close NavigationStack
         .sheet(isPresented: $showingHistory) {
             HistoryView()
                 .fullScreenModal()
@@ -136,7 +138,7 @@ struct ScanView: View {
                 }
             }
         }
-    }
+    } // Close var body: some View
 
     // MARK: - HID Barcode Handling
     private func handleHIDBarcodeScan(_ barcode: String) {
