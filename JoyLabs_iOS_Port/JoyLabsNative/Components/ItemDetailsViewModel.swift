@@ -737,27 +737,9 @@ class ItemDetailsViewModel: ObservableObject {
     }
     
     private func setupChangeTracking() {
-        // Simple change tracking - any field change sets hasChanges to true
-        Publishers.CombineLatest4($name, $description, $abbreviation, $reportingCategoryId)
-            .dropFirst() // Skip initial values
-            .sink { [weak self] _ in
-                self?.hasChanges = true
-            }
-            .store(in: &cancellables)
-            
-        Publishers.CombineLatest3($categoryIds, $variations, $taxIds)
-            .dropFirst() // Skip initial values
-            .sink { [weak self] _ in
-                self?.hasChanges = true
-            }
-            .store(in: &cancellables)
-            
-        Publishers.CombineLatest3($modifierListIds, $imageURL, $staticData)
-            .dropFirst() // Skip initial values
-            .sink { [weak self] _ in
-                self?.hasChanges = true
-            }
-            .store(in: &cancellables)
+        // Simplified change tracking - manual flag management for better performance
+        // UI components call markAsChanged() when user makes changes
+        // This eliminates complex publisher chains and improves responsiveness
     }
     
     private func validateName(_ name: String) {

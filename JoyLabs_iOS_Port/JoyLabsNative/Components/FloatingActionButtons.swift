@@ -50,17 +50,17 @@ struct FloatingActionButtons: View {
                     }
                 }
             )
-            .actionSheet(isPresented: $showCloseConfirmation) {
-                ActionSheet(
-                    title: Text("Discard Changes?"),
-                    message: Text("You have unsaved changes. Are you sure you want to discard them?"),
-                    buttons: [
-                        .destructive(Text("Discard Changes")) {
-                            onForceClose()
-                        },
-                        .cancel(Text("Keep Editing"))
-                    ]
-                )
+            .confirmationDialog(
+                "Discard Changes?",
+                isPresented: $showCloseConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Discard Changes", role: .destructive) {
+                    onForceClose()
+                }
+                Button("Keep Editing", role: .cancel) { }
+            } message: {
+                Text("You have unsaved changes. Are you sure you want to discard them?")
             }
             
             // Print Button with ActionSheet

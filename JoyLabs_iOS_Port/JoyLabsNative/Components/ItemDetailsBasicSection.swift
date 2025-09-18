@@ -18,7 +18,8 @@ struct ItemDetailsBasicSection: View {
                             text: $viewModel.name,
                             error: viewModel.nameError,
                             isRequired: true,
-                            autoFocus: viewModel.context.isCreating
+                            autoFocus: viewModel.context.isCreating,
+                            onChange: { viewModel.markAsChanged() }
                         )
                     }
 
@@ -37,6 +38,9 @@ struct ItemDetailsBasicSection: View {
                                     .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
                                     .lineLimit(3...6)
                                     .autocorrectionDisabled()
+                                    .onChange(of: viewModel.description) { _, _ in
+                                        viewModel.markAsChanged()
+                                    }
                             }
                         }
                     }
@@ -50,7 +54,8 @@ struct ItemDetailsBasicSection: View {
                                 title: "Abbreviation",
                                 placeholder: "Short name for receipts",
                                 text: $viewModel.abbreviation,
-                                helpText: "Used on receipts and POS displays when space is limited"
+                                helpText: "Used on receipts and POS displays when space is limited",
+                                onChange: { viewModel.markAsChanged() }
                             )
                         }
                     }

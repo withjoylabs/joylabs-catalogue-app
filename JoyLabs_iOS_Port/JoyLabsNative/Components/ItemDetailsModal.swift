@@ -51,7 +51,6 @@ struct ItemDetailsModal: View {
     @FocusState private var isAnyFieldFocused: Bool
     
     @StateObject private var viewModel = ItemDetailsViewModel()
-    @StateObject private var dialogService = ConfirmationDialogService.shared
     
     // Price selection data for FAB buttons
     @State private var availablePrices: [(variationIndex: Int, variationName: String, price: String)] = []
@@ -116,8 +115,6 @@ struct ItemDetailsModal: View {
                         hasChanges: viewModel.hasChanges,
                         onForceClose: { onDismiss() }
                     )
-                    .opacity(dialogService.isShowing ? 0 : 1)
-                    .animation(.easeInOut(duration: 0.1), value: dialogService.isShowing)
                 }
                 .ignoresSafeArea(.keyboard)
             }
@@ -157,7 +154,6 @@ struct ItemDetailsModal: View {
                 CentralItemUpdateManager.shared.unregisterItemDetailsModal(itemId: itemId)
             }
         }
-        .withConfirmationDialog()
     }
     
     // MARK: - Private Methods

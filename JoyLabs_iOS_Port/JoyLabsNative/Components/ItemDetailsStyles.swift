@@ -200,6 +200,7 @@ struct ItemDetailsTextField: View {
     let isRequired: Bool
     let keyboardType: UIKeyboardType
     let autoFocus: Bool
+    let onChange: (() -> Void)?
 
     @FocusState private var isFocused: Bool
 
@@ -211,7 +212,8 @@ struct ItemDetailsTextField: View {
         error: String? = nil,
         isRequired: Bool = false,
         keyboardType: UIKeyboardType = .default,
-        autoFocus: Bool = false
+        autoFocus: Bool = false,
+        onChange: (() -> Void)? = nil
     ) {
         self.title = title
         self.placeholder = placeholder.isEmpty ? title : placeholder
@@ -221,6 +223,7 @@ struct ItemDetailsTextField: View {
         self.isRequired = isRequired
         self.keyboardType = keyboardType
         self.autoFocus = autoFocus
+        self.onChange = onChange
     }
     
     var body: some View {
@@ -243,6 +246,9 @@ struct ItemDetailsTextField: View {
                         RoundedRectangle(cornerRadius: ItemDetailsSpacing.fieldCornerRadius)
                             .stroke(error != nil ? Color.itemDetailsDestructive : Color.clear, lineWidth: 1)
                     )
+                    .onChange(of: text) { _, _ in
+                        onChange?()
+                    }
                 
                 if let error = error {
                     Text(error)
