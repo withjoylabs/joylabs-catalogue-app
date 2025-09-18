@@ -1,5 +1,24 @@
 import SwiftUI
 
+// MARK: - Glass Prominent Button Style with Backwards Compatibility
+struct GlassProminentButtonStyle: ViewModifier {
+    let isDisabled: Bool
+    let color: Color
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content
+                .buttonStyle(.glassProminent)  // iOS 26 native Liquid Glass style
+                .tint(isDisabled ? Color.gray.opacity(0.5) : color)
+        } else {
+            // Fallback for iOS < 26: Use borderedProminent
+            content
+                .buttonStyle(.borderedProminent)
+                .tint(isDisabled ? Color.gray.opacity(0.5) : color)
+        }
+    }
+}
+
 // MARK: - Floating Action Buttons
 struct FloatingActionButtons: View {
     let onCancel: () -> Void
@@ -135,8 +154,7 @@ struct FloatingButton: View {
                 .font(.title2)
                 .fontWeight(.medium)
         }
-        .buttonStyle(.glassProminent)  // iOS 26 native Liquid Glass style
-        .tint(isDisabled ? Color.gray.opacity(0.5) : color)
+        .modifier(GlassProminentButtonStyle(isDisabled: isDisabled, color: color))
         .buttonBorderShape(.circle)
         .controlSize(.large)  // Larger native size
         .disabled(isDisabled)

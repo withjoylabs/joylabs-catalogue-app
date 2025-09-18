@@ -1,5 +1,17 @@
 import SwiftUI
 
+// MARK: - Glass Effect Modifier with Backwards Compatibility
+struct GlassEffectModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.glassEffect()
+        } else {
+            // Fallback for iOS < 26: Use Material background
+            content.background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+        }
+    }
+}
+
 // MARK: - Display Name Formatting
 private func formatDisplayName(itemName: String?, variationName: String?) -> String {
     let name = itemName ?? "Unknown Item"
@@ -80,7 +92,7 @@ struct SearchTextField: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 11)
         .background(.clear)  // Clear underlying backgrounds
-        .glassEffect()  // Apply liquid glass morphism
+        .modifier(GlassEffectModifier())  // Apply liquid glass morphism with backwards compatibility
         .cornerRadius(10)
         .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
         .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)

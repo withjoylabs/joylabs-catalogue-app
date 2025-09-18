@@ -4,6 +4,29 @@ import SwiftUI
 /// Centralized styling for header buttons with iOS 26 glass effects
 /// Provides consistent, round, glass-effect buttons for headers
 
+// MARK: - Glass Effect Extension with Backwards Compatibility
+extension View {
+    @ViewBuilder
+    func glassEffectCompat() -> some View {
+        if #available(iOS 26.0, *) {
+            self.glassEffect()
+        } else {
+            // Fallback for iOS < 26: Use Material background
+            self.background(.ultraThinMaterial, in: Circle())
+        }
+    }
+
+    @ViewBuilder
+    func glassEffectCompatRect() -> some View {
+        if #available(iOS 26.0, *) {
+            self.glassEffect()
+        } else {
+            // Fallback for iOS < 26: Use Material background
+            self.background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+        }
+    }
+}
+
 // MARK: - Header Button Style
 struct HeaderButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
@@ -12,7 +35,7 @@ struct HeaderButtonStyle: ButtonStyle {
             .frame(width: ItemDetailsSpacing.minimumTouchTarget, height: ItemDetailsSpacing.minimumTouchTarget)
             .background(.clear)
             .clipShape(Circle())
-            .glassEffect()
+            .glassEffectCompat()
             .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
             .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
     }
