@@ -199,9 +199,10 @@ struct ItemDetailsTextField: View {
     let error: String?
     let isRequired: Bool
     let keyboardType: UIKeyboardType
-    
+    let autoFocus: Bool
+
     @FocusState private var isFocused: Bool
-    
+
     init(
         title: String,
         placeholder: String = "",
@@ -209,7 +210,8 @@ struct ItemDetailsTextField: View {
         helpText: String? = nil,
         error: String? = nil,
         isRequired: Bool = false,
-        keyboardType: UIKeyboardType = .default
+        keyboardType: UIKeyboardType = .default,
+        autoFocus: Bool = false
     ) {
         self.title = title
         self.placeholder = placeholder.isEmpty ? title : placeholder
@@ -218,6 +220,7 @@ struct ItemDetailsTextField: View {
         self.error = error
         self.isRequired = isRequired
         self.keyboardType = keyboardType
+        self.autoFocus = autoFocus
     }
     
     var body: some View {
@@ -250,6 +253,13 @@ struct ItemDetailsTextField: View {
         }
         .buttonStyle(PlainButtonStyle())
         .frame(maxWidth: .infinity, alignment: .leading)
+        .onAppear {
+            if autoFocus {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    isFocused = true
+                }
+            }
+        }
     }
 }
 

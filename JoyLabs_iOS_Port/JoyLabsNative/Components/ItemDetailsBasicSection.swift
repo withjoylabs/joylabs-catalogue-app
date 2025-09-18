@@ -17,7 +17,8 @@ struct ItemDetailsBasicSection: View {
                             placeholder: "Enter item name",
                             text: $viewModel.name,
                             error: viewModel.nameError,
-                            isRequired: true
+                            isRequired: true,
+                            autoFocus: viewModel.context.isCreating
                         )
                     }
 
