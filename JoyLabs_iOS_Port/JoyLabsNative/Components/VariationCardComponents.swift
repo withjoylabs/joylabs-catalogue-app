@@ -8,7 +8,7 @@ struct VariationCardHeader: View {
     let onDelete: () -> Void
     let onPrint: (ItemDetailsVariationData) -> Void
     let isPrinting: Bool
-    @StateObject private var dialogService = ConfirmationDialogService.shared
+    @State private var showDeleteConfirmation = false
     
     // Check if variation has meaningful data
     private var variationHasData: Bool {
@@ -29,17 +29,7 @@ struct VariationCardHeader: View {
                     Button(action: {
                         // Check if variation has data before showing confirmation
                         if variationHasData {
-                            let config = ConfirmationDialogConfig(
-                                title: "Delete Variation",
-                                message: "Are you sure you want to delete this variation? This action cannot be undone.",
-                                confirmButtonText: "Delete",
-                                cancelButtonText: "Cancel",
-                                isDestructive: true,
-                                onConfirm: {
-                                    onDelete()
-                                }
-                            )
-                            dialogService.show(config)
+                            showDeleteConfirmation = true
                         } else {
                             onDelete()
                         }
@@ -78,6 +68,18 @@ struct VariationCardHeader: View {
         .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
         .padding(.vertical, ItemDetailsSpacing.compactSpacing)
         .background(Color.itemDetailsSectionBackground)
+        .confirmationDialog(
+            "Delete Variation",
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                onDelete()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Are you sure you want to delete this variation? This action cannot be undone.")
+        }
     }
 }
 
@@ -405,7 +407,7 @@ struct PriceOverrideRow: View {
     let availableLocations: [LocationData]
     let onDelete: () -> Void
     
-    @StateObject private var dialogService = ConfirmationDialogService.shared
+    @State private var showDeleteConfirmation = false
     @State private var priceInCents: Int = 0
     @State private var digitString: String = "0.00"
     
@@ -473,17 +475,7 @@ struct PriceOverrideRow: View {
                         
                         // Delete button
                         Button(action: {
-                            let config = ConfirmationDialogConfig(
-                                title: "Delete Price Override",
-                                message: "Are you sure you want to delete this price override for \(locationName)?",
-                                confirmButtonText: "Delete",
-                                cancelButtonText: "Cancel",
-                                isDestructive: true,
-                                onConfirm: {
-                                    onDelete()
-                                }
-                            )
-                            dialogService.show(config)
+                            showDeleteConfirmation = true
                         }) {
                             Image(systemName: "trash")
                                 .foregroundColor(.itemDetailsDestructive)
@@ -534,6 +526,18 @@ struct PriceOverrideRow: View {
                 let cents = priceInCents % 100
                 digitString = String(format: "%d.%02d", dollars, cents)
             }
+        }
+        .confirmationDialog(
+            "Delete Price Override",
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                onDelete()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Are you sure you want to delete this price override for \(locationName)?")
         }
     }
 }
