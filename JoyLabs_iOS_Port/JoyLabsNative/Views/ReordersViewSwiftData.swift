@@ -344,7 +344,7 @@ struct ReordersViewSwiftData: SwiftUI.View {
                             modalStateManager.modalQuantity = newQuantity
                         }
                     )
-                    .imagePickerModal()
+                    .quantityModal()
                 }
             }
         }

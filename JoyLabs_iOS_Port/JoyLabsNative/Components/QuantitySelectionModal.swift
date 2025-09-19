@@ -42,17 +42,7 @@ struct EmbeddedQuantitySelectionModal: View {
     }
     
     var body: some View {
-        GeometryReader { geometry in
-            // Calculate modal width similar to image picker
-            let modalWidth = UIDevice.current.userInterfaceIdiom == .pad ?
-                min(geometry.size.width * 0.6, 400) : geometry.size.width
-
-            modalContent
-            .frame(width: modalWidth)
-            .frame(
-                minHeight: min(700, geometry.size.height * 0.9),
-                maxHeight: geometry.size.height * 0.9
-            ) // Responsive to orientation - shrinks in landscape and constrains width on iPad
+        modalContent
             .onChange(of: currentQuantity) { _, newQuantity in
                 onQuantityChange?(newQuantity)
             }
@@ -61,7 +51,6 @@ struct EmbeddedQuantitySelectionModal: View {
                 currentQuantity = initialQuantity
                 onQuantityChange?(initialQuantity)
             }
-        }
     }
 
     // MARK: - Computed Properties for Clean Architecture

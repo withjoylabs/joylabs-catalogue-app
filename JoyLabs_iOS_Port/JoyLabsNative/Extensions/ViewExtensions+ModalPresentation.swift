@@ -96,4 +96,35 @@ extension View {
             return AnyView(self.presentationDetents([.large]).presentationCompactAdaptation(.none))
         }
     }
+
+    /// Pattern 5: Quantity Modal
+    /// Usage: EmbeddedQuantitySelectionModal with same 400pt width as image picker
+    /// Applied to: All quantity selection modal presentations
+    func quantityModal() -> some View {
+        // Make the modal exactly the same size as image picker for consistency
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            // Use same fixed size that works well for image picker
+            let idealPreviewSize: CGFloat = 400  // Fixed size that works well
+            if #available(iOS 18.0, *) {
+                return AnyView(
+                    self
+                        .frame(width: idealPreviewSize)
+                        .presentationSizing(.fitted)
+                        .presentationBackground(.regularMaterial)
+                        .presentationCornerRadius(12)
+                        .presentationCompactAdaptation(.popover)
+                )
+            } else {
+                return AnyView(
+                    self
+                        .frame(width: idealPreviewSize)
+                        .presentationDetents([.large])
+                        .presentationBackground(.regularMaterial)
+                        .presentationCompactAdaptation(.popover)
+                )
+            }
+        } else {
+            return AnyView(self.presentationDetents([.large]))
+        }
+    }
 }
