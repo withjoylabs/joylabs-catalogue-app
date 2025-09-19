@@ -88,27 +88,38 @@ struct UnifiedImagePickerModal: View {
             if let selectedImage = selectedImage {
                 let cropView = SquareCropView(image: selectedImage, scrollViewState: scrollViewState)
                 cropView
-                    .frame(height: 400)
+                    .frame(height: UIDevice.current.userInterfaceIdiom == .pad ? 400 : nil)
                     .id(cropViewKey) // Force recreation when image changes
                     .onAppear {
                         squareCropViewRef = cropView
                     }
             } else {
                 // Placeholder when no image selected
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color(.systemGray6))
-                    .frame(height: 300)
-                    .overlay(
-                        VStack(spacing: 12) {
-                            Image(systemName: "photo")
-                                .font(.system(size: 40))
-                                .foregroundColor(.gray)
-                            Text("Select a photo to crop")
-                                .font(.headline)
-                                .foregroundColor(Color.secondary)
+                GeometryReader { geometry in
+                    let placeholderHeight: CGFloat = {
+                        if UIDevice.current.userInterfaceIdiom == .pad {
+                            return 400
+                        } else {
+                            // iPhone: Use square aspect ratio based on available width
+                            return min(geometry.size.width, 400)
                         }
-                    )
-                    .padding(.horizontal, 16)
+                    }()
+
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color(.systemGray6))
+                        .frame(height: placeholderHeight)
+                        .overlay(
+                            VStack(spacing: 12) {
+                                Image(systemName: "photo")
+                                    .font(.system(size: 40))
+                                    .foregroundColor(.gray)
+                                Text("Select a photo to crop")
+                                    .font(.headline)
+                                    .foregroundColor(Color.secondary)
+                            }
+                        )
+                        .padding(.horizontal, 16)
+                }
             }
 
             // Divider

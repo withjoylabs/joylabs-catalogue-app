@@ -12,7 +12,15 @@ struct SquareCropView: View {
     
     var body: some View {
         GeometryReader { geometry in
-            let squareSize: CGFloat = 400 // Fixed 400px viewport for better usability
+            let squareSize: CGFloat = {
+                if UIDevice.current.userInterfaceIdiom == .pad {
+                    // iPad: Keep 400px for proper modal sizing
+                    return 400
+                } else {
+                    // iPhone: Full width like Instagram/TikTok/Snapchat
+                    return geometry.size.width
+                }
+            }()
             
             ZStack {
                 // Background
