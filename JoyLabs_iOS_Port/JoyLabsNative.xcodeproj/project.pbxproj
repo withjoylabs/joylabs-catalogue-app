@@ -128,7 +128,6 @@
 		EDE038AD6E5EFB5420A06F61 /* NotificationExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49800521F9B080A23DC72541 /* NotificationExtensions.swift */; };
 		EF0C03051A3F310843218395 /* FieldVisibilityAndReorderingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E3BCABE673B4A6579D0625F /* FieldVisibilityAndReorderingView.swift */; };
 		F0E1858DA63A2B4ECA8E77E6 /* ItemLocationOverridesSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24FCFC0D136AEF6740D9E682 /* ItemLocationOverridesSection.swift */; };
-		F3ABB8397F5F1D67F06A03EF /* SwiftDataFuzzySearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDE4F13329B14CC37A8AB1C4 /* SwiftDataFuzzySearch.swift */; };
 		F691E68C7ADFDA1137A12D8D /* ItemDeleteSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68CAE024F232AEDA149CF627 /* ItemDeleteSection.swift */; };
 		F734B51CB83D78322A781674 /* QuantitySelectionModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB32D29A7FF02592B9894919 /* QuantitySelectionModal.swift */; };
 		F7C69334112B308503A838E4 /* ScanHistoryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8538789665F0E91648E2EB2B /* ScanHistoryService.swift */; };
@@ -250,7 +249,6 @@
 		C520DA18887B1353B7282355 /* CatalogLookupService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CatalogLookupService.swift; path = Core/Services/CatalogLookupService.swift; sourceTree = "<group>"; };
 		CA8C5B246DFF28C031178155 /* LocationCacheManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LocationCacheManager.swift; path = Core/Services/LocationCacheManager.swift; sourceTree = "<group>"; };
 		CB4FFBEDCA62E7D539B408D1 /* SwiftDataSearchManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SwiftDataSearchManager.swift; path = Core/Search/SwiftDataSearchManager.swift; sourceTree = "<group>"; };
-		CDE4F13329B14CC37A8AB1C4 /* SwiftDataFuzzySearch.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SwiftDataFuzzySearch.swift; path = Core/Search/SwiftDataFuzzySearch.swift; sourceTree = "<group>"; };
 		CE43F36BB6F6797E1742AD7C /* ItemDetailsStyles.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsStyles.swift; path = Components/ItemDetailsStyles.swift; sourceTree = "<group>"; };
 		D583607765D3CA494A3F396E /* ItemDetailsViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsViewModel.swift; path = Components/ItemDetailsViewModel.swift; sourceTree = "<group>"; };
 		D71532DF527344EFA478B1B3 /* FieldConfigurationManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FieldConfigurationManager.swift; path = Components/FieldConfigurationManager.swift; sourceTree = "<group>"; };
@@ -343,7 +341,6 @@
 			isa = PBXGroup;
 			children = (
 				CB4FFBEDCA62E7D539B408D1 /* SwiftDataSearchManager.swift */,
-				CDE4F13329B14CC37A8AB1C4 /* SwiftDataFuzzySearch.swift */,
 			);
 			name = Search;
 			sourceTree = "<group>";
@@ -858,7 +855,6 @@
 				CCE5849C28576F280550C175 /* SwiftDataSyncCoordinator.swift in Sources */,
 				E3F8E057597710C8B1BFE0A7 /* SwiftDataCatalogSyncService.swift in Sources */,
 				07FA0F8F4F59535DAEBD861D /* ReorderEnvironmentKey.swift in Sources */,
-				F3ABB8397F5F1D67F06A03EF /* SwiftDataFuzzySearch.swift in Sources */,
 				D14A1B7029E109C02B8511B5 /* SwiftDataCatalogStatsService.swift in Sources */,
 				95D3B3258E2DBEA210DD741B /* ModifierModel.swift in Sources */,
 				3BBC4FF8ED45BE409B7E36BF /* DiscountModel.swift in Sources */,

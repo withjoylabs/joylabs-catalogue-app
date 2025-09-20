@@ -215,6 +215,7 @@ struct ReordersViewSwiftData: SwiftUI.View {
         NavigationStack {
             ZStack {
                 // RESTORED: Use original professional ReorderContentView
+                // Break up the complex initializer to help type checker
                 ReorderContentView(
                     reorderItems: bridgedReorderItems,
                     filteredItems: filteredItems,
@@ -235,9 +236,7 @@ struct ReordersViewSwiftData: SwiftUI.View {
                     onQuantityChange: updateItemQuantity,
                     onRemoveItem: removeItem,
                     onBarcodeScanned: barcodeManager.handleBarcodeScanned,
-                    onImageTap: { item in
-                        print("[ReordersViewSwiftData] Image tapped for item: \(item.name)")
-                    },
+                    onImageTap: handleImageTap,
                     onImageLongPress: showImagePicker,
                     onQuantityTap: showQuantityModal,
                     onItemDetailsLongPress: showItemDetails
@@ -453,7 +452,11 @@ struct ReordersViewSwiftData: SwiftUI.View {
     }
     
     // MARK: - Professional Sheet Management (Restored)
-    
+
+    private func handleImageTap(_ item: ReorderItem) {
+        print("[ReordersViewSwiftData] Image tapped for item: \(item.name)")
+    }
+
     private func showImagePicker(_ item: ReorderItem) {
         activeSheet = .imagePicker(item)
     }

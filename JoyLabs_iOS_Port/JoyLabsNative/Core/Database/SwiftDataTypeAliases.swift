@@ -6,7 +6,7 @@ import SwiftData
 
 // MARK: - Service Aliases
 typealias CatalogStatsService = SwiftDataCatalogStatsService
-typealias SearchManager = SwiftDataSearchManager
+// SearchManager typealias moved to SearchManager.swift to avoid redeclaration
 // ImageURLManager removed - using pure SwiftData for images
 
 // MARK: - Model Aliases  

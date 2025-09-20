@@ -13,12 +13,11 @@ struct ScanView: View {
     @State private var lastScannedBarcode = ""  // Track HID scanned barcode
     @State private var originalSearchQuery = ""  // Track original search query for refresh
     @StateObject private var searchManager: SearchManager = {
-        // Use factory method to get shared database manager instance  
+        // Use factory method to get shared database manager instance
         let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
         return SwiftDataSearchManager(databaseManager: databaseManager)
     }()
     @FocusState private var isSearchFieldFocused: Bool
-    @State private var searchDebounceTimer: Timer?
     
     // Binding for focus state to pass up to ContentView
     let onFocusStateChanged: ((Bool) -> Void)?
@@ -108,9 +107,6 @@ struct ScanView: View {
             if !newValue.isEmpty {
                 originalSearchQuery = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
             }
-            
-            // Cancel previous timer
-            searchDebounceTimer?.invalidate()
 
             // Clear search results immediately when text is cleared
             if newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -130,13 +126,9 @@ struct ScanView: View {
             // Prevent multiple rapid onChange calls by checking if value actually changed
             guard oldValue != newValue else { return }
 
-            // Simplified debounce with single timer (removed triple-async layers)
-            searchDebounceTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: false) { _ in
-                Task { @MainActor in
-                    let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
-                    searchManager.performSearchWithDebounce(searchTerm: newValue, filters: filters)
-                }
-            }
+            // Direct call to search manager's debounce (removed redundant timer)
+            let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
+            searchManager.performSearchWithDebounce(searchTerm: newValue, filters: filters)
         }
     } // Close var body: some View
 

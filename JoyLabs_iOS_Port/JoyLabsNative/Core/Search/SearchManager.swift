@@ -7,6 +7,9 @@ import os.log
 /// SwiftData-based SearchManager compatibility layer
 /// Replaces the SQLite.swift-based SearchManager with SwiftData implementation
 
+/// Backward compatibility typealias
+typealias SearchManager = SwiftDataSearchManager
+
 /// Factory method for backward compatibility
 extension SwiftDataSearchManager {
     /// Convenience initializer that works with the existing database manager pattern
