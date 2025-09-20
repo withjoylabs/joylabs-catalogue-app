@@ -310,7 +310,23 @@ class ItemDataTransformers {
         guard !validVariations.isEmpty else { return nil }
 
         return validVariations.map { variation in
-            ItemVariation(
+            // CRITICAL: Handle 0.00 price as variable pricing
+            // If price is 0 or nil, treat as variable pricing (Square API requirement)
+            let hasPrice = variation.priceMoney != nil && variation.priceMoney!.amount > 0
+            let pricingType: String?
+            let priceMoney: Money?
+
+            if hasPrice {
+                // Fixed pricing with actual price
+                pricingType = "FIXED_PRICING"
+                priceMoney = transformMoneyToAPI(variation.priceMoney)
+            } else {
+                // Variable pricing (0.00 or no price)
+                pricingType = "VARIABLE_PRICING"
+                priceMoney = nil // CRITICAL: Must be nil for variable pricing
+            }
+
+            return ItemVariation(
                 id: (variation.id?.isEmpty == false) ? variation.id! : "#\(UUID().uuidString)", // # prefix for new variations
                 type: "ITEM_VARIATION",
                 updatedAt: nil,
@@ -325,8 +341,8 @@ class ItemDataTransformers {
                     sku: variation.sku?.isEmpty == false ? variation.sku : nil,
                     upc: variation.upc?.isEmpty == false ? variation.upc : nil,
                     ordinal: variation.ordinal,
-                    pricingType: transformPricingTypeToAPI(variation.pricingType),
-                    priceMoney: transformMoneyToAPI(variation.priceMoney),
+                    pricingType: pricingType,
+                    priceMoney: priceMoney,
                     basePriceMoney: transformMoneyToAPI(variation.basePriceMoney),
                     defaultUnitCost: nil,
                     locationOverrides: transformLocationOverridesToAPI(variation.locationOverrides),

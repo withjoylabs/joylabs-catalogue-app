@@ -651,59 +651,78 @@ extension SquareCRUDService {
     /// Update ItemData variations with current versions from Square API
     private func updateItemDataWithCurrentVersions(_ itemData: ItemData?, currentItem: CatalogObject) throws -> ItemData? {
         guard let itemData = itemData else { return nil }
-        
+
         // Get current variations from Square's response to extract their versions
         let currentVariations = currentItem.itemData?.variations ?? []
-        
-        // Log variations being removed (present in Square but not in update)
-        let updateVariationIds = Set(itemData.variations?.compactMap { $0.id } ?? [])
+
+        // Build set of variation IDs that user wants to keep/update
+        let updateVariationIds: Set<String> = Set(itemData.variations?.compactMap { variation in
+            // Only count variations that have Square IDs (not temp IDs)
+            if let id = variation.id, !id.hasPrefix("#") {
+                return id
+            }
+            return nil
+        } ?? [])
+
+        // CRITICAL: Build list of variations to send
+        // Square API: Omit deleted variations entirely (don't send with isDeleted: true)
+        var allVariationsToSend: [ItemVariation] = []
+
+        // Log which variations will be deleted (omitted from request)
         for currentVar in currentVariations {
             if let varId = currentVar.id, !updateVariationIds.contains(varId) && !varId.hasPrefix("#") {
-                logger.info("📝 Variation \(varId) will be removed (not included in update)")
+                logger.info("[SquareCRUDService] Variation \(varId) will be deleted (omitted from update request)")
             }
         }
-        
-        // Update variations with current versions
-        let updatedVariations = try itemData.variations?.map { variation in
-            // Find matching current variation by ID
-            let currentVariation = currentVariations.first { $0.id == variation.id }
-            
-            var effectiveId = variation.id
-            var currentVersion: Int64? = nil
-            
-            if let varId = variation.id, !varId.hasPrefix("#") {
-                // This variation claims to have a Square ID - it MUST exist in Square
-                guard let found = currentVariation else {
-                    // This is a critical sync error - variation has ID but doesn't exist in Square
-                    logger.error("❌ Critical sync error: Variation \(varId) not found in Square")
-                    throw SquareCRUDError.invalidData("Variation \(varId) is out of sync with Square. Please perform a full sync and try again.")
+
+        // Then, add user's variations (updated and new)
+        if let userVariations = itemData.variations {
+            for variation in userVariations {
+                // Find matching current variation by ID
+                let currentVariation = currentVariations.first { $0.id == variation.id }
+
+                var effectiveId = variation.id
+                var currentVersion: Int64? = nil
+
+                if let varId = variation.id, !varId.hasPrefix("#") {
+                    // This variation claims to have a Square ID - it MUST exist in Square
+                    guard let found = currentVariation else {
+                        // This is a critical sync error - variation has ID but doesn't exist in Square
+                        logger.error("❌ Critical sync error: Variation \(varId) not found in Square")
+                        throw SquareCRUDError.invalidData("Variation \(varId) is out of sync with Square. Please perform a full sync and try again.")
+                    }
+
+                    // Variation exists in Square - use its current version
+                    currentVersion = found.safeVersion
+                    logger.debug("Variation \(varId) found in Square with version \(currentVersion ?? 0)")
+
+                } else {
+                    // New variation with temporary ID or nil ID (intentionally created)
+                    if effectiveId == nil {
+                        effectiveId = "#\(UUID().uuidString)"
+                    }
+                    currentVersion = nil
+                    logger.debug("New variation will be created with temp ID: \(effectiveId ?? "nil")")
                 }
-                
-                // Variation exists in Square - use its current version
-                currentVersion = found.safeVersion
-                logger.debug("Variation \(varId) found in Square with version \(currentVersion ?? 0)")
-                
-            } else {
-                // New variation with temporary ID or nil ID (intentionally created)
-                if effectiveId == nil {
-                    effectiveId = "#\(UUID().uuidString)"
-                }
-                currentVersion = nil
-                logger.debug("New variation will be created with temp ID: \(effectiveId ?? "nil")")
+
+                allVariationsToSend.append(ItemVariation(
+                    id: effectiveId,
+                    type: variation.type,
+                    updatedAt: variation.updatedAt,
+                    version: currentVersion, // Use current version from Square, or nil for new variations
+                    isDeleted: false, // User's variations are not deleted
+                    presentAtAllLocations: variation.presentAtAllLocations,
+                    presentAtLocationIds: variation.presentAtLocationIds,
+                    absentAtLocationIds: variation.absentAtLocationIds,
+                    itemVariationData: variation.itemVariationData
+                ))
             }
-            
-            return ItemVariation(
-                id: effectiveId,
-                type: variation.type,
-                updatedAt: variation.updatedAt,
-                version: currentVersion, // Use current version from Square, or nil for new variations
-                isDeleted: variation.isDeleted,
-                presentAtAllLocations: variation.presentAtAllLocations,
-                presentAtLocationIds: variation.presentAtLocationIds,
-                absentAtLocationIds: variation.absentAtLocationIds,
-                itemVariationData: variation.itemVariationData
-            )
         }
+
+        logger.info("[SquareCRUDService] Total variations in update request: \(allVariationsToSend.count)")
+
+        // Update variations to include both deleted and active variations
+        let updatedVariations = allVariationsToSend.isEmpty ? nil : allVariationsToSend
         
         return ItemData(
             name: itemData.name,

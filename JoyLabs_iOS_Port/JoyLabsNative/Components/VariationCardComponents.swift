@@ -8,7 +8,7 @@ struct VariationCardHeader: View {
     let onDelete: () -> Void
     let onPrint: (ItemDetailsVariationData) -> Void
     let isPrinting: Bool
-    @State private var showDeleteConfirmation = false
+    @State private var showDeleteAlert = false
     
     // Check if variation has meaningful data
     private var variationHasData: Bool {
@@ -29,7 +29,7 @@ struct VariationCardHeader: View {
                     Button(action: {
                         // Check if variation has data before showing confirmation
                         if variationHasData {
-                            showDeleteConfirmation = true
+                            showDeleteAlert = true
                         } else {
                             onDelete()
                         }
@@ -40,6 +40,14 @@ struct VariationCardHeader: View {
                             .frame(width: 44, height: 44)
                     }
                     .buttonStyle(PlainButtonStyle())
+                    .alert("Delete Variation", isPresented: $showDeleteAlert) {
+                        Button("Cancel", role: .cancel) { }
+                        Button("Delete", role: .destructive) {
+                            onDelete()
+                        }
+                    } message: {
+                        Text("Are you sure you want to delete this variation? This action cannot be undone.")
+                    }
                 }
             }
             
@@ -68,18 +76,6 @@ struct VariationCardHeader: View {
         .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
         .padding(.vertical, ItemDetailsSpacing.compactSpacing)
         .background(Color.itemDetailsSectionBackground)
-        .confirmationDialog(
-            "Delete Variation",
-            isPresented: $showDeleteConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Delete", role: .destructive) {
-                onDelete()
-            }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("Are you sure you want to delete this variation? This action cannot be undone.")
-        }
     }
 }
 
@@ -527,15 +523,11 @@ struct PriceOverrideRow: View {
                 digitString = String(format: "%d.%02d", dollars, cents)
             }
         }
-        .confirmationDialog(
-            "Delete Price Override",
-            isPresented: $showDeleteConfirmation,
-            titleVisibility: .visible
-        ) {
+        .alert("Delete Price Override", isPresented: $showDeleteConfirmation) {
+            Button("Cancel", role: .cancel) { }
             Button("Delete", role: .destructive) {
                 onDelete()
             }
-            Button("Cancel", role: .cancel) { }
         } message: {
             Text("Are you sure you want to delete this price override for \(locationName)?")
         }
