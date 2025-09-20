@@ -127,7 +127,7 @@ struct UnifiedImagePickerModal: View {
 
                 // iOS Photo Library Grid (Bottom)
                 photoLibrarySectionWithPermissions()
-                    .frame(minHeight: 250) // Give photo library minimum height (accounting for header + preview)
+                    .frame(minHeight: 350) // Reserve consistent height to prevent modal jumping during loading
         }
         .interactiveDismissDisabled(false)
         .presentationDragIndicator(.visible)
@@ -168,13 +168,13 @@ struct UnifiedImagePickerModal: View {
                 // Permission denied - show guidance in preview area
                 permissionDeniedUI
             } else if isLoadingPhotos {
-                // Loading state
+                // Loading state - reserve height to prevent modal jumping
                 VStack {
                     ProgressView("Loading Photos...")
+                        .padding(.top, 40)
                     Spacer()
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.top, 40)
+                .frame(maxWidth: .infinity, minHeight: 350)  // Reserve space for photo grid
             } else {
                 // Photo grid with camera button + pagination
                 GeometryReader { geometry in
@@ -266,9 +266,9 @@ struct UnifiedImagePickerModal: View {
             
             Spacer()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, minHeight: 350)  // Reserve space to prevent modal jumping
     }
-    
+
     private var permissionDeniedUI: some View {
         VStack(spacing: 20) {
             Spacer()
@@ -318,7 +318,7 @@ struct UnifiedImagePickerModal: View {
             
             Spacer()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, minHeight: 350)  // Reserve space to prevent modal jumping
     }
 
     // MARK: - Private Methods
