@@ -10,9 +10,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     // Background download completion handler
     var backgroundDownloadCompletionHandler: (() -> Void)?
     
-    // Push token registration delay mechanism
-    private var pendingPushToken: String?
-    private var isCatchUpSyncComplete = false
+    // Push token registration - no longer delayed by sync
     
     // MARK: - Application Lifecycle
     
@@ -96,15 +94,9 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         let tokenString = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
         logger.debug("[AppDelegate] Push token: \(tokenString.prefix(10))...")
         
-        // Store token and register only after catch-up sync completes
-        pendingPushToken = tokenString
-        
-        if isCatchUpSyncComplete {
-            Task { @MainActor in
-                await PushNotificationService.shared.sendTokenToBackend(tokenString)
-            }
-        } else {
-            logger.info("[AppDelegate] Push token received but waiting for catch-up sync to complete")
+        // Register push token immediately - no need to wait for sync
+        Task { @MainActor in
+            await PushNotificationService.shared.sendTokenToBackend(tokenString)
         }
     }
     
@@ -144,20 +136,12 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         }
     }
     
-    // MARK: - Push Token Registration Control
-    
-    /// Signal that catch-up sync is complete and register any pending push token
+    // MARK: - Sync Completion Notification
+
+    /// Signal that catch-up sync is complete (for logging purposes only)
     func notifyCatchUpSyncComplete() {
-        logger.info("[AppDelegate] Catch-up sync completed - enabling push token registration")
-        isCatchUpSyncComplete = true
-        
-        if let token = pendingPushToken {
-            logger.info("[AppDelegate] Registering pending push token after catch-up sync")
-            Task { @MainActor in
-                await PushNotificationService.shared.sendTokenToBackend(token)
-            }
-            pendingPushToken = nil
-        }
+        logger.info("[AppDelegate] Catch-up sync completed")
+        // No longer blocks push token registration - tokens register immediately
     }
 }
 

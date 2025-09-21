@@ -3,20 +3,20 @@ import SwiftData
 import OSLog
 
 /// Background sync service for heavy database operations
-/// Uses separate ModelContext to avoid blocking main thread
+/// Creates ModelContext within each method to ensure proper thread isolation
 actor BackgroundSyncService {
 
     private let logger = Logger(subsystem: "com.joylabs.native", category: "BackgroundSync")
     private let squareAPIService: SquareAPIService
-    private let modelContext: ModelContext
+    private let modelContainer: ModelContainer
 
     // MARK: - Initialization
 
     init(modelContainer: ModelContainer, squareAPIService: SquareAPIService) {
         self.squareAPIService = squareAPIService
-        self.modelContext = ModelContext(modelContainer)
+        self.modelContainer = modelContainer
 
-        logger.info("[BackgroundSync] BackgroundSyncService initialized with background context")
+        logger.info("[BackgroundSync] BackgroundSyncService initialized")
     }
 
     // MARK: - Background Sync Operations
@@ -26,8 +26,11 @@ actor BackgroundSyncService {
         logger.info("[BackgroundSync] Starting background incremental sync")
         let startTime = Date()
 
+        // Create ModelContext for this operation on background thread
+        let modelContext = ModelContext(modelContainer)
+
         // Get the last sync timestamp from background context
-        let lastUpdateTime = try await getLatestUpdatedAt()
+        let lastUpdateTime = try await getLatestUpdatedAt(modelContext: modelContext)
 
         guard let lastUpdate = lastUpdateTime else {
             logger.info("[BackgroundSync] No previous sync found, suggesting full sync")
@@ -60,10 +63,13 @@ actor BackgroundSyncService {
 
         // Process objects in dependency order
         let sortedObjects = sortObjectsByDependency(updatedObjects)
-        let (totalProcessed, itemsProcessed) = try await processCatalogObjectsBatch(sortedObjects)
+        let (totalProcessed, itemsProcessed) = try await processCatalogObjectsBatch(sortedObjects, modelContext: modelContext)
 
         // Save changes to background context
         try modelContext.save()
+
+        // Save sync timestamp to prevent future full syncs
+        try await saveSyncTimestamp(modelContext: modelContext)
 
         let result = BackgroundSyncResult(
             syncType: SyncType.incremental,
@@ -86,8 +92,11 @@ actor BackgroundSyncService {
         logger.info("[BackgroundSync] Starting background full sync")
         let startTime = Date()
 
+        // Create ModelContext for this operation on background thread
+        let modelContext = ModelContext(modelContainer)
+
         // Clear existing data in background context
-        try await clearAllData()
+        try await clearAllData(modelContext: modelContext)
         logger.info("[BackgroundSync] Cleared existing catalog data")
 
         // Fetch all catalog data from Square API
@@ -96,7 +105,7 @@ actor BackgroundSyncService {
 
         // Process objects in dependency order
         let sortedObjects = sortObjectsByDependency(allObjects)
-        let (totalProcessed, itemsProcessed) = try await processCatalogObjectsBatch(sortedObjects)
+        let (totalProcessed, itemsProcessed) = try await processCatalogObjectsBatch(sortedObjects, modelContext: modelContext)
 
         // Process image URL mappings
         let imageObjects = sortedObjects.filter { $0.type == "IMAGE" }
@@ -106,6 +115,9 @@ actor BackgroundSyncService {
 
         // Save changes to background context
         try modelContext.save()
+
+        // Save sync timestamp to prevent future full syncs
+        try await saveSyncTimestamp(modelContext: modelContext)
 
         let result = BackgroundSyncResult(
             syncType: SyncType.full,
@@ -125,7 +137,7 @@ actor BackgroundSyncService {
 
     // MARK: - Private Methods
 
-    private func getLatestUpdatedAt() async throws -> Date? {
+    private func getLatestUpdatedAt(modelContext: ModelContext) async throws -> Date? {
         var descriptor = FetchDescriptor<SyncStatusModel>(
             sortBy: [SortDescriptor(\.lastSyncTime, order: .reverse)]
         )
@@ -135,7 +147,7 @@ actor BackgroundSyncService {
         return results.first?.lastSyncTime
     }
 
-    private func clearAllData() async throws {
+    private func clearAllData(modelContext: ModelContext) async throws {
         // Clear all catalog data types in background context
         let itemDescriptor = FetchDescriptor<CatalogItemModel>()
         let items = try modelContext.fetch(itemDescriptor)
@@ -195,12 +207,12 @@ actor BackgroundSyncService {
         logger.info("[BackgroundSync] All catalog data cleared from background context")
     }
 
-    private func processCatalogObjectsBatch(_ objects: [CatalogObject]) async throws -> (totalProcessed: Int, itemsProcessed: Int) {
+    private func processCatalogObjectsBatch(_ objects: [CatalogObject], modelContext: ModelContext) async throws -> (totalProcessed: Int, itemsProcessed: Int) {
         var totalProcessed = 0
         var itemsProcessed = 0
 
         for object in objects {
-            try await insertCatalogObject(object)
+            try await insertCatalogObject(object, modelContext: modelContext)
 
             totalProcessed += 1
             if object.type == "ITEM" {
@@ -238,24 +250,24 @@ actor BackgroundSyncService {
         }
     }
 
-    private func insertCatalogObject(_ object: CatalogObject) async throws {
+    private func insertCatalogObject(_ object: CatalogObject, modelContext: ModelContext) async throws {
         switch object.type {
         case "ITEM":
-            try await insertItem(object)
+            try await insertItem(object, modelContext: modelContext)
         case "ITEM_VARIATION":
-            try await insertItemVariation(object)
+            try await insertItemVariation(object, modelContext: modelContext)
         case "CATEGORY":
-            try await insertCategory(object)
+            try await insertCategory(object, modelContext: modelContext)
         case "TAX":
-            try await insertTax(object)
+            try await insertTax(object, modelContext: modelContext)
         case "MODIFIER_LIST":
-            try await insertModifierList(object)
+            try await insertModifierList(object, modelContext: modelContext)
         case "MODIFIER":
-            try await insertModifier(object)
+            try await insertModifier(object, modelContext: modelContext)
         case "IMAGE":
-            try await insertImage(object)
+            try await insertImage(object, modelContext: modelContext)
         case "DISCOUNT":
-            try await insertDiscount(object)
+            try await insertDiscount(object, modelContext: modelContext)
         default:
             logger.warning("[BackgroundSync] Unknown object type: \(object.type)")
         }
@@ -263,165 +275,349 @@ actor BackgroundSyncService {
 
     // MARK: - Object Insertion Methods
 
-    private func insertItem(_ object: CatalogObject) async throws {
+    private func insertItem(_ object: CatalogObject, modelContext: ModelContext) async throws {
+        // Handle deleted items FIRST (before checking itemData)
+        if object.isDeleted == true {
+            let descriptor = FetchDescriptor<CatalogItemModel>(predicate: #Predicate { $0.id == object.id })
+
+            if let existing = try modelContext.fetch(descriptor).first {
+                existing.isDeleted = true
+                existing.updatedAt = Date()
+                existing.version = String(object.safeVersion)
+                logger.debug("[BackgroundSync] Marked item as deleted: \(object.id)")
+            } else {
+                logger.debug("[BackgroundSync] Deleted item \(object.id) doesn't exist locally - skipping")
+            }
+            return
+        }
+
         guard object.itemData != nil else {
             logger.warning("[BackgroundSync] ITEM object \(object.id) missing itemData")
             return
         }
 
-        let item = CatalogItemModel(
-            id: object.id,
-            updatedAt: parseDate(object.updatedAt) ?? Date(),
-            version: String(object.safeVersion),
-            isDeleted: object.safeIsDeleted
-        )
+        // Check if item already exists (UPSERT logic)
+        let descriptor = FetchDescriptor<CatalogItemModel>(predicate: #Predicate { $0.id == object.id })
 
-        // Use the existing update method to populate all fields
-        item.updateFromCatalogObject(object)
+        if let existingItem = try modelContext.fetch(descriptor).first {
+            // Update existing item
+            existingItem.updateFromCatalogObject(object)
+            logger.debug("[BackgroundSync] Updated existing item: \(object.id)")
+        } else {
+            // Insert new item
+            let item = CatalogItemModel(
+                id: object.id,
+                updatedAt: parseDate(object.updatedAt) ?? Date(),
+                version: String(object.safeVersion),
+                isDeleted: object.safeIsDeleted
+            )
 
-        modelContext.insert(item)
-        logger.debug("[BackgroundSync] Inserted item: \(object.id)")
+            item.updateFromCatalogObject(object)
+            modelContext.insert(item)
+            logger.debug("[BackgroundSync] Inserted new item: \(object.id)")
+        }
     }
 
-    private func insertItemVariation(_ object: CatalogObject) async throws {
+    private func insertItemVariation(_ object: CatalogObject, modelContext: ModelContext) async throws {
+        // Handle deleted variations FIRST (before checking itemVariationData)
+        if object.isDeleted == true {
+            let descriptor = FetchDescriptor<ItemVariationModel>(predicate: #Predicate { $0.id == object.id })
+
+            if let existing = try modelContext.fetch(descriptor).first {
+                existing.isDeleted = true
+                existing.updatedAt = Date()
+                existing.version = String(object.safeVersion)
+                logger.debug("[BackgroundSync] Marked variation as deleted: \(object.id)")
+            } else {
+                logger.debug("[BackgroundSync] Deleted variation \(object.id) doesn't exist locally - skipping")
+            }
+            return
+        }
+
         guard let variationData = object.itemVariationData else {
             logger.warning("[BackgroundSync] ITEM_VARIATION object \(object.id) missing itemVariationData")
             return
         }
 
-        let variation = ItemVariationModel(
-            id: object.id,
-            itemId: variationData.itemId,
-            updatedAt: parseDate(object.updatedAt) ?? Date(),
-            version: String(object.safeVersion),
-            isDeleted: object.safeIsDeleted
-        )
+        // Check if variation already exists (UPSERT logic)
+        let descriptor = FetchDescriptor<ItemVariationModel>(predicate: #Predicate { $0.id == object.id })
 
-        // Use the existing update method to populate all fields
-        variation.updateFromCatalogObject(object)
+        if let existingVariation = try modelContext.fetch(descriptor).first {
+            // Update existing variation
+            existingVariation.updateFromCatalogObject(object)
+            logger.debug("[BackgroundSync] Updated existing variation: \(object.id)")
+        } else {
+            // Insert new variation
+            let variation = ItemVariationModel(
+                id: object.id,
+                itemId: variationData.itemId,
+                updatedAt: parseDate(object.updatedAt) ?? Date(),
+                version: String(object.safeVersion),
+                isDeleted: object.safeIsDeleted
+            )
 
-        modelContext.insert(variation)
-        logger.debug("[BackgroundSync] Inserted variation: \(object.id)")
+            variation.updateFromCatalogObject(object)
+            modelContext.insert(variation)
+            logger.debug("[BackgroundSync] Inserted new variation: \(object.id)")
+        }
     }
 
-    private func insertCategory(_ object: CatalogObject) async throws {
+    private func insertCategory(_ object: CatalogObject, modelContext: ModelContext) async throws {
+        // Handle deleted categories FIRST (before checking categoryData)
+        if object.isDeleted == true {
+            let descriptor = FetchDescriptor<CategoryModel>(predicate: #Predicate { $0.id == object.id })
+
+            if let existing = try modelContext.fetch(descriptor).first {
+                existing.isDeleted = true
+                existing.updatedAt = Date()
+                existing.version = String(object.safeVersion)
+                logger.debug("[BackgroundSync] Marked category as deleted: \(object.id)")
+            } else {
+                logger.debug("[BackgroundSync] Deleted category \(object.id) doesn't exist locally - skipping")
+            }
+            return
+        }
+
         guard object.categoryData != nil else {
             logger.warning("[BackgroundSync] CATEGORY object \(object.id) missing categoryData")
             return
         }
 
-        let category = CategoryModel(
-            id: object.id,
-            updatedAt: parseDate(object.updatedAt) ?? Date(),
-            version: String(object.safeVersion),
-            isDeleted: object.safeIsDeleted
-        )
+        // Check if category already exists (UPSERT logic)
+        let descriptor = FetchDescriptor<CategoryModel>(predicate: #Predicate { $0.id == object.id })
 
-        // Use the existing update method to populate all fields
-        category.updateFromCatalogObject(object)
+        if let existingCategory = try modelContext.fetch(descriptor).first {
+            // Update existing category
+            existingCategory.updateFromCatalogObject(object)
+            logger.debug("[BackgroundSync] Updated existing category: \(object.id)")
+        } else {
+            // Insert new category
+            let category = CategoryModel(
+                id: object.id,
+                updatedAt: parseDate(object.updatedAt) ?? Date(),
+                version: String(object.safeVersion),
+                isDeleted: object.safeIsDeleted
+            )
 
-        modelContext.insert(category)
-        logger.debug("[BackgroundSync] Inserted category: \(object.id)")
+            category.updateFromCatalogObject(object)
+            modelContext.insert(category)
+            logger.debug("[BackgroundSync] Inserted new category: \(object.id)")
+        }
     }
 
-    private func insertTax(_ object: CatalogObject) async throws {
+    private func insertTax(_ object: CatalogObject, modelContext: ModelContext) async throws {
+        // Handle deleted taxes FIRST (before checking taxData)
+        if object.isDeleted == true {
+            let descriptor = FetchDescriptor<TaxModel>(predicate: #Predicate { $0.id == object.id })
+
+            if let existing = try modelContext.fetch(descriptor).first {
+                existing.isDeleted = true
+                existing.updatedAt = Date()
+                existing.version = String(object.safeVersion)
+                logger.debug("[BackgroundSync] Marked tax as deleted: \(object.id)")
+            } else {
+                logger.debug("[BackgroundSync] Deleted tax \(object.id) doesn't exist locally - skipping")
+            }
+            return
+        }
+
         guard object.taxData != nil else {
             logger.warning("[BackgroundSync] TAX object \(object.id) missing taxData")
             return
         }
 
-        let tax = TaxModel(
-            id: object.id,
-            updatedAt: parseDate(object.updatedAt) ?? Date(),
-            version: String(object.safeVersion),
-            isDeleted: object.safeIsDeleted
-        )
+        // Check if tax already exists (UPSERT logic)
+        let descriptor = FetchDescriptor<TaxModel>(predicate: #Predicate { $0.id == object.id })
 
-        // Use the existing update method to populate all fields
-        tax.updateFromCatalogObject(object)
+        if let existingTax = try modelContext.fetch(descriptor).first {
+            // Update existing tax
+            existingTax.updateFromCatalogObject(object)
+            logger.debug("[BackgroundSync] Updated existing tax: \(object.id)")
+        } else {
+            // Insert new tax
+            let tax = TaxModel(
+                id: object.id,
+                updatedAt: parseDate(object.updatedAt) ?? Date(),
+                version: String(object.safeVersion),
+                isDeleted: object.safeIsDeleted
+            )
 
-        modelContext.insert(tax)
-        logger.debug("[BackgroundSync] Inserted tax: \(object.id)")
+            tax.updateFromCatalogObject(object)
+            modelContext.insert(tax)
+            logger.debug("[BackgroundSync] Inserted new tax: \(object.id)")
+        }
     }
 
-    private func insertModifierList(_ object: CatalogObject) async throws {
+    private func insertModifierList(_ object: CatalogObject, modelContext: ModelContext) async throws {
+        // Handle deleted modifier lists FIRST (before checking modifierListData)
+        if object.isDeleted == true {
+            let descriptor = FetchDescriptor<ModifierListModel>(predicate: #Predicate { $0.id == object.id })
+
+            if let existing = try modelContext.fetch(descriptor).first {
+                existing.isDeleted = true
+                existing.updatedAt = Date()
+                existing.version = String(object.safeVersion)
+                logger.debug("[BackgroundSync] Marked modifier list as deleted: \(object.id)")
+            } else {
+                logger.debug("[BackgroundSync] Deleted modifier list \(object.id) doesn't exist locally - skipping")
+            }
+            return
+        }
+
         guard object.modifierListData != nil else {
             logger.warning("[BackgroundSync] MODIFIER_LIST object \(object.id) missing modifierListData")
             return
         }
 
-        let modifierList = ModifierListModel(
-            id: object.id,
-            updatedAt: parseDate(object.updatedAt) ?? Date(),
-            version: String(object.safeVersion),
-            isDeleted: object.safeIsDeleted
-        )
+        // Check if modifier list already exists (UPSERT logic)
+        let descriptor = FetchDescriptor<ModifierListModel>(predicate: #Predicate { $0.id == object.id })
 
-        // Use the existing update method to populate all fields
-        modifierList.updateFromCatalogObject(object)
+        if let existingModifierList = try modelContext.fetch(descriptor).first {
+            // Update existing modifier list
+            existingModifierList.updateFromCatalogObject(object)
+            logger.debug("[BackgroundSync] Updated existing modifier list: \(object.id)")
+        } else {
+            // Insert new modifier list
+            let modifierList = ModifierListModel(
+                id: object.id,
+                updatedAt: parseDate(object.updatedAt) ?? Date(),
+                version: String(object.safeVersion),
+                isDeleted: object.safeIsDeleted
+            )
 
-        modelContext.insert(modifierList)
-        logger.debug("[BackgroundSync] Inserted modifier list: \(object.id)")
+            modifierList.updateFromCatalogObject(object)
+            modelContext.insert(modifierList)
+            logger.debug("[BackgroundSync] Inserted new modifier list: \(object.id)")
+        }
     }
 
-    private func insertModifier(_ object: CatalogObject) async throws {
+    private func insertModifier(_ object: CatalogObject, modelContext: ModelContext) async throws {
+        // Handle deleted modifiers FIRST (before checking modifierData)
+        if object.isDeleted == true {
+            let descriptor = FetchDescriptor<ModifierModel>(predicate: #Predicate { $0.id == object.id })
+
+            if let existing = try modelContext.fetch(descriptor).first {
+                existing.isDeleted = true
+                existing.updatedAt = Date()
+                existing.version = String(object.safeVersion)
+                logger.debug("[BackgroundSync] Marked modifier as deleted: \(object.id)")
+            } else {
+                logger.debug("[BackgroundSync] Deleted modifier \(object.id) doesn't exist locally - skipping")
+            }
+            return
+        }
+
         guard object.modifierData != nil else {
             logger.warning("[BackgroundSync] MODIFIER object \(object.id) missing modifierData")
             return
         }
 
-        let modifier = ModifierModel(
-            id: object.id,
-            updatedAt: parseDate(object.updatedAt) ?? Date(),
-            version: String(object.safeVersion),
-            isDeleted: object.safeIsDeleted
-        )
+        // Check if modifier already exists (UPSERT logic)
+        let descriptor = FetchDescriptor<ModifierModel>(predicate: #Predicate { $0.id == object.id })
 
-        // Use the existing update method to populate all fields
-        modifier.updateFromCatalogObject(object)
+        if let existingModifier = try modelContext.fetch(descriptor).first {
+            // Update existing modifier
+            existingModifier.updateFromCatalogObject(object)
+            logger.debug("[BackgroundSync] Updated existing modifier: \(object.id)")
+        } else {
+            // Insert new modifier
+            let modifier = ModifierModel(
+                id: object.id,
+                updatedAt: parseDate(object.updatedAt) ?? Date(),
+                version: String(object.safeVersion),
+                isDeleted: object.safeIsDeleted
+            )
 
-        modelContext.insert(modifier)
-        logger.debug("[BackgroundSync] Inserted modifier: \(object.id)")
+            modifier.updateFromCatalogObject(object)
+            modelContext.insert(modifier)
+            logger.debug("[BackgroundSync] Inserted new modifier: \(object.id)")
+        }
     }
 
-    private func insertImage(_ object: CatalogObject) async throws {
+    private func insertImage(_ object: CatalogObject, modelContext: ModelContext) async throws {
+        // Handle deleted images FIRST (before checking imageData)
+        if object.isDeleted == true {
+            let descriptor = FetchDescriptor<ImageModel>(predicate: #Predicate { $0.id == object.id })
+
+            if let existing = try modelContext.fetch(descriptor).first {
+                existing.isDeleted = true
+                existing.updatedAt = Date()
+                existing.version = String(object.safeVersion)
+                logger.debug("[BackgroundSync] Marked image as deleted: \(object.id)")
+            } else {
+                logger.debug("[BackgroundSync] Deleted image \(object.id) doesn't exist locally - skipping")
+            }
+            return
+        }
+
         guard object.imageData != nil else {
             logger.warning("[BackgroundSync] IMAGE object \(object.id) missing imageData")
             return
         }
 
-        let image = ImageModel(
-            id: object.id,
-            updatedAt: parseDate(object.updatedAt) ?? Date(),
-            version: String(object.safeVersion),
-            isDeleted: object.safeIsDeleted
-        )
+        // Check if image already exists (UPSERT logic)
+        let descriptor = FetchDescriptor<ImageModel>(predicate: #Predicate { $0.id == object.id })
 
-        // Use the existing update method to populate all fields
-        image.updateFromCatalogObject(object)
+        if let existingImage = try modelContext.fetch(descriptor).first {
+            // Update existing image
+            existingImage.updateFromCatalogObject(object)
+            logger.debug("[BackgroundSync] Updated existing image: \(object.id)")
+        } else {
+            // Insert new image
+            let image = ImageModel(
+                id: object.id,
+                updatedAt: parseDate(object.updatedAt) ?? Date(),
+                version: String(object.safeVersion),
+                isDeleted: object.safeIsDeleted
+            )
 
-        modelContext.insert(image)
-        logger.debug("[BackgroundSync] Inserted image: \(object.id)")
+            image.updateFromCatalogObject(object)
+            modelContext.insert(image)
+            logger.debug("[BackgroundSync] Inserted new image: \(object.id)")
+        }
     }
 
-    private func insertDiscount(_ object: CatalogObject) async throws {
+    private func insertDiscount(_ object: CatalogObject, modelContext: ModelContext) async throws {
+        // Handle deleted discounts FIRST (before checking discountData)
+        if object.isDeleted == true {
+            let descriptor = FetchDescriptor<DiscountModel>(predicate: #Predicate { $0.id == object.id })
+
+            if let existing = try modelContext.fetch(descriptor).first {
+                existing.isDeleted = true
+                existing.updatedAt = Date()
+                existing.version = String(object.safeVersion)
+                logger.debug("[BackgroundSync] Marked discount as deleted: \(object.id)")
+            } else {
+                logger.debug("[BackgroundSync] Deleted discount \(object.id) doesn't exist locally - skipping")
+            }
+            return
+        }
+
         guard object.discountData != nil else {
             logger.warning("[BackgroundSync] DISCOUNT object \(object.id) missing discountData")
             return
         }
 
-        let discount = DiscountModel(
-            id: object.id,
-            updatedAt: parseDate(object.updatedAt) ?? Date(),
-            version: String(object.safeVersion),
-            isDeleted: object.safeIsDeleted
-        )
+        // Check if discount already exists (UPSERT logic)
+        let descriptor = FetchDescriptor<DiscountModel>(predicate: #Predicate { $0.id == object.id })
 
-        // Use the existing update method to populate all fields
-        discount.updateFromCatalogObject(object)
+        if let existingDiscount = try modelContext.fetch(descriptor).first {
+            // Update existing discount
+            existingDiscount.updateFromCatalogObject(object)
+            logger.debug("[BackgroundSync] Updated existing discount: \(object.id)")
+        } else {
+            // Insert new discount
+            let discount = DiscountModel(
+                id: object.id,
+                updatedAt: parseDate(object.updatedAt) ?? Date(),
+                version: String(object.safeVersion),
+                isDeleted: object.safeIsDeleted
+            )
 
-        modelContext.insert(discount)
-        logger.debug("[BackgroundSync] Inserted discount: \(object.id)")
+            discount.updateFromCatalogObject(object)
+            modelContext.insert(discount)
+            logger.debug("[BackgroundSync] Inserted new discount: \(object.id)")
+        }
     }
 
     private func processImageURLMapping(_ object: CatalogObject) async {
@@ -447,6 +643,24 @@ actor BackgroundSyncService {
         guard let dateString = dateString else { return nil }
         let formatter = ISO8601DateFormatter()
         return formatter.date(from: dateString)
+    }
+
+    private func saveSyncTimestamp(modelContext: ModelContext) async throws {
+        let descriptor = FetchDescriptor<SyncStatusModel>(
+            predicate: #Predicate { $0.id == 1 }
+        )
+
+        let syncStatus: SyncStatusModel
+        if let existing = try modelContext.fetch(descriptor).first {
+            syncStatus = existing
+        } else {
+            syncStatus = SyncStatusModel(id: 1)
+            modelContext.insert(syncStatus)
+        }
+
+        syncStatus.lastSyncTime = Date()
+        try modelContext.save()
+        logger.info("[BackgroundSync] Saved sync timestamp: \(syncStatus.lastSyncTime!)")
     }
 }
 
