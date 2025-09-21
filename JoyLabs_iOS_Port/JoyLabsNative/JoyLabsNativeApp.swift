@@ -124,11 +124,15 @@ struct JoyLabsNativeApp: App {
         let _ = SquareAPIServiceFactory.createCRUDService() // Pre-init for modals
         
         // Pre-initialize singleton services to prevent creation during Phase 2
-        let _ = PushNotificationService.shared
+        let pushNotificationService = PushNotificationService.shared
         let _ = SimpleImageService.shared
         let _ = WebhookNotificationService.shared
         let _ = NotificationSettingsService.shared
         let _ = LocationCacheManager.shared
+
+        // Initialize background sync service for PushNotificationService
+        let squareAPIService = SquareAPIServiceFactory.createService()
+        pushNotificationService.initializeBackgroundSyncService(container: catalogContainer, squareAPIService: squareAPIService)
         
         // Initialize centralized item update manager - THE SINGLE SERVICE for all app-wide updates
         // This will be setup with specific services in Phase 2 when views are ready
@@ -186,11 +190,11 @@ struct JoyLabsNativeApp: App {
         logger.info("[App] Phase 4: Push notification setup finalized - token registration will occur automatically")
     }
 
-    /// Performs catch-up sync on app launch to handle missed webhook notifications
+    /// Performs catch-up sync on app launch using background service for non-blocking operation
     /// Only syncs objects that changed since last sync - NOT a full resync
     private func performAppLaunchCatchUpSync() async {
-        logger.info("[App] Phase 2: Starting app launch catch-up sync (incremental only)...")
-        
+        logger.info("[App] Phase 2: Starting app launch catch-up sync using background service...")
+
         do {
             // Check if we have authentication using factory
             let tokenService = SquareAPIServiceFactory.createTokenService()
@@ -198,72 +202,45 @@ struct JoyLabsNativeApp: App {
                 logger.info("[App] No authentication found, skipping catch-up sync")
                 return
             }
-            
-            // Get the database manager (already connected in Phase 1)
-            let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
-            
-            // Check when we last synced successfully
-            let lastSyncTime = await getLastSuccessfulSyncTime(databaseManager: databaseManager)
-            let now = Date()
-            
-            // Only perform catch-up if it's been more than 1 minute since last sync
-            if let lastSync = lastSyncTime, now.timeIntervalSince(lastSync) < 60 {
-                logger.info("[App] Recent sync found (\(Int(now.timeIntervalSince(lastSync)))s ago), skipping catch-up")
-                return
-            }
-            
-            logger.info("[App] Performing incremental catch-up sync since \(lastSyncTime?.description ?? "initial sync")...")
-            
-            // Get sync coordinator and perform INCREMENTAL sync only
-            let syncCoordinator = SquareAPIServiceFactory.createSyncCoordinator()
-            
-            // Count items before sync to calculate changes using existing getItemCount method
-            // Database is already connected from Phase 1
-            let itemCountBefore = try await databaseManager.getItemCount()
-            
-            // This should be incremental sync, not full resync
-            // The sync coordinator should only fetch objects modified since the last cursor/timestamp
-            await syncCoordinator.performIncrementalSync()
 
-            // Wait for sync to actually complete (performIncrementalSync returns immediately but runs Task.detached)
-            await waitForSyncCompletion(syncCoordinator: syncCoordinator)
-            
-            // Count items after sync to see what changed
-            // Database is already connected from Phase 1
-            let itemCountAfter = try await databaseManager.getItemCount()
-            let itemsUpdated = abs(itemCountAfter - itemCountBefore)
-            
-            logger.info("[App] Phase 2: App launch incremental catch-up sync completed successfully - \(itemsUpdated) items updated")
-            
-            // Always create in-app notification about sync results (silent - no iOS notification banner)
-            // Use fresh sync progress data from the sync that just completed
-            let freshSyncProgress = syncCoordinator.catalogSyncService.syncProgress
-            let freshSyncResult = SyncResult(
-                syncType: .incremental,
-                duration: 0, // Duration not critical for UI notification
-                totalProcessed: freshSyncProgress.syncedObjects,
-                itemsProcessed: freshSyncProgress.syncedItems,
-                inserted: 0,
-                updated: freshSyncProgress.syncedObjects,
-                deleted: 0,
-                errors: [],
-                timestamp: Date()
+            // Create background sync service for app launch sync
+            let squareAPIService = SquareAPIServiceFactory.createService()
+            let backgroundSyncService = BackgroundSyncService(modelContainer: catalogContainer, squareAPIService: squareAPIService)
+
+            logger.info("[App] Performing background incremental catch-up sync...")
+
+            // Perform incremental sync using background service (non-blocking)
+            let syncResult = try await backgroundSyncService.performIncrementalSync()
+
+            logger.info("[App] Phase 2: App launch incremental catch-up sync completed successfully - \(syncResult.itemsProcessed) items updated")
+
+            // Convert background result to main thread result format for notifications
+            let mainThreadResult = SyncResult(
+                syncType: SyncType.incremental,
+                duration: syncResult.duration,
+                totalProcessed: syncResult.totalProcessed,
+                itemsProcessed: syncResult.itemsProcessed,
+                inserted: syncResult.inserted,
+                updated: syncResult.updated,
+                deleted: syncResult.deleted,
+                errors: syncResult.errors.map { SyncError(message: $0.message, code: $0.code, objectId: $0.objectId) },
+                timestamp: syncResult.timestamp
             )
-            await createInAppNotificationForSync(syncResult: freshSyncResult, reason: "app launch")
-            
+
+            await createInAppNotificationForSync(syncResult: mainThreadResult, reason: "app launch")
+
             // Post notification to update UI with detailed sync results
             NotificationCenter.default.post(
                 name: .catalogSyncCompleted,
                 object: nil,
                 userInfo: [
                     "reason": "app_launch_incremental_sync",
-                    "itemsUpdated": itemsUpdated,
-                    "itemCountBefore": itemCountBefore,
-                    "itemCountAfter": itemCountAfter,
+                    "itemsUpdated": syncResult.itemsProcessed,
+                    "totalObjects": syncResult.totalProcessed,
                     "timestamp": ISO8601DateFormatter().string(from: Date())
                 ]
             )
-            
+
             // Clear badge count since we've synced (if badges are enabled)
             if NotificationSettingsService.shared.isEnabled(for: .systemBadge) {
                 do {
@@ -272,51 +249,73 @@ struct JoyLabsNativeApp: App {
                     logger.error("Failed to clear badge count: \(error)")
                 }
             }
-            
-        } catch {
-            logger.error("[App] App launch catch-up sync failed: \(error)")
-            
-            // Handle authentication failures specifically
-            if let apiError = error as? SquareAPIError, case .authenticationFailed = apiError {
-                logger.error("[App] Authentication failed during app launch sync - clearing tokens and notifying user")
-                
-                // Clear invalid tokens
-                let tokenService = SquareAPIServiceFactory.createTokenService()
-                try? await tokenService.clearAuthData()
-                
-                // Update auth state
-                let apiService = SquareAPIServiceFactory.createService()
-                apiService.setAuthenticated(false)
-                
-                // Notify user
-                await MainActor.run {
-                    WebhookNotificationService.shared.addAuthenticationFailureNotification()
-                    ToastNotificationService.shared.showError("Square authentication expired. Please reconnect in Profile.")
-                }
+
+        } catch BackgroundSyncError.noPreviousSync {
+            logger.warning("[App] No previous sync found, performing full background sync")
+            do {
+                let squareAPIService = SquareAPIServiceFactory.createService()
+                let backgroundSyncService = BackgroundSyncService(modelContainer: catalogContainer, squareAPIService: squareAPIService)
+
+                let syncResult = try await backgroundSyncService.performFullSync()
+                logger.info("[App] Phase 2: App launch full sync completed - \(syncResult.itemsProcessed) items processed")
+
+                let mainThreadResult = SyncResult(
+                    syncType: SyncType.full,
+                    duration: syncResult.duration,
+                    totalProcessed: syncResult.totalProcessed,
+                    itemsProcessed: syncResult.itemsProcessed,
+                    inserted: syncResult.inserted,
+                    updated: syncResult.updated,
+                    deleted: syncResult.deleted,
+                    errors: syncResult.errors.map { SyncError(message: $0.message, code: $0.code, objectId: $0.objectId) },
+                    timestamp: syncResult.timestamp
+                )
+
+                await createInAppNotificationForSync(syncResult: mainThreadResult, reason: "app launch")
+
+            } catch {
+                logger.error("[App] App launch background full sync failed: \(error)")
+                await handleAppLaunchSyncError(error: error)
             }
-            
-            // Post notification about sync failure
-            NotificationCenter.default.post(
-                name: NSNotification.Name("catalogSyncFailed"),
-                object: nil,
-                userInfo: [
-                    "error": error.localizedDescription,
-                    "reason": "app_launch_incremental_sync"
-                ]
-            )
+
+        } catch {
+            logger.error("[App] App launch background catch-up sync failed: \(error)")
+            await handleAppLaunchSyncError(error: error)
         }
+    }
+
+    /// Handle app launch sync errors
+    private func handleAppLaunchSyncError(error: Error) async {
+        // Handle authentication failures specifically
+        if let apiError = error as? SquareAPIError, case .authenticationFailed = apiError {
+            logger.error("[App] Authentication failed during app launch sync - clearing tokens and notifying user")
+
+            // Clear invalid tokens
+            let tokenService = SquareAPIServiceFactory.createTokenService()
+            try? await tokenService.clearAuthData()
+
+            // Update auth state
+            let apiService = SquareAPIServiceFactory.createService()
+            apiService.setAuthenticated(false)
+
+            // Notify user
+            await MainActor.run {
+                WebhookNotificationService.shared.addAuthenticationFailureNotification()
+                ToastNotificationService.shared.showError("Square authentication expired. Please reconnect in Profile.")
+            }
+        }
+
+        // Post notification about sync failure
+        NotificationCenter.default.post(
+            name: NSNotification.Name("catalogSyncFailed"),
+            object: nil,
+            userInfo: [
+                "error": error.localizedDescription,
+                "reason": "app_launch_incremental_sync"
+            ]
+        )
     }
     
-    /// Gets the last successful sync timestamp from database
-    private func getLastSuccessfulSyncTime(databaseManager: SwiftDataCatalogManager) async -> Date? {
-        do {
-            // Get the stored catalog version timestamp from the database
-            return try await databaseManager.getCatalogVersion()
-        } catch {
-            logger.error("Failed to get last sync time: \(error)")
-            return nil
-        }
-    }
     
     /// Creates a user-visible notification about sync results using actual sync data
     private func createInAppNotificationForSync(syncResult: SyncResult?, reason: String) async {
@@ -376,16 +375,4 @@ struct JoyLabsNativeApp: App {
         }
     }
 
-    /// Wait for sync coordinator to actually complete (since performIncrementalSync returns immediately)
-    private func waitForSyncCompletion(syncCoordinator: SwiftDataSyncCoordinator) async {
-        logger.info("[App] Waiting for sync coordinator to finish actual sync work...")
-
-        // Poll sync state until it's no longer syncing
-        while syncCoordinator.syncState == SwiftDataSyncCoordinator.SyncState.syncing {
-            logger.debug("[App] Sync still running, waiting 100ms...")
-            try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
-        }
-
-        logger.info("[App] Sync coordinator finished with state: \(syncCoordinator.syncState.description)")
-    }
 }

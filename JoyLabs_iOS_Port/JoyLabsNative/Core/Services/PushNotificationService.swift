@@ -3,6 +3,7 @@ import UserNotifications
 import UIKit
 import OSLog
 import Combine
+import SwiftData
 
 /// Push Notification Service - Handles push notifications from AWS backend
 /// Replaces webhook polling with real-time push notifications for better efficiency
@@ -31,11 +32,22 @@ public class PushNotificationService: NSObject, ObservableObject {
     // MARK: - Dependencies
     private let logger = Logger(subsystem: "com.joylabs.native", category: "PushNotificationService")
     private let baseURL = "https://gki8kva7e3.execute-api.us-west-1.amazonaws.com/production/api"
+
+    // Background sync service for non-blocking operations
+    private var backgroundSyncService: BackgroundSyncService?
     
     // MARK: - Initialization
     private override init() {
         super.init()
         logger.info("[PushNotification] PushNotificationService initialized")
+    }
+
+    /// Initialize background sync service for non-blocking operations
+    func initializeBackgroundSyncService(container: ModelContainer, squareAPIService: SquareAPIService) {
+        Task {
+            self.backgroundSyncService = BackgroundSyncService(modelContainer: container, squareAPIService: squareAPIService)
+            logger.info("[PushNotification] Background sync service initialized")
+        }
     }
     
     // MARK: - Public Interface
@@ -261,118 +273,130 @@ extension PushNotificationService {
         logger.debug("[PushNotification] Triggered image cache refresh")
     }
     
-    /// Trigger catalog sync to get latest changes from Square
+    /// Trigger catalog sync to get latest changes from Square using background service
     private func triggerCatalogSync(eventId: String, merchantId: String, isSilent: Bool) async {
-        logger.info("[PushNotification] Starting catalog sync for webhook \(eventId)")
-        
+        logger.info("[PushNotification] Starting background catalog sync for webhook \(eventId)")
+
+        guard let backgroundService = backgroundSyncService else {
+            logger.error("[PushNotification] Background sync service not initialized")
+            await MainActor.run {
+                WebhookNotificationService.shared.addWebhookNotification(
+                    title: "Sync Failed",
+                    message: "Background sync service not available",
+                    type: .error,
+                    eventType: "webhook.sync.failed"
+                )
+            }
+            return
+        }
+
         do {
-            // Get database manager to count items before sync using existing getItemCount method
-            let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
-            // RACE CONDITION FIX: Ensure database connection is established before accessing
-            try databaseManager.connect()
-            let itemCountBefore = try await databaseManager.getItemCount()
-            logger.debug("[PushNotification] Database item count before sync: \(itemCountBefore)")
-            
-            // Get the sync coordinator from the factory
-            let syncCoordinator = SquareAPIServiceFactory.createSyncCoordinator()
-            logger.debug("[PushNotification] Sync coordinator obtained, current state: \(String(describing: syncCoordinator.syncState))")
-            
-            // Check if sync coordinator has previous results
-            if let previousResult = syncCoordinator.lastSyncResult {
-                logger.debug("[PushNotification] Previous sync result exists: \(previousResult.summary)")
-            } else {
-                logger.debug("[PushNotification] No previous sync result found")
-            }
-            
-            // Perform incremental sync to get latest catalog changes
-            logger.info("[PushNotification] Starting incremental sync...")
-            await syncCoordinator.performIncrementalSync()
-            logger.info("[PushNotification] performIncrementalSync() completed")
-            
-            // Wait for sync to actually complete using Combine publisher
-            logger.debug("[PushNotification] Waiting for sync state to change from .syncing...")
-            await withCheckedContinuation { continuation in
-                var cancellable: AnyCancellable?
-                cancellable = syncCoordinator.$syncState
-                    .filter { $0 != .syncing }
-                    .first()
-                    .sink { state in
-                        self.logger.debug("[PushNotification] Sync state changed to: \(String(describing: state))")
-                        cancellable?.cancel()
-                        continuation.resume()
-                    }
-            }
-            logger.info("[PushNotification] Sync state completion detected")
-            
-            // Count items after sync to see what changed
-            let itemCountAfter = try await databaseManager.getItemCount()
-            let itemsUpdated = Int(abs(Int32(itemCountAfter - itemCountBefore)))
-            logger.debug("[PushNotification] Database item count after sync: \(itemCountAfter)")
-            logger.info("[PushNotification] Item count difference: \(itemsUpdated) items")
-            
-            // Create in-app notification about sync results - use FRESH sync progress data
-            // Use fresh sync progress data from the sync that just completed (like app startup does)
-            let freshSyncProgress = syncCoordinator.catalogSyncService.syncProgress
-            let freshSyncResult = SyncResult(
-                syncType: .incremental,
-                duration: freshSyncProgress.startTime.timeIntervalSinceNow * -1, // Calculate actual duration
-                totalProcessed: freshSyncProgress.syncedObjects,
-                itemsProcessed: freshSyncProgress.syncedItems,
-                inserted: 0,
-                updated: freshSyncProgress.syncedObjects,
-                deleted: 0,
-                errors: [],
-                timestamp: Date()
+            // Perform incremental sync using background service (runs on background context)
+            logger.info("[PushNotification] Starting background incremental sync...")
+            let syncResult = try await backgroundService.performIncrementalSync()
+            logger.info("[PushNotification] Background sync completed: \(syncResult.summary)")
+
+            // Convert background result to main thread result format for UI notifications
+            let mainThreadResult = SyncResult(
+                syncType: SyncType.incremental,
+                duration: syncResult.duration,
+                totalProcessed: syncResult.totalProcessed,
+                itemsProcessed: syncResult.itemsProcessed,
+                inserted: syncResult.inserted,
+                updated: syncResult.updated,
+                deleted: syncResult.deleted,
+                errors: syncResult.errors.map { SyncError(message: $0.message, code: $0.code, objectId: $0.objectId) },
+                timestamp: syncResult.timestamp
             )
-            logger.info("[PushNotification] Fresh sync result: \(freshSyncResult.summary)")
-            logger.debug("[PushNotification] Fresh sync details - Objects: \(freshSyncResult.totalProcessed), Items: \(freshSyncResult.itemsProcessed), Duration: \(freshSyncResult.duration)s")
 
             logger.info("[PushNotification] Creating webhook notification...")
-            await createInAppNotificationForWebhookSync(syncResult: freshSyncResult, eventId: eventId, isSilent: isSilent)
-            
-        } catch {
-            logger.error("❌ Catalog sync failed for webhook event \(eventId): \(error)")
-            
-            // Handle authentication failures specifically
-            if let apiError = error as? SquareAPIError, case .authenticationFailed = apiError {
-                logger.error("[PushNotification] Authentication failed during webhook sync - clearing tokens and notifying user")
-                
-                // Clear invalid tokens
-                let tokenService = SquareAPIServiceFactory.createTokenService()
-                try? await tokenService.clearAuthData()
-                
-                // Update auth state
-                let apiService = SquareAPIServiceFactory.createService()
-                apiService.setAuthenticated(false)
-                
-                // Notify user
-                await MainActor.run {
-                    WebhookNotificationService.shared.addAuthenticationFailureNotification()
-                    ToastNotificationService.shared.showError("Square authentication expired. Please reconnect in Profile.")
-                }
-            } else {
-                // For non-auth errors, still create a notification
-                await MainActor.run {
-                    WebhookNotificationService.shared.addWebhookNotification(
-                        title: "Sync Failed",
-                        message: "Failed to sync catalog: \(error.localizedDescription)",
-                        type: .error,
-                        eventType: "webhook.sync.failed"
-                    )
-                }
-            }
-            
-            // Post notification about sync failure
+            await createInAppNotificationForWebhookSync(syncResult: mainThreadResult, eventId: eventId, isSilent: isSilent)
+
+            // Post success notification for catalog sync completion
             NotificationCenter.default.post(
-                name: NSNotification.Name("catalogSyncFailed"),
+                name: .catalogSyncCompleted,
                 object: nil,
                 userInfo: [
-                    "error": error.localizedDescription,
+                    "reason": "webhook_incremental_sync",
+                    "itemsUpdated": syncResult.itemsProcessed,
+                    "totalObjects": syncResult.totalProcessed,
                     "eventId": eventId,
-                    "merchantId": merchantId
+                    "timestamp": ISO8601DateFormatter().string(from: Date())
                 ]
             )
+
+        } catch BackgroundSyncError.noPreviousSync {
+            logger.warning("[PushNotification] No previous sync found, performing full sync")
+            do {
+                let syncResult = try await backgroundService.performFullSync()
+                logger.info("[PushNotification] Background full sync completed: \(syncResult.summary)")
+
+                let mainThreadResult = SyncResult(
+                    syncType: SyncType.full,
+                    duration: syncResult.duration,
+                    totalProcessed: syncResult.totalProcessed,
+                    itemsProcessed: syncResult.itemsProcessed,
+                    inserted: syncResult.inserted,
+                    updated: syncResult.updated,
+                    deleted: syncResult.deleted,
+                    errors: syncResult.errors.map { SyncError(message: $0.message, code: $0.code, objectId: $0.objectId) },
+                    timestamp: syncResult.timestamp
+                )
+
+                await createInAppNotificationForWebhookSync(syncResult: mainThreadResult, eventId: eventId, isSilent: isSilent)
+
+            } catch {
+                logger.error("❌ Background full sync failed for webhook event \(eventId): \(error)")
+                await handleSyncError(error: error, eventId: eventId, merchantId: merchantId)
+            }
+
+        } catch {
+            logger.error("❌ Background catalog sync failed for webhook event \(eventId): \(error)")
+            await handleSyncError(error: error, eventId: eventId, merchantId: merchantId)
         }
+    }
+
+    /// Handle sync errors with proper error handling and user notifications
+    private func handleSyncError(error: Error, eventId: String, merchantId: String) async {
+        // Handle authentication failures specifically
+        if let apiError = error as? SquareAPIError, case .authenticationFailed = apiError {
+            logger.error("[PushNotification] Authentication failed during webhook sync - clearing tokens and notifying user")
+
+            // Clear invalid tokens
+            let tokenService = SquareAPIServiceFactory.createTokenService()
+            try? await tokenService.clearAuthData()
+
+            // Update auth state
+            let apiService = SquareAPIServiceFactory.createService()
+            apiService.setAuthenticated(false)
+
+            // Notify user
+            await MainActor.run {
+                WebhookNotificationService.shared.addAuthenticationFailureNotification()
+                ToastNotificationService.shared.showError("Square authentication expired. Please reconnect in Profile.")
+            }
+        } else {
+            // For non-auth errors, still create a notification
+            await MainActor.run {
+                WebhookNotificationService.shared.addWebhookNotification(
+                    title: "Sync Failed",
+                    message: "Failed to sync catalog: \(error.localizedDescription)",
+                    type: .error,
+                    eventType: "webhook.sync.failed"
+                )
+            }
+        }
+
+        // Post notification about sync failure
+        NotificationCenter.default.post(
+            name: NSNotification.Name("catalogSyncFailed"),
+            object: nil,
+            userInfo: [
+                "error": error.localizedDescription,
+                "eventId": eventId,
+                "merchantId": merchantId
+            ]
+        )
     }
     
     /// Creates an in-app notification about webhook sync results using actual sync data

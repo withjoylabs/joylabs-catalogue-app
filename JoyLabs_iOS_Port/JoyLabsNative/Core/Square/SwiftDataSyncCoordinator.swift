@@ -132,7 +132,7 @@ class SwiftDataSyncCoordinator: ObservableObject {
                     let syncDuration = syncEndTime.timeIntervalSince(self.catalogSyncService.syncProgress.startTime)
                     
                     let result = SyncResult(
-                        syncType: .full,
+                        syncType: SyncType.full,
                         duration: syncDuration,
                         totalProcessed: self.catalogSyncService.syncProgress.syncedObjects,
                         itemsProcessed: self.catalogSyncService.syncProgress.syncedItems,
@@ -202,7 +202,7 @@ class SwiftDataSyncCoordinator: ObservableObject {
                     let syncDuration = syncEndTime.timeIntervalSince(self.catalogSyncService.syncProgress.startTime)
                     
                     let result = SyncResult(
-                        syncType: .incremental,
+                        syncType: SyncType.incremental,
                         duration: syncDuration,
                         totalProcessed: self.catalogSyncService.syncProgress.syncedObjects,
                         itemsProcessed: self.catalogSyncService.syncProgress.syncedItems,

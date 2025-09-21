@@ -165,17 +165,32 @@ class SwiftDataSearchManager: ObservableObject {
 
         // Remove duplicates
         var seenIds = Set<String>()
-        return results.filter { seenIds.insert($0.id).inserted }
+        let allResults = results.filter { seenIds.insert($0.id).inserted }
+
+        // Set up pagination infrastructure
+        await MainActor.run {
+            // Store all results for pagination
+            allSearchResults = allResults
+            totalResultsCount = allResults.count
+
+            // Show first page (50 results)
+            let firstPage = Array(allResults.prefix(pageSize))
+            searchResults = firstPage
+            hasMoreResults = allResults.count > pageSize
+            currentPage = 1
+        }
+
+        logger.debug("[Search] Found \(allResults.count) total results, showing first \(min(allResults.count, self.pageSize))")
+        return allResults
     }
 
     private func searchNames(searchTerm: String) throws -> [SearchResultItem] {
         let tokens = searchTerm.lowercased().components(separatedBy: .whitespaces).filter { !$0.isEmpty }
 
-        var descriptor = FetchDescriptor<CatalogItemModel>(
+        let descriptor = FetchDescriptor<CatalogItemModel>(
             predicate: buildSimplePredicate(tokens: tokens),
             sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
         )
-        descriptor.fetchLimit = 50
 
         let items = try modelContext.fetch(descriptor)
         logger.debug("[Search] Found \(items.count) items for name search")
@@ -209,13 +224,12 @@ class SwiftDataSearchManager: ObservableObject {
     }
 
     private func searchBarcodes(searchTerm: String) throws -> [SearchResultItem] {
-        var descriptor = FetchDescriptor<ItemVariationModel>(
+        let descriptor = FetchDescriptor<ItemVariationModel>(
             predicate: #Predicate { variation in
                 !variation.isDeleted && variation.item != nil &&
                 ((variation.sku?.localizedStandardContains(searchTerm) ?? false) || variation.upc == searchTerm)
             }
         )
-        descriptor.fetchLimit = 50
 
         let variations = try modelContext.fetch(descriptor)
         logger.debug("[Search] Found \(variations.count) variations for barcode search")

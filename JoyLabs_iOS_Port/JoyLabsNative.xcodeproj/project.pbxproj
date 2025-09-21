@@ -117,6 +117,7 @@
 		D26299835D6943163B61C770 /* ItemDetailsVariationCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB694A8277941E8AAF1C9EAE /* ItemDetailsVariationCard.swift */; };
 		DA39CFBD36DCA1D81A5F2AB6 /* ItemCustomAttributesSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 109D8EF3405D7C8718DCDF2B /* ItemCustomAttributesSection.swift */; };
 		DC0BF75906B9902A9E9F25EE /* ItemDetailsStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE43F36BB6F6797E1742AD7C /* ItemDetailsStyles.swift */; };
+		DE7797DDA441B2337759D272 /* BackgroundSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 739588DBABCE8E030965D277 /* BackgroundSyncService.swift */; };
 		DE9B0804171D8F8469343090 /* SquareImageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECE3FAA42B58C68978179AFA /* SquareImageService.swift */; };
 		E0A4C587E31A4D97E9D4D827 /* ItemDetailsCategoriesSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36FF7B27B9EC548A6363CA3B /* ItemDetailsCategoriesSection.swift */; };
 		E3F8E057597710C8B1BFE0A7 /* SwiftDataCatalogSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 757EBA38D7F86CC18DF29B8C /* SwiftDataCatalogSyncService.swift */; };
@@ -188,6 +189,7 @@
 		6ECE051541206A85FCA7DCFC /* WebhookNotificationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WebhookNotificationService.swift; path = Core/Services/WebhookNotificationService.swift; sourceTree = "<group>"; };
 		7034F57676BBD40AAF7206B6 /* ItemTaxSettingsSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemTaxSettingsSection.swift; path = Components/ItemTaxSettingsSection.swift; sourceTree = "<group>"; };
 		72B794CCD01B67AB70408743 /* CSVGenerator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CSVGenerator.swift; path = Utils/CSVGenerator.swift; sourceTree = "<group>"; };
+		739588DBABCE8E030965D277 /* BackgroundSyncService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BackgroundSyncService.swift; path = Core/Background/BackgroundSyncService.swift; sourceTree = "<group>"; };
 		757EBA38D7F86CC18DF29B8C /* SwiftDataCatalogSyncService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SwiftDataCatalogSyncService.swift; path = Core/Square/SwiftDataCatalogSyncService.swift; sourceTree = "<group>"; };
 		75FC10AFED4E5423B76916D5 /* ItemAvailabilitySection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemAvailabilitySection.swift; path = Components/ItemAvailabilitySection.swift; sourceTree = "<group>"; };
 		772E9D5C057E6CFA53E18852 /* DiscountModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DiscountModel.swift; path = Models/SwiftData/DiscountModel.swift; sourceTree = "<group>"; };
@@ -598,6 +600,7 @@
 				7E3BFAC1A920D456F00628B8 /* Database */,
 				A49920AAB503F9434EB325F0 /* Environment */,
 				84DD1A26A23F82BFE77EE5B9 /* ImageProcessing */,
+				FC766655001F5397DF735405 /* Background */,
 			);
 			name = Core;
 			sourceTree = "<group>";
@@ -666,6 +669,14 @@
 				4981CED987E3E9524BAF9231 /* SyncStatusModel.swift */,
 			);
 			name = SwiftData;
+			sourceTree = "<group>";
+		};
+		FC766655001F5397DF735405 /* Background */ = {
+			isa = PBXGroup;
+			children = (
+				739588DBABCE8E030965D277 /* BackgroundSyncService.swift */,
+			);
+			name = Background;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -869,6 +880,7 @@
 				F7C69334112B308503A838E4 /* ScanHistoryService.swift in Sources */,
 				A99C337FE3F75BE05BEB57D9 /* HistoryView.swift in Sources */,
 				5B1D0578242346D4BABCD5F2 /* HeaderButtonStyles.swift in Sources */,
+				DE7797DDA441B2337759D272 /* BackgroundSyncService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
