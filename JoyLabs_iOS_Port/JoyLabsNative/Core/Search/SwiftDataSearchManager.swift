@@ -27,16 +27,7 @@ class SwiftDataSearchManager: ObservableObject {
     private var searchTask: Task<Void, Never>?
     private let logger = Logger(subsystem: "com.joylabs.native", category: "SwiftDataSearch")
     
-    // Scoring constants (from original fuzzy search)
-    private struct Scores {
-        static let exactWordMatch: Double = 100.0
-        static let prefixMatch: Double = 80.0
-        static let exactSkuMatch: Double = 60.0
-        static let upcMatch: Double = 60.0
-        static let multiTokenBonus: Double = 2.0
-        static let allTokensMatchBonus: Double = 50.0
-        static let minScoreThreshold: Double = 20.0
-    }
+    // Simple search - no complex scoring needed
     
     // Debouncing
     private var searchSubject = PassthroughSubject<(String, SearchFilters), Never>()
@@ -155,294 +146,134 @@ class SwiftDataSearchManager: ObservableObject {
         filters: SearchFilters
     ) async throws -> [SearchResultItem] {
 
-        let searchTokens = tokenizeSearchTerm(searchTerm)
-        logger.debug("[Search] Tokenized '\(searchTerm)' into: \(searchTokens)")
-
-        var allResults: [SearchResultItem] = []
-        var seenIds = Set<String>()
-
-        // 1. Search item names with database filtering (word-start matching)
-        if filters.name {
-            let nameResults = try searchItemNamesByTokens(tokens: searchTokens)
-            for result in nameResults {
-                if seenIds.insert(result.id).inserted {
-                    allResults.append(result)
-                }
-            }
-        }
-
-        // 2. Search exact SKU/UPC for single-word queries only
-        if filters.barcode && !searchTerm.contains(" ") {
-            let barcodeResults = try searchExactBarcodes(term: searchTerm)
-            for result in barcodeResults {
-                if seenIds.insert(result.id).inserted {
-                    allResults.append(result)
-                }
-            }
-        }
-
-        // 3. Apply relevance scoring and sort
-        let scoredResults = scoreSearchResults(allResults, searchTokens: searchTokens, originalTerm: searchTerm)
-        let sortedResults = scoredResults.sorted { $0.score > $1.score }
-
-        logger.debug("[Search] Scored and sorted \(sortedResults.count) results")
-        return sortedResults.map { $0.item }
-    }
-
-    private func tokenizeSearchTerm(_ term: String) -> [String] {
-        let lowercased = term.lowercased()
-        let tokens = lowercased.components(separatedBy: .whitespacesAndNewlines)
-
-        return tokens.compactMap { token in
-            let trimmed = token.trimmingCharacters(in: .whitespaces)
-            // Keep tokens >= 2 chars or single numbers
-            if trimmed.count >= 2 || (trimmed.count == 1 && trimmed.first?.isNumber == true) {
-                return trimmed
-            }
-            return nil
-        }.filter { !$0.isEmpty }
-    }
-
-    private func searchItemNamesByTokens(tokens: [String]) throws -> [SearchResultItem] {
-        // Build SwiftData predicate that checks if ALL tokens match word starts
-        // This runs in the database, not memory!
+        let cleanTerm = searchTerm.trimmingCharacters(in: .whitespacesAndNewlines)
+        logger.debug("[Search] Simple search for: '\(cleanTerm)'")
 
         var results: [SearchResultItem] = []
 
-        // For each token, find items where that token appears as word start
-        for token in tokens {
-            let descriptor = FetchDescriptor<CatalogItemModel>(
-                predicate: #Predicate { item in
-                    !item.isDeleted &&
-                    item.name != nil &&
-                    (item.name?.localizedStandardContains(token) ?? false)
-                },
-                sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
-            )
-
-            let items = try modelContext.fetch(descriptor)
-
-            // Filter to items where token appears as word start (post-filter for precision)
-            let filteredItems = items.filter { item in
-                guard let name = item.name?.lowercased() else { return false }
-                let words = name.components(separatedBy: .whitespacesAndNewlines.union(.punctuationCharacters))
-                return words.contains { word in
-                    word.hasPrefix(token.lowercased())
-                }
-            }
-
-            logger.debug("[Search] Token '\(token)' matched \(filteredItems.count) items")
-
-            // Convert to SearchResultItems
-            for item in filteredItems {
-                let variation = item.variations?.first { !$0.isDeleted }
-
-                let searchResult = SearchResultItem(
-                    id: item.id,
-                    name: item.name,
-                    sku: variation?.sku,
-                    price: variation?.priceInDollars,
-                    barcode: variation?.upc,
-                    reportingCategoryId: item.reportingCategoryId,
-                    categoryName: item.categoryName ?? item.reportingCategoryName,
-                    variationName: variation?.name,
-                    images: item.images?.map { $0.toCatalogImage() },
-                    matchType: "name",
-                    matchContext: item.name,
-                    isFromCaseUpc: false,
-                    caseUpcData: nil,
-                    hasTax: (item.taxes?.count ?? 0) > 0
-                )
-
-                results.append(searchResult)
-            }
+        // Search names
+        if filters.name {
+            let nameResults = try searchNames(searchTerm: cleanTerm)
+            results.append(contentsOf: nameResults)
         }
 
-        // Now filter to items that match ALL tokens (intersection)
-        let itemCounts = Dictionary(grouping: results, by: { $0.id })
-            .mapValues { $0.count }
-
-        // Only keep items that appeared for ALL search tokens
-        let finalResults = results.filter { result in
-            itemCounts[result.id] == tokens.count
+        // Search barcodes
+        if filters.barcode {
+            let barcodeResults = try searchBarcodes(searchTerm: cleanTerm)
+            results.append(contentsOf: barcodeResults)
         }
 
         // Remove duplicates
         var seenIds = Set<String>()
-        return finalResults.filter { result in
-            seenIds.insert(result.id).inserted
+        return results.filter { seenIds.insert($0.id).inserted }
+    }
+
+    private func searchNames(searchTerm: String) throws -> [SearchResultItem] {
+        let tokens = searchTerm.lowercased().components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+
+        var descriptor = FetchDescriptor<CatalogItemModel>(
+            predicate: buildSimplePredicate(tokens: tokens),
+            sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
+        )
+        descriptor.fetchLimit = 50
+
+        let items = try modelContext.fetch(descriptor)
+        logger.debug("[Search] Found \(items.count) items for name search")
+
+        return try createSearchResultsFromItems(items, matchType: "name")
+    }
+
+    private func buildSimplePredicate(tokens: [String]) -> Predicate<CatalogItemModel> {
+        if tokens.count == 1 {
+            let token = tokens[0]
+            return #Predicate { item in
+                !item.isDeleted && item.name != nil &&
+                (item.name?.localizedStandardContains(token) ?? false)
+            }
+        } else if tokens.count == 2 {
+            let token1 = tokens[0]
+            let token2 = tokens[1]
+            return #Predicate { item in
+                !item.isDeleted && item.name != nil &&
+                (item.name?.localizedStandardContains(token1) ?? false) &&
+                (item.name?.localizedStandardContains(token2) ?? false)
+            }
+        } else {
+            // For 3+ tokens, use first token in DB query
+            let token = tokens[0]
+            return #Predicate { item in
+                !item.isDeleted && item.name != nil &&
+                (item.name?.localizedStandardContains(token) ?? false)
+            }
         }
     }
 
-    private func searchExactBarcodes(term: String) throws -> [SearchResultItem] {
+    private func searchBarcodes(searchTerm: String) throws -> [SearchResultItem] {
+        var descriptor = FetchDescriptor<ItemVariationModel>(
+            predicate: #Predicate { variation in
+                !variation.isDeleted && variation.item != nil &&
+                ((variation.sku?.localizedStandardContains(searchTerm) ?? false) || variation.upc == searchTerm)
+            }
+        )
+        descriptor.fetchLimit = 50
+
+        let variations = try modelContext.fetch(descriptor)
+        logger.debug("[Search] Found \(variations.count) variations for barcode search")
+
+        return variations.compactMap { variation in
+            guard let item = variation.item, !item.isDeleted else { return nil }
+            return try? createSearchResultFromItemAndVariation(item, variation, matchType: "barcode")
+        }
+    }
+
+    // SIMPLE: Create SearchResultItems from items
+    private func createSearchResultsFromItems(_ items: [CatalogItemModel], matchType: String) throws -> [SearchResultItem] {
         var results: [SearchResultItem] = []
 
-        // Exact UPC match
-        let upcDescriptor = FetchDescriptor<ItemVariationModel>(
-            predicate: #Predicate { variation in
-                !variation.isDeleted && variation.upc == term
-            }
-        )
+        for item in items {
+            let variation = item.variations?.first { !$0.isDeleted }
 
-        let upcVariations = try modelContext.fetch(upcDescriptor)
-        for variation in upcVariations {
-            if let item = variation.item, !item.isDeleted {
-                let searchResult = SearchResultItem(
-                    id: item.id,
-                    name: item.name,
-                    sku: variation.sku,
-                    price: variation.priceInDollars,
-                    barcode: variation.upc,
-                    reportingCategoryId: item.reportingCategoryId,
-                    categoryName: item.categoryName ?? item.reportingCategoryName,
-                    variationName: variation.name,
-                    images: item.images?.map { $0.toCatalogImage() },
-                    matchType: "upc",
-                    matchContext: term,
-                    isFromCaseUpc: false,
-                    caseUpcData: nil,
-                    hasTax: (item.taxes?.count ?? 0) > 0
-                )
-                results.append(searchResult)
-            }
-        }
+            let searchResult = SearchResultItem(
+                id: item.id,
+                name: item.name,
+                sku: variation?.sku,
+                price: variation?.priceInDollars,
+                barcode: variation?.upc,
+                reportingCategoryId: item.reportingCategoryId,
+                categoryName: item.categoryName ?? item.reportingCategoryName,
+                variationName: variation?.name,
+                images: item.images?.map { $0.toCatalogImage() },
+                matchType: matchType,
+                matchContext: item.name,
+                isFromCaseUpc: false,
+                caseUpcData: nil,
+                hasTax: (item.taxes?.count ?? 0) > 0
+            )
 
-        // Exact SKU match
-        let skuDescriptor = FetchDescriptor<ItemVariationModel>(
-            predicate: #Predicate { variation in
-                !variation.isDeleted && variation.sku == term
-            }
-        )
-
-        let skuVariations = try modelContext.fetch(skuDescriptor)
-        for variation in skuVariations {
-            if let item = variation.item, !item.isDeleted {
-                let searchResult = SearchResultItem(
-                    id: item.id,
-                    name: item.name,
-                    sku: variation.sku,
-                    price: variation.priceInDollars,
-                    barcode: variation.upc,
-                    reportingCategoryId: item.reportingCategoryId,
-                    categoryName: item.categoryName ?? item.reportingCategoryName,
-                    variationName: variation.name,
-                    images: item.images?.map { $0.toCatalogImage() },
-                    matchType: "sku",
-                    matchContext: term,
-                    isFromCaseUpc: false,
-                    caseUpcData: nil,
-                    hasTax: (item.taxes?.count ?? 0) > 0
-                )
-                results.append(searchResult)
-            }
+            results.append(searchResult)
         }
 
         return results
     }
 
-    private func scoreSearchResults(
-        _ results: [SearchResultItem],
-        searchTokens: [String],
-        originalTerm: String
-    ) -> [(item: SearchResultItem, score: Double)] {
-
-        return results.compactMap { result in
-            let score = calculateResultScore(result, searchTokens: searchTokens, originalTerm: originalTerm)
-            if score >= Scores.minScoreThreshold {
-                return (item: result, score: score)
-            }
-            return nil
-        }
-    }
-
-    private func calculateResultScore(
-        _ result: SearchResultItem,
-        searchTokens: [String],
-        originalTerm: String
-    ) -> Double {
-        var totalScore: Double = 0.0
-
-        // Exact UPC/SKU matches get highest scores
-        if result.matchType == "upc" && result.barcode == originalTerm {
-            totalScore += Scores.upcMatch
-        }
-        if result.matchType == "sku" && result.sku == originalTerm {
-            totalScore += Scores.exactSkuMatch
-        }
-
-        // Fuzzy text scoring for name matches
-        if result.matchType == "name" {
-            let nameScore = calculateNameMatchScore(result, searchTokens: searchTokens)
-            totalScore += nameScore
-        }
-
-        return totalScore
-    }
-
-    private func calculateNameMatchScore(
-        _ result: SearchResultItem,
-        searchTokens: [String]
-    ) -> Double {
-        guard let name = result.name else { return 0.0 }
-
-        let nameWords = name.lowercased()
-            .components(separatedBy: .whitespacesAndNewlines.union(.punctuationCharacters))
-            .filter { !$0.isEmpty }
-
-        var totalScore: Double = 0.0
-        var matchedTokens = 0
-        var matchPositions: [Int] = []
-
-        for searchToken in searchTokens {
-            var bestScore: Double = 0.0
-            var bestPosition: Int = -1
-
-            for (index, nameWord) in nameWords.enumerated() {
-                var score: Double = 0.0
-
-                if nameWord == searchToken {
-                    score = Scores.exactWordMatch
-                } else if nameWord.hasPrefix(searchToken) {
-                    score = Scores.prefixMatch
-                }
-
-                if score > 0 {
-                    // Position bonus - earlier matches score higher
-                    let positionBonus = 1.0 - (Double(index) * 0.1)
-                    score *= max(positionBonus, 0.5)
-
-                    if score > bestScore {
-                        bestScore = score
-                        bestPosition = index
-                    }
-                }
-            }
-
-            if bestScore > 0 {
-                totalScore += bestScore
-                matchedTokens += 1
-                matchPositions.append(bestPosition)
-            }
-        }
-
-        // Sequential order bonus
-        if matchPositions.count > 1 {
-            let isSequential = zip(matchPositions.dropLast(), matchPositions.dropFirst())
-                .allSatisfy { $0 < $1 }
-            if isSequential {
-                totalScore *= 3.0 // Big bonus for order matching
-            }
-        }
-
-        // Multi-token bonuses
-        if matchedTokens > 1 {
-            totalScore *= Scores.multiTokenBonus
-        }
-        if matchedTokens == searchTokens.count && searchTokens.count > 1 {
-            totalScore += Scores.allTokensMatchBonus
-        }
-
-        return totalScore
+    // SIMPLE: Create SearchResultItem from item and specific variation
+    private func createSearchResultFromItemAndVariation(_ item: CatalogItemModel, _ variation: ItemVariationModel, matchType: String) throws -> SearchResultItem {
+        return SearchResultItem(
+            id: item.id,
+            name: item.name,
+            sku: variation.sku,
+            price: variation.priceInDollars,
+            barcode: variation.upc,
+            reportingCategoryId: item.reportingCategoryId,
+            categoryName: item.categoryName ?? item.reportingCategoryName,
+            variationName: variation.name,
+            images: item.images?.map { $0.toCatalogImage() },
+            matchType: matchType,
+            matchContext: matchType == "upc" ? variation.upc : variation.sku,
+            isFromCaseUpc: false,
+            caseUpcData: nil,
+            hasTax: (item.taxes?.count ?? 0) > 0
+        )
     }
 
     // MARK: - Legacy Methods (kept for compatibility)
