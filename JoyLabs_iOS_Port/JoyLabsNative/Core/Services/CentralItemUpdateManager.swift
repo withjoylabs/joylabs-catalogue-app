@@ -287,42 +287,27 @@ class CentralItemUpdateManager: ObservableObject {
     /// Handles image updates across all views
     private func handleImageUpdate() {
         print("[CentralItemUpdateManager] Handling image update across all views")
-        
+
         Task {
-            // Update ALL registered SearchManagers
-            searchManagers.removeAll { $0.value == nil }  // Clean up dead references
-            for weakRef in searchManagers {
-                if let searchManager = weakRef.value,
-                   let currentTerm = searchManager.currentSearchTerm {
-                    let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
-                    searchManager.performSearchWithDebounce(searchTerm: currentTerm, filters: filters)
-                    print("[CentralItemUpdateManager] Refreshed images in SearchManager: \(ObjectIdentifier(searchManager))")
-                }
-            }
-            
-            // ReordersView: Refresh barcode search if active
+            // NO SEARCH REFRESH NEEDED: iOS's native URLCache and AsyncImage handle image updates automatically.
+            // Triggering search refreshes causes view re-renders that can dismiss active modals.
+
+            // ReordersView: Refresh barcode search if active (minimal impact)
             reorderBarcodeManager?.refreshSearchResults()
-            
-            // Future views: Add handling here as needed
+
+            // Images will refresh automatically via AsyncImage when URLs are accessed again
+            print("[CentralItemUpdateManager] Image update delegated to native iOS URLCache system")
         }
     }
     
     /// Handles image updates for a specific item
     private func handleImageUpdateForItem(itemId: String) {
         print("[CentralItemUpdateManager] Handling image update for specific item: \(itemId)")
-        
+
         Task {
-            // Update ALL registered SearchManagers
-            searchManagers.removeAll { $0.value == nil }  // Clean up dead references
-            for weakRef in searchManagers {
-                if let searchManager = weakRef.value,
-                   let currentTerm = searchManager.currentSearchTerm {
-                    let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
-                    searchManager.performSearchWithDebounce(searchTerm: currentTerm, filters: filters)
-                    print("[CentralItemUpdateManager] Refreshed images in SearchManager: \(ObjectIdentifier(searchManager))")
-                }
-            }
-            
+            // NO SEARCH REFRESH NEEDED: iOS's native URLCache and AsyncImage handle image updates automatically.
+            // Triggering search refreshes causes view re-renders that can dismiss active modals.
+
             // ReordersView: Clear cache so computed properties fetch fresh image data automatically
             if let reorderService = reorderService {
                 reorderService.refreshCatalogCache()
@@ -330,63 +315,42 @@ class CentralItemUpdateManager: ObservableObject {
             } else {
                 print("[CentralItemUpdateManager] ReorderService not available for image update")
             }
-            
-            // ReordersView: Refresh barcode search if active
+
+            // ReordersView: Refresh barcode search if active (minimal impact)
             reorderBarcodeManager?.refreshSearchResults()
-            
-            // Future views: Add handling here as needed
+
+            // Images will refresh automatically via AsyncImage when URLs are accessed again
+            print("[CentralItemUpdateManager] Image update for item \(itemId) delegated to native iOS URLCache system")
         }
     }
     
     /// Handles force image refresh across all views
     private func handleForceImageRefresh() {
         print("[CentralItemUpdateManager] Handling force image refresh across all views")
-        
+
         Task {
-            // Force refresh ALL registered SearchManagers
-            searchManagers.removeAll { $0.value == nil }  // Clean up dead references
-            for weakRef in searchManagers {
-                if let searchManager = weakRef.value,
-                   let currentTerm = searchManager.currentSearchTerm {
-                    let filters = SearchFilters(name: true, sku: true, barcode: true, category: false)
-                    searchManager.performSearchWithDebounce(searchTerm: currentTerm, filters: filters)
-                    print("[CentralItemUpdateManager] Force refreshed SearchManager: \(ObjectIdentifier(searchManager))")
-                }
-            }
-            
-            // ReordersView: Force refresh ALL reorder items to get latest image URLs
+            // NO SEARCH REFRESH NEEDED: iOS's native URLCache and AsyncImage handle image updates automatically.
+            // Triggering search refreshes causes view re-renders that dismiss active modals.
+            // This was causing the bug where editing an item while a webhook arrives would close the modal.
+
+            // ReordersView: Clear cache so computed properties fetch fresh image data automatically
             if let reorderService = reorderService {
-                // For force refresh, we need to update all reorder items
-                // Get all unique itemIds from reorder items and refresh each one
-                await refreshAllReorderItemImages(reorderService: reorderService)
+                reorderService.refreshCatalogCache()
+                print("[CentralItemUpdateManager] Cleared ReorderService cache for fresh image data")
             } else {
                 print("[CentralItemUpdateManager] ReorderService not available for force image refresh")
             }
-            
-            // ReordersView: Refresh barcode search if active
+
+            // ReordersView: Refresh barcode search if active (minimal impact)
             reorderBarcodeManager?.refreshSearchResults()
-            
-            // Future views: Add handling here as needed
+
+            // Images will refresh automatically via AsyncImage when URLs are accessed again
+            print("[CentralItemUpdateManager] Image refresh delegated to native iOS URLCache system")
         }
     }
     
     // MARK: - Helper Methods
-    
-    /// Refreshes images for all reorder items during force refresh
-    private func refreshAllReorderItemImages(reorderService: ReorderService) async {
-        print("[CentralItemUpdateManager] Force refreshing all reorder item images")
-        
-        // Note: We can't directly access ReorderService's modelContext from here
-        // Instead, we'll trigger a general refresh that ReorderService can handle
-        // This is a bulk operation so we'll let the ReorderService handle it internally
-        
-        // For now, since ReorderService doesn't have a refreshAllImages() method,
-        // we'll rely on the existing notification system and individual item updates
-        // This could be optimized in the future with a dedicated bulk refresh method
-        
-        print("[CentralItemUpdateManager] Bulk image refresh delegated to ReorderService internal handling")
-    }
-    
+
     /// Refreshes any active ItemDetailsModal showing the specified item
     private func refreshItemDetailsModal(itemId: String) async {
         guard let weakRef = activeItemDetailsModals[itemId],

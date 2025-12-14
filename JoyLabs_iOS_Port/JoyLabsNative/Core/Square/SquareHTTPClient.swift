@@ -213,7 +213,10 @@ actor SquareHTTPClient {
         // This filters out extraneous objects and focuses on what we need
         // IMPORTANT: Must match SquareConfiguration.catalogObjectTypes exactly for consistent sync
         searchRequest["object_types"] = ["ITEM", "CATEGORY", "ITEM_VARIATION", "MODIFIER", "MODIFIER_LIST", "TAX", "DISCOUNT", "IMAGE"]
-        
+
+        // CRITICAL: Include deleted objects in incremental sync to handle deletions properly
+        searchRequest["include_deleted_objects"] = true
+
         // Add limit - Square API allows up to 1000 objects per page
         searchRequest["limit"] = 1000  // Maximum page size for efficiency
 
