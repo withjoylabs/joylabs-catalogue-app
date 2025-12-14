@@ -11,7 +11,7 @@ struct SquareConfiguration {
     static let appId = "sq0idp-WFTYv3An7NPv6ovGFLld1Q"
     
     /// Square API Version (Latest as of 2025)
-    static let apiVersion = "2025-07-16"
+    static let apiVersion = "2025-10-16"
     
     /// Square API Base URL
     static let apiBaseURL = "https://connect.squareup.com"

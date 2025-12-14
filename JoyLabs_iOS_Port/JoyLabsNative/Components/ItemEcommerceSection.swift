@@ -1,11 +1,12 @@
 import SwiftUI
 
 // MARK: - Item E-commerce Section
-/// Handles online visibility, SEO settings, and e-commerce specific features
+/// Handles online visibility and SEO settings
+/// NOTE: Sales channels moved to dedicated "Where it's Sold" section (ItemSalesChannelsSection.swift)
 struct ItemEcommerceSection: View {
     @ObservedObject var viewModel: ItemDetailsViewModel
     @StateObject private var configManager = FieldConfigurationManager.shared
-    
+
     var body: some View {
         ItemDetailsSection(title: "E-commerce Settings", icon: "globe") {
             ItemDetailsCard {
@@ -24,13 +25,12 @@ struct ItemEcommerceSection: View {
                                 )
                             )
                         }
-                        
-                        if configManager.currentConfiguration.ecommerceFields.seoEnabled ||
-                           configManager.currentConfiguration.advancedFields.channelsEnabled {
+
+                        if configManager.currentConfiguration.ecommerceFields.seoEnabled {
                             ItemDetailsFieldSeparator()
                         }
                     }
-                    
+
                     // SEO Settings
                     if configManager.currentConfiguration.ecommerceFields.seoEnabled {
                         ItemDetailsFieldRow {
@@ -46,22 +46,6 @@ struct ItemEcommerceSection: View {
                                 seoKeywords: Binding(
                                     get: { viewModel.staticData.seoKeywords ?? "" },
                                     set: { viewModel.staticData.seoKeywords = $0.isEmpty ? nil : $0 }
-                                )
-                            )
-                        }
-                        
-                        if configManager.currentConfiguration.advancedFields.channelsEnabled {
-                            ItemDetailsFieldSeparator()
-                        }
-                    }
-                    
-                    // Sales Channels
-                    if configManager.currentConfiguration.advancedFields.channelsEnabled {
-                        ItemDetailsFieldRow {
-                            SalesChannelsSettings(
-                                channels: Binding(
-                                    get: { viewModel.staticData.channels },
-                                    set: { viewModel.staticData.channels = $0 }
                                 )
                             )
                         }
@@ -171,97 +155,8 @@ struct SEOSettings: View {
 }
 
 // MARK: - Sales Channels Settings
-struct SalesChannelsSettings: View {
-    @Binding var channels: [String]
-    @State private var showingAddChannel = false
-    @State private var newChannelName = ""
-    
-    private let predefinedChannels = [
-        "Online Store",
-        "In-Store POS",
-        "Mobile App",
-        "Third-Party Marketplace",
-        "Social Media",
-        "Wholesale"
-    ]
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
-            ItemDetailsFieldLabel(title: "Sales Channels", helpText: "Select where this item can be sold")
-            
-            VStack(spacing: ItemDetailsSpacing.minimalSpacing) {
-                // Current channels
-                if channels.isEmpty {
-                    Text("No sales channels selected")
-                        .font(.itemDetailsCaption)
-                        .foregroundColor(.itemDetailsSecondaryText)
-                        .italic()
-                        .padding(.vertical, 4)
-                } else {
-                    ForEach(channels.indices, id: \.self) { index in
-                        let channel = channels[index]
-                        HStack {
-                            Text(channel)
-                                .font(.itemDetailsBody)
-                                .foregroundColor(.itemDetailsPrimaryText)
-                            
-                            Spacer()
-                            
-                            Button(action: {
-                                channels.remove(at: index)
-                            }) {
-                                Image(systemName: "minus.circle.fill")
-                                    .foregroundColor(.itemDetailsDestructive)
-                                    .font(.itemDetailsCaption)
-                            }
-                        }
-                        .padding(.vertical, 2)
-                    }
-                }
-                
-                // Add channel options
-                VStack(spacing: 4) {
-                    ForEach(predefinedChannels.filter { !channels.contains($0) }, id: \.self) { channel in
-                        Button(action: {
-                            channels.append(channel)
-                        }) {
-                            HStack {
-                                Image(systemName: "plus.circle")
-                                    .foregroundColor(.itemDetailsAccent)
-                                Text(channel)
-                                    .foregroundColor(.itemDetailsAccent)
-                                Spacer()
-                            }
-                            .font(.itemDetailsCaption)
-                        }
-                    }
-                    
-                    // Custom channel input
-                    HStack {
-                        TextField("Custom channel name", text: $newChannelName)
-                            .font(.itemDetailsBody)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 6)
-                            .background(Color.itemDetailsFieldBackground)
-                            .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
-                        
-                        ItemDetailsButton(
-                            title: "Add",
-                            style: .secondary
-                        ) {
-                            let trimmed = newChannelName.trimmingCharacters(in: .whitespacesAndNewlines)
-                            if !trimmed.isEmpty && !channels.contains(trimmed) {
-                                channels.append(trimmed)
-                                newChannelName = ""
-                            }
-                        }
-                        .disabled(newChannelName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    }
-                }
-            }
-        }
-    }
-}
+// DEPRECATED: Sales channels moved to ItemSalesChannelsSection.swift
+// This component removed to eliminate duplicate functionality
 
 // MARK: - Extensions for Display Names
 extension OnlineVisibility {

@@ -558,12 +558,17 @@ struct ItemDetailsContent: View {
             
         case "skipModifier":
             ItemSkipModifierSection(viewModel: viewModel)
-            
-        case "availability":
-            if configManager.currentConfiguration.ecommerceFields.availabilityEnabled {
-                ItemAvailabilitySection(viewModel: viewModel)
+
+        case "salesChannels":
+            if configManager.currentConfiguration.ecommerceFields.salesChannelsEnabled {
+                ItemSalesChannelsSection(viewModel: viewModel)
             }
-            
+
+        case "fulfillment":
+            if configManager.currentConfiguration.ecommerceFields.fulfillmentMethodsEnabled {
+                ItemFulfillmentSection(viewModel: viewModel)
+            }
+
         case "locations":
             if configManager.currentConfiguration.advancedFields.enabledLocationsEnabled {
                 ItemEnabledLocationsSection(viewModel: viewModel)

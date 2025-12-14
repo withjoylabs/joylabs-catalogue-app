@@ -266,7 +266,6 @@ struct ItemSettingsView: View {
         if configManager.currentConfiguration.serviceFields.teamMembersEnabled { count += 1 }
         if configManager.currentConfiguration.advancedFields.customAttributesEnabled { count += 1 }
         if configManager.currentConfiguration.advancedFields.measurementUnitEnabled { count += 1 }
-        if configManager.currentConfiguration.ecommerceFields.availabilityEnabled { count += 1 }
         if configManager.currentConfiguration.ecommerceFields.onlineVisibilityEnabled { count += 1 }
         if configManager.currentConfiguration.ecommerceFields.seoEnabled { count += 1 }
         if configManager.currentConfiguration.advancedFields.enabledLocationsEnabled { count += 1 }

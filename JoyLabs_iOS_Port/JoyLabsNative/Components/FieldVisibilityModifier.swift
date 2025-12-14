@@ -265,10 +265,11 @@ struct SectionVisibilityHelper {
     
     static func shouldShowEcommerceSection(_ config: ItemFieldConfiguration) -> Bool {
         return config.ecommerceFields.onlineVisibilityEnabled ||
-               config.ecommerceFields.availabilityEnabled ||
                config.ecommerceFields.seoEnabled ||
                config.ecommerceFields.ecomVisibilityEnabled ||
-               config.ecommerceFields.availabilityPeriodsEnabled
+               config.ecommerceFields.availabilityPeriodsEnabled ||
+               config.ecommerceFields.fulfillmentMethodsEnabled ||
+               config.ecommerceFields.salesChannelsEnabled
     }
     
     static func shouldShowTeamDataSection(_ config: ItemFieldConfiguration) -> Bool {

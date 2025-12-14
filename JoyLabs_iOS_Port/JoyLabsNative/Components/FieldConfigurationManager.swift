@@ -18,7 +18,7 @@ class FieldConfigurationManager: ObservableObject {
     private let logger = Logger(subsystem: "com.joylabs.native", category: "FieldConfigurationManager")
     private let configurationKey = "ItemFieldConfiguration"
     private let configurationVersionKey = "ItemFieldConfigurationVersion"
-    private let currentVersion = 1
+    private let currentVersion = 2  // Bumped from 1 to force migration (remove availability, add salesChannels/fulfillment)
     
     // MARK: - Singleton
     static let shared = FieldConfigurationManager()
@@ -207,8 +207,10 @@ class FieldConfigurationManager: ObservableObject {
             return currentConfiguration.serviceFields.teamMembersEnabled
         case .advancedCustomAttributes:
             return currentConfiguration.advancedFields.customAttributesEnabled
-        case .ecommerceAvailability:
-            return currentConfiguration.ecommerceFields.availabilityEnabled
+        case .ecommerceSalesChannels:
+            return currentConfiguration.ecommerceFields.salesChannelsEnabled
+        case .ecommerceFulfillmentMethods:
+            return currentConfiguration.ecommerceFields.fulfillmentMethodsEnabled
         case .teamDataCaseInfo:
             return currentConfiguration.teamDataFields.caseDataEnabled
         }
@@ -247,8 +249,10 @@ class FieldConfigurationManager: ObservableObject {
             return currentConfiguration.serviceFields.teamMembersRequired
         case .advancedCustomAttributes:
             return currentConfiguration.advancedFields.customAttributesRequired
-        case .ecommerceAvailability:
-            return currentConfiguration.ecommerceFields.availabilityRequired
+        case .ecommerceSalesChannels:
+            return currentConfiguration.ecommerceFields.salesChannelsRequired
+        case .ecommerceFulfillmentMethods:
+            return currentConfiguration.ecommerceFields.fulfillmentMethodsRequired
         case .teamDataCaseInfo:
             return currentConfiguration.teamDataFields.caseDataRequired
         }
@@ -257,14 +261,85 @@ class FieldConfigurationManager: ObservableObject {
     // MARK: - Private Methods
     
     private func migrateConfiguration(from version: Int) {
-        logger.info("Migrating configuration from version \(version)")
-        
-        // For now, just reset to default on any version change
-        // In the future, implement specific migration logic
-        currentConfiguration = ItemFieldConfiguration.defaultConfiguration()
+        logger.info("[FieldConfig] Migrating configuration from version \(version) to \(self.currentVersion)")
+
+        if version < 2 {
+            // MIGRATION 1→2: Remove deprecated "availability" section, add "salesChannels" and "fulfillment"
+            logger.info("[FieldConfig] Migration 1→2: Removing availability section, adding salesChannels/fulfillment")
+
+            var newConfig = ItemFieldConfiguration.defaultConfiguration()
+
+            // If user has saved config, preserve their customizations where possible
+            if let savedData = userDefaults.data(forKey: configurationKey),
+               let savedConfig = try? JSONDecoder().decode(ItemFieldConfiguration.self, from: savedData) {
+
+                logger.info("[FieldConfig] Preserving user's customized field settings during migration")
+
+                // Preserve user's field settings (don't reset their customizations)
+                newConfig.basicFields = savedConfig.basicFields
+                newConfig.classificationFields = savedConfig.classificationFields
+                newConfig.pricingFields = savedConfig.pricingFields
+                newConfig.inventoryFields = savedConfig.inventoryFields
+                newConfig.serviceFields = savedConfig.serviceFields
+                newConfig.advancedFields = savedConfig.advancedFields
+                newConfig.teamDataFields = savedConfig.teamDataFields
+
+                // Migrate ecommerce fields
+                newConfig.ecommerceFields = savedConfig.ecommerceFields
+                newConfig.ecommerceFields.fulfillmentMethodsEnabled = true  // ENABLE new fulfillment
+                newConfig.ecommerceFields.salesChannelsEnabled = false  // Keep salesChannels opt-in
+
+                // Migrate section configurations, removing "availability"
+                var migratedSections = savedConfig.sectionConfigurations
+
+                if migratedSections.removeValue(forKey: "availability") != nil {
+                    logger.info("[FieldConfig] Removed deprecated 'availability' section from configuration")
+                }
+
+                // Add new sections if missing
+                if migratedSections["salesChannels"] == nil {
+                    migratedSections["salesChannels"] = SectionConfiguration(
+                        id: "salesChannels",
+                        title: "Where it's Sold",
+                        icon: "storefront",
+                        isEnabled: false,
+                        order: 8,
+                        isExpanded: false
+                    )
+                    logger.info("[FieldConfig] Added 'salesChannels' section")
+                }
+
+                if migratedSections["fulfillment"] == nil {
+                    migratedSections["fulfillment"] = SectionConfiguration(
+                        id: "fulfillment",
+                        title: "Fulfillment",
+                        icon: "shippingbox",
+                        isEnabled: true,
+                        order: 9,
+                        isExpanded: false
+                    )
+                    logger.info("[FieldConfig] Added 'fulfillment' section")
+                }
+
+                // Reorder sections to account for removed availability
+                var reorderedSections = migratedSections
+                for (id, var section) in migratedSections {
+                    if section.order >= 10 {  // Sections after availability (old order 10)
+                        section.order -= 1  // Shift down by 1
+                        reorderedSections[id] = section
+                    }
+                }
+
+                newConfig.sectionConfigurations = reorderedSections
+            } else {
+                logger.info("[FieldConfig] No saved configuration found, using fresh defaults")
+            }
+
+            currentConfiguration = newConfig
+        }
+
         saveConfiguration()
-        
-        logger.info("Configuration migration completed")
+        logger.info("[FieldConfig] Configuration migration completed successfully")
     }
 }
 
@@ -314,9 +389,10 @@ enum FieldPath: String, CaseIterable {
     case servicesDuration = "services.duration"
     case servicesTeamMembers = "services.teamMembers"
     case advancedCustomAttributes = "advanced.customAttributes"
-    case ecommerceAvailability = "ecommerce.availability"
+    case ecommerceSalesChannels = "ecommerce.salesChannels"
+    case ecommerceFulfillmentMethods = "ecommerce.fulfillmentMethods"
     case teamDataCaseInfo = "teamData.caseInfo"
-    
+
     var displayName: String {
         switch self {
         case .basicName: return "Item Name"
@@ -334,7 +410,8 @@ enum FieldPath: String, CaseIterable {
         case .servicesDuration: return "Service Duration"
         case .servicesTeamMembers: return "Team Members"
         case .advancedCustomAttributes: return "Custom Attributes"
-        case .ecommerceAvailability: return "Availability Settings"
+        case .ecommerceSalesChannels: return "Sales Channels"
+        case .ecommerceFulfillmentMethods: return "Fulfillment Methods"
         case .teamDataCaseInfo: return "Case Information"
         }
     }
@@ -427,10 +504,11 @@ extension ItemFieldConfiguration {
         
         // Enable all e-commerce fields
         config.ecommerceFields.onlineVisibilityEnabled = true
-        config.ecommerceFields.availabilityEnabled = true
         config.ecommerceFields.seoEnabled = true
         config.ecommerceFields.ecomVisibilityEnabled = true
         config.ecommerceFields.availabilityPeriodsEnabled = true
+        config.ecommerceFields.fulfillmentMethodsEnabled = true
+        config.ecommerceFields.salesChannelsEnabled = true
         
         // Enable all team data fields
         config.teamDataFields.caseDataEnabled = true

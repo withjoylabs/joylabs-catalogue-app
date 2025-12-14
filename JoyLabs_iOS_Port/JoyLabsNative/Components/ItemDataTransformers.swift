@@ -29,6 +29,10 @@ class ItemDataTransformers {
         itemDetails.presentAtAllLocations = catalogObject.presentAtAllLocations ?? false
         itemDetails.presentAtLocationIds = catalogObject.presentAtLocationIds ?? []
         itemDetails.absentAtLocationIds = catalogObject.absentAtLocationIds ?? []
+
+        // Sales channels (read-only from Square API)
+        // NOTE: This field is read-only and cannot be set via API
+        itemDetails.channels = [] // Square doesn't expose channels array in current API version
         
         // CRITICAL DEBUG: Log location data transformation
         logger.info("🔍 TRANSFORM: Item \(catalogObject.id) presentAtAllLocations: \(catalogObject.presentAtAllLocations?.description ?? "nil") -> UI value: \(itemDetails.presentAtAllLocations)")
@@ -83,6 +87,7 @@ class ItemDataTransformers {
             // Availability and visibility
             itemDetails.availableOnline = itemData.availableOnline ?? false
             itemDetails.availableForPickup = itemData.availableForPickup ?? false
+            itemDetails.availableElectronically = itemData.availableElectronically ?? false
             itemDetails.skipModifierScreen = itemData.skipModifierScreen ?? false
             
             // Modifier lists

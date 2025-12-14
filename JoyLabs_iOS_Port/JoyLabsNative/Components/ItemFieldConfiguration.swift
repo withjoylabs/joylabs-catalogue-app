@@ -23,11 +23,12 @@ struct SectionConfiguration: Codable, Identifiable {
         SectionConfiguration(id: "taxes", title: "Tax Settings", icon: "percent", isEnabled: true, order: 5, isExpanded: false),
         SectionConfiguration(id: "modifiers", title: "Modifiers", icon: "plus.circle", isEnabled: true, order: 6, isExpanded: false),
         SectionConfiguration(id: "skipModifier", title: "Skip Details Screen at Checkout", icon: "forward.circle", isEnabled: true, order: 7, isExpanded: false),
-        SectionConfiguration(id: "availability", title: "Availability", icon: "checkmark.circle", isEnabled: true, order: 8, isExpanded: false),
-        SectionConfiguration(id: "locations", title: "Enabled at Locations", icon: "location", isEnabled: true, order: 9, isExpanded: false),
-        SectionConfiguration(id: "customAttributes", title: "Custom Attributes", icon: "list.bullet", isEnabled: true, order: 10, isExpanded: false),
-        SectionConfiguration(id: "ecommerce", title: "E-Commerce Settings", icon: "globe", isEnabled: true, order: 11, isExpanded: false),
-        SectionConfiguration(id: "measurementUnit", title: "Measurement Unit", icon: "ruler", isEnabled: true, order: 12, isExpanded: false)
+        SectionConfiguration(id: "salesChannels", title: "Where it's Sold", icon: "storefront", isEnabled: false, order: 8, isExpanded: false),
+        SectionConfiguration(id: "fulfillment", title: "Fulfillment", icon: "shippingbox", isEnabled: true, order: 9, isExpanded: false),
+        SectionConfiguration(id: "locations", title: "Enabled at Locations", icon: "location", isEnabled: true, order: 10, isExpanded: false),
+        SectionConfiguration(id: "customAttributes", title: "Custom Attributes", icon: "list.bullet", isEnabled: true, order: 11, isExpanded: false),
+        SectionConfiguration(id: "ecommerce", title: "E-Commerce Settings", icon: "globe", isEnabled: true, order: 12, isExpanded: false),
+        SectionConfiguration(id: "measurementUnit", title: "Measurement Unit", icon: "ruler", isEnabled: true, order: 13, isExpanded: false)
     ]
 }
 
@@ -104,8 +105,11 @@ struct ItemFieldConfiguration: Codable {
         config.pricingFields.skipModifierScreenEnabled = true
         
         // Enable location settings
-        config.ecommerceFields.availabilityEnabled = true
         config.advancedFields.enabledLocationsEnabled = true
+
+        // Enable modern e-commerce sections
+        config.ecommerceFields.fulfillmentMethodsEnabled = true  // Modern replacement for old availability section
+        config.ecommerceFields.salesChannelsEnabled = false  // Opt-in feature (read-only display)
         
         // Enable basic inventory
         config.inventoryFields.trackInventoryEnabled = true
@@ -287,20 +291,25 @@ struct EcommerceFieldsConfig: Codable {
     var onlineVisibilityEnabled: Bool = false
     var onlineVisibilityRequired: Bool = false
     var defaultOnlineVisibility: OnlineVisibility = .public
-    
-    var availabilityEnabled: Bool = true
-    var availabilityRequired: Bool = false
+
+    // Sales Channels Section (read-only display of where item is sold)
+    var salesChannelsEnabled: Bool = false
+    var salesChannelsRequired: Bool = false
+
+    // Fulfillment Methods Section (replaces old availability section)
+    var fulfillmentMethodsEnabled: Bool = true
+    var fulfillmentMethodsRequired: Bool = false
     var defaultAvailableOnline: Bool = true
     var defaultAvailableForPickup: Bool = true
     var defaultAvailableElectronically: Bool = false
-    
+
     var seoEnabled: Bool = false
     var seoRequired: Bool = false
-    
+
     var ecomVisibilityEnabled: Bool = false
     var ecomVisibilityRequired: Bool = false
     var defaultEcomVisibility: EcomVisibility = .unindexed
-    
+
     var availabilityPeriodsEnabled: Bool = false
     var availabilityPeriodsRequired: Bool = false
 }

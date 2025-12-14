@@ -189,7 +189,13 @@ struct SectionConfigurationCard: View {
                 // Toggle - Always interactive, never disabled
                 Toggle("", isOn: Binding(
                     get: { section.isEnabled },
-                    set: { _ in onToggleEnabled() }
+                    set: { newValue in
+                        onToggleEnabled()
+                        // CASCADE: Toggle all child fields when parent section is toggled
+                        if hasConfigurableFields {
+                            toggleAllChildFields(to: newValue)
+                        }
+                    }
                 ))
                 .labelsHidden()
                 .scaleEffect(0.8)
@@ -232,13 +238,22 @@ struct SectionConfigurationCard: View {
     private var hasConfigurableFields: Bool {
         return !fieldsForSection.isEmpty
     }
-    
+
     // PERFORMANCE: Cache field calculation to avoid repeated computation
     private var fieldsForSection: [FieldData] {
         getFieldsForSection(section.id)
     }
-    
+
     // MARK: - Helper Methods
+
+    /// Toggle all child fields when parent section is toggled (improved UX)
+    private func toggleAllChildFields(to newValue: Bool) {
+        let fields = getFieldsForSection(section.id)
+        for field in fields {
+            field.enabledBinding.wrappedValue = newValue
+        }
+    }
+
     private func getFieldsForSection(_ sectionId: String) -> [FieldData] {
         let config = configManager.currentConfiguration
         
@@ -351,21 +366,6 @@ struct SectionConfigurationCard: View {
                     )
                 )
             ]
-        case "availability":
-            return [
-                FieldData(
-                    name: "Availability Settings",
-                    description: "Control item availability for sale, online, and pickup",
-                    enabledBinding: Binding(
-                        get: { config.ecommerceFields.availabilityEnabled },
-                        set: { configManager.updateFieldConfiguration(\.ecommerceFields.availabilityEnabled, value: $0) }
-                    ),
-                    requiredBinding: Binding(
-                        get: { config.ecommerceFields.availabilityRequired },
-                        set: { configManager.updateFieldConfiguration(\.ecommerceFields.availabilityRequired, value: $0) }
-                    )
-                )
-            ]
         case "locations":
             return [
                 FieldData(
@@ -420,6 +420,36 @@ struct SectionConfigurationCard: View {
                     requiredBinding: Binding(
                         get: { config.ecommerceFields.seoRequired },
                         set: { configManager.updateFieldConfiguration(\.ecommerceFields.seoRequired, value: $0) }
+                    )
+                )
+            ]
+        case "salesChannels":
+            return [
+                FieldData(
+                    name: "Sales Channels Display",
+                    description: "Show Square-managed sales channels (read-only)",
+                    enabledBinding: Binding(
+                        get: { config.ecommerceFields.salesChannelsEnabled },
+                        set: { configManager.updateFieldConfiguration(\.ecommerceFields.salesChannelsEnabled, value: $0) }
+                    ),
+                    requiredBinding: Binding(
+                        get: { config.ecommerceFields.salesChannelsRequired },
+                        set: { configManager.updateFieldConfiguration(\.ecommerceFields.salesChannelsRequired, value: $0) }
+                    )
+                )
+            ]
+        case "fulfillment":
+            return [
+                FieldData(
+                    name: "Fulfillment Methods",
+                    description: "Online fulfillment options (shipping, pickup, delivery) and alcohol indicator",
+                    enabledBinding: Binding(
+                        get: { config.ecommerceFields.fulfillmentMethodsEnabled },
+                        set: { configManager.updateFieldConfiguration(\.ecommerceFields.fulfillmentMethodsEnabled, value: $0) }
+                    ),
+                    requiredBinding: Binding(
+                        get: { config.ecommerceFields.fulfillmentMethodsRequired },
+                        set: { configManager.updateFieldConfiguration(\.ecommerceFields.fulfillmentMethodsRequired, value: $0) }
                     )
                 )
             ]
