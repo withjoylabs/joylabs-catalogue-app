@@ -21,11 +21,20 @@ class SwiftDataSearchManager: ObservableObject {
     // MARK: - Pagination Properties
     private var allSearchResults: [SearchResultItem] = []
     private let pageSize: Int = 50
-    
+
     // MARK: - Private Properties
     private let modelContext: ModelContext
     private var searchTask: Task<Void, Never>?
     private let logger = Logger(subsystem: "com.joylabs.native", category: "SwiftDataSearch")
+
+    // MARK: - Scoring Infrastructure
+
+    /// Scored search result with relevance ranking
+    private struct ScoredSearchResult {
+        let item: SearchResultItem
+        let score: Int
+        let matchDetails: String
+    }
     
     // Simple search - no complex scoring needed
     
@@ -147,25 +156,50 @@ class SwiftDataSearchManager: ObservableObject {
     ) async throws -> [SearchResultItem] {
 
         let cleanTerm = searchTerm.trimmingCharacters(in: .whitespacesAndNewlines)
-        logger.debug("[Search] Simple search for: '\(cleanTerm)'")
+        let tokens = filterTokens(cleanTerm)
 
-        var results: [SearchResultItem] = []
+        logger.info("[Search] 🔍 Search term: '\(cleanTerm)' | Tokens: \(tokens)")
+
+        var scoredResults: [ScoredSearchResult] = []
 
         // Search names
         if filters.name {
-            let nameResults = try searchNames(searchTerm: cleanTerm)
-            results.append(contentsOf: nameResults)
+            let nameResults = try searchNames(searchTerm: cleanTerm, tokens: tokens)
+            scoredResults.append(contentsOf: nameResults)
         }
 
         // Search barcodes
         if filters.barcode {
-            let barcodeResults = try searchBarcodes(searchTerm: cleanTerm)
-            results.append(contentsOf: barcodeResults)
+            let barcodeResults = try searchBarcodes(searchTerm: cleanTerm, tokens: tokens)
+            scoredResults.append(contentsOf: barcodeResults)
         }
 
-        // Remove duplicates
-        var seenIds = Set<String>()
-        let allResults = results.filter { seenIds.insert($0.id).inserted }
+        // Remove duplicates (keep highest scoring version)
+        var seenIds = [String: ScoredSearchResult]()
+        for result in scoredResults {
+            if let existing = seenIds[result.item.id] {
+                if result.score > existing.score {
+                    seenIds[result.item.id] = result
+                }
+            } else {
+                seenIds[result.item.id] = result
+            }
+        }
+
+        // Sort by score (highest first)
+        let rankedResults = seenIds.values.sorted { $0.score > $1.score }
+
+        // Log final ranking
+        logger.info("[Search] 📊 Final ranking (\(rankedResults.count) results):")
+        for (index, result) in rankedResults.prefix(10).enumerated() {
+            logger.info("[Search]   \(index+1). '\(result.item.name ?? "nil")' - Score: \(result.score) - \(result.matchDetails)")
+        }
+        if rankedResults.count > 10 {
+            logger.info("[Search]   ... and \(rankedResults.count - 10) more")
+        }
+
+        // Extract items for pagination
+        let allResults = rankedResults.map { $0.item }
 
         // Set up pagination infrastructure
         await MainActor.run {
@@ -184,60 +218,301 @@ class SwiftDataSearchManager: ObservableObject {
         return allResults
     }
 
-    private func searchNames(searchTerm: String) throws -> [SearchResultItem] {
-        let tokens = searchTerm.lowercased().components(separatedBy: .whitespaces).filter { !$0.isEmpty }
-
+    private func searchNames(searchTerm: String, tokens: [String]) throws -> [ScoredSearchResult] {
         let descriptor = FetchDescriptor<CatalogItemModel>(
-            predicate: buildSimplePredicate(tokens: tokens),
-            sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
+            predicate: buildSimplePredicate(tokens: tokens)
+            // NO SORT - we'll sort by relevance score instead
         )
 
         let items = try modelContext.fetch(descriptor)
-        logger.debug("[Search] Found \(items.count) items for name search")
+        logger.debug("[Search] DB returned \(items.count) items for name search")
 
-        return try createSearchResultsFromItems(items, matchType: "name")
+        // Post-filter results to ensure word order and prefix matching
+        let filteredItems = items.filter { item in
+            guard let name = item.name?.lowercased() else { return false }
+            return matchesWithWordOrder(name: name, tokens: tokens)
+        }
+
+        logger.debug("[Search] After word order filtering: \(filteredItems.count) items")
+
+        // Convert to search results and calculate scores
+        let searchResults = try createSearchResultsFromItems(filteredItems, matchType: "name")
+        let scoredResults = searchResults.map { item in
+            calculateMatchScore(item: item, searchTerm: searchTerm, tokens: tokens, matchType: "name")
+        }
+
+        return scoredResults
     }
 
-    private func buildSimplePredicate(tokens: [String]) -> Predicate<CatalogItemModel> {
-        if tokens.count == 1 {
-            let token = tokens[0]
-            return #Predicate { item in
-                !item.isDeleted && item.name != nil &&
-                (item.name?.localizedStandardContains(token) ?? false)
+    // MARK: - Token Filtering and Validation Helpers
+
+    /// Filter tokens to ignore single letters but KEEP numbers (industry standard)
+    private func filterTokens(_ searchTerm: String) -> [String] {
+        return searchTerm.lowercased()
+            .components(separatedBy: .whitespaces)
+            .filter { token in
+                // Keep if: length > 1 OR is a number (even single digit like "8")
+                token.count > 1 || token.allSatisfy { $0.isNumber }
             }
-        } else if tokens.count == 2 {
-            let token1 = tokens[0]
-            let token2 = tokens[1]
-            return #Predicate { item in
-                !item.isDeleted && item.name != nil &&
-                (item.name?.localizedStandardContains(token1) ?? false) &&
-                (item.name?.localizedStandardContains(token2) ?? false)
+    }
+
+    /// Check if name matches all tokens in order with prefix matching
+    private func matchesWithWordOrder(name: String, tokens: [String]) -> Bool {
+        guard !tokens.isEmpty else { return false }
+
+        var searchStartIndex = name.startIndex
+
+        for token in tokens {
+            // Find token as word prefix in remaining string
+            guard let range = name[searchStartIndex...].range(
+                of: "\\b\(NSRegularExpression.escapedPattern(for: token))",
+                options: [.regularExpression, .caseInsensitive]
+            ) else {
+                return false  // Token not found or not at word boundary
             }
-        } else {
-            // For 3+ tokens, use first token in DB query
-            let token = tokens[0]
-            return #Predicate { item in
-                !item.isDeleted && item.name != nil &&
-                (item.name?.localizedStandardContains(token) ?? false)
+
+            // Move search position past this match
+            searchStartIndex = range.upperBound
+        }
+
+        return true  // All tokens found in order
+    }
+
+    // MARK: - Match Scoring
+
+    /// Calculate token proximity - how close matched tokens are to each other
+    private func calculateTokenProximity(name: String, tokens: [String]) -> Int {
+        guard tokens.count > 1 else { return 0 }
+
+        let words = name.lowercased().components(separatedBy: .whitespaces)
+        var matchedIndices: [Int] = []
+
+        for (index, word) in words.enumerated() {
+            for token in tokens {
+                if word.hasPrefix(token) || word.contains(token) {
+                    matchedIndices.append(index)
+                    break
+                }
             }
+        }
+
+        guard matchedIndices.count > 1 else { return 0 }
+
+        // Calculate distance between first and last matched token
+        let distance = matchedIndices.last! - matchedIndices.first!
+
+        // Bonus based on proximity
+        switch distance {
+        case 0: return 0  // Should not happen
+        case 1: return 100 // Adjacent (best)
+        case 2: return 50  // 1 word apart
+        default: return 0  // 2+ words apart
         }
     }
 
-    private func searchBarcodes(searchTerm: String) throws -> [SearchResultItem] {
+    /// Calculate match density - percentage of words that matched
+    private func calculateMatchDensity(name: String, tokens: [String]) -> Int {
+        let words = name.lowercased().components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        guard !words.isEmpty else { return 0 }
+
+        var matchedCount = 0
+        for word in words {
+            for token in tokens {
+                if word.hasPrefix(token) || word.contains(token) {
+                    matchedCount += 1
+                    break
+                }
+            }
+        }
+
+        let density = Double(matchedCount) / Double(words.count)
+
+        // Bonus based on density
+        switch density {
+        case 0.8...1.0: return 50  // 80-100% match
+        case 0.6..<0.8: return 40  // 60-80% match
+        case 0.4..<0.6: return 30  // 40-60% match
+        case 0.2..<0.4: return 20  // 20-40% match
+        default: return 10         // <20% match
+        }
+    }
+
+    /// Calculate relevance score for search result with detailed logging
+    private func calculateMatchScore(
+        item: SearchResultItem,
+        searchTerm: String,
+        tokens: [String],
+        matchType: String
+    ) -> ScoredSearchResult {
+        var score = 0
+        var matchDetails: [String] = []
+
+        let itemName = (item.name ?? "").lowercased()
+        let searchLower = searchTerm.lowercased()
+
+        // Exact name match (highest priority)
+        if itemName == searchLower {
+            score += 1000
+            matchDetails.append("exact_name")
+        }
+        // Name starts with search term (very high priority)
+        else if itemName.hasPrefix(searchLower) {
+            score += 500
+            matchDetails.append("name_prefix")
+        }
+        // All tokens match in order at word boundaries (high priority)
+        else if matchesWithWordOrder(name: itemName, tokens: tokens) {
+            score += 300
+            matchDetails.append("word_order_match")
+
+            // Bonus: First word starts with first token
+            if let firstToken = tokens.first, itemName.hasPrefix(firstToken) {
+                score += 100
+                matchDetails.append("first_word_prefix")
+            }
+
+            // NEW: Proximity bonus - how close are matched tokens?
+            let proximityBonus = calculateTokenProximity(name: itemName, tokens: tokens)
+            if proximityBonus > 0 {
+                score += proximityBonus
+                matchDetails.append("proximity(\(proximityBonus))")
+            }
+
+            // NEW: Density bonus - what % of words matched?
+            let densityBonus = calculateMatchDensity(name: itemName, tokens: tokens)
+            if densityBonus > 0 {
+                score += densityBonus
+                matchDetails.append("density(\(densityBonus))")
+            }
+        }
+
+        // SKU exact match
+        if let sku = item.sku?.lowercased(), sku == searchLower {
+            score += 800
+            matchDetails.append("exact_sku")
+        }
+        // SKU starts with search
+        else if let sku = item.sku?.lowercased(), sku.hasPrefix(searchLower) {
+            score += 400
+            matchDetails.append("sku_prefix")
+        }
+        // SKU contains search
+        else if let sku = item.sku?.lowercased(), sku.contains(searchLower) {
+            score += 200
+            matchDetails.append("sku_contains")
+        }
+
+        // UPC exact match (highest for barcodes)
+        if let upc = item.barcode?.lowercased(), upc == searchLower {
+            score += 900
+            matchDetails.append("exact_upc(900)")
+        }
+        // UPC suffix match (last digits - important for check digits and retail references)
+        else if let upc = item.barcode?.lowercased(), upc.hasSuffix(searchLower) {
+            score += 400
+            matchDetails.append("upc_suffix(400)")
+        }
+        // UPC prefix match (starts with - manufacturer codes)
+        else if let upc = item.barcode?.lowercased(), upc.hasPrefix(searchLower) {
+            score += 300
+            matchDetails.append("upc_prefix(300)")
+        }
+        // UPC contains search (middle of barcode - least specific)
+        else if let upc = item.barcode?.lowercased(), upc.contains(searchLower) {
+            score += 200
+            matchDetails.append("upc_contains(200)")
+        }
+
+        // Penalty for longer names (prefer shorter, more specific matches)
+        let nameLength = itemName.count
+        if nameLength > 50 {
+            score -= 10
+            matchDetails.append("long_penalty(-10)")
+        } else if nameLength > 30 {
+            score -= 5
+            matchDetails.append("med_penalty(-5)")
+        }
+
+        // Ensure minimum score of 1 for valid matches
+        if score == 0 && matchType == "name" {
+            score = 1
+            matchDetails.append("basic_match")
+        }
+
+        let details = matchDetails.joined(separator: " + ")
+        logger.info("[Search] Score: \(score) | '\(item.name ?? "nil")' | \(details)")
+
+        return ScoredSearchResult(item: item, score: score, matchDetails: details)
+    }
+
+    private func buildSimplePredicate(tokens: [String]) -> Predicate<CatalogItemModel> {
+        // Handle empty tokens
+        guard !tokens.isEmpty else {
+            return #Predicate { item in
+                !item.isDeleted && item.name != nil
+            }
+        }
+
+        // SIMPLIFIED: Only use first token for database-level filtering
+        // SwiftData predicates have strict complexity limits - keep it simple
+        // Post-filtering in matchesWithWordOrder() handles:
+        // - All tokens (not just first)
+        // - Word order validation
+        // - Prefix matching with word boundaries
+        let token = tokens[0]
+        return #Predicate { item in
+            !item.isDeleted && item.name != nil &&
+            (item.name?.localizedStandardContains(token) ?? false)
+        }
+    }
+
+    private func searchBarcodes(searchTerm: String, tokens: [String]) throws -> [ScoredSearchResult] {
+        // For numbers: match anywhere in SKU/UPC (prefix, suffix, contains)
+        // For text: match anywhere in SKU
+        // For multi-token searches: ensure all tokens appear (order matters for readability)
+
+        logger.debug("[Search] Barcode search with tokens: \(tokens)")
+
         let descriptor = FetchDescriptor<ItemVariationModel>(
             predicate: #Predicate { variation in
                 !variation.isDeleted && variation.item != nil &&
-                ((variation.sku?.localizedStandardContains(searchTerm) ?? false) || variation.upc == searchTerm)
+                ((variation.sku?.localizedStandardContains(searchTerm) ?? false) ||
+                 (variation.upc?.localizedStandardContains(searchTerm) ?? false))
             }
         )
 
         let variations = try modelContext.fetch(descriptor)
-        logger.debug("[Search] Found \(variations.count) variations for barcode search")
+        logger.debug("[Search] DB returned \(variations.count) variations for barcode search")
 
-        return variations.compactMap { variation in
+        // Post-filter for token matching (if multiple tokens)
+        let filteredVariations: [ItemVariationModel]
+        if tokens.count > 1 {
+            filteredVariations = variations.filter { variation in
+                let sku = variation.sku?.lowercased() ?? ""
+                let upc = variation.upc?.lowercased() ?? ""
+
+                // Check if all tokens appear in SKU or UPC
+                return tokens.allSatisfy { token in
+                    sku.contains(token) || upc.contains(token)
+                }
+            }
+            logger.debug("[Search] After token filtering: \(filteredVariations.count) variations")
+        } else {
+            filteredVariations = variations
+        }
+
+        // Convert to search results
+        let searchResults = filteredVariations.compactMap { variation -> SearchResultItem? in
             guard let item = variation.item, !item.isDeleted else { return nil }
             return try? createSearchResultFromItemAndVariation(item, variation, matchType: "barcode")
         }
+
+        // Calculate scores
+        let scoredResults = searchResults.map { item in
+            calculateMatchScore(item: item, searchTerm: searchTerm, tokens: tokens, matchType: "barcode")
+        }
+
+        return scoredResults
     }
 
     // SIMPLE: Create SearchResultItems from items
