@@ -75,8 +75,8 @@ final class ToastWindowManager: ObservableObject {
         
         // Configure window
         window.rootViewController = hosting
-        window.makeKeyAndVisible()
-        
+        window.isHidden = false  // Make visible but NOT key to preserve HID scanner's UIKeyCommand responder chain
+
         // Store references
         self.toastWindow = window
         self.hostingController = hosting
