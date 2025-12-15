@@ -213,7 +213,7 @@ struct SwipeableReorderCard: View {
             .frame(height: cardHeight)
             .offset(x: offset)
             .simultaneousGesture(
-                DragGesture()
+                DragGesture(minimumDistance: 30)
                     .onChanged { value in
                         isDragging = true
                         

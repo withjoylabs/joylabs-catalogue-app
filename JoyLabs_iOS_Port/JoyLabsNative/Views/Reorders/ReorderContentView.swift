@@ -118,6 +118,7 @@ struct ReorderContentView: View {
             }
         }
         .listStyle(.plain)
+        .scrollEdgeEffectStyle(.hard, for: .all) // Disable iOS 26 soft edge effect that prevents scrolling
         .listSectionSpacing(0) // Remove gaps between sections
         .scrollContentBackground(.hidden) // Hide default List background
         .background(Color(.systemBackground)) // Solid background
