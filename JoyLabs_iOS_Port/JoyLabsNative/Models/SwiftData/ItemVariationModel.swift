@@ -39,10 +39,13 @@ final class ItemVariationModel {
     
     // Store complete variation data as JSON for complex operations
     var dataJson: String?
-    
+
     // Inverse relationship to parent item
     @Relationship(inverse: \CatalogItemModel.variations) var item: CatalogItemModel?
-    
+
+    // Relationship to inventory counts (one-to-many: one variation can have counts at multiple locations)
+    @Relationship(deleteRule: .cascade) var inventoryCounts: [InventoryCountModel]?
+
     // Computed properties
     var formattedPrice: String? {
         guard let amount = priceAmount, amount > 0 else { return nil }

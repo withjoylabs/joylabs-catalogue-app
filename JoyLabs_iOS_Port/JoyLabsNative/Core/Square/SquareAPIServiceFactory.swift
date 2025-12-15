@@ -23,6 +23,7 @@ class SquareAPIServiceFactory {
     private var cachedHTTPClient: SquareHTTPClient?
     // ImageURLManager removed - using pure SwiftData for images
     private var cachedCRUDService: SquareCRUDService?
+    private var cachedInventoryService: SquareInventoryService?
 
     private let logger = Logger(subsystem: "com.joylabs.native", category: "SquareAPIServiceFactory")
 
@@ -178,6 +179,24 @@ class SquareAPIServiceFactory {
         return service
     }
 
+    /// Get or create the inventory service instance
+    static func createInventoryService() -> SquareInventoryService {
+        return shared.getOrCreateInventoryService()
+    }
+
+    private func getOrCreateInventoryService() -> SquareInventoryService {
+        if let cachedService = cachedInventoryService {
+            logger.debug("[Factory] Returning cached SquareInventoryService instance")
+            return cachedService
+        }
+
+        logger.debug("[Factory] Creating NEW SquareInventoryService instance")
+        let httpClient = getOrCreateHTTPClient()
+        let service = SquareInventoryService(httpClient: httpClient)
+        cachedInventoryService = service
+        return service
+    }
+
     /// Reset ALL cached services (for testing or re-authentication)
     static func resetAllServices() {
         shared.logger.info("Resetting ALL cached services")
@@ -189,6 +208,7 @@ class SquareAPIServiceFactory {
         shared.cachedHTTPClient = nil
         // cachedImageURLManager removed
         shared.cachedCRUDService = nil
+        shared.cachedInventoryService = nil
     }
 
     /// Get service status for debugging
@@ -201,7 +221,8 @@ class SquareAPIServiceFactory {
             "TokenService": shared.cachedTokenService != nil,
             "SquareHTTPClient": shared.cachedHTTPClient != nil,
             // "ImageURLManager": removed,
-            "SquareCRUDService": shared.cachedCRUDService != nil
+            "SquareCRUDService": shared.cachedCRUDService != nil,
+            "SquareInventoryService": shared.cachedInventoryService != nil
         ]
     }
 }

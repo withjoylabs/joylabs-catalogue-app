@@ -25,6 +25,7 @@ struct JoyLabsNativeApp: App {
                 ModifierModel.self,
                 ImageModel.self,
                 TeamDataModel.self,
+                InventoryCountModel.self,
                 // ImageURLMappingModel.self, // Removed - using pure SwiftData for images
                 DiscountModel.self,
                 SyncStatusModel.self

@@ -430,19 +430,26 @@ class ItemDetailsViewModel: ObservableObject {
     @Published var availableTaxes: [TaxData] = []
     @Published var availableModifierLists: [ModifierListData] = []
     @Published var recentCategories: [CategoryData] = []
-    
+
+    // Inventory management
+    @Published var inventoryData: [String: VariationInventoryData] = [:] // Key: variationId_locationId
+    @Published var inventoryEnabled: Bool = false // Whether inventory feature is available (premium check)
+    @Published var isLoadingInventory: Bool = false
+
     // Private state for applying defaults
     private var shouldApplyTaxDefaults = false
 
     // Service dependencies
     private let databaseManager: SwiftDataCatalogManager
     private let crudService: SquareCRUDService
+    private let inventoryService: SquareInventoryService
 
     // MARK: - Initialization
 
     init(databaseManager: SwiftDataCatalogManager? = nil) {
         self.databaseManager = databaseManager ?? SquareAPIServiceFactory.createDatabaseManager()
         self.crudService = SquareAPIServiceFactory.createCRUDService()
+        self.inventoryService = SquareAPIServiceFactory.createInventoryService()
         setupValidationAndTracking()
     }
 
@@ -1379,11 +1386,128 @@ class ItemDetailsViewModel: ObservableObject {
         recentIds = Array(recentIds.prefix(15))
         
         UserDefaults.standard.set(recentIds, forKey: "recentCategoryIds")
-        
+
         // Update UI
         Task {
             await loadRecentCategories()
         }
+    }
+
+    // MARK: - Inventory Management
+
+    /// Load inventory counts for all variations from database
+    func loadInventoryData() async {
+        isLoadingInventory = true
+        defer { isLoadingInventory = false }
+
+        guard !variations.isEmpty else { return }
+
+        let db = databaseManager.getContext()
+        var newInventoryData: [String: VariationInventoryData] = [:]
+
+        for variation in variations {
+            guard let variationId = variation.id else { continue }
+
+            // Load inventory for each location
+            for location in availableLocations {
+                guard let locationId = location.id else { continue }
+
+                if let inventoryCount = InventoryCountModel.fetchCount(
+                    variationId: variationId,
+                    locationId: locationId,
+                    state: "IN_STOCK",
+                    in: db
+                ) {
+                    let key = "\(variationId)_\(locationId)"
+                    newInventoryData[key] = VariationInventoryData(
+                        variationId: variationId,
+                        locationId: locationId,
+                        stockOnHand: inventoryCount.quantityInt,
+                        committed: nil, // Square tracks this automatically
+                        availableToSell: inventoryCount.quantityInt // For now, same as stockOnHand
+                    )
+                }
+            }
+        }
+
+        await MainActor.run {
+            self.inventoryData = newInventoryData
+        }
+    }
+
+    /// Fetch inventory counts from Square API
+    func fetchInventoryFromSquare() async {
+        isLoadingInventory = true
+        defer { isLoadingInventory = false }
+
+        let variationIds = variations.compactMap { $0.id }
+        guard !variationIds.isEmpty else { return }
+
+        do {
+            let counts = try await inventoryService.fetchInventoryCounts(
+                catalogObjectIds: variationIds,
+                locationIds: nil // Fetch for all locations
+            )
+
+            // Update database
+            let db = databaseManager.getContext()
+            for countData in counts {
+                _ = InventoryCountModel.createOrUpdate(from: countData, in: db)
+            }
+            try db.save()
+
+            // Reload from database
+            await loadInventoryData()
+
+            // Mark inventory as enabled (successful API call means feature is available)
+            await MainActor.run {
+                self.inventoryEnabled = true
+            }
+
+        } catch {
+            logger.error("[InventoryViewModel] Failed to fetch inventory: \(error)")
+
+            // Check if error indicates inventory not enabled
+            if error.localizedDescription.contains("not enabled") ||
+               error.localizedDescription.contains("Premium") {
+                await MainActor.run {
+                    self.inventoryEnabled = false
+                }
+            }
+        }
+    }
+
+    /// Submit inventory adjustment
+    func submitInventoryAdjustment(
+        variationId: String,
+        locationId: String,
+        quantity: Int,
+        reason: InventoryAdjustmentReason
+    ) async throws {
+        logger.info("[InventoryViewModel] Submitting inventory adjustment: variation=\(variationId), qty=\(quantity), reason=\(reason.displayName)")
+
+        let counts = try await inventoryService.submitInventoryAdjustment(
+            variationId: variationId,
+            locationId: locationId,
+            quantity: quantity,
+            reason: reason
+        )
+
+        // Update database
+        let db = databaseManager.getContext()
+        for countData in counts {
+            _ = InventoryCountModel.createOrUpdate(from: countData, in: db)
+        }
+        try db.save()
+
+        // Reload inventory data
+        await loadInventoryData()
+    }
+
+    /// Get inventory data for specific variation and location
+    func getInventoryData(variationId: String, locationId: String) -> VariationInventoryData? {
+        let key = "\(variationId)_\(locationId)"
+        return inventoryData[key]
     }
 
 }
