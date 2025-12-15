@@ -19,16 +19,17 @@ struct SectionConfiguration: Codable, Identifiable {
         SectionConfiguration(id: "basicInfo", title: "Basic Information", icon: "info.circle", isEnabled: true, order: 1, isExpanded: false),
         SectionConfiguration(id: "productType", title: "Product Type", icon: "tag", isEnabled: true, order: 2, isExpanded: false),
         SectionConfiguration(id: "pricing", title: "Pricing and Variations", icon: "dollarsign.circle", isEnabled: true, order: 3, isExpanded: false),
-        SectionConfiguration(id: "categories", title: "Categories", icon: "folder", isEnabled: true, order: 4, isExpanded: false),
-        SectionConfiguration(id: "taxes", title: "Tax Settings", icon: "percent", isEnabled: true, order: 5, isExpanded: false),
-        SectionConfiguration(id: "modifiers", title: "Modifiers", icon: "plus.circle", isEnabled: true, order: 6, isExpanded: false),
-        SectionConfiguration(id: "skipModifier", title: "Skip Details Screen at Checkout", icon: "forward.circle", isEnabled: true, order: 7, isExpanded: false),
-        SectionConfiguration(id: "salesChannels", title: "Where it's Sold", icon: "storefront", isEnabled: false, order: 8, isExpanded: false),
-        SectionConfiguration(id: "fulfillment", title: "Fulfillment", icon: "shippingbox", isEnabled: true, order: 9, isExpanded: false),
-        SectionConfiguration(id: "locations", title: "Enabled at Locations", icon: "location", isEnabled: true, order: 10, isExpanded: false),
-        SectionConfiguration(id: "customAttributes", title: "Custom Attributes", icon: "list.bullet", isEnabled: true, order: 11, isExpanded: false),
-        SectionConfiguration(id: "ecommerce", title: "E-Commerce Settings", icon: "globe", isEnabled: true, order: 12, isExpanded: false),
-        SectionConfiguration(id: "measurementUnit", title: "Measurement Unit", icon: "ruler", isEnabled: true, order: 13, isExpanded: false)
+        SectionConfiguration(id: "inventory", title: "Inventory", icon: "shippingbox", isEnabled: true, order: 4, isExpanded: false),
+        SectionConfiguration(id: "categories", title: "Categories", icon: "folder", isEnabled: true, order: 5, isExpanded: false),
+        SectionConfiguration(id: "taxes", title: "Tax Settings", icon: "percent", isEnabled: true, order: 6, isExpanded: false),
+        SectionConfiguration(id: "modifiers", title: "Modifiers", icon: "plus.circle", isEnabled: true, order: 7, isExpanded: false),
+        SectionConfiguration(id: "skipModifier", title: "Skip Details Screen at Checkout", icon: "forward.circle", isEnabled: true, order: 8, isExpanded: false),
+        SectionConfiguration(id: "salesChannels", title: "Where it's Sold", icon: "storefront", isEnabled: false, order: 9, isExpanded: false),
+        SectionConfiguration(id: "fulfillment", title: "Fulfillment", icon: "shippingbox", isEnabled: true, order: 10, isExpanded: false),
+        SectionConfiguration(id: "locations", title: "Enabled at Locations", icon: "location", isEnabled: true, order: 11, isExpanded: false),
+        SectionConfiguration(id: "customAttributes", title: "Custom Attributes", icon: "list.bullet", isEnabled: true, order: 12, isExpanded: false),
+        SectionConfiguration(id: "ecommerce", title: "E-Commerce Settings", icon: "globe", isEnabled: true, order: 13, isExpanded: false),
+        SectionConfiguration(id: "measurementUnit", title: "Measurement Unit", icon: "ruler", isEnabled: true, order: 14, isExpanded: false)
     ]
 }
 
@@ -227,18 +228,20 @@ struct PricingFieldsConfig: Codable {
 }
 
 struct InventoryFieldsConfig: Codable {
+    var showInventorySection: Bool = true // Show inventory management section in item details
+
     var trackInventoryEnabled: Bool = true
     var trackInventoryRequired: Bool = false
     var defaultTrackInventory: Bool = false
-    
+
     var inventoryAlertsEnabled: Bool = true
     var inventoryAlertsRequired: Bool = false
     var defaultInventoryAlertType: InventoryAlertType = .none
     var defaultInventoryAlertThreshold: Int?
-    
+
     var locationOverridesEnabled: Bool = false
     var locationOverridesRequired: Bool = false
-    
+
     var stockOnHandEnabled: Bool = true
     var stockOnHandRequired: Bool = false
     var defaultStockOnHand: Int = 0

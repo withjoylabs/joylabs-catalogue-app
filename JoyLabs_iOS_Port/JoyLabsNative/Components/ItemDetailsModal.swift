@@ -544,7 +544,11 @@ struct ItemDetailsContent: View {
             if shouldShowPricingSection {
                 ItemDetailsPricingSection(viewModel: viewModel, onVariationPrint: onVariationPrint)
             }
-            
+
+        case "inventory":
+            // Inventory section positioned after pricing as per requirements
+            ItemDetailsInventorySection(viewModel: viewModel)
+
         case "categories":
             if shouldShowCategoriesSection {
                 ItemDetailsCategoriesSection(viewModel: viewModel)

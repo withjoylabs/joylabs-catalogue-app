@@ -59,6 +59,7 @@
 		727C46D51FB7521A15C78324 /* ReorderBarcodeScanningManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 612C9E33A082AEB63A3A1DC3 /* ReorderBarcodeScanningManager.swift */; };
 		781904893982448D104465D8 /* CategoryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3151236638CB10CA4CF5127B /* CategoryModel.swift */; };
 		7995B042235CA11634DB6A93 /* ReorderService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AE1BE4622C5C0A85C6CAA3E /* ReorderService.swift */; };
+		7D794BA319FB236BE537B4AB /* InventoryAdjustmentModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44285ED26455F43A1C86EBED /* InventoryAdjustmentModal.swift */; };
 		7DFE6CF6196B175FAD5BC8DB /* SquareCropView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B15E92D9D11628C1A160231 /* SquareCropView.swift */; };
 		823B57DE36146918AC79FFAE /* ShareableFileData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B59E873AFBCFBE04460F20A8 /* ShareableFileData.swift */; };
 		85126E4554FBE0F2C78D3609 /* ToastNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1645309EC63E18A4589C1AC3 /* ToastNotificationService.swift */; };
@@ -123,6 +124,7 @@
 		DC0BF75906B9902A9E9F25EE /* ItemDetailsStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE43F36BB6F6797E1742AD7C /* ItemDetailsStyles.swift */; };
 		DE7797DDA441B2337759D272 /* BackgroundSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 739588DBABCE8E030965D277 /* BackgroundSyncService.swift */; };
 		DE9B0804171D8F8469343090 /* SquareImageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECE3FAA42B58C68978179AFA /* SquareImageService.swift */; };
+		DF4E0BBA65F48B4C79EA6F2D /* ItemDetailsInventorySection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B198A1D6318C0A7B6057F9B7 /* ItemDetailsInventorySection.swift */; };
 		E0A4C587E31A4D97E9D4D827 /* ItemDetailsCategoriesSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36FF7B27B9EC548A6363CA3B /* ItemDetailsCategoriesSection.swift */; };
 		E3F8E057597710C8B1BFE0A7 /* SwiftDataCatalogSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 757EBA38D7F86CC18DF29B8C /* SwiftDataCatalogSyncService.swift */; };
 		E3FEC6909CEE89C39A3D9C3A /* CSVGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72B794CCD01B67AB70408743 /* CSVGenerator.swift */; };
@@ -174,6 +176,7 @@
 		35AB2C1793F03C8E7C4FDE80 /* SquareCRUDService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SquareCRUDService.swift; path = Core/Square/SquareCRUDService.swift; sourceTree = "<group>"; };
 		36FF7B27B9EC548A6363CA3B /* ItemDetailsCategoriesSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsCategoriesSection.swift; path = Components/ItemDetailsCategoriesSection.swift; sourceTree = "<group>"; };
 		3773602C0EF0A589CED63975 /* FloatingActionButtons.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FloatingActionButtons.swift; path = Components/FloatingActionButtons.swift; sourceTree = "<group>"; };
+		44285ED26455F43A1C86EBED /* InventoryAdjustmentModal.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = InventoryAdjustmentModal.swift; path = Components/InventoryAdjustmentModal.swift; sourceTree = "<group>"; };
 		463F35C3BE9ED261FEE0206F /* ComprehensiveItemModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ComprehensiveItemModels.swift; path = Components/ComprehensiveItemModels.swift; sourceTree = "<group>"; };
 		49800521F9B080A23DC72541 /* NotificationExtensions.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NotificationExtensions.swift; path = Core/Notifications/NotificationExtensions.swift; sourceTree = "<group>"; };
 		4981CED987E3E9524BAF9231 /* SyncStatusModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SyncStatusModel.swift; path = Models/SwiftData/SyncStatusModel.swift; sourceTree = "<group>"; };
@@ -251,6 +254,7 @@
 		A1B2C3D4E5F6789012345872 /* ReorderComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Components/ReorderComponents.swift; sourceTree = "<group>"; };
 		B03008BCC45D5E32B158F66F /* NotificationSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Components/NotificationSettingsView.swift; sourceTree = "<group>"; };
 		B137413ADDED6DCB13CE5BCB /* ModifierListModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ModifierListModel.swift; path = Models/SwiftData/ModifierListModel.swift; sourceTree = "<group>"; };
+		B198A1D6318C0A7B6057F9B7 /* ItemDetailsInventorySection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsInventorySection.swift; path = Components/ItemDetailsInventorySection.swift; sourceTree = "<group>"; };
 		B59E873AFBCFBE04460F20A8 /* ShareableFileData.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ShareableFileData.swift; path = Components/ShareableFileData.swift; sourceTree = "<group>"; };
 		B7646D10B74DD6424D05604B /* ReorderFilterManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderFilterManager.swift; path = JoyLabsNative/ViewModels/ReorderFilterManager.swift; sourceTree = "<group>"; };
 		BA6CAB610624BBFC8C7C36B6 /* ItemDataTransformers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDataTransformers.swift; path = Components/ItemDataTransformers.swift; sourceTree = "<group>"; };
@@ -402,6 +406,8 @@
 				3238AB7703FD77D6FF89132D /* HeaderButtonStyles.swift */,
 				F62407FA703D9ADAD44AB5E0 /* ItemSalesChannelsSection.swift */,
 				EB0227910810C3E530F27519 /* ItemFulfillmentSection.swift */,
+				B198A1D6318C0A7B6057F9B7 /* ItemDetailsInventorySection.swift */,
+				44285ED26455F43A1C86EBED /* InventoryAdjustmentModal.swift */,
 			);
 			name = Components;
 			sourceTree = "<group>";
@@ -901,6 +907,8 @@
 				FA147C48300E160B0973B9ED /* InventoryModels.swift in Sources */,
 				9A39CF67A3E7ADC396782AB1 /* SquareInventoryService.swift in Sources */,
 				DA2C7AD0C159A8D09EC5EB23 /* InventoryCountModel.swift in Sources */,
+				DF4E0BBA65F48B4C79EA6F2D /* ItemDetailsInventorySection.swift in Sources */,
+				7D794BA319FB236BE537B4AB /* InventoryAdjustmentModal.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
