@@ -8,12 +8,7 @@ public class TokenService {
     // MARK: - Private Properties
     private let keychain = KeychainHelper()
     private let logger = Logger(subsystem: "com.joylabs.native", category: "TokenService")
-    
-    // MARK: - Token Caching
-    private var cachedTokenData: TokenData?
-    private var cacheTimestamp: Date?
-    private let cacheValidityDuration: TimeInterval = 60 // Cache for 60 seconds
-    
+
     // Token storage keys (port from React Native)
     private enum Keys {
         static let accessToken = "square_access_token"
@@ -58,11 +53,7 @@ public class TokenService {
             let expiryString = ISO8601DateFormatter().string(from: expiryDate)
             try keychain.store(expiryString, forKey: Keys.tokenExpiry)
         }
-        
-        // Invalidate cache when new tokens are stored
-        cachedTokenData = nil
-        cacheTimestamp = nil
-        
+
         logger.info("Authentication data stored successfully")
     }
     
@@ -120,10 +111,6 @@ public class TokenService {
         try keychain.delete(forKey: Keys.businessName)
         try keychain.delete(forKey: Keys.tokenExpiry)
 
-        // Invalidate cache when tokens are cleared
-        cachedTokenData = nil
-        cacheTimestamp = nil
-
         logger.info("Authentication data cleared")
     }
 
@@ -135,14 +122,8 @@ public class TokenService {
     // MARK: - Token Data Management
 
     public func getCurrentTokenData() async throws -> TokenData {
-        // Check if we have valid cached data
-        if let cachedData = cachedTokenData,
-           let cacheTime = cacheTimestamp,
-           Date().timeIntervalSince(cacheTime) < cacheValidityDuration {
-            return cachedData
-        }
-        
-        // Cache miss or expired - fetch from keychain
+        // Always fetch fresh data from keychain (industry-standard approach)
+        // iOS Keychain is already optimized - no need for in-memory caching
         let accessToken = try? keychain.retrieve(forKey: Keys.accessToken)
         let refreshToken = try? keychain.retrieve(forKey: Keys.refreshToken)
         let merchantId = try? keychain.retrieve(forKey: Keys.merchantId)
@@ -152,26 +133,20 @@ public class TokenService {
         if let expiryString = try? keychain.retrieve(forKey: Keys.tokenExpiry) {
             // Try to parse as ISO8601 first (current format)
             expiresAt = ISO8601DateFormatter().date(from: expiryString)
-            
+
             // If that fails, try as Unix timestamp (legacy format)
             if expiresAt == nil, let expiryTimestamp = Double(expiryString) {
                 expiresAt = Date(timeIntervalSince1970: expiryTimestamp)
             }
         }
 
-        let tokenData = TokenData(
+        return TokenData(
             accessToken: accessToken,
             refreshToken: refreshToken,
             merchantId: merchantId,
             businessName: businessName,
             expiresAt: expiresAt
         )
-        
-        // Cache the result
-        cachedTokenData = tokenData
-        cacheTimestamp = Date()
-        
-        return tokenData
     }
 
     func isTokenExpired(_ tokenData: TokenData) async -> Bool {
