@@ -1410,7 +1410,7 @@ class ItemDetailsViewModel: ObservableObject {
 
             // Load inventory for each location
             for location in availableLocations {
-                guard let locationId = location.id else { continue }
+                let locationId = location.id
 
                 if let inventoryCount = InventoryCountModel.fetchCount(
                     variationId: variationId,

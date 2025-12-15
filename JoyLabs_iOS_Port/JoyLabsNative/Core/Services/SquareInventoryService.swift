@@ -54,7 +54,7 @@ class SquareInventoryService {
         if let errors = response.errors, !errors.isEmpty {
             let errorMessage = errors.map { $0.detail ?? $0.code }.joined(separator: ", ")
             logger.error("[InventoryService] Failed to fetch inventory counts: \(errorMessage)")
-            throw SquareAPIError.inventoryError(errorMessage)
+            throw SquareAPIError.apiError(0, errorMessage)
         }
 
         let counts = response.counts ?? []
@@ -103,10 +103,10 @@ class SquareInventoryService {
 
             // Check if error indicates inventory not enabled (premium feature)
             if errorMessage.contains("INVENTORY") || errorMessage.contains("not enabled") {
-                throw SquareAPIError.featureNotEnabled("Inventory tracking requires Square Premium subscription")
+                throw SquareAPIError.apiError(403, "Inventory tracking requires Square Premium subscription")
             }
 
-            throw SquareAPIError.inventoryError(errorMessage)
+            throw SquareAPIError.apiError(0, errorMessage)
         }
 
         let counts = response.counts ?? []
@@ -253,13 +253,4 @@ struct BatchRetrieveInventoryCountsResponse: Codable {
     let cursor: String? // For pagination (if needed in future)
 }
 
-/// Extended SquareAPIError for inventory-specific errors
-extension SquareAPIError {
-    static func inventoryError(_ message: String) -> SquareAPIError {
-        return .generalError(message)
-    }
-
-    static func featureNotEnabled(_ message: String) -> SquareAPIError {
-        return .generalError(message)
-    }
-}
+// Inventory-specific errors are handled using existing SquareAPIError types

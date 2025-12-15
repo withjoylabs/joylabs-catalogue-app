@@ -154,7 +154,7 @@ public class PushNotificationService: NSObject, ObservableObject {
         logger.info("[PushNotification] Confirmed inventory_updated webhook notification")
 
         let eventId = data["eventId"] as? String ?? "unknown"
-        let merchantId = data["merchantId"] as? String ?? "unknown"
+        let _ = data["merchantId"] as? String ?? "unknown" // Merchant ID for logging
         let updatedAt = data["updatedAt"] as? String ?? ""
 
         // DEDUPLICATION: Check if we've already processed this event

@@ -70,7 +70,7 @@ struct InventoryAdjustmentModal: View {
                         }
 
                         if let location = viewModel.availableLocations.first(where: { $0.id == locationId }) {
-                            Text(location.name ?? "Unknown Location")
+                            Text(location.name)
                                 .font(.system(size: 14))
                                 .foregroundColor(.secondary)
                         }
@@ -271,11 +271,14 @@ struct InventoryAdjustmentModal: View {
             do {
                 // For N/A (no inventory), use initial stock setup
                 if !hasInventory {
-                    try await viewModel.inventoryService.setInitialStock(
+                    let inventoryService = SquareAPIServiceFactory.createInventoryService()
+                    try await inventoryService.setInitialStock(
                         variationId: variationId,
                         locationId: locationId,
                         quantity: qty
                     )
+                    // Reload inventory data in viewModel
+                    await viewModel.loadInventoryData()
                 } else {
                     // For existing inventory, use adjustment
                     try await viewModel.submitInventoryAdjustment(
@@ -325,12 +328,8 @@ struct InventoryAdjustmentModal: View {
                 LocationData(
                     id: "loc1",
                     name: "Main Store",
-                    address: nil, timezone: nil, capabilities: nil, status: nil, createdAt: nil,
-                    merchantId: nil, country: nil, languageCode: nil, currency: nil,
-                    phoneNumber: nil, businessName: nil, type: nil, businessHours: nil,
-                    businessEmail: nil, description: nil, twitterUsername: nil,
-                    instagramUsername: nil, facebookUrl: nil, coordinates: nil,
-                    logoUrl: nil, posBackgroundUrl: nil, mcc: nil, fullFormatLogoUrl: nil, taxIds: nil
+                    address: "123 Main St",
+                    isActive: true
                 )
             ]
 

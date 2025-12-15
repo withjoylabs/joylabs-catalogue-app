@@ -36,22 +36,20 @@ struct ItemDetailsInventorySection: View {
 
                                     // Inventory rows for each location
                                     ForEach(viewModel.availableLocations, id: \.id) { location in
-                                        if let locationId = location.id {
-                                            InventoryRow(
+                                        InventoryRow(
+                                            variationId: variationId,
+                                            locationId: location.id,
+                                            locationName: location.name,
+                                            inventoryData: viewModel.getInventoryData(
                                                 variationId: variationId,
-                                                locationId: locationId,
-                                                locationName: location.name ?? "Unknown Location",
-                                                inventoryData: viewModel.getInventoryData(
-                                                    variationId: variationId,
-                                                    locationId: locationId
-                                                ),
-                                                onTap: {
-                                                    selectedVariationId = variationId
-                                                    selectedLocationId = locationId
-                                                    showingAdjustmentModal = true
-                                                }
-                                            )
-                                        }
+                                                locationId: location.id
+                                            ),
+                                            onTap: {
+                                                selectedVariationId = variationId
+                                                selectedLocationId = location.id
+                                                showingAdjustmentModal = true
+                                            }
+                                        )
                                     }
                                 }
 
@@ -209,30 +207,8 @@ private struct InventoryColumn: View {
                 LocationData(
                     id: "loc1",
                     name: "Main Store",
-                    address: nil,
-                    timezone: nil,
-                    capabilities: nil,
-                    status: nil,
-                    createdAt: nil,
-                    merchantId: nil,
-                    country: nil,
-                    languageCode: nil,
-                    currency: nil,
-                    phoneNumber: nil,
-                    businessName: nil,
-                    type: nil,
-                    businessHours: nil,
-                    businessEmail: nil,
-                    description: nil,
-                    twitterUsername: nil,
-                    instagramUsername: nil,
-                    facebookUrl: nil,
-                    coordinates: nil,
-                    logoUrl: nil,
-                    posBackgroundUrl: nil,
-                    mcc: nil,
-                    fullFormatLogoUrl: nil,
-                    taxIds: nil
+                    address: "123 Main St",
+                    isActive: true
                 )
             ]
 
