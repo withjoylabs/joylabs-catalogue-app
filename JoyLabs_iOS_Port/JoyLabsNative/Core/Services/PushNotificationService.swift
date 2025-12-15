@@ -89,47 +89,96 @@ public class PushNotificationService: NSObject, ObservableObject {
         
         // Extract webhook data from notification (matches Square webhook format)
         guard let data = userInfo["data"] as? [String: Any],
-              let type = data["type"] as? String,
-              type == "catalog_updated" else {
-            let receivedType = (userInfo["data"] as? [String: Any])?["type"] as? String ?? "unknown"
-            logger.warning("[PushNotification] Received non-catalog push notification. Expected 'catalog_updated', got type: \(receivedType)")
-            
-            // Log the full notification for debugging
-            logger.debug("[PushNotification] Non-catalog notification payload: \(userInfo)")
+              let type = data["type"] as? String else {
+            logger.warning("[PushNotification] Received push notification with missing data or type")
+            logger.debug("[PushNotification] Invalid notification payload: \(userInfo)")
             return
         }
-        
+
+        // Handle different webhook types
+        if type == "catalog_updated" {
+            await handleCatalogWebhook(data: data, isSilent: isSilentNotification)
+        } else if type == "inventory_updated" {
+            await handleInventoryWebhook(data: data, isSilent: isSilentNotification)
+        } else {
+            logger.warning("[PushNotification] Received unsupported webhook type: \(type)")
+            logger.debug("[PushNotification] Unsupported notification payload: \(userInfo)")
+        }
+    }
+
+    /// Handle catalog.version.updated webhook
+    private func handleCatalogWebhook(data: [String: Any], isSilent: Bool) async {
         logger.info("[PushNotification] Confirmed catalog_updated webhook notification")
-        
+
         let eventId = data["eventId"] as? String ?? "unknown"
         let merchantId = data["merchantId"] as? String ?? "unknown"
         let updatedAt = data["updatedAt"] as? String ?? ""
-        
+
         // DEDUPLICATION: Check if we've already processed this event
         if await isDuplicateEvent(eventId: eventId) {
             logger.info("🔄 Skipping duplicate webhook event: \(eventId)")
             return
         }
-        
+
         // DEDUPLICATION: Check if this is for a recent local operation
         if await isRecentLocalOperation(updatedAt: updatedAt) {
             logger.info("🔄 Skipping webhook for recent local operation (Event: \(eventId))")
             await markEventAsProcessed(eventId: eventId) // Still mark as processed to prevent retries
             return
         }
-        
+
         logger.info("[PushNotification] Webhook \(eventId) - processing catalog update")
-        
+
         // Mark event as being processed to prevent duplicates
         await markEventAsProcessed(eventId: eventId)
-        
+
         // Trigger image cache refresh
         await triggerImageCacheRefresh()
-        
+
         // Trigger catalog sync to get latest changes from Square (this will create the in-app notification with sync results)
-        await triggerCatalogSync(eventId: eventId, merchantId: merchantId, isSilent: isSilentNotification)
-        
+        await triggerCatalogSync(eventId: eventId, merchantId: merchantId, isSilent: isSilent)
+
         // Clear badge count since we've processed the notification (if badges are enabled)
+        let notificationSettings = NotificationSettingsService.shared
+        if notificationSettings.isEnabled(for: .systemBadge) {
+            do {
+                try await UNUserNotificationCenter.current().setBadgeCount(0)
+            } catch {
+                logger.error("Failed to clear badge count: \(error)")
+            }
+        }
+    }
+
+    /// Handle inventory.count.updated webhook
+    private func handleInventoryWebhook(data: [String: Any], isSilent: Bool) async {
+        logger.info("[PushNotification] Confirmed inventory_updated webhook notification")
+
+        let eventId = data["eventId"] as? String ?? "unknown"
+        let merchantId = data["merchantId"] as? String ?? "unknown"
+        let updatedAt = data["updatedAt"] as? String ?? ""
+
+        // DEDUPLICATION: Check if we've already processed this event
+        if await isDuplicateEvent(eventId: eventId) {
+            logger.info("🔄 Skipping duplicate inventory webhook event: \(eventId)")
+            return
+        }
+
+        // DEDUPLICATION: Check if this is for a recent local operation
+        if await isRecentLocalOperation(updatedAt: updatedAt) {
+            logger.info("🔄 Skipping inventory webhook for recent local operation (Event: \(eventId))")
+            await markEventAsProcessed(eventId: eventId)
+            return
+        }
+
+        logger.info("[PushNotification] Webhook \(eventId) - processing inventory update")
+
+        // Mark event as being processed to prevent duplicates
+        await markEventAsProcessed(eventId: eventId)
+
+        // Trigger inventory refresh
+        await triggerInventoryRefresh(eventId: eventId, data: data)
+
+        // Clear badge count
         let notificationSettings = NotificationSettingsService.shared
         if notificationSettings.isEnabled(for: .systemBadge) {
             do {
@@ -353,6 +402,89 @@ extension PushNotificationService {
         } catch {
             logger.error("❌ Background catalog sync failed for webhook event \(eventId): \(error)")
             await handleSyncError(error: error, eventId: eventId, merchantId: merchantId)
+        }
+    }
+
+    /// Trigger inventory refresh for webhook updates
+    private func triggerInventoryRefresh(eventId: String, data: [String: Any]) async {
+        logger.info("[PushNotification] Starting inventory refresh for webhook \(eventId)")
+
+        // Extract inventory count data from webhook payload
+        guard let inventoryCounts = data["inventoryCounts"] as? [[String: Any]] else {
+            logger.warning("[PushNotification] No inventory counts in webhook payload")
+            return
+        }
+
+        do {
+            // Get database manager
+            let dbManager = SquareAPIServiceFactory.createDatabaseManager()
+            let db = dbManager.getContext()
+
+            var updatedCount = 0
+
+            // Update each inventory count in database
+            for countDict in inventoryCounts {
+                // Parse inventory count data
+                guard let catalogObjectId = countDict["catalog_object_id"] as? String,
+                      let locationId = countDict["location_id"] as? String,
+                      let state = countDict["state"] as? String,
+                      let quantity = countDict["quantity"] as? String,
+                      let calculatedAt = countDict["calculated_at"] as? String else {
+                    logger.warning("[PushNotification] Invalid inventory count data in webhook")
+                    continue
+                }
+
+                let countData = InventoryCountData(
+                    catalogObjectId: catalogObjectId,
+                    catalogObjectType: "ITEM_VARIATION",
+                    state: state,
+                    locationId: locationId,
+                    quantity: quantity,
+                    calculatedAt: calculatedAt
+                )
+
+                // Create or update in database
+                _ = InventoryCountModel.createOrUpdate(from: countData, in: db)
+                updatedCount += 1
+            }
+
+            // Save changes
+            try db.save()
+
+            logger.info("[PushNotification] Updated \(updatedCount) inventory counts from webhook")
+
+            // Post notification to refresh UI
+            await MainActor.run {
+                NotificationCenter.default.post(
+                    name: .inventoryCountUpdated,
+                    object: nil,
+                    userInfo: [
+                        "eventId": eventId,
+                        "updatedCount": updatedCount,
+                        "timestamp": ISO8601DateFormatter().string(from: Date())
+                    ]
+                )
+
+                // Add in-app notification
+                WebhookNotificationService.shared.addWebhookNotification(
+                    title: "Inventory Updated",
+                    message: "Updated \(updatedCount) inventory count\(updatedCount == 1 ? "" : "s")",
+                    type: .info,
+                    eventType: "inventory.count.updated"
+                )
+            }
+
+        } catch {
+            logger.error("[PushNotification] Failed to update inventory from webhook: \(error)")
+
+            await MainActor.run {
+                WebhookNotificationService.shared.addWebhookNotification(
+                    title: "Inventory Sync Failed",
+                    message: "Failed to update inventory counts: \(error.localizedDescription)",
+                    type: .error,
+                    eventType: "inventory.sync.failed"
+                )
+            }
         }
     }
 
