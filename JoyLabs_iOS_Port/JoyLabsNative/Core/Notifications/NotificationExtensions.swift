@@ -10,7 +10,10 @@ extension Notification.Name {
     
     /// Posted when catalog sync completes
     static let catalogSyncCompleted = Notification.Name("catalogSyncCompleted")
-    
+
+    /// Posted when inventory count is updated via webhook
+    static let inventoryCountUpdated = Notification.Name("inventoryCountUpdated")
+
     /// Posted to navigate to notification settings in profile
     static let navigateToNotificationSettings = Notification.Name("navigateToNotificationSettings")
 }
