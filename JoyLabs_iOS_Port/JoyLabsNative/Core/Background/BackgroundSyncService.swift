@@ -113,11 +113,12 @@ actor BackgroundSyncService {
             await processImageURLMapping(imageObject)
         }
 
-        // Save changes to background context
-        try modelContext.save()
-
-        // Save sync timestamp to prevent future full syncs
+        // CRITICAL: Save sync timestamp BEFORE final save to ensure it's in the same transaction
         try await saveSyncTimestamp(modelContext: modelContext)
+
+        // Final save to commit everything including timestamp
+        try modelContext.save()
+        logger.info("[BackgroundSync] Saved full sync with timestamp - future syncs will be incremental")
 
         let result = BackgroundSyncResult(
             syncType: SyncType.full,
