@@ -117,6 +117,7 @@
 		C8B848A33B7BFFE84D0A142D /* LabelLivePrintService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7606A3222698687642B402D /* LabelLivePrintService.swift */; };
 		CC4CE3294C46EDAA954DC559 /* ItemDetailsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D583607765D3CA494A3F396E /* ItemDetailsViewModel.swift */; };
 		CCE5849C28576F280550C175 /* SwiftDataSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83DA115A5CBAC2BEC0885E7F /* SwiftDataSyncCoordinator.swift */; };
+		CD6879014287EB352EBD31B2 /* SquareCapabilitiesService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 611795A7DDE88A6A5621E9A0 /* SquareCapabilitiesService.swift */; };
 		D14A1B7029E109C02B8511B5 /* SwiftDataCatalogStatsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83B4630F284C9954C9B0E498 /* SwiftDataCatalogStatsService.swift */; };
 		D26299835D6943163B61C770 /* ItemDetailsVariationCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB694A8277941E8AAF1C9EAE /* ItemDetailsVariationCard.swift */; };
 		DA2C7AD0C159A8D09EC5EB23 /* InventoryCountModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9996FF13D69154BA0C4B92AE /* InventoryCountModel.swift */; };
@@ -190,6 +191,7 @@
 		5A56785054025FCAA660B73E /* ReorderEnvironmentKey.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderEnvironmentKey.swift; path = Core/Environment/ReorderEnvironmentKey.swift; sourceTree = "<group>"; };
 		5BF09157ED1FEE7951EC8474 /* SimpleImageService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SimpleImageService.swift; path = Core/Services/SimpleImageService.swift; sourceTree = "<group>"; };
 		5E3FB7296AC28F9B8969A75D /* PushNotificationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PushNotificationService.swift; path = JoyLabsNative/Core/Services/PushNotificationService.swift; sourceTree = "<group>"; };
+		611795A7DDE88A6A5621E9A0 /* SquareCapabilitiesService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SquareCapabilitiesService.swift; path = Core/Services/SquareCapabilitiesService.swift; sourceTree = "<group>"; };
 		612C9E33A082AEB63A3A1DC3 /* ReorderBarcodeScanningManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderBarcodeScanningManager.swift; path = JoyLabsNative/ViewModels/ReorderBarcodeScanningManager.swift; sourceTree = "<group>"; };
 		6292A63C8F8D35F5B12A8F6A /* ReorderItemModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderItemModel.swift; path = Models/SwiftData/ReorderItemModel.swift; sourceTree = "<group>"; };
 		65695EAA6350279F084BF63B /* ItemDetailsPricingSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsPricingSection.swift; path = Components/ItemDetailsPricingSection.swift; sourceTree = "<group>"; };
@@ -654,6 +656,7 @@
 				C520DA18887B1353B7282355 /* CatalogLookupService.swift */,
 				8538789665F0E91648E2EB2B /* ScanHistoryService.swift */,
 				08C74DA26191FF85F4AB0866 /* SquareInventoryService.swift */,
+				611795A7DDE88A6A5621E9A0 /* SquareCapabilitiesService.swift */,
 			);
 			name = Services;
 			sourceTree = "<group>";
@@ -909,6 +912,7 @@
 				DA2C7AD0C159A8D09EC5EB23 /* InventoryCountModel.swift in Sources */,
 				DF4E0BBA65F48B4C79EA6F2D /* ItemDetailsInventorySection.swift in Sources */,
 				7D794BA319FB236BE537B4AB /* InventoryAdjustmentModal.swift in Sources */,
+				CD6879014287EB352EBD31B2 /* SquareCapabilitiesService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

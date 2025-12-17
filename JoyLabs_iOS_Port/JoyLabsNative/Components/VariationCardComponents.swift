@@ -172,7 +172,10 @@ struct VariationCardFields: View {
 struct VariationCardPriceSection: View {
     @Binding var variation: ItemDetailsVariationData
     let viewModel: ItemDetailsViewModel
-    
+    @StateObject private var capabilitiesService = SquareCapabilitiesService.shared
+    @State private var showingAdjustmentModal = false
+    @State private var selectedLocationId: String?
+
     // Check if user can add more price overrides
     private var canAddPriceOverride: Bool {
         let usedLocationIds = Set(variation.locationOverrides.map { $0.locationId })
@@ -248,7 +251,7 @@ struct VariationCardPriceSection: View {
                 // Add Price Override button - AFTER existing overrides
                 if canAddPriceOverride {
                     ItemDetailsFieldSeparator()
-                    
+
                     ItemDetailsFieldRow {
                         ItemDetailsButton(
                             title: "Add Price Override",
@@ -260,7 +263,206 @@ struct VariationCardPriceSection: View {
                     }
                 }
             }
+
+            // INVENTORY SECTION - After price overrides
+            VariationInventorySection(
+                variationId: variation.id,
+                viewModel: viewModel,
+                capabilitiesService: capabilitiesService
+            )
         }
+        .sheet(isPresented: $showingAdjustmentModal) {
+            if let variationId = variation.id,
+               let locationId = selectedLocationId {
+                InventoryAdjustmentModal(
+                    viewModel: viewModel,
+                    variationId: variationId,
+                    locationId: locationId,
+                    onDismiss: {
+                        showingAdjustmentModal = false
+                    }
+                )
+                .nestedComponentModal()
+            }
+        }
+    }
+}
+
+// MARK: - Variation Inventory Section
+/// Displays inventory for a specific variation across all locations
+/// Positioned below "Add Price Override" button as per requirements
+struct VariationInventorySection: View {
+    let variationId: String?
+    @ObservedObject var viewModel: ItemDetailsViewModel
+    @ObservedObject var capabilitiesService: SquareCapabilitiesService
+    @State private var showingAdjustmentModal = false
+    @State private var selectedLocationId: String?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header with lock icon if premium not enabled
+            ItemDetailsFieldSeparator()
+
+            HStack {
+                ItemDetailsFieldLabel(title: "Inventory")
+
+                if !capabilitiesService.inventoryTrackingEnabled {
+                    Image(systemName: "lock.fill")
+                        .foregroundColor(.itemDetailsWarning)
+                        .font(.itemDetailsCaption)
+                }
+
+                Spacer()
+            }
+            .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
+            .padding(.vertical, ItemDetailsSpacing.compactSpacing)
+
+            // New variation message (no ID yet)
+            if variationId == nil {
+                ItemDetailsFieldSeparator()
+
+                HStack {
+                    Image(systemName: "info.circle")
+                        .foregroundColor(.itemDetailsSecondaryText)
+                        .font(.itemDetailsFootnote)
+                    Text("Save item first to manage inventory")
+                        .font(.itemDetailsFootnote)
+                        .foregroundColor(.itemDetailsSecondaryText)
+                }
+                .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
+                .padding(.vertical, ItemDetailsSpacing.compactSpacing)
+            }
+            // Premium not enabled message
+            else if !capabilitiesService.inventoryTrackingEnabled {
+                ItemDetailsFieldSeparator()
+
+                HStack {
+                    Image(systemName: "info.circle")
+                        .foregroundColor(.itemDetailsWarning)
+                        .font(.itemDetailsFootnote)
+                    Text("Inventory tracking requires Square Premium")
+                        .font(.itemDetailsFootnote)
+                        .foregroundColor(.itemDetailsSecondaryText)
+                }
+                .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
+                .padding(.vertical, ItemDetailsSpacing.compactSpacing)
+            } else if let variationId = variationId {
+                // Show inventory for each location (only if variation has ID)
+                ForEach(viewModel.availableLocations, id: \.id) { location in
+                    ItemDetailsFieldSeparator()
+
+                    VariationInventoryRow(
+                        variationId: variationId,
+                        locationId: location.id,
+                        locationName: location.name,
+                        inventoryData: viewModel.getInventoryData(
+                            variationId: variationId,
+                            locationId: location.id
+                        ),
+                        onTap: {
+                            selectedLocationId = location.id
+                            showingAdjustmentModal = true
+                        }
+                    )
+                }
+
+                // Loading indicator
+                if viewModel.isLoadingInventory {
+                    ItemDetailsFieldSeparator()
+
+                    HStack {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle())
+                        Text("Loading inventory...")
+                            .font(.itemDetailsFootnote)
+                            .foregroundColor(.itemDetailsSecondaryText)
+                    }
+                    .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
+                    .padding(.vertical, ItemDetailsSpacing.compactSpacing)
+                }
+            }
+        }
+        .sheet(isPresented: $showingAdjustmentModal) {
+            if let variationId = variationId,
+               let locationId = selectedLocationId {
+                InventoryAdjustmentModal(
+                    viewModel: viewModel,
+                    variationId: variationId,
+                    locationId: locationId,
+                    onDismiss: {
+                        showingAdjustmentModal = false
+                    }
+                )
+                .nestedComponentModal()
+            }
+        }
+    }
+}
+
+// MARK: - Variation Inventory Row
+/// Single row showing stock on hand, committed, and available to sell for one location
+private struct VariationInventoryRow: View {
+    let variationId: String // Note: Already unwrapped in parent, guaranteed non-nil
+    let locationId: String
+    let locationName: String
+    let inventoryData: VariationInventoryData?
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
+                // Line 1: Column headers (always visible)
+                HStack(spacing: 0) {
+                    Text("Stock on hand")
+                        .font(.itemDetailsCaption)
+                        .foregroundColor(.itemDetailsSecondaryText)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Text("Committed")
+                        .font(.itemDetailsCaption)
+                        .foregroundColor(.itemDetailsSecondaryText)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Text("Available to sell")
+                        .font(.itemDetailsCaption)
+                        .foregroundColor(.itemDetailsSecondaryText)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                // Line 2: Values on left, location name on right
+                HStack(spacing: 0) {
+                    // Values section (3 columns)
+                    HStack(spacing: 0) {
+                        Text(inventoryData?.displayStockOnHand ?? "N/A")
+                            .font(.itemDetailsBody)
+                            .foregroundColor(inventoryData?.stockOnHand == nil ? .itemDetailsSecondaryText : .itemDetailsPrimaryText)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        Text(inventoryData?.displayCommitted ?? "0")
+                            .font(.itemDetailsBody)
+                            .foregroundColor(.itemDetailsPrimaryText)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        Text(inventoryData?.displayAvailableToSell ?? "N/A")
+                            .font(.itemDetailsBody)
+                            .foregroundColor(inventoryData?.availableToSell == nil ? .itemDetailsSecondaryText : .itemDetailsPrimaryText)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    // Location name on right (if not default)
+                    if locationName != "Default Location" {
+                        Text(locationName)
+                            .font(.itemDetailsFootnote)
+                            .foregroundColor(.itemDetailsSecondaryText)
+                            .lineLimit(1)
+                    }
+                }
+            }
+            .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
+            .padding(.vertical, ItemDetailsSpacing.compactSpacing)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 }
 

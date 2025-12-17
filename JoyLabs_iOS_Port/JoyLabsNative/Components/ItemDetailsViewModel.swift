@@ -433,7 +433,6 @@ class ItemDetailsViewModel: ObservableObject {
 
     // Inventory management
     @Published var inventoryData: [String: VariationInventoryData] = [:] // Key: variationId_locationId
-    @Published var inventoryEnabled: Bool = false // Whether inventory feature is available (premium check)
     @Published var isLoadingInventory: Bool = false
 
     // Private state for applying defaults
@@ -1461,18 +1460,15 @@ class ItemDetailsViewModel: ObservableObject {
 
             // Mark inventory as enabled (successful API call means feature is available)
             await MainActor.run {
-                self.inventoryEnabled = true
+                SquareCapabilitiesService.shared.markInventoryAsEnabled()
             }
 
         } catch {
             logger.error("[InventoryViewModel] Failed to fetch inventory: \(error)")
 
-            // Check if error indicates inventory not enabled
-            if error.localizedDescription.contains("not enabled") ||
-               error.localizedDescription.contains("Premium") {
-                await MainActor.run {
-                    self.inventoryEnabled = false
-                }
+            // Update capability flag based on error
+            await MainActor.run {
+                SquareCapabilitiesService.shared.markInventoryAsDisabled(error: error)
             }
         }
     }
@@ -1486,22 +1482,36 @@ class ItemDetailsViewModel: ObservableObject {
     ) async throws {
         logger.info("[InventoryViewModel] Submitting inventory adjustment: variation=\(variationId), qty=\(quantity), reason=\(reason.displayName)")
 
-        let counts = try await inventoryService.submitInventoryAdjustment(
-            variationId: variationId,
-            locationId: locationId,
-            quantity: quantity,
-            reason: reason
-        )
+        do {
+            let counts = try await inventoryService.submitInventoryAdjustment(
+                variationId: variationId,
+                locationId: locationId,
+                quantity: quantity,
+                reason: reason
+            )
 
-        // Update database
-        let db = databaseManager.getContext()
-        for countData in counts {
-            _ = InventoryCountModel.createOrUpdate(from: countData, in: db)
+            // Update database
+            let db = databaseManager.getContext()
+            for countData in counts {
+                _ = InventoryCountModel.createOrUpdate(from: countData, in: db)
+            }
+            try db.save()
+
+            // Reload inventory data
+            await loadInventoryData()
+
+            // Mark inventory as enabled on successful adjustment
+            await MainActor.run {
+                SquareCapabilitiesService.shared.markInventoryAsEnabled()
+            }
+
+        } catch {
+            // Update capability flag on error
+            await MainActor.run {
+                SquareCapabilitiesService.shared.markInventoryAsDisabled(error: error)
+            }
+            throw error
         }
-        try db.save()
-
-        // Reload inventory data
-        await loadInventoryData()
     }
 
     /// Get inventory data for specific variation and location

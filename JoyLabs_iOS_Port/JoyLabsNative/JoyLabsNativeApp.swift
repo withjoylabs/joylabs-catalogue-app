@@ -130,6 +130,7 @@ struct JoyLabsNativeApp: App {
         let _ = WebhookNotificationService.shared
         let _ = NotificationSettingsService.shared
         let _ = LocationCacheManager.shared
+        let _ = SquareCapabilitiesService.shared
 
         // Initialize background sync service for PushNotificationService
         let squareAPIService = SquareAPIServiceFactory.createService()
@@ -160,6 +161,9 @@ struct JoyLabsNativeApp: App {
 
             // Load locations first (required for item modals)
             await LocationCacheManager.shared.loadLocations()
+
+            // Check Square capabilities (inventory tracking, etc.)
+            await SquareCapabilitiesService.shared.checkInventoryCapability()
 
             // Catch-up sync enabled - performs incremental sync on app launch
             await performAppLaunchCatchUpSync()

@@ -546,8 +546,9 @@ struct ItemDetailsContent: View {
             }
 
         case "inventory":
-            // Inventory section positioned after pricing as per requirements
-            ItemDetailsInventorySection(viewModel: viewModel)
+            // Inventory section now integrated into each variation card (below Add Price Override)
+            // No standalone section needed
+            EmptyView()
 
         case "categories":
             if shouldShowCategoriesSection {

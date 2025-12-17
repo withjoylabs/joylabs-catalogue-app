@@ -1,11 +1,12 @@
 import SwiftUI
 
-// MARK: - Item Details Inventory Section
-/// Displays inventory information for each variation (stock on hand, committed, available to sell)
-/// Positioned between pricing section and next section as per requirements
+// MARK: - Item Details Inventory Section (DEPRECATED - Now integrated per-variation)
+/// OLD standalone inventory section - replaced by VariationInventorySection in VariationCardComponents.swift
+/// Kept for backwards compatibility but should not be used
 struct ItemDetailsInventorySection: View {
     @ObservedObject var viewModel: ItemDetailsViewModel
     @StateObject private var configManager = FieldConfigurationManager.shared
+    @StateObject private var capabilitiesService = SquareCapabilitiesService.shared
 
     // State for showing adjustment modal
     @State private var showingAdjustmentModal = false
@@ -76,7 +77,7 @@ struct ItemDetailsInventorySection: View {
                         }
 
                         // Premium feature message if not enabled
-                        if !viewModel.inventoryEnabled && !viewModel.isLoadingInventory {
+                        if !capabilitiesService.inventoryTrackingEnabled && !viewModel.isLoadingInventory {
                             HStack {
                                 Image(systemName: "lock.fill")
                                     .foregroundColor(.orange)
@@ -229,7 +230,8 @@ private struct InventoryColumn: View {
                 )
             ]
 
-            vm.inventoryEnabled = true
+            // Set capabilities service flag (replaced inventoryEnabled)
+            SquareCapabilitiesService.shared.inventoryTrackingEnabled = true
         }
 
         var body: some View {

@@ -58,202 +58,161 @@ struct InventoryAdjustmentModal: View {
     }
 
     var body: some View {
-        NavigationView {
-            VStack(spacing: 0) {
-                // Variation info header
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        if let variation = viewModel.variations.first(where: { $0.id == variationId }) {
-                            Text(variation.name ?? "Unnamed Variation")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.primary)
-                        }
-
-                        if let location = viewModel.availableLocations.first(where: { $0.id == locationId }) {
-                            Text(location.name)
-                                .font(.system(size: 14))
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    Spacer()
+        VStack(spacing: 0) {
+            // Compact header - variation and location in one line
+            HStack {
+                if let variation = viewModel.variations.first(where: { $0.id == variationId }),
+                   let location = viewModel.availableLocations.first(where: { $0.id == locationId }) {
+                    Text("\(variation.name ?? "Unnamed") • \(location.name)")
+                        .font(.itemDetailsBody)
+                        .foregroundColor(.itemDetailsPrimaryText)
                 }
-                .padding(16)
-                .background(Color(.systemGray6))
+                Spacer()
+                Button("Cancel") {
+                    onDismiss()
+                }
+                .font(.itemDetailsBody)
+            }
+            .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
+            .padding(.vertical, ItemDetailsSpacing.compactSpacing)
 
-                ScrollView {
-                    VStack(spacing: 20) {
-                        if hasInventory {
-                            // EXISTING INVENTORY - Show reason picker
-                            inventoryExistsContent
-                        } else {
-                            // NO INVENTORY (N/A) - Simple received input
-                            inventoryNAContent
-                        }
+            Divider()
 
-                        // Error message
-                        if let error = errorMessage {
-                            Text(error)
-                                .font(.system(size: 14))
-                                .foregroundColor(.red)
-                                .padding(.horizontal, 16)
-                        }
-                    }
-                    .padding(.vertical, 20)
+            // Content (no ScrollView - fits without scrolling)
+            VStack(spacing: ItemDetailsSpacing.compactSpacing) {
+                if hasInventory {
+                    // EXISTING INVENTORY - Show reason picker
+                    inventoryExistsContent
+                } else {
+                    // NO INVENTORY (N/A) - Simple received input
+                    inventoryNAContent
                 }
 
-                // Bottom action button
-                VStack(spacing: 0) {
-                    Rectangle()
-                        .fill(Color(.separator))
-                        .frame(height: 0.5)
-
-                    Button(action: saveAdjustment) {
-                        HStack {
-                            if isSaving {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                Text("Saving...")
-                            } else {
-                                Text("Save")
-                            }
-                        }
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
-                        .background(canSave ? Color.blue : Color.gray)
-                        .cornerRadius(10)
-                        .padding(16)
-                    }
-                    .disabled(!canSave)
+                // Error message
+                if let error = errorMessage {
+                    Text(error)
+                        .font(.itemDetailsFootnote)
+                        .foregroundColor(.itemDetailsDestructive)
+                        .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
                 }
             }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        onDismiss()
+            .padding(.vertical, ItemDetailsSpacing.compactSpacing)
+
+            Spacer()
+
+            // Bottom action button
+            VStack(spacing: 0) {
+                Divider()
+
+                Button(action: saveAdjustment) {
+                    HStack {
+                        if isSaving {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            Text("Saving...")
+                        } else {
+                            Text("Save")
+                        }
                     }
+                    .font(.itemDetailsBody.weight(.semibold))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                    .background(canSave ? Color.itemDetailsAccent : Color.secondary)
+                    .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
+                    .padding(ItemDetailsSpacing.compactSpacing)
                 }
+                .disabled(!canSave)
             }
         }
+        .presentationDetents([.height(hasInventory ? 420 : 220)])
+        .presentationDragIndicator(.visible)
     }
 
     // MARK: - NO INVENTORY (N/A) Content
     private var inventoryNAContent: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Set Initial Stock")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundColor(.primary)
-                .padding(.horizontal, 16)
+        VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
+            ItemDetailsFieldLabel(title: "Received")
+                .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Received")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.secondary)
-
-                TextField("0", text: $quantityInput)
-                    .keyboardType(.numberPad)
-                    .font(.system(size: 28, weight: .semibold))
-                    .multilineTextAlignment(.center)
-                    .padding()
-                    .background(Color(.systemGray6))
-                    .cornerRadius(10)
-            }
-            .padding(.horizontal, 16)
+            TextField("0", text: $quantityInput)
+                .keyboardType(.numberPad)
+                .font(.itemDetailsBody)
+                .multilineTextAlignment(.center)
+                .padding(ItemDetailsSpacing.compactSpacing)
+                .background(Color.itemDetailsFieldBackground)
+                .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
+                .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
         }
     }
 
     // MARK: - EXISTING INVENTORY Content
     private var inventoryExistsContent: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            // Reason picker
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Reason")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.secondary)
+        VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
+            // Reason picker - inline style
+            ItemDetailsFieldLabel(title: "Reason")
+                .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
 
+            Picker("Reason", selection: $selectedReason) {
                 ForEach(InventoryAdjustmentReason.allCases, id: \.self) { reason in
-                    Button(action: {
-                        selectedReason = reason
-                        quantityInput = "" // Reset input on reason change
-                    }) {
-                        HStack {
-                            Image(systemName: selectedReason == reason ? "checkmark.circle.fill" : "circle")
-                                .foregroundColor(selectedReason == reason ? .blue : .secondary)
-                            Text(reason.displayName)
-                                .font(.system(size: 16))
-                                .foregroundColor(.primary)
-                            Spacer()
-                        }
-                        .padding(12)
-                        .background(selectedReason == reason ? Color.blue.opacity(0.1) : Color.clear)
-                        .cornerRadius(8)
-                    }
-                    .buttonStyle(PlainButtonStyle())
+                    Text(reason.displayName).tag(reason)
                 }
             }
-            .padding(.horizontal, 16)
+            .pickerStyle(.menu)
+            .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
+            .onChange(of: selectedReason) { _, _ in
+                quantityInput = "" // Reset input on reason change
+            }
 
-            // Current stock display
-            if let current = currentStock {
-                HStack {
-                    Text("Current Stock")
-                        .font(.system(size: 14))
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Text("\(current)")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.primary)
+            // Current stock + Quantity input (side by side)
+            HStack(spacing: ItemDetailsSpacing.compactSpacing) {
+                VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
+                    ItemDetailsFieldLabel(title: "Current")
+                    Text("\(currentStock ?? 0)")
+                        .font(.itemDetailsBody)
+                        .foregroundColor(.itemDetailsSecondaryText)
+                        .padding(ItemDetailsSpacing.compactSpacing)
+                        .frame(maxWidth: .infinity)
+                        .background(Color.itemDetailsFieldBackground)
+                        .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
                 }
-                .padding(12)
-                .background(Color(.systemGray6))
-                .cornerRadius(8)
-                .padding(.horizontal, 16)
-            }
 
-            // Quantity input
-            VStack(alignment: .leading, spacing: 8) {
-                Text(selectedReason.fieldLabel)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.secondary)
+                VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
+                    ItemDetailsFieldLabel(title: selectedReason.fieldLabel)
+                    TextField("0", text: $quantityInput)
+                        .keyboardType(.numberPad)
+                        .font(.itemDetailsBody)
+                        .multilineTextAlignment(.center)
+                        .padding(ItemDetailsSpacing.compactSpacing)
+                        .background(Color.itemDetailsFieldBackground)
+                        .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
+                }
 
-                TextField("0", text: $quantityInput)
-                    .keyboardType(.numberPad)
-                    .font(.system(size: 28, weight: .semibold))
-                    .multilineTextAlignment(.center)
-                    .padding()
-                    .background(Color(.systemGray6))
-                    .cornerRadius(10)
-            }
-            .padding(.horizontal, 16)
-
-            // New total / Variance display
-            if let newTotal = calculatedNewTotal {
-                HStack {
-                    Text(selectedReason.isAbsolute ? "Variance" : "New Total")
-                        .font(.system(size: 14))
-                        .foregroundColor(.secondary)
-                    Spacer()
-
-                    if selectedReason.isAbsolute, let varianceValue = variance {
-                        HStack(spacing: 4) {
-                            Text(varianceValue >= 0 ? "+" : "")
-                            Text("\(varianceValue)")
+                // New total / Variance
+                if let newTotal = calculatedNewTotal {
+                    VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
+                        ItemDetailsFieldLabel(title: selectedReason.isAbsolute ? "Variance" : "New Total")
+                        if selectedReason.isAbsolute, let varianceValue = variance {
+                            Text("\(varianceValue >= 0 ? "+" : "")\(varianceValue)")
+                                .font(.itemDetailsBody)
+                                .foregroundColor(varianceValue >= 0 ? .itemDetailsSuccess : .itemDetailsDestructive)
+                                .padding(ItemDetailsSpacing.compactSpacing)
+                                .frame(maxWidth: .infinity)
+                                .background(Color.itemDetailsFieldBackground)
+                                .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
+                        } else {
+                            Text("\(newTotal)")
+                                .font(.itemDetailsBody)
+                                .foregroundColor(.itemDetailsPrimaryText)
+                                .padding(ItemDetailsSpacing.compactSpacing)
+                                .frame(maxWidth: .infinity)
+                                .background(Color.itemDetailsFieldBackground)
+                                .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
                         }
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(varianceValue >= 0 ? .green : .red)
-                    } else {
-                        Text("\(newTotal)")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.primary)
                     }
                 }
-                .padding(12)
-                .background(Color(.systemGray6))
-                .cornerRadius(8)
-                .padding(.horizontal, 16)
             }
+            .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
         }
     }
 
@@ -272,7 +231,7 @@ struct InventoryAdjustmentModal: View {
                 // For N/A (no inventory), use initial stock setup
                 if !hasInventory {
                     let inventoryService = SquareAPIServiceFactory.createInventoryService()
-                    try await inventoryService.setInitialStock(
+                    _ = try await inventoryService.setInitialStock(
                         variationId: variationId,
                         locationId: locationId,
                         quantity: qty
