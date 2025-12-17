@@ -222,8 +222,341 @@ class SquareCRUDService: ObservableObject {
         }
     }
     
+    // MARK: - Image CRUD Operations
+
+    /// Attach an image to an item (independent of item details modal)
+    /// Preserves existing images and adds the new one at the specified position
+    func attachImageToItem(imageId: String, itemId: String, isPrimary: Bool = false, ordinal: Int? = nil) async throws -> CatalogObject {
+        logger.info("Attaching image \(imageId) to item \(itemId) (primary: \(isPrimary))")
+
+        isProcessing = true
+        defer { isProcessing = false }
+
+        do {
+            // 1. FETCH CURRENT ITEM: Get latest data from Square
+            logger.debug("Fetching current item from Square API: \(itemId)")
+            let currentObject = try await squareAPIService.fetchCatalogObjectById(itemId)
+            let currentVersion = currentObject.safeVersion
+
+            // 2. GET CURRENT IMAGES: Extract existing imageIds
+            var imageIds = currentObject.itemData?.imageIds ?? []
+            logger.debug("Current imageIds: \(imageIds)")
+
+            // 3. ADD NEW IMAGE: Insert at specified position or make primary
+            if isPrimary {
+                // Remove imageId if it already exists (to avoid duplicates)
+                imageIds.removeAll { $0 == imageId }
+                // Insert at beginning as primary
+                imageIds.insert(imageId, at: 0)
+                logger.info("Added image \(imageId) as primary (position 0)")
+            } else if let ordinal = ordinal, ordinal < imageIds.count {
+                // Remove imageId if it already exists
+                imageIds.removeAll { $0 == imageId }
+                // Insert at specified position
+                imageIds.insert(imageId, at: ordinal)
+                logger.info("Added image \(imageId) at position \(ordinal)")
+            } else {
+                // Append to end if not already present
+                if !imageIds.contains(imageId) {
+                    imageIds.append(imageId)
+                    logger.info("Added image \(imageId) at end (position \(imageIds.count - 1))")
+                } else {
+                    logger.info("Image \(imageId) already exists in item \(itemId), no changes needed")
+                }
+            }
+
+            // 4. CREATE UPDATE PAYLOAD: Preserve all item data, only update imageIds
+            guard let itemData = currentObject.itemData else {
+                throw SquareCRUDError.invalidData("Item data not found for item \(itemId)")
+            }
+
+            let updatedItemData = ItemData(
+                name: itemData.name,
+                description: itemData.description,
+                categoryId: itemData.categoryId,
+                taxIds: itemData.taxIds,
+                variations: itemData.variations,
+                productType: itemData.productType,
+                skipModifierScreen: itemData.skipModifierScreen,
+                itemOptions: itemData.itemOptions,
+                modifierListInfo: itemData.modifierListInfo,
+                images: itemData.images,
+                labelColor: itemData.labelColor,
+                availableOnline: itemData.availableOnline,
+                availableForPickup: itemData.availableForPickup,
+                availableElectronically: itemData.availableElectronically,
+                abbreviation: itemData.abbreviation,
+                categories: itemData.categories,
+                reportingCategory: itemData.reportingCategory,
+                imageIds: imageIds.isEmpty ? nil : imageIds, // Updated imageIds
+                isTaxable: itemData.isTaxable,
+                isAlcoholic: itemData.isAlcoholic,
+                sortName: itemData.sortName,
+                taxNames: itemData.taxNames,
+                modifierNames: itemData.modifierNames
+            )
+
+            let catalogObject = CatalogObject(
+                id: itemId,
+                type: "ITEM",
+                updatedAt: currentObject.updatedAt,
+                version: currentVersion,
+                isDeleted: currentObject.isDeleted,
+                presentAtAllLocations: currentObject.presentAtAllLocations,
+                presentAtLocationIds: currentObject.presentAtLocationIds,
+                absentAtLocationIds: currentObject.absentAtLocationIds,
+                itemData: updatedItemData,
+                categoryData: nil,
+                itemVariationData: nil,
+                modifierData: nil,
+                modifierListData: nil,
+                taxData: nil,
+                discountData: nil,
+                imageData: nil
+            )
+
+            // 5. SQUARE API: Update item with new imageIds
+            let idempotencyKey = "attach_image_\(itemId)_\(imageId)_\(Date().timeIntervalSince1970)"
+            let response = try await squareAPIService.upsertCatalogObjectWithMappings(
+                catalogObject,
+                idempotencyKey: idempotencyKey
+            )
+
+            guard let updatedObject = response.catalogObject else {
+                throw SquareAPIError.upsertFailed("No object returned from image attach operation")
+            }
+
+            // 6. DATABASE SYNC: Update local database
+            try await updateLocalDatabaseAfterUpdate(updatedObject, idMappings: response.idMappings)
+
+            logger.info("✅ Successfully attached image \(imageId) to item \(itemId)")
+
+            // 7. UI REFRESH
+            await MainActor.run {
+                NotificationCenter.default.post(
+                    name: .catalogSyncCompleted,
+                    object: nil,
+                    userInfo: ["itemId": itemId, "operation": "attachImage"]
+                )
+            }
+
+            return updatedObject
+
+        } catch {
+            logger.error("❌ Failed to attach image: \(error.localizedDescription)")
+            lastError = error
+            throw error
+        }
+    }
+
+    /// Remove an image from an item (independent of item details modal)
+    /// Preserves all other images
+    func removeImageFromItem(imageId: String, itemId: String) async throws -> CatalogObject {
+        logger.info("Removing image \(imageId) from item \(itemId)")
+
+        isProcessing = true
+        defer { isProcessing = false }
+
+        do {
+            // 1. FETCH CURRENT ITEM
+            let currentObject = try await squareAPIService.fetchCatalogObjectById(itemId)
+            let currentVersion = currentObject.safeVersion
+
+            // 2. REMOVE IMAGE: Filter out the specified imageId
+            var imageIds = currentObject.itemData?.imageIds ?? []
+            let originalCount = imageIds.count
+            imageIds.removeAll { $0 == imageId }
+
+            guard imageIds.count < originalCount else {
+                logger.warning("Image \(imageId) not found in item \(itemId), no changes needed")
+                return currentObject
+            }
+
+            logger.info("Removed image \(imageId), \(originalCount) -> \(imageIds.count) images remaining")
+
+            // 3. CREATE UPDATE PAYLOAD
+            guard let itemData = currentObject.itemData else {
+                throw SquareCRUDError.invalidData("Item data not found for item \(itemId)")
+            }
+
+            let updatedItemData = ItemData(
+                name: itemData.name,
+                description: itemData.description,
+                categoryId: itemData.categoryId,
+                taxIds: itemData.taxIds,
+                variations: itemData.variations,
+                productType: itemData.productType,
+                skipModifierScreen: itemData.skipModifierScreen,
+                itemOptions: itemData.itemOptions,
+                modifierListInfo: itemData.modifierListInfo,
+                images: itemData.images,
+                labelColor: itemData.labelColor,
+                availableOnline: itemData.availableOnline,
+                availableForPickup: itemData.availableForPickup,
+                availableElectronically: itemData.availableElectronically,
+                abbreviation: itemData.abbreviation,
+                categories: itemData.categories,
+                reportingCategory: itemData.reportingCategory,
+                imageIds: imageIds.isEmpty ? nil : imageIds,
+                isTaxable: itemData.isTaxable,
+                isAlcoholic: itemData.isAlcoholic,
+                sortName: itemData.sortName,
+                taxNames: itemData.taxNames,
+                modifierNames: itemData.modifierNames
+            )
+
+            let catalogObject = CatalogObject(
+                id: itemId,
+                type: "ITEM",
+                updatedAt: currentObject.updatedAt,
+                version: currentVersion,
+                isDeleted: currentObject.isDeleted,
+                presentAtAllLocations: currentObject.presentAtAllLocations,
+                presentAtLocationIds: currentObject.presentAtLocationIds,
+                absentAtLocationIds: currentObject.absentAtLocationIds,
+                itemData: updatedItemData,
+                categoryData: nil,
+                itemVariationData: nil,
+                modifierData: nil,
+                modifierListData: nil,
+                taxData: nil,
+                discountData: nil,
+                imageData: nil
+            )
+
+            // 4. SQUARE API UPDATE
+            let idempotencyKey = "remove_image_\(itemId)_\(imageId)_\(Date().timeIntervalSince1970)"
+            let response = try await squareAPIService.upsertCatalogObjectWithMappings(
+                catalogObject,
+                idempotencyKey: idempotencyKey
+            )
+
+            guard let updatedObject = response.catalogObject else {
+                throw SquareAPIError.upsertFailed("No object returned from image remove operation")
+            }
+
+            // 5. DATABASE SYNC
+            try await updateLocalDatabaseAfterUpdate(updatedObject, idMappings: response.idMappings)
+
+            logger.info("✅ Successfully removed image \(imageId) from item \(itemId)")
+
+            // 6. UI REFRESH
+            await MainActor.run {
+                NotificationCenter.default.post(
+                    name: .catalogSyncCompleted,
+                    object: nil,
+                    userInfo: ["itemId": itemId, "operation": "removeImage"]
+                )
+            }
+
+            return updatedObject
+
+        } catch {
+            logger.error("❌ Failed to remove image: \(error.localizedDescription)")
+            lastError = error
+            throw error
+        }
+    }
+
+    /// Reorder images for an item (preserves image order)
+    /// Pass the complete list of imageIds in the desired order
+    func reorderImages(itemId: String, imageIds: [String]) async throws -> CatalogObject {
+        logger.info("Reordering images for item \(itemId): \(imageIds)")
+
+        isProcessing = true
+        defer { isProcessing = false }
+
+        do {
+            // 1. FETCH CURRENT ITEM
+            let currentObject = try await squareAPIService.fetchCatalogObjectById(itemId)
+            let currentVersion = currentObject.safeVersion
+
+            // 2. CREATE UPDATE PAYLOAD with new image order
+            guard let itemData = currentObject.itemData else {
+                throw SquareCRUDError.invalidData("Item data not found for item \(itemId)")
+            }
+
+            let updatedItemData = ItemData(
+                name: itemData.name,
+                description: itemData.description,
+                categoryId: itemData.categoryId,
+                taxIds: itemData.taxIds,
+                variations: itemData.variations,
+                productType: itemData.productType,
+                skipModifierScreen: itemData.skipModifierScreen,
+                itemOptions: itemData.itemOptions,
+                modifierListInfo: itemData.modifierListInfo,
+                images: itemData.images,
+                labelColor: itemData.labelColor,
+                availableOnline: itemData.availableOnline,
+                availableForPickup: itemData.availableForPickup,
+                availableElectronically: itemData.availableElectronically,
+                abbreviation: itemData.abbreviation,
+                categories: itemData.categories,
+                reportingCategory: itemData.reportingCategory,
+                imageIds: imageIds.isEmpty ? nil : imageIds, // New order
+                isTaxable: itemData.isTaxable,
+                isAlcoholic: itemData.isAlcoholic,
+                sortName: itemData.sortName,
+                taxNames: itemData.taxNames,
+                modifierNames: itemData.modifierNames
+            )
+
+            let catalogObject = CatalogObject(
+                id: itemId,
+                type: "ITEM",
+                updatedAt: currentObject.updatedAt,
+                version: currentVersion,
+                isDeleted: currentObject.isDeleted,
+                presentAtAllLocations: currentObject.presentAtAllLocations,
+                presentAtLocationIds: currentObject.presentAtLocationIds,
+                absentAtLocationIds: currentObject.absentAtLocationIds,
+                itemData: updatedItemData,
+                categoryData: nil,
+                itemVariationData: nil,
+                modifierData: nil,
+                modifierListData: nil,
+                taxData: nil,
+                discountData: nil,
+                imageData: nil
+            )
+
+            // 3. SQUARE API UPDATE
+            let idempotencyKey = "reorder_images_\(itemId)_\(Date().timeIntervalSince1970)"
+            let response = try await squareAPIService.upsertCatalogObjectWithMappings(
+                catalogObject,
+                idempotencyKey: idempotencyKey
+            )
+
+            guard let updatedObject = response.catalogObject else {
+                throw SquareAPIError.upsertFailed("No object returned from image reorder operation")
+            }
+
+            // 4. DATABASE SYNC
+            try await updateLocalDatabaseAfterUpdate(updatedObject, idMappings: response.idMappings)
+
+            logger.info("✅ Successfully reordered images for item \(itemId)")
+
+            // 5. UI REFRESH
+            await MainActor.run {
+                NotificationCenter.default.post(
+                    name: .catalogSyncCompleted,
+                    object: nil,
+                    userInfo: ["itemId": itemId, "operation": "reorderImages"]
+                )
+            }
+
+            return updatedObject
+
+        } catch {
+            logger.error("❌ Failed to reorder images: \(error.localizedDescription)")
+            lastError = error
+            throw error
+        }
+    }
+
     // MARK: - Delete Operations
-    
+
     /// Delete a catalog item with perfect synchronization
     /// Returns information about the deleted object
     func deleteItem(_ itemId: String) async throws -> DeletedCatalogObject {
@@ -433,84 +766,19 @@ class SquareCRUDService: ObservableObject {
             }
         }
 
-        // CRITICAL: Preserve existing image data before database update
-        // When we omit image_ids from Square request, the response also omits images
-        // We need to restore existing image data to prevent losing images during item updates
-        var objectToStore = updatedObject
-        if updatedObject.type == "ITEM" {
-            do {
-                // Get current image data from database
-                let existingImageIds = try await getCurrentImageIds(for: updatedObject.id)
-                if !existingImageIds.isEmpty {
-                    logger.debug("🔄 Preserving \(existingImageIds.count) existing images for item: \(updatedObject.id)")
-                    
-                    // Create updated ItemData with preserved image IDs
-                    if let itemData = updatedObject.itemData {
-                        let preservedItemData = ItemData(
-                            name: itemData.name,
-                            description: itemData.description,
-                            categoryId: itemData.categoryId,
-                            taxIds: itemData.taxIds,
-                            variations: itemData.variations,
-                            productType: itemData.productType,
-                            skipModifierScreen: itemData.skipModifierScreen,
-                            itemOptions: itemData.itemOptions,
-                            modifierListInfo: itemData.modifierListInfo,
-                            images: itemData.images,
-                            labelColor: itemData.labelColor,
-                            availableOnline: itemData.availableOnline,
-                            availableForPickup: itemData.availableForPickup,
-                            availableElectronically: itemData.availableElectronically,
-                            abbreviation: itemData.abbreviation,
-                            categories: itemData.categories,
-                            reportingCategory: itemData.reportingCategory,
-                            imageIds: existingImageIds, // PRESERVE existing images
-                            isTaxable: itemData.isTaxable,
-                            isAlcoholic: itemData.isAlcoholic,
-                            sortName: itemData.sortName,
-                            taxNames: itemData.taxNames,
-                            modifierNames: itemData.modifierNames
-                        )
-                        
-                        // Create updated CatalogObject with preserved images
-                        objectToStore = CatalogObject(
-                            id: updatedObject.id,
-                            type: updatedObject.type,
-                            updatedAt: updatedObject.updatedAt,
-                            version: updatedObject.version,
-                            isDeleted: updatedObject.isDeleted,
-                            presentAtAllLocations: updatedObject.presentAtAllLocations,
-                            presentAtLocationIds: updatedObject.presentAtLocationIds,
-                            absentAtLocationIds: updatedObject.absentAtLocationIds,
-                            itemData: preservedItemData,
-                            categoryData: updatedObject.categoryData,
-                            itemVariationData: updatedObject.itemVariationData,
-                            modifierData: updatedObject.modifierData,
-                            modifierListData: updatedObject.modifierListData,
-                            taxData: updatedObject.taxData,
-                            discountData: updatedObject.discountData,
-                            imageData: updatedObject.imageData
-                        )
-                        
-                        logger.debug("✅ Enhanced item with preserved image IDs: \(existingImageIds)")
-                    }
-                }
-            } catch {
-                logger.warning("⚠️ Could not retrieve existing images for item \(updatedObject.id): \(error)")
-                // Continue with original object if image preservation fails
-            }
-        }
-
         // WEBHOOK COMPATIBILITY: These exact timestamps will match webhook notifications
         // This ensures no conflicts when catalog.version.updated webhooks arrive
         // CRITICAL: Database operations must complete BEFORE function returns to ensure data consistency
+        //
+        // NOTE: Image preservation now happens at API request level (in updateItemDataWithCurrentVersions)
+        // We send the correct imageIds to Square, so the response will include them
         do {
             // Use upsert to handle both insert and update cases
-            try await databaseManager.insertCatalogObject(objectToStore)
+            try await databaseManager.insertCatalogObject(updatedObject)
             logger.debug("✅ Main item object updated in database: \(updatedObject.id)")
 
             // CRITICAL: Process variations separately for scalability (same as create)
-            if let itemData = objectToStore.itemData, let variations = itemData.variations {
+            if let itemData = updatedObject.itemData, let variations = itemData.variations {
                 logger.debug("Processing \(variations.count) variations for updated item \(updatedObject.id)")
                 
                 // Get current variation IDs that exist in Square's response
@@ -649,8 +917,14 @@ enum CRUDOperation: String, CaseIterable {
 // MARK: - SquareCRUDService Helper Methods Extension
 extension SquareCRUDService {
     /// Update ItemData variations with current versions from Square API
+    /// CRITICAL: Also preserves existing imageIds to prevent image deletion during updates
     private func updateItemDataWithCurrentVersions(_ itemData: ItemData?, currentItem: CatalogObject) throws -> ItemData? {
         guard let itemData = itemData else { return nil }
+
+        // CRITICAL: Extract current imageIds from Square to preserve them during update
+        // If we don't do this, sending imageIds: nil will delete all images
+        let currentImageIds = currentItem.itemData?.imageIds ?? []
+        logger.debug("[SquareCRUDService] Preserving \(currentImageIds.count) existing imageIds from Square: \(currentImageIds)")
 
         // Get current variations from Square's response to extract their versions
         let currentVariations = currentItem.itemData?.variations ?? []
@@ -723,7 +997,9 @@ extension SquareCRUDService {
 
         // Update variations to include both deleted and active variations
         let updatedVariations = allVariationsToSend.isEmpty ? nil : allVariationsToSend
-        
+
+        // CRITICAL: Use currentImageIds from Square to preserve existing images
+        // This prevents image deletion when updating item properties
         return ItemData(
             name: itemData.name,
             description: itemData.description,
@@ -742,7 +1018,7 @@ extension SquareCRUDService {
             abbreviation: itemData.abbreviation,
             categories: itemData.categories,
             reportingCategory: itemData.reportingCategory,
-            imageIds: itemData.imageIds,
+            imageIds: currentImageIds.isEmpty ? nil : currentImageIds, // PRESERVE existing images from Square
             isTaxable: itemData.isTaxable,
             isAlcoholic: itemData.isAlcoholic,
             sortName: itemData.sortName,
@@ -800,39 +1076,6 @@ extension SquareCRUDService {
             
         } catch {
             logger.error("❌ Failed to mark removed variations as deleted for item \(itemId): \(error)")
-            throw error
-        }
-    }
-    
-    /// Get current image IDs for an item using SwiftData relationships
-    /// Used to preserve existing images during item updates
-    private func getCurrentImageIds(for itemId: String) async throws -> [String] {
-        let db = databaseManager.getContext()
-        
-        do {
-            let descriptor = FetchDescriptor<CatalogItemModel>(
-                predicate: #Predicate { item in
-                    item.id == itemId && !item.isDeleted
-                }
-            )
-            
-            guard let catalogItem = try db.fetch(descriptor).first else {
-                logger.debug("📷 No item found for: \(itemId)")
-                return []
-            }
-            
-            // Use SwiftData relationships to get images
-            if let images = catalogItem.images {
-                let imageIds = images.map { $0.id }
-                logger.debug("📷 Found \(imageIds.count) existing images via SwiftData relationships for: \(itemId)")
-                return imageIds
-            } else {
-                logger.debug("📷 No images relationship found for item: \(itemId)")
-                return []
-            }
-            
-        } catch {
-            logger.error("❌ Failed to get existing image IDs for item \(itemId): \(error)")
             throw error
         }
     }
