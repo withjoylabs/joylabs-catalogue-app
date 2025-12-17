@@ -370,27 +370,38 @@ class SwiftDataCatalogManager {
     
     private func insertImage(_ object: CatalogObject) async throws {
         guard let imageData = object.imageData else {
-            logger.warning("[Database] Image \(object.id) missing imageData")
+            logger.warning("[Database] ❌ Image \(object.id) missing imageData")
             return
         }
-        
+
+        logger.info("[Database] 📷 Processing IMAGE object: \(object.id)")
+        logger.debug("[Database]   - Image URL: \(imageData.url ?? "nil")")
+        logger.debug("[Database]   - Image name: \(imageData.name ?? "nil")")
+
         let descriptor = FetchDescriptor<ImageModel>(
             predicate: #Predicate { $0.id == object.id }
         )
-        
+
         let image: ImageModel
         if let existing = try modelContext.fetch(descriptor).first {
-            logger.debug("[Database] Updating existing image: \(object.id)")
+            logger.debug("[Database] 🔄 Updating existing image: \(object.id)")
             image = existing
         } else {
-            logger.debug("[Database] Creating new image: \(object.id)")
+            logger.debug("[Database] ✨ Creating new image: \(object.id)")
             image = ImageModel(id: object.id)
             modelContext.insert(image)
         }
-        
+
         image.updateFromCatalogObject(object)
         try modelContext.save()
-        logger.info("[Database] Inserted/updated image: \(object.id) with URL: \(imageData.url ?? "nil")")
+        logger.info("[Database] ✅ Successfully inserted/updated image: \(object.id) with URL: \(imageData.url ?? "nil")")
+
+        // Verify image was saved
+        if let savedImage = try modelContext.fetch(descriptor).first {
+            logger.debug("[Database] ✓ Verified image \(object.id) exists in database after save")
+        } else {
+            logger.error("[Database] ❌ CRITICAL: Image \(object.id) NOT FOUND after save!")
+        }
     }
     
     private func insertDiscount(_ object: CatalogObject) async throws {
@@ -412,16 +423,16 @@ class SwiftDataCatalogManager {
     }
     
     // MARK: - Image Relationship Management
-    
+
     /// Link images to a catalog item based on imageIds array
     @MainActor
     func linkImagesToItem(itemId: String, imageIds: [String], clearExisting: Bool = true) async throws {
         logger.info("[Database] Starting image linking for item: \(itemId) with imageIds: \(imageIds)")
-        
+
         let itemDescriptor = FetchDescriptor<CatalogItemModel>(
             predicate: #Predicate { $0.id == itemId }
         )
-        
+
         guard let item = try modelContext.fetch(itemDescriptor).first else {
             logger.warning("[Database] Cannot link images - item not found: \(itemId)")
             return
@@ -450,16 +461,30 @@ class SwiftDataCatalogManager {
             if let image = try modelContext.fetch(imageDescriptor).first {
                 // Check for duplicates only when not clearing existing
                 let alreadyLinked = !clearExisting && (item.images?.contains { $0.id == imageId } == true)
-                
+
                 if !alreadyLinked {
                     item.images?.append(image)
                     linkedCount += 1
-                    logger.debug("[Database] Linked image \(imageId) (URL: \(image.url ?? "nil")) to item \(itemId)")
+                    logger.debug("[Database] ✅ Linked image \(imageId) (URL: \(image.url ?? "nil")) to item \(itemId)")
                 } else {
-                    logger.debug("[Database] Image \(imageId) already linked to item \(itemId)")
+                    logger.debug("[Database] ⚠️ Image \(imageId) already linked to item \(itemId)")
                 }
             } else {
-                logger.warning("[Database] Image not found for linking: \(imageId)")
+                // CRITICAL: Image object not found in database - this is the problem!
+                logger.error("[Database] ❌ CRITICAL: Image not found in database for linking: \(imageId) to item: \(itemId)")
+                logger.error("[Database] This means either:")
+                logger.error("[Database]   1. IMAGE object was not fetched during sync")
+                logger.error("[Database]   2. IMAGE object failed to insert into database")
+                logger.error("[Database]   3. Relationship creation ran before IMAGE object was inserted")
+
+                // Debug: Check if ANY images exist in database
+                let allImagesDescriptor = FetchDescriptor<ImageModel>()
+                if let allImages = try? modelContext.fetch(allImagesDescriptor) {
+                    logger.error("[Database] Total images in database: \(allImages.count)")
+                    if allImages.count > 0 {
+                        logger.error("[Database] Sample image IDs: \(allImages.prefix(5).map { $0.id })")
+                    }
+                }
             }
         }
         
@@ -470,14 +495,22 @@ class SwiftDataCatalogManager {
     /// Create all image relationships after bulk sync
     @MainActor
     func createAllImageRelationships() async throws {
-        logger.info("[Database] Creating image relationships for all items...")
-        
+        logger.info("[Database] 🔗 Creating image relationships for all items...")
+
+        // First, verify how many IMAGE objects exist in database
+        let allImagesDescriptor = FetchDescriptor<ImageModel>()
+        let allImages = try modelContext.fetch(allImagesDescriptor)
+        logger.info("[Database] 📊 Total IMAGE objects in database: \(allImages.count)")
+        if allImages.count > 0 {
+            logger.debug("[Database] Sample IMAGE IDs: \(allImages.prefix(10).map { $0.id }.joined(separator: ", "))")
+        }
+
         let itemDescriptor = FetchDescriptor<CatalogItemModel>(
             predicate: #Predicate { !$0.isDeleted }
         )
         let items = try modelContext.fetch(itemDescriptor)
-        logger.info("[Database] Processing \(items.count) items for image relationships")
-        
+        logger.info("[Database] 📦 Processing \(items.count) items for image relationships")
+
         var totalLinkedCount = 0
         var itemsWithImages = 0
         
@@ -511,16 +544,17 @@ class SwiftDataCatalogManager {
             
             // Link images if found
             if let imageIds = imageIds, !imageIds.isEmpty {
-                logger.info("[Database] Found \(imageIds.count) imageIds for item: \(item.id) - \(item.name ?? "unnamed")")
+                logger.info("[Database] 🔗 Found \(imageIds.count) imageIds for item: \(item.id) - \(item.name ?? "unnamed")")
+                logger.debug("[Database]   ImageIds: \(imageIds.joined(separator: ", "))")
                 try await linkImagesToItem(itemId: item.id, imageIds: imageIds)
                 totalLinkedCount += imageIds.count
                 itemsWithImages += 1
             } else {
-                logger.debug("[Database] No imageIds found for item: \(item.id) - \(item.name ?? "unnamed")")
+                logger.debug("[Database] ⚠️ No imageIds found for item: \(item.id) - \(item.name ?? "unnamed")")
             }
         }
-        
-        logger.info("[Database] Image relationship creation completed: \(totalLinkedCount) total images linked to \(itemsWithImages) items")
+
+        logger.info("[Database] ✅ Image relationship creation completed: \(totalLinkedCount) total images linked to \(itemsWithImages) items")
     }
     
     // MARK: - Fetch Operations
@@ -732,9 +766,9 @@ class SwiftDataCatalogManager {
     
     private func getCategoryName(_ categoryId: String) async throws -> String? {
         let descriptor = FetchDescriptor<CategoryModel>(
-            predicate: #Predicate { $0.id == categoryId }
+            predicate: #Predicate { $0.id == categoryId && !$0.isDeleted }
         )
-        
+
         return try modelContext.fetch(descriptor).first?.name
     }
     
