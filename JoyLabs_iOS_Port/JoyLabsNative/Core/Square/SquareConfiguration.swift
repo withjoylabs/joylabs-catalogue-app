@@ -17,7 +17,7 @@ struct SquareConfiguration {
     static let apiBaseURL = "https://connect.squareup.com"
     
     /// Square OAuth Scopes
-    static let scopes = ["MERCHANT_PROFILE_READ", "ITEMS_READ", "ITEMS_WRITE"]
+    static let scopes = ["MERCHANT_PROFILE_READ", "ITEMS_READ", "ITEMS_WRITE", "INVENTORY_READ"]
     
     // MARK: - Backend Configuration
     
