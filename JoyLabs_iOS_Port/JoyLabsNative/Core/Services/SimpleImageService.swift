@@ -128,7 +128,7 @@ class SimpleImageService: ObservableObject {
                 }
 
                 // Cache the URL for fast lookups
-                ImageURLCache.shared.setURL(imageURL, forImageId: imageId)
+                ImageURLCache.shared.setURL(awsURL, forImageId: imageId)
 
                 // Save the context
                 try db.save()
