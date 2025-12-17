@@ -32,22 +32,26 @@ final class CatalogItemModel {
     var availableOnline: Bool?
     var availableForPickup: Bool?
     var availableElectronically: Bool?
-    
+
+    // Image IDs (per Square API: first ID is primary/icon image)
+    var imageIds: [String]?
+
     // Store complete Square API response for complex operations
     var dataJson: String?
-    
-    // Relationships
+
+    // Relationships (NOTE: images relationship NO LONGER USED - see ImageURLCache)
     @Relationship(deleteRule: .cascade) var variations: [ItemVariationModel]?
     @Relationship var category: CategoryModel?
     @Relationship var reportingCategory: CategoryModel?
     @Relationship var taxes: [TaxModel]?
     @Relationship var modifierLists: [ModifierListModel]?
-    @Relationship var images: [ImageModel]?
     @Relationship var teamData: TeamDataModel?
-    
+
     // Computed properties for convenience
     var primaryImageUrl: String? {
-        images?.first?.url
+        // SIMPLE: Use ImageURLCache to lookup URL by ID
+        // Per Square API docs: first image in imageIds array is the primary/icon image
+        return ImageURLCache.shared.getPrimaryURL(fromImageIds: imageIds)
     }
     
     var lowestPrice: Double? {
@@ -92,7 +96,11 @@ final class CatalogItemModel {
             self.availableOnline = itemData.availableOnline
             self.availableForPickup = itemData.availableForPickup
             self.availableElectronically = itemData.availableElectronically
-            
+
+            // CRITICAL: Store imageIds array from Square API
+            // Per Square docs: imageIds[0] is the primary/icon image
+            self.imageIds = itemData.imageIds
+
             // Store full JSON for complex operations
             if let jsonData = try? JSONEncoder().encode(object),
                let jsonString = String(data: jsonData, encoding: .utf8) {

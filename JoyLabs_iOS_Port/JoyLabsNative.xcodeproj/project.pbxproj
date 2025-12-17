@@ -144,6 +144,7 @@
 		FB639BE785F378A20A1A5252 /* ItemMeasurementSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E3B3F77BC194AF2CF9CED6F /* ItemMeasurementSection.swift */; };
 		FBD9A264FF0F76391E23E3E1 /* DuplicateWarningView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84F97B5C958182F299BA523E /* DuplicateWarningView.swift */; };
 		FBE6EC39B347843F2D356399 /* UITextField+NoInputAccessory.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA65834124AA651116B2DF7A /* UITextField+NoInputAccessory.swift */; };
+		FF6435EB8A3217DC65125AD5 /* ImageURLCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = D34B270C23F1C45C93419AF3 /* ImageURLCache.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -266,6 +267,7 @@
 		CA8C5B246DFF28C031178155 /* LocationCacheManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LocationCacheManager.swift; path = Core/Services/LocationCacheManager.swift; sourceTree = "<group>"; };
 		CB4FFBEDCA62E7D539B408D1 /* SwiftDataSearchManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SwiftDataSearchManager.swift; path = Core/Search/SwiftDataSearchManager.swift; sourceTree = "<group>"; };
 		CE43F36BB6F6797E1742AD7C /* ItemDetailsStyles.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsStyles.swift; path = Components/ItemDetailsStyles.swift; sourceTree = "<group>"; };
+		D34B270C23F1C45C93419AF3 /* ImageURLCache.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ImageURLCache.swift; path = Core/Services/ImageURLCache.swift; sourceTree = "<group>"; };
 		D583607765D3CA494A3F396E /* ItemDetailsViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsViewModel.swift; path = Components/ItemDetailsViewModel.swift; sourceTree = "<group>"; };
 		D71532DF527344EFA478B1B3 /* FieldConfigurationManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FieldConfigurationManager.swift; path = Components/FieldConfigurationManager.swift; sourceTree = "<group>"; };
 		D7606A3222698687642B402D /* LabelLivePrintService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LabelLivePrintService.swift; path = Core/Services/LabelLivePrintService.swift; sourceTree = "<group>"; };
@@ -657,6 +659,7 @@
 				8538789665F0E91648E2EB2B /* ScanHistoryService.swift */,
 				08C74DA26191FF85F4AB0866 /* SquareInventoryService.swift */,
 				611795A7DDE88A6A5621E9A0 /* SquareCapabilitiesService.swift */,
+				D34B270C23F1C45C93419AF3 /* ImageURLCache.swift */,
 			);
 			name = Services;
 			sourceTree = "<group>";
@@ -913,6 +916,7 @@
 				DF4E0BBA65F48B4C79EA6F2D /* ItemDetailsInventorySection.swift in Sources */,
 				7D794BA319FB236BE537B4AB /* InventoryAdjustmentModal.swift in Sources */,
 				CD6879014287EB352EBD31B2 /* SquareCapabilitiesService.swift in Sources */,
+				FF6435EB8A3217DC65125AD5 /* ImageURLCache.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

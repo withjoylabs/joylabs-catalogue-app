@@ -461,11 +461,10 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
         }
 
         logger.debug("[CatalogSync] Completed: \(processedItems) items, \(objects.count) objects")
-        
-        // Create image relationships after all objects are processed
-        logger.info("[CatalogSync] Creating image relationships...")
-        try await databaseManager.createAllImageRelationships()
-        logger.debug("[CatalogSync] Image relationships created using SwiftData")
+
+        // NOTE: Image URLs are now cached during insertImage() - no post-processing needed
+        let stats = ImageURLCache.shared.getStats()
+        logger.info("[CatalogSync] Image cache contains \(stats.count) URLs")
     }
 
     /// Get processing priority for object types (lower number = higher priority)

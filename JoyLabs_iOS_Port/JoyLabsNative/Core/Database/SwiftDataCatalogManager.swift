@@ -378,6 +378,7 @@ class SwiftDataCatalogManager {
         logger.debug("[Database]   - Image URL: \(imageData.url ?? "nil")")
         logger.debug("[Database]   - Image name: \(imageData.name ?? "nil")")
 
+        // SIMPLE APPROACH: Store in SwiftData for persistence, cache URL for fast lookup
         let descriptor = FetchDescriptor<ImageModel>(
             predicate: #Predicate { $0.id == object.id }
         )
@@ -394,14 +395,15 @@ class SwiftDataCatalogManager {
 
         image.updateFromCatalogObject(object)
         try modelContext.save()
-        logger.info("[Database] ✅ Successfully inserted/updated image: \(object.id) with URL: \(imageData.url ?? "nil")")
 
-        // Verify image was saved
-        if let savedImage = try modelContext.fetch(descriptor).first {
-            logger.debug("[Database] ✓ Verified image \(object.id) exists in database after save")
-        } else {
-            logger.error("[Database] ❌ CRITICAL: Image \(object.id) NOT FOUND after save!")
+        // CRITICAL: Cache the imageId->URL mapping for fast lookups
+        // This is the CORRECT Square API approach per official documentation
+        if let url = imageData.url {
+            ImageURLCache.shared.setURL(url, forImageId: object.id)
+            logger.info("[Database] ✅ Cached image URL: \(object.id) -> \(url)")
         }
+
+        logger.info("[Database] ✅ Successfully inserted/updated image: \(object.id)")
     }
     
     private func insertDiscount(_ object: CatalogObject) async throws {
@@ -422,141 +424,11 @@ class SwiftDataCatalogManager {
         logger.trace("[Database] Inserted/updated discount: \(object.id)")
     }
     
-    // MARK: - Image Relationship Management
+    // MARK: - Image Cache Management
+    // NOTE: We NO LONGER use SwiftData relationships for images
+    // Per Square API docs, images are referenced by ID, not relationships
+    // ImageURLCache provides simple imageId->URL lookups
 
-    /// Link images to a catalog item based on imageIds array
-    @MainActor
-    func linkImagesToItem(itemId: String, imageIds: [String], clearExisting: Bool = true) async throws {
-        logger.info("[Database] Starting image linking for item: \(itemId) with imageIds: \(imageIds)")
-
-        let itemDescriptor = FetchDescriptor<CatalogItemModel>(
-            predicate: #Predicate { $0.id == itemId }
-        )
-
-        guard let item = try modelContext.fetch(itemDescriptor).first else {
-            logger.warning("[Database] Cannot link images - item not found: \(itemId)")
-            return
-        }
-        
-        logger.debug("[Database] Found item: \(item.name ?? "unnamed") (\(itemId))")
-        
-        // Initialize images array if needed
-        if item.images == nil {
-            logger.debug("[Database] Initializing new images array for item")
-            item.images = []
-        } else if clearExisting {
-            logger.debug("[Database] Clearing existing \(item.images?.count ?? 0) images for clean rebuild")
-            item.images?.removeAll()
-        } else {
-            logger.debug("[Database] Item already has \(item.images?.count ?? 0) images - adding to existing")
-        }
-        
-        // Add each image to the relationship
-        var linkedCount = 0
-        for imageId in imageIds {
-            let imageDescriptor = FetchDescriptor<ImageModel>(
-                predicate: #Predicate { $0.id == imageId }
-            )
-            
-            if let image = try modelContext.fetch(imageDescriptor).first {
-                // Check for duplicates only when not clearing existing
-                let alreadyLinked = !clearExisting && (item.images?.contains { $0.id == imageId } == true)
-
-                if !alreadyLinked {
-                    item.images?.append(image)
-                    linkedCount += 1
-                    logger.debug("[Database] ✅ Linked image \(imageId) (URL: \(image.url ?? "nil")) to item \(itemId)")
-                } else {
-                    logger.debug("[Database] ⚠️ Image \(imageId) already linked to item \(itemId)")
-                }
-            } else {
-                // CRITICAL: Image object not found in database - this is the problem!
-                logger.error("[Database] ❌ CRITICAL: Image not found in database for linking: \(imageId) to item: \(itemId)")
-                logger.error("[Database] This means either:")
-                logger.error("[Database]   1. IMAGE object was not fetched during sync")
-                logger.error("[Database]   2. IMAGE object failed to insert into database")
-                logger.error("[Database]   3. Relationship creation ran before IMAGE object was inserted")
-
-                // Debug: Check if ANY images exist in database
-                let allImagesDescriptor = FetchDescriptor<ImageModel>()
-                if let allImages = try? modelContext.fetch(allImagesDescriptor) {
-                    logger.error("[Database] Total images in database: \(allImages.count)")
-                    if allImages.count > 0 {
-                        logger.error("[Database] Sample image IDs: \(allImages.prefix(5).map { $0.id })")
-                    }
-                }
-            }
-        }
-        
-        try modelContext.save()
-        logger.info("[Database] Successfully linked \(linkedCount)/\(imageIds.count) images to item: \(itemId)")
-    }
-    
-    /// Create all image relationships after bulk sync
-    @MainActor
-    func createAllImageRelationships() async throws {
-        logger.info("[Database] 🔗 Creating image relationships for all items...")
-
-        // First, verify how many IMAGE objects exist in database
-        let allImagesDescriptor = FetchDescriptor<ImageModel>()
-        let allImages = try modelContext.fetch(allImagesDescriptor)
-        logger.info("[Database] 📊 Total IMAGE objects in database: \(allImages.count)")
-        if allImages.count > 0 {
-            logger.debug("[Database] Sample IMAGE IDs: \(allImages.prefix(10).map { $0.id }.joined(separator: ", "))")
-        }
-
-        let itemDescriptor = FetchDescriptor<CatalogItemModel>(
-            predicate: #Predicate { !$0.isDeleted }
-        )
-        let items = try modelContext.fetch(itemDescriptor)
-        logger.info("[Database] 📦 Processing \(items.count) items for image relationships")
-
-        var totalLinkedCount = 0
-        var itemsWithImages = 0
-        
-        for item in items {
-            // Parse imageIds from dataJson
-            guard let dataJson = item.dataJson,
-                  let data = dataJson.data(using: .utf8),
-                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                logger.debug("[Database] No valid dataJson for item: \(item.id) - \(item.name ?? "unnamed")")
-                continue
-            }
-            
-            // Extract imageIds (check both nested and root locations)
-            var imageIds: [String]?
-            
-            // Try nested under item_data first (Square API format with underscores)
-            if let itemData = json["item_data"] as? [String: Any] {
-                imageIds = itemData["image_ids"] as? [String]
-                if imageIds != nil {
-                    logger.debug("[Database] Found imageIds in item_data.image_ids for item: \(item.id)")
-                }
-            }
-            
-            // Fallback to root level (legacy format)  
-            if imageIds == nil {
-                imageIds = json["imageIds"] as? [String]
-                if imageIds != nil {
-                    logger.debug("[Database] Found imageIds in root.imageIds for item: \(item.id)")
-                }
-            }
-            
-            // Link images if found
-            if let imageIds = imageIds, !imageIds.isEmpty {
-                logger.info("[Database] 🔗 Found \(imageIds.count) imageIds for item: \(item.id) - \(item.name ?? "unnamed")")
-                logger.debug("[Database]   ImageIds: \(imageIds.joined(separator: ", "))")
-                try await linkImagesToItem(itemId: item.id, imageIds: imageIds)
-                totalLinkedCount += imageIds.count
-                itemsWithImages += 1
-            } else {
-                logger.debug("[Database] ⚠️ No imageIds found for item: \(item.id) - \(item.name ?? "unnamed")")
-            }
-        }
-
-        logger.info("[Database] ✅ Image relationship creation completed: \(totalLinkedCount) total images linked to \(itemsWithImages) items")
-    }
-    
     // MARK: - Fetch Operations
     
     /// Fetch a catalog item by ID

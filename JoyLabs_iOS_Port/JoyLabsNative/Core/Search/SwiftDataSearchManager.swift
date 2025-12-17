@@ -531,7 +531,7 @@ class SwiftDataSearchManager: ObservableObject {
                 reportingCategoryId: item.reportingCategoryId,
                 categoryName: item.categoryName ?? item.reportingCategoryName,
                 variationName: variation?.name,
-                images: item.images?.map { $0.toCatalogImage() },
+                images: buildCatalogImages(from: item.imageIds),
                 matchType: matchType,
                 matchContext: item.name,
                 isFromCaseUpc: false,
@@ -556,13 +556,34 @@ class SwiftDataSearchManager: ObservableObject {
             reportingCategoryId: item.reportingCategoryId,
             categoryName: item.categoryName ?? item.reportingCategoryName,
             variationName: variation.name,
-            images: item.images?.map { $0.toCatalogImage() },
+            images: buildCatalogImages(from: item.imageIds),
             matchType: matchType,
             matchContext: matchType == "upc" ? variation.upc : variation.sku,
             isFromCaseUpc: false,
             caseUpcData: nil,
             hasTax: (item.taxes?.count ?? 0) > 0
         )
+    }
+
+    // SIMPLE: Convert imageIds to CatalogImage array using ImageURLCache
+    private func buildCatalogImages(from imageIds: [String]?) -> [CatalogImage]? {
+        guard let imageIds = imageIds, !imageIds.isEmpty else { return nil }
+
+        let images = imageIds.compactMap { imageId -> CatalogImage? in
+            guard let url = ImageURLCache.shared.getURL(forImageId: imageId) else { return nil }
+
+            return CatalogImage(
+                id: imageId,
+                type: "IMAGE",
+                updatedAt: "",
+                version: 0,
+                isDeleted: false,
+                presentAtAllLocations: true,
+                imageData: ImageData(name: nil, url: url, caption: nil, photoStudioOrderId: nil)
+            )
+        }
+
+        return images.isEmpty ? nil : images
     }
 
     // MARK: - Legacy Methods (kept for compatibility)
