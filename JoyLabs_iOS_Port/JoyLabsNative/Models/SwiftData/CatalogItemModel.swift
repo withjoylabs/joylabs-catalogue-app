@@ -39,7 +39,7 @@ final class CatalogItemModel {
     // Store complete Square API response for complex operations
     var dataJson: String?
 
-    // Relationships (NOTE: images relationship NO LONGER USED - see ImageURLCache)
+    // Relationships
     @Relationship(deleteRule: .cascade) var variations: [ItemVariationModel]?
     @Relationship var category: CategoryModel?
     @Relationship var reportingCategory: CategoryModel?

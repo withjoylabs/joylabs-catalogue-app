@@ -19,10 +19,9 @@ final class ImageModel {
     
     // Store complete image data as JSON for complex operations
     var dataJson: String?
-    
-    // Relationships
-    @Relationship(inverse: \CatalogItemModel.images) var items: [CatalogItemModel]?
-    
+
+    // NOTE: No relationships needed - ImageURLCache provides imageId->URL lookups
+
     // Computed properties
     var hasValidUrl: Bool {
         return url != nil && !url!.isEmpty

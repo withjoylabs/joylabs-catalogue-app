@@ -118,19 +118,24 @@ class SimpleImageService: ObservableObject {
             if let catalogItem = try db.fetch(itemDescriptor).first {
                 // Insert the image model
                 db.insert(imageModel)
-                
-                // Establish bidirectional relationship
-                if catalogItem.images == nil {
-                    catalogItem.images = []
+
+                // SIMPLE: Add imageId to item's imageIds array and cache URL
+                if catalogItem.imageIds == nil {
+                    catalogItem.imageIds = []
                 }
-                catalogItem.images?.append(imageModel)
-                
+                if !catalogItem.imageIds!.contains(imageId) {
+                    catalogItem.imageIds!.insert(imageId, at: 0) // Insert at front to make it primary
+                }
+
+                // Cache the URL for fast lookups
+                ImageURLCache.shared.setURL(imageURL, forImageId: imageId)
+
                 // Save the context
                 try db.save()
-                
-                logger.info("✅ Created SwiftData ImageModel and relationship: \(imageId) -> \(itemId)")
+
+                logger.info("✅ Created ImageModel and cached URL: \(imageId) -> \(itemId)")
             } else {
-                logger.warning("❌ Could not find catalog item \(itemId) for image relationship")
+                logger.warning("❌ Could not find catalog item \(itemId) for image")
             }
         } catch {
             logger.error("❌ Failed to create SwiftData image model: \(error)")

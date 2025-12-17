@@ -63,13 +63,12 @@ class CatalogLookupService {
         }
 
         // Fetch from database
-        var descriptor = FetchDescriptor<CatalogItemModel>(
+        let descriptor = FetchDescriptor<CatalogItemModel>(
             predicate: #Predicate { item in
                 item.id == id && !item.isDeleted
             }
         )
-        // Prefetch images relationship to ensure they're loaded
-        descriptor.relationshipKeyPathsForPrefetching = [\.images]
+        // NOTE: No need to prefetch images - using ImageURLCache instead
 
         guard let item = try? catalogContext.fetch(descriptor).first else {
             return nil
@@ -99,13 +98,12 @@ class CatalogLookupService {
         // Fetch missing items from database
         var fetchedItems: [CatalogItemModel] = []
         if !missingIds.isEmpty {
-            var descriptor = FetchDescriptor<CatalogItemModel>(
+            let descriptor = FetchDescriptor<CatalogItemModel>(
                 predicate: #Predicate { item in
                     missingIds.contains(item.id) && !item.isDeleted
                 }
             )
-            // Prefetch images relationship to ensure they're loaded
-            descriptor.relationshipKeyPathsForPrefetching = [\.images]
+            // NOTE: No need to prefetch images - using ImageURLCache instead
 
             if let results = try? catalogContext.fetch(descriptor) {
                 fetchedItems = results
@@ -288,13 +286,12 @@ class CatalogLookupService {
     /// Get catalog item by ID with fresh database lookup (bypasses cache)
     /// Use this for image URLs to ensure they're always fresh
     func getItemFresh(id: String) -> CatalogItemModel? {
-        var descriptor = FetchDescriptor<CatalogItemModel>(
+        let descriptor = FetchDescriptor<CatalogItemModel>(
             predicate: #Predicate { item in
                 item.id == id && !item.isDeleted
             }
         )
-        // Always prefetch images for fresh lookups
-        descriptor.relationshipKeyPathsForPrefetching = [\.images]
+        // NOTE: No need to prefetch images - using ImageURLCache instead
 
         guard let item = try? catalogContext.fetch(descriptor).first else {
             return nil
