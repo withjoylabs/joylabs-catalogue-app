@@ -10,6 +10,11 @@ actor BackgroundSyncService {
     private let squareAPIService: SquareAPIService
     private let modelContainer: ModelContainer
 
+    // MARK: - Sync State Management
+
+    private var isSyncInProgress: Bool = false
+    private var currentSyncType: SyncType?
+
     // MARK: - Initialization
 
     init(modelContainer: ModelContainer, squareAPIService: SquareAPIService) {
@@ -23,6 +28,20 @@ actor BackgroundSyncService {
 
     /// Perform incremental sync on background thread
     func performIncrementalSync() async throws -> BackgroundSyncResult {
+        // Check if sync is already in progress
+        if isSyncInProgress {
+            logger.warning("[BackgroundSync] Sync already in progress (\(currentSyncType?.rawValue ?? "unknown")), skipping incremental sync request")
+            throw BackgroundSyncError.syncInProgress
+        }
+
+        // Mark sync as in progress
+        isSyncInProgress = true
+        currentSyncType = .incremental
+        defer {
+            isSyncInProgress = false
+            currentSyncType = nil
+        }
+
         logger.info("[BackgroundSync] Starting background incremental sync")
         let startTime = Date()
 
@@ -89,6 +108,20 @@ actor BackgroundSyncService {
 
     /// Perform full sync on background thread
     func performFullSync() async throws -> BackgroundSyncResult {
+        // Check if sync is already in progress
+        if isSyncInProgress {
+            logger.warning("[BackgroundSync] Sync already in progress (\(currentSyncType?.rawValue ?? "unknown")), skipping full sync request")
+            throw BackgroundSyncError.syncInProgress
+        }
+
+        // Mark sync as in progress
+        isSyncInProgress = true
+        currentSyncType = .full
+        defer {
+            isSyncInProgress = false
+            currentSyncType = nil
+        }
+
         logger.info("[BackgroundSync] Starting background full sync")
         let startTime = Date()
 
@@ -685,12 +718,15 @@ struct BackgroundSyncResult {
 
 enum BackgroundSyncError: LocalizedError {
     case noPreviousSync
+    case syncInProgress
     case objectProcessingFailed(String)
 
     var errorDescription: String? {
         switch self {
         case .noPreviousSync:
             return "No previous sync found, full sync required"
+        case .syncInProgress:
+            return "Sync already in progress, please wait"
         case .objectProcessingFailed(let objectId):
             return "Failed to process object: \(objectId)"
         }

@@ -374,6 +374,11 @@ extension PushNotificationService {
                 ]
             )
 
+        } catch BackgroundSyncError.syncInProgress {
+            logger.info("[PushNotification] Sync already in progress, skipping webhook sync for event \(eventId)")
+            // Don't create error notification - this is normal when syncs overlap
+            return
+
         } catch BackgroundSyncError.noPreviousSync {
             logger.warning("[PushNotification] No previous sync found, performing full sync")
             do {
@@ -393,6 +398,10 @@ extension PushNotificationService {
                 )
 
                 await createInAppNotificationForWebhookSync(syncResult: mainThreadResult, eventId: eventId, isSilent: isSilent)
+
+            } catch BackgroundSyncError.syncInProgress {
+                logger.info("[PushNotification] Sync already in progress, skipping webhook full sync for event \(eventId)")
+                return
 
             } catch {
                 logger.error("❌ Background full sync failed for webhook event \(eventId): \(error)")

@@ -255,6 +255,10 @@ struct JoyLabsNativeApp: App {
                 }
             }
 
+        } catch BackgroundSyncError.syncInProgress {
+            logger.info("[App] Sync already in progress, skipping app launch sync")
+            // Don't report error - this is unlikely but possible if webhook arrives during app launch
+
         } catch BackgroundSyncError.noPreviousSync {
             logger.warning("[App] No previous sync found, performing full background sync")
             do {
@@ -277,6 +281,10 @@ struct JoyLabsNativeApp: App {
                 )
 
                 await createInAppNotificationForSync(syncResult: mainThreadResult, reason: "app launch")
+
+            } catch BackgroundSyncError.syncInProgress {
+                logger.info("[App] Sync already in progress, skipping app launch full sync")
+                // Unlikely but possible if multiple sync requests during startup
 
             } catch {
                 logger.error("[App] App launch background full sync failed: \(error)")
