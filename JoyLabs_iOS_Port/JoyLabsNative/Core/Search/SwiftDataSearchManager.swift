@@ -565,21 +565,34 @@ class SwiftDataSearchManager: ObservableObject {
         )
     }
 
-    // SIMPLE: Convert imageIds to CatalogImage array using ImageURLCache
+    // Convert imageIds to CatalogImage array by querying SwiftData directly
     private func buildCatalogImages(from imageIds: [String]?) -> [CatalogImage]? {
         guard let imageIds = imageIds, !imageIds.isEmpty else { return nil }
 
         let images = imageIds.compactMap { imageId -> CatalogImage? in
-            guard let url = ImageURLCache.shared.getURL(forImageId: imageId) else { return nil }
+            // Query SwiftData for the image (SwiftData handles caching internally)
+            let descriptor = FetchDescriptor<ImageModel>(
+                predicate: #Predicate { $0.id == imageId && !$0.isDeleted }
+            )
+
+            guard let imageModel = try? modelContext.fetch(descriptor).first,
+                  let url = imageModel.url else {
+                return nil
+            }
 
             return CatalogImage(
                 id: imageId,
                 type: "IMAGE",
-                updatedAt: "",
-                version: 0,
+                updatedAt: ISO8601DateFormatter().string(from: imageModel.updatedAt),
+                version: Int64(imageModel.version) ?? 0,
                 isDeleted: false,
                 presentAtAllLocations: true,
-                imageData: ImageData(name: nil, url: url, caption: nil, photoStudioOrderId: nil)
+                imageData: ImageData(
+                    name: imageModel.name,
+                    url: url,
+                    caption: imageModel.caption,
+                    photoStudioOrderId: imageModel.photoStudioOrderId
+                )
             )
         }
 

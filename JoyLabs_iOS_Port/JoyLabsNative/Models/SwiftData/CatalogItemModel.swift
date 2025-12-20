@@ -49,9 +49,22 @@ final class CatalogItemModel {
 
     // Computed properties for convenience
     var primaryImageUrl: String? {
-        // SIMPLE: Use ImageURLCache to lookup URL by ID
         // Per Square API docs: first image in imageIds array is the primary/icon image
-        return ImageURLCache.shared.getPrimaryURL(fromImageIds: imageIds)
+        guard let firstImageId = imageIds?.first,
+              let context = modelContext else {
+            return nil
+        }
+
+        // Query SwiftData for the image (SwiftData handles caching internally)
+        let descriptor = FetchDescriptor<ImageModel>(
+            predicate: #Predicate { $0.id == firstImageId && !$0.isDeleted }
+        )
+
+        guard let imageModel = try? context.fetch(descriptor).first else {
+            return nil
+        }
+
+        return imageModel.url
     }
     
     var lowestPrice: Double? {

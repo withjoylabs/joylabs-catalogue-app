@@ -119,16 +119,13 @@ class SimpleImageService: ObservableObject {
                 // Insert the image model
                 db.insert(imageModel)
 
-                // SIMPLE: Add imageId to item's imageIds array and cache URL
+                // Add imageId to item's imageIds array
                 if catalogItem.imageIds == nil {
                     catalogItem.imageIds = []
                 }
                 if !catalogItem.imageIds!.contains(imageId) {
                     catalogItem.imageIds!.insert(imageId, at: 0) // Insert at front to make it primary
                 }
-
-                // Cache the URL for fast lookups
-                ImageURLCache.shared.setURL(awsURL, forImageId: imageId)
 
                 // Save the context
                 try db.save()

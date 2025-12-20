@@ -396,13 +396,6 @@ class SwiftDataCatalogManager {
         image.updateFromCatalogObject(object)
         try modelContext.save()
 
-        // CRITICAL: Cache the imageId->URL mapping for fast lookups
-        // This is the CORRECT Square API approach per official documentation
-        if let url = imageData.url {
-            ImageURLCache.shared.setURL(url, forImageId: object.id)
-            logger.info("[Database] ✅ Cached image URL: \(object.id) -> \(url)")
-        }
-
         logger.info("[Database] ✅ Successfully inserted/updated image: \(object.id)")
     }
     
