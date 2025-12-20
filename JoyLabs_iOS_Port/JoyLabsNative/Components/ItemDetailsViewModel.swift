@@ -776,6 +776,11 @@ class ItemDetailsViewModel: ObservableObject {
                 await loadItemDataFromCatalogObject(catalogObject)
                 print("[ItemDetailsModal] Successfully loaded item from database: \(name)")
 
+                // Load inventory counts from Square API if inventory tracking is enabled
+                if SquareCapabilitiesService.shared.inventoryTrackingEnabled && !variations.isEmpty {
+                    await fetchInventoryFromSquare()
+                }
+
             } else {
                 // Item not found in database
                 print("[ItemDetailsModal] ERROR: Item not found in database: \(itemId) - This will cause a blank modal!")
