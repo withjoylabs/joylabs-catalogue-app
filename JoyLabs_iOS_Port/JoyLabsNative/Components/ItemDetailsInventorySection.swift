@@ -1,5 +1,14 @@
 import SwiftUI
 
+// MARK: - Supporting Types
+
+/// Parameters for presenting inventory adjustment modal
+private struct InventoryModalParams: Identifiable {
+    let id = UUID()
+    let variationId: String
+    let locationId: String
+}
+
 // MARK: - Item Details Inventory Section (DEPRECATED - Now integrated per-variation)
 /// OLD standalone inventory section - replaced by VariationInventorySection in VariationCardComponents.swift
 /// Kept for backwards compatibility but should not be used
@@ -91,19 +100,30 @@ struct ItemDetailsInventorySection: View {
                     .padding(.vertical, ItemDetailsSpacing.compactSpacing)
                 }
             }
-            .sheet(isPresented: $showingAdjustmentModal) {
-                if let variationId = selectedVariationId,
-                   let locationId = selectedLocationId {
-                    InventoryAdjustmentModal(
-                        viewModel: viewModel,
-                        variationId: variationId,
-                        locationId: locationId,
-                        onDismiss: {
-                            showingAdjustmentModal = false
-                        }
-                    )
-                    .nestedComponentModal()
+            .sheet(item: Binding<InventoryModalParams?>(
+                get: {
+                    guard showingAdjustmentModal,
+                          let variationId = selectedVariationId,
+                          let locationId = selectedLocationId else {
+                        return nil
+                    }
+                    return InventoryModalParams(variationId: variationId, locationId: locationId)
+                },
+                set: { newValue, _ in
+                    showingAdjustmentModal = (newValue != nil)
                 }
+            )) { (params: InventoryModalParams) in
+                InventoryAdjustmentModal(
+                    viewModel: viewModel,
+                    variationId: params.variationId,
+                    locationId: params.locationId,
+                    onDismiss: {
+                        showingAdjustmentModal = false
+                        selectedVariationId = nil
+                        selectedLocationId = nil
+                    }
+                )
+                .quantityModal()
             }
         }
     }

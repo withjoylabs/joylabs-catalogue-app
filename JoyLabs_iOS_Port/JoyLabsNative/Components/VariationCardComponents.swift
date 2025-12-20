@@ -1,6 +1,15 @@
 import SwiftUI
 import SwiftData
 
+// MARK: - Supporting Types
+
+/// Parameters for presenting inventory adjustment modal
+private struct InventoryModalParams: Identifiable {
+    let id = UUID()
+    let variationId: String
+    let locationId: String
+}
+
 // MARK: - Variation Card Header
 struct VariationCardHeader: View {
     let index: Int
@@ -271,19 +280,29 @@ struct VariationCardPriceSection: View {
                 capabilitiesService: capabilitiesService
             )
         }
-        .sheet(isPresented: $showingAdjustmentModal) {
-            if let variationId = variation.id,
-               let locationId = selectedLocationId {
-                InventoryAdjustmentModal(
-                    viewModel: viewModel,
-                    variationId: variationId,
-                    locationId: locationId,
-                    onDismiss: {
-                        showingAdjustmentModal = false
-                    }
-                )
-                .nestedComponentModal()
+        .sheet(item: Binding<InventoryModalParams?>(
+            get: {
+                guard showingAdjustmentModal,
+                      let variationId = variation.id,
+                      let locationId = selectedLocationId else {
+                    return nil
+                }
+                return InventoryModalParams(variationId: variationId, locationId: locationId)
+            },
+            set: { newValue, _ in
+                showingAdjustmentModal = (newValue != nil)
             }
+        )) { (params: InventoryModalParams) in
+            InventoryAdjustmentModal(
+                viewModel: viewModel,
+                variationId: params.variationId,
+                locationId: params.locationId,
+                onDismiss: {
+                    showingAdjustmentModal = false
+                    selectedLocationId = nil
+                }
+            )
+            .quantityModal()
         }
     }
 }
@@ -382,19 +401,29 @@ struct VariationInventorySection: View {
                 }
             }
         }
-        .sheet(isPresented: $showingAdjustmentModal) {
-            if let variationId = variationId,
-               let locationId = selectedLocationId {
-                InventoryAdjustmentModal(
-                    viewModel: viewModel,
-                    variationId: variationId,
-                    locationId: locationId,
-                    onDismiss: {
-                        showingAdjustmentModal = false
-                    }
-                )
-                .nestedComponentModal()
+        .sheet(item: Binding<InventoryModalParams?>(
+            get: {
+                guard showingAdjustmentModal,
+                      let variationId = variationId,
+                      let locationId = selectedLocationId else {
+                    return nil
+                }
+                return InventoryModalParams(variationId: variationId, locationId: locationId)
+            },
+            set: { newValue, _ in
+                showingAdjustmentModal = (newValue != nil)
             }
+        )) { (params: InventoryModalParams) in
+            InventoryAdjustmentModal(
+                viewModel: viewModel,
+                variationId: params.variationId,
+                locationId: params.locationId,
+                onDismiss: {
+                    showingAdjustmentModal = false
+                    selectedLocationId = nil
+                }
+            )
+            .quantityModal()
         }
     }
 }
