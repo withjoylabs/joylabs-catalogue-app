@@ -351,17 +351,32 @@ struct VariationInventorySection: View {
                 .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
                 .padding(.vertical, ItemDetailsSpacing.compactSpacing)
             }
-            // Premium not enabled message
+            // Inventory error message (scopes or premium)
             else if !capabilitiesService.inventoryTrackingEnabled {
                 ItemDetailsFieldSeparator()
 
-                HStack {
-                    Image(systemName: "info.circle")
-                        .foregroundColor(.itemDetailsWarning)
-                        .font(.itemDetailsFootnote)
-                    Text("Inventory tracking requires Square Premium")
-                        .font(.itemDetailsFootnote)
-                        .foregroundColor(.itemDetailsSecondaryText)
+                VStack(spacing: ItemDetailsSpacing.minimalSpacing) {
+                    HStack {
+                        Image(systemName: capabilitiesService.inventoryError?.contains("reconnect") == true ? "exclamationmark.triangle.fill" : "info.circle")
+                            .foregroundColor(.itemDetailsWarning)
+                            .font(.itemDetailsFootnote)
+                        Text(capabilitiesService.inventoryError ?? "Inventory tracking requires Square for Retail Plus")
+                            .font(.itemDetailsFootnote)
+                            .foregroundColor(.itemDetailsSecondaryText)
+                        Spacer()
+                    }
+
+                    // Show "Go to Profile" button for authentication errors
+                    if capabilitiesService.inventoryError?.contains("reconnect") == true {
+                        ItemDetailsButton(
+                            title: "Go to Profile to Reconnect",
+                            icon: "arrow.right.circle",
+                            style: .secondary
+                        ) {
+                            // Navigate to profile tab
+                            NotificationCenter.default.post(name: NSNotification.Name("navigateToProfile"), object: nil)
+                        }
+                    }
                 }
                 .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
                 .padding(.vertical, ItemDetailsSpacing.compactSpacing)

@@ -12,6 +12,7 @@ class SquareCapabilitiesService: ObservableObject {
     // MARK: - Published Properties
     @Published var inventoryTrackingEnabled: Bool = false
     @Published var isCheckingCapabilities: Bool = false
+    @Published var inventoryError: String? = nil
 
     // MARK: - Dependencies
     private let logger = Logger(subsystem: "com.joylabs.native", category: "SquareCapabilitiesService")
@@ -79,22 +80,38 @@ class SquareCapabilitiesService: ObservableObject {
 
         logger.info("[CapabilitiesService] ✅ Inventory API succeeded - updating capability flag to ENABLED")
         inventoryTrackingEnabled = true
+        inventoryError = nil // Clear any previous error
     }
 
     /// Update inventory capability based on failed API operation
-    /// Call this when inventory API fails with premium-related error
+    /// Call this when inventory API fails with premium-related or authentication error
     func markInventoryAsDisabled(error: Error) {
-        guard inventoryTrackingEnabled else { return }
-
         let errorMessage = error.localizedDescription.lowercased()
 
+        // Check for insufficient scopes / authentication error
+        if errorMessage.contains("insufficient") ||
+           errorMessage.contains("scopes") ||
+           errorMessage.contains("403") ||
+           errorMessage.contains("authentication") {
+            logger.info("[CapabilitiesService] ❌ Inventory API failed - INSUFFICIENT_SCOPES detected")
+            inventoryTrackingEnabled = false
+            inventoryError = "Please reconnect to Square to enable inventory tracking"
+            return
+        }
+
+        // Check for premium subscription error
         if errorMessage.contains("inventory") ||
            errorMessage.contains("not enabled") ||
            errorMessage.contains("premium") ||
            errorMessage.contains("subscription") {
-            logger.info("[CapabilitiesService] ❌ Inventory API failed - updating capability flag to DISABLED")
+            logger.info("[CapabilitiesService] ❌ Inventory API failed - premium subscription required")
             inventoryTrackingEnabled = false
+            inventoryError = "Inventory tracking requires Square for Retail Plus subscription"
+            return
         }
+
+        // For other errors, don't disable but log warning
+        logger.warning("[CapabilitiesService] ⚠️ Inventory API failed with non-capability error: \(error)")
     }
 
     // MARK: - Manual Refresh
