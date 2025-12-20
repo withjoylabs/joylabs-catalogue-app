@@ -55,67 +55,66 @@ struct EmbeddedQuantitySelectionModal: View {
 
     // MARK: - Computed Properties for Clean Architecture
     private var modalContent: some View {
-        GeometryReader { outerGeometry in
-            VStack(spacing: 0) {
-                // Custom header
-                HStack {
-                    Button("Cancel") {
-                        onCancel()
-                    }
-                    .font(.headline)
-                    .foregroundColor(.red)
-                    
-                    Spacer()
-                    
-                    Text("Add to Reorder")
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                    
-                    Spacer()
-                    
-                    Button(currentQuantity == 0 ? "Delete" : "Add") {
-                        onSubmit(currentQuantity)
-                    }
-                    .font(.headline)
-                    .fontWeight(.bold)
-                    .foregroundColor(currentQuantity == 0 ? .red : .blue)
+        VStack(spacing: 0) {
+            // Custom header
+            HStack {
+                Button("Cancel") {
+                    onCancel()
                 }
-                .padding()
-                .background(Color(.systemBackground))
-                .overlay(
-                    Divider()
-                        .frame(maxWidth: .infinity, maxHeight: 1)
-                        .background(Color(.separator)),
-                    alignment: .bottom
-                )
-                
-                ScrollView {
-                    VStack(spacing: 0) {
-                        itemThumbnailSection(geometry: outerGeometry)
-                        itemDetailsSection
-                        quantitySection
-                        Spacer(minLength: 20)
-                    }
+                .font(.headline)
+                .foregroundColor(.red)
+
+                Spacer()
+
+                Text("Add to Reorder")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+
+                Spacer()
+
+                Button(currentQuantity == 0 ? "Delete" : "Add") {
+                    onSubmit(currentQuantity)
                 }
-                .background(Color(.systemGroupedBackground))
+                .font(.headline)
+                .fontWeight(.bold)
+                .foregroundColor(currentQuantity == 0 ? .red : .blue)
             }
+            .padding()
+            .background(Color(.systemBackground))
+            .overlay(
+                Divider()
+                    .frame(maxWidth: .infinity, maxHeight: 1)
+                    .background(Color(.separator)),
+                alignment: .bottom
+            )
+
+            ScrollView {
+                VStack(spacing: 0) {
+                    itemThumbnailSection
+                    itemDetailsSection
+                    quantitySection
+                    Spacer(minLength: 20)
+                }
+            }
+            .background(Color(.systemGroupedBackground))
         }
     }
 
-    private func itemThumbnailSection(geometry: GeometryProxy) -> some View {
+    private var itemThumbnailSection: some View {
         VStack(spacing: 12) {
             // RESPONSIVE 1:1 SQUARE IMAGE
-            // On iPhone: Full width minus standard padding (16 on each side)
-            // On iPad: Keep 70% width for better proportions
+            // Use screen-based sizing instead of GeometryReader for proper intrinsic size
             let isIPad = UIDevice.current.userInterfaceIdiom == .pad
             let padding: CGFloat = 32 // 16 on each side
-            let imageSize = isIPad ? geometry.size.width * 0.7 : geometry.size.width - padding
+            let screenWidth = UIScreen.main.bounds.width
+            let imageSize = isIPad ? min(280, screenWidth * 0.7) : screenWidth - padding
 
             // Use zoomable image with pinch-to-zoom functionality
             ZoomableImageView(
                 imageURL: imageURL,
                 size: imageSize
             )
+            .frame(width: imageSize, height: imageSize)
             .clipShape(RoundedRectangle(cornerRadius: 12))
             .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
         }

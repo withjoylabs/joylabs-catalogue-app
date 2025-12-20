@@ -324,27 +324,25 @@ struct ReordersViewSwiftData: SwiftUI.View {
                     }
                 )
                 .fullScreenModal()
-            case .quantityModal(_):
-                // RESTORED: Professional Quantity Modal Implementation
-                if let selectedItem = modalStateManager.selectedItemForQuantity {
-                    EmbeddedQuantitySelectionModal(
-                        item: selectedItem,
-                        currentQuantity: modalStateManager.modalQuantity,
-                        isExistingItem: modalStateManager.isExistingItem,
-                        isPresented: .constant(true),
-                        onSubmit: { quantity in
-                            handleQuantityModalSubmit(quantity)
-                        },
-                        onCancel: {
-                            handleQuantityModalCancel()
-                        },
-                        onQuantityChange: { newQuantity in
-                            currentModalQuantity = newQuantity
-                            modalStateManager.modalQuantity = newQuantity
-                        }
-                    )
-                    .quantityModal()
-                }
+            case .quantityModal(let item):
+                // Use the item from the enum case directly (matches .imagePicker and .itemDetails pattern)
+                EmbeddedQuantitySelectionModal(
+                    item: item,
+                    currentQuantity: modalStateManager.modalQuantity,
+                    isExistingItem: modalStateManager.isExistingItem,
+                    isPresented: .constant(true),
+                    onSubmit: { quantity in
+                        handleQuantityModalSubmit(quantity)
+                    },
+                    onCancel: {
+                        handleQuantityModalCancel()
+                    },
+                    onQuantityChange: { newQuantity in
+                        currentModalQuantity = newQuantity
+                        modalStateManager.modalQuantity = newQuantity
+                    }
+                )
+                .quantityModal()
             }
         }
     }

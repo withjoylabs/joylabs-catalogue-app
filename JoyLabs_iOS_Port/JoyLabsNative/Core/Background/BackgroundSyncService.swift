@@ -30,7 +30,7 @@ actor BackgroundSyncService {
     func performIncrementalSync() async throws -> BackgroundSyncResult {
         // Check if sync is already in progress
         if isSyncInProgress {
-            logger.warning("[BackgroundSync] Sync already in progress (\(currentSyncType?.rawValue ?? "unknown")), skipping incremental sync request")
+            logger.warning("[BackgroundSync] Sync already in progress (\(self.currentSyncType?.rawValue ?? "unknown")), skipping incremental sync request")
             throw BackgroundSyncError.syncInProgress
         }
 
@@ -110,7 +110,7 @@ actor BackgroundSyncService {
     func performFullSync() async throws -> BackgroundSyncResult {
         // Check if sync is already in progress
         if isSyncInProgress {
-            logger.warning("[BackgroundSync] Sync already in progress (\(currentSyncType?.rawValue ?? "unknown")), skipping full sync request")
+            logger.warning("[BackgroundSync] Sync already in progress (\(self.currentSyncType?.rawValue ?? "unknown")), skipping full sync request")
             throw BackgroundSyncError.syncInProgress
         }
 
