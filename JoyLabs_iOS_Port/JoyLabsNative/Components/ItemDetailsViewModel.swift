@@ -168,6 +168,10 @@ struct ItemDetailsVariationData: Identifiable {
     var stockable: Bool = true
     var sellable: Bool = true
 
+    // Pending inventory quantity for new items (before variation ID is assigned)
+    // Dictionary: locationId -> quantity
+    var pendingInventoryQty: [String: Int] = [:]
+
     // Removed complex isEqual method - using simple flag-based change tracking instead
 }
 
@@ -431,9 +435,8 @@ class ItemDetailsViewModel: ObservableObject {
     @Published var availableModifierLists: [ModifierListData] = []
     @Published var recentCategories: [CategoryData] = []
 
-    // Inventory management
-    @Published var inventoryData: [String: VariationInventoryData] = [:] // Key: variationId_locationId
-    @Published var isLoadingInventory: Bool = false
+    // Inventory management - Now using SwiftData @Query for automatic reactivity!
+    // No manual loading needed - UI updates automatically when InventoryCountModel changes
 
     // Private state for applying defaults
     private var shouldApplyTaxDefaults = false
@@ -629,22 +632,22 @@ class ItemDetailsViewModel: ObservableObject {
                 print("Creating new item via Square API")
                 savedObject = try await crudService.createItem(currentItemData)
                 print("✅ Item created successfully: \(savedObject.id)")
-                
+
                 // Process deferred image upload if needed
                 if DeferredImageUploadManager.shared.isDeferredUpload(imageURL) {
                     print("🔄 Processing deferred image upload for new item: \(savedObject.id)")
-                    
+
                     do {
                         let finalImageURL = try await DeferredImageUploadManager.shared.processDeferredUploads(
                             for: savedObject.id,
                             base64ImageURL: imageURL
                         )
-                        
+
                         // Update imageURL with final image URL
                         await MainActor.run {
                             self.imageURL = finalImageURL
                         }
-                        
+
                         print("✅ Deferred image upload completed successfully")
                     } catch {
                         print("⚠️ Deferred image upload failed, but item was created: \(error)")
@@ -654,6 +657,9 @@ class ItemDetailsViewModel: ObservableObject {
                         }
                     }
                 }
+
+                // Set initial inventory from pendingInventoryQty if user entered any
+                try await setInitialInventoryForNewItem(savedObject: savedObject, originalVariations: currentItemData.variations)
             } else {
                 // UPDATE: Existing item
                 print("Updating existing item via Square API: \(staticData.id!)")
@@ -1399,51 +1405,9 @@ class ItemDetailsViewModel: ObservableObject {
 
     // MARK: - Inventory Management
 
-    /// Load inventory counts for all variations from database
-    func loadInventoryData() async {
-        isLoadingInventory = true
-        defer { isLoadingInventory = false }
-
-        guard !variations.isEmpty else { return }
-
-        let db = databaseManager.getContext()
-        var newInventoryData: [String: VariationInventoryData] = [:]
-
-        for variation in variations {
-            guard let variationId = variation.id else { continue }
-
-            // Load inventory for each location
-            for location in availableLocations {
-                let locationId = location.id
-
-                if let inventoryCount = InventoryCountModel.fetchCount(
-                    variationId: variationId,
-                    locationId: locationId,
-                    state: "IN_STOCK",
-                    in: db
-                ) {
-                    let key = "\(variationId)_\(locationId)"
-                    newInventoryData[key] = VariationInventoryData(
-                        variationId: variationId,
-                        locationId: locationId,
-                        stockOnHand: inventoryCount.quantityInt,
-                        committed: nil, // Square tracks this automatically
-                        availableToSell: inventoryCount.quantityInt // For now, same as stockOnHand
-                    )
-                }
-            }
-        }
-
-        await MainActor.run {
-            self.inventoryData = newInventoryData
-        }
-    }
-
     /// Fetch inventory counts from Square API
+    /// SwiftData @Query automatically updates UI when InventoryCountModel changes!
     func fetchInventoryFromSquare() async {
-        isLoadingInventory = true
-        defer { isLoadingInventory = false }
-
         let variationIds = variations.compactMap { $0.id }
         guard !variationIds.isEmpty else { return }
 
@@ -1453,15 +1417,12 @@ class ItemDetailsViewModel: ObservableObject {
                 locationIds: nil // Fetch for all locations
             )
 
-            // Update database
+            // Update database - SwiftData @Query views will auto-update!
             let db = databaseManager.getContext()
             for countData in counts {
                 _ = InventoryCountModel.createOrUpdate(from: countData, in: db)
             }
             try db.save()
-
-            // Reload from database
-            await loadInventoryData()
 
             // Mark inventory as enabled (successful API call means feature is available)
             await MainActor.run {
@@ -1495,15 +1456,12 @@ class ItemDetailsViewModel: ObservableObject {
                 reason: reason
             )
 
-            // Update database
+            // Update database - SwiftData @Query views will auto-update!
             let db = databaseManager.getContext()
             for countData in counts {
                 _ = InventoryCountModel.createOrUpdate(from: countData, in: db)
             }
             try db.save()
-
-            // Reload inventory data
-            await loadInventoryData()
 
             // Mark inventory as enabled on successful adjustment
             await MainActor.run {
@@ -1519,10 +1477,52 @@ class ItemDetailsViewModel: ObservableObject {
         }
     }
 
-    /// Get inventory data for specific variation and location
-    func getInventoryData(variationId: String, locationId: String) -> VariationInventoryData? {
-        let key = "\(variationId)_\(locationId)"
-        return inventoryData[key]
+    /// Set initial inventory for newly created item
+    /// Called after item creation to use newly assigned variation IDs
+    private func setInitialInventoryForNewItem(savedObject: CatalogObject, originalVariations: [ItemDetailsVariationData]) async throws {
+        guard let itemData = savedObject.itemData,
+              let savedVariations = itemData.variations else {
+            return
+        }
+
+        logger.info("[InventoryViewModel] Setting initial inventory for new item variations")
+
+        let inventoryService = SquareAPIServiceFactory.createInventoryService()
+
+        // Match saved variations (with IDs) to original variations (with pending inventory)
+        for (index, savedVariation) in savedVariations.enumerated() {
+            guard index < originalVariations.count else { continue }
+            guard let variationId = savedVariation.id else { continue }
+
+            let originalVariation = originalVariations[index]
+
+            // Process pending inventory for each location
+            for (locationId, quantity) in originalVariation.pendingInventoryQty {
+                guard quantity > 0 else { continue }
+
+                do {
+                    logger.info("[InventoryViewModel] Setting initial stock: variation=\(variationId), location=\(locationId), qty=\(quantity)")
+
+                    let counts = try await inventoryService.setInitialStock(
+                        variationId: variationId,
+                        locationId: locationId,
+                        quantity: quantity
+                    )
+
+                    // Update database - SwiftData @Query views will auto-update!
+                    let db = databaseManager.getContext()
+                    for countData in counts {
+                        _ = InventoryCountModel.createOrUpdate(from: countData, in: db)
+                    }
+                    try db.save()
+
+                    logger.info("[InventoryViewModel] ✅ Initial stock set successfully")
+                } catch {
+                    logger.error("[InventoryViewModel] ⚠️ Failed to set initial stock for variation \(variationId): \(error)")
+                    // Continue with other variations even if one fails
+                }
+            }
+        }
     }
 
 }

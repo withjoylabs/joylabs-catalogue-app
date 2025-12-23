@@ -28,14 +28,15 @@ class SwiftDataCatalogManager {
             ModifierModel.self,
             ImageModel.self,
             TeamDataModel.self,
+            InventoryCountModel.self,
             // ImageURLMappingModel.self, // Removed - using pure SwiftData for images
             DiscountModel.self,
             SyncStatusModel.self
         ])
-        
+
         // Configure the model container
         let configuration = ModelConfiguration(
-            "catalog-v2.store",
+            "catalog-v4.store",
             schema: schema,
             isStoredInMemoryOnly: false,
             allowsSave: true

@@ -30,7 +30,7 @@ struct JoyLabsNativeApp: App {
                 DiscountModel.self,
                 SyncStatusModel.self
             ])
-            let catalogConfig = ModelConfiguration("catalog-v3.store", schema: catalogSchema, isStoredInMemoryOnly: false)
+            let catalogConfig = ModelConfiguration("catalog-v4.store", schema: catalogSchema, isStoredInMemoryOnly: false)
             self.catalogContainer = try ModelContainer(for: catalogSchema, configurations: [catalogConfig])
             print("✅ [SwiftData] Catalog ModelContainer initialized")
         } catch {

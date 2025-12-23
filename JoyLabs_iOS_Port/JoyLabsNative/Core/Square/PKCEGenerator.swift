@@ -186,7 +186,7 @@ struct OAuthURLBuilder {
         var components = URLComponents(string: "https://connect.squareup.com/oauth2/authorize")
         components?.queryItems = [
             URLQueryItem(name: "client_id", value: "sq0idp-WFTYv3An7NPv6ovGFLld1Q"),
-            URLQueryItem(name: "scope", value: "MERCHANT_PROFILE_READ ITEMS_READ ITEMS_WRITE INVENTORY_READ"),
+            URLQueryItem(name: "scope", value: "MERCHANT_PROFILE_READ ITEMS_READ ITEMS_WRITE INVENTORY_READ INVENTORY_WRITE"),
             URLQueryItem(name: "response_type", value: "code"),
             URLQueryItem(name: "code_challenge", value: oauthState.codeChallenge),
             URLQueryItem(name: "code_challenge_method", value: "S256"),

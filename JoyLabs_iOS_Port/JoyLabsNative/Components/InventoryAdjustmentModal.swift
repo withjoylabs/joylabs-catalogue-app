@@ -1,8 +1,10 @@
 import SwiftUI
+import SwiftData
 
 // MARK: - Inventory Adjustment Modal
 /// Modal for adjusting inventory counts with numpad input and image display
 /// Matches reorder quantity modal UX pattern
+/// Uses @Query for automatic SwiftData reactivity
 struct InventoryAdjustmentModal: View {
     @ObservedObject var viewModel: ItemDetailsViewModel
     let variationId: String
@@ -14,13 +16,29 @@ struct InventoryAdjustmentModal: View {
     @State private var isSaving: Bool = false
     @State private var errorMessage: String?
 
-    // Get current inventory data
-    private var inventoryData: VariationInventoryData? {
-        viewModel.getInventoryData(variationId: variationId, locationId: locationId)
+    // SwiftData query for automatic reactivity
+    @Query private var inventoryCounts: [InventoryCountModel]
+
+    init(viewModel: ItemDetailsViewModel, variationId: String, locationId: String, onDismiss: @escaping () -> Void) {
+        self.viewModel = viewModel
+        self.variationId = variationId
+        self.locationId = locationId
+        self.onDismiss = onDismiss
+
+        // Query for IN_STOCK count for this variation + location
+        let compositeId = "\(variationId)_\(locationId)_IN_STOCK"
+        let predicate = #Predicate<InventoryCountModel> { model in
+            model.id == compositeId
+        }
+        _inventoryCounts = Query(filter: predicate)
+    }
+
+    private var inventoryCount: InventoryCountModel? {
+        inventoryCounts.first
     }
 
     private var currentStock: Int? {
-        inventoryData?.stockOnHand
+        inventoryCount?.quantityInt
     }
 
     private var hasInventory: Bool {
@@ -257,15 +275,26 @@ struct InventoryAdjustmentModal: View {
                 // For N/A (no inventory), use initial stock setup
                 if !hasInventory {
                     let inventoryService = SquareAPIServiceFactory.createInventoryService()
-                    _ = try await inventoryService.setInitialStock(
+                    let counts = try await inventoryService.setInitialStock(
                         variationId: variationId,
                         locationId: locationId,
                         quantity: quantityInput
                     )
-                    // Reload inventory data in viewModel
-                    await viewModel.loadInventoryData()
+
+                    // Save to database - SwiftData @Query will auto-update UI!
+                    let db = SquareAPIServiceFactory.createDatabaseManager().getContext()
+                    for countData in counts {
+                        _ = InventoryCountModel.createOrUpdate(from: countData, in: db)
+                    }
+                    try db.save()
+
+                    // Mark inventory as enabled on successful initial stock
+                    await MainActor.run {
+                        SquareCapabilitiesService.shared.markInventoryAsEnabled()
+                    }
                 } else {
                     // For existing inventory, use adjustment
+                    // SwiftData @Query automatically updates UI when database changes!
                     try await viewModel.submitInventoryAdjustment(
                         variationId: variationId,
                         locationId: locationId,
@@ -316,16 +345,7 @@ struct InventoryAdjustmentModal: View {
                 )
             ]
 
-            // With inventory
-            vm.inventoryData = [
-                "var1_loc1": VariationInventoryData(
-                    variationId: "var1",
-                    locationId: "loc1",
-                    stockOnHand: 50,
-                    committed: 5,
-                    availableToSell: 45
-                )
-            ]
+            // Note: Inventory data now loaded via @Query from SwiftData
         }
 
         var body: some View {

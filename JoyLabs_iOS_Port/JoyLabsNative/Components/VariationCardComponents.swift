@@ -275,7 +275,7 @@ struct VariationCardPriceSection: View {
 
             // INVENTORY SECTION - After price overrides
             VariationInventorySection(
-                variationId: variation.id,
+                variation: $variation,
                 viewModel: viewModel,
                 capabilitiesService: capabilitiesService
             )
@@ -311,11 +311,19 @@ struct VariationCardPriceSection: View {
 /// Displays inventory for a specific variation across all locations
 /// Positioned below "Add Price Override" button as per requirements
 struct VariationInventorySection: View {
-    let variationId: String?
+    @Binding var variation: ItemDetailsVariationData
     @ObservedObject var viewModel: ItemDetailsViewModel
     @ObservedObject var capabilitiesService: SquareCapabilitiesService
     @State private var showingAdjustmentModal = false
     @State private var selectedLocationId: String?
+
+    private var variationId: String? {
+        variation.id
+    }
+
+    private var isNewItem: Bool {
+        variationId == nil
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -336,20 +344,17 @@ struct VariationInventorySection: View {
             .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
             .padding(.vertical, ItemDetailsSpacing.compactSpacing)
 
-            // New variation message (no ID yet)
-            if variationId == nil {
-                ItemDetailsFieldSeparator()
+            // New item: Show editable inventory input fields for each location
+            if isNewItem {
+                ForEach(viewModel.availableLocations, id: \.id) { location in
+                    ItemDetailsFieldSeparator()
 
-                HStack {
-                    Image(systemName: "info.circle")
-                        .foregroundColor(.itemDetailsSecondaryText)
-                        .font(.itemDetailsFootnote)
-                    Text("Save item first to manage inventory")
-                        .font(.itemDetailsFootnote)
-                        .foregroundColor(.itemDetailsSecondaryText)
+                    NewItemInventoryRow(
+                        variation: $variation,
+                        locationId: location.id,
+                        locationName: location.name
+                    )
                 }
-                .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
-                .padding(.vertical, ItemDetailsSpacing.compactSpacing)
             }
             // Inventory error message (scopes or premium)
             else if !capabilitiesService.inventoryTrackingEnabled {
@@ -389,30 +394,11 @@ struct VariationInventorySection: View {
                         variationId: variationId,
                         locationId: location.id,
                         locationName: location.name,
-                        inventoryData: viewModel.getInventoryData(
-                            variationId: variationId,
-                            locationId: location.id
-                        ),
                         onTap: {
                             selectedLocationId = location.id
                             showingAdjustmentModal = true
                         }
                     )
-                }
-
-                // Loading indicator
-                if viewModel.isLoadingInventory {
-                    ItemDetailsFieldSeparator()
-
-                    HStack {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle())
-                        Text("Loading inventory...")
-                            .font(.itemDetailsFootnote)
-                            .foregroundColor(.itemDetailsSecondaryText)
-                    }
-                    .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
-                    .padding(.vertical, ItemDetailsSpacing.compactSpacing)
                 }
             }
         }
@@ -443,14 +429,96 @@ struct VariationInventorySection: View {
     }
 }
 
+// MARK: - New Item Inventory Row
+/// Editable inventory input field for new items (no variation ID yet)
+private struct NewItemInventoryRow: View {
+    @Binding var variation: ItemDetailsVariationData
+    let locationId: String
+    let locationName: String
+    @FocusState private var isFocused: Bool
+
+    private var currentQty: String {
+        if let qty = variation.pendingInventoryQty[locationId] {
+            return String(qty)
+        }
+        return ""
+    }
+
+    var body: some View {
+        HStack(spacing: ItemDetailsSpacing.compactSpacing) {
+            // Location name (if multiple locations)
+            if locationName != "Default Location" {
+                Text(locationName)
+                    .font(.itemDetailsBody)
+                    .foregroundColor(.itemDetailsSecondaryText)
+                    .frame(minWidth: 80, alignment: .leading)
+            }
+
+            Spacer()
+
+            // Editable quantity field
+            Text("Initial Stock")
+                .font(.itemDetailsCaption)
+                .foregroundColor(.itemDetailsSecondaryText)
+
+            TextField("0", text: Binding(
+                get: { currentQty },
+                set: { newValue in
+                    if newValue.isEmpty {
+                        variation.pendingInventoryQty[locationId] = nil
+                    } else if let qty = Int(newValue), qty >= 0 {
+                        variation.pendingInventoryQty[locationId] = qty
+                    }
+                }
+            ))
+            .keyboardType(.numberPad)
+            .multilineTextAlignment(.trailing)
+            .font(.system(size: 16, weight: .semibold))
+            .frame(width: 80)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 12)
+            .background(Color(.systemBackground))
+            .cornerRadius(8)
+            .focused($isFocused)
+        }
+        .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
+        .padding(.vertical, ItemDetailsSpacing.compactSpacing)
+    }
+}
+
 // MARK: - Variation Inventory Row
 /// Single row showing stock on hand, committed, and available to sell for one location
+/// Uses @Query for automatic SwiftData reactivity - UI updates automatically when inventory changes
 private struct VariationInventoryRow: View {
     let variationId: String // Note: Already unwrapped in parent, guaranteed non-nil
     let locationId: String
     let locationName: String
-    let inventoryData: VariationInventoryData?
     let onTap: () -> Void
+
+    // SwiftData query for automatic reactivity - UI updates when database changes!
+    @Query private var inventoryCounts: [InventoryCountModel]
+
+    init(variationId: String, locationId: String, locationName: String, onTap: @escaping () -> Void) {
+        self.variationId = variationId
+        self.locationId = locationId
+        self.locationName = locationName
+        self.onTap = onTap
+
+        // Query for IN_STOCK count for this variation + location
+        let compositeId = "\(variationId)_\(locationId)_IN_STOCK"
+        let predicate = #Predicate<InventoryCountModel> { model in
+            model.id == compositeId
+        }
+        _inventoryCounts = Query(filter: predicate)
+    }
+
+    private var inventoryCount: InventoryCountModel? {
+        inventoryCounts.first
+    }
+
+    private var stockOnHand: Int? {
+        inventoryCount?.quantityInt
+    }
 
     var body: some View {
         Button(action: onTap) {
@@ -477,19 +545,19 @@ private struct VariationInventoryRow: View {
                 HStack(spacing: 0) {
                     // Values section (3 columns)
                     HStack(spacing: 0) {
-                        Text(inventoryData?.displayStockOnHand ?? "N/A")
+                        Text(stockOnHand != nil ? "\(stockOnHand!)" : "N/A")
                             .font(.itemDetailsBody)
-                            .foregroundColor(inventoryData?.stockOnHand == nil ? .itemDetailsSecondaryText : .itemDetailsPrimaryText)
+                            .foregroundColor(stockOnHand == nil ? .itemDetailsSecondaryText : .itemDetailsPrimaryText)
                             .frame(maxWidth: .infinity, alignment: .leading)
 
-                        Text(inventoryData?.displayCommitted ?? "0")
+                        Text("0")
                             .font(.itemDetailsBody)
                             .foregroundColor(.itemDetailsPrimaryText)
                             .frame(maxWidth: .infinity, alignment: .leading)
 
-                        Text(inventoryData?.displayAvailableToSell ?? "N/A")
+                        Text(stockOnHand != nil ? "\(stockOnHand!)" : "N/A")
                             .font(.itemDetailsBody)
-                            .foregroundColor(inventoryData?.availableToSell == nil ? .itemDetailsSecondaryText : .itemDetailsPrimaryText)
+                            .foregroundColor(stockOnHand == nil ? .itemDetailsSecondaryText : .itemDetailsPrimaryText)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
 

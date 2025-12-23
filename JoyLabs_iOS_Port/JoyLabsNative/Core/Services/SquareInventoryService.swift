@@ -203,7 +203,12 @@ class SquareInventoryService {
             )
         }
 
-        return try await batchChangeInventory(changes: [change])
+        let result = try await batchChangeInventory(changes: [change])
+
+        // Record local operation to prevent webhook re-processing
+        PushNotificationService.shared.recordLocalOperation(itemId: variationId)
+
+        return result
     }
 
     // MARK: - Initial Stock Setup (for new items)
@@ -223,7 +228,12 @@ class SquareInventoryService {
             quantity: "\(quantity)"
         )
 
-        return try await batchChangeInventory(changes: [change])
+        let result = try await batchChangeInventory(changes: [change])
+
+        // Record local operation to prevent webhook re-processing
+        PushNotificationService.shared.recordLocalOperation(itemId: variationId)
+
+        return result
     }
 
     /// Set initial stock for multiple variations at once (batch operation for new items)
