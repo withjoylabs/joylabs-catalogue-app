@@ -308,13 +308,15 @@ struct InventoryAdjustmentModal: View {
                     .foregroundColor(.primary)
             }
 
-            // Reason picker (only for existing inventory)
+            // Reason picker (only for existing inventory) - single line
             if hasInventory {
-                VStack(alignment: .leading, spacing: 8) {
+                HStack {
                     Text("Reason")
                         .font(.subheadline)
                         .fontWeight(.bold)
                         .foregroundColor(.primary)
+
+                    Spacer()
 
                     Picker("Reason", selection: $selectedReason) {
                         ForEach(InventoryAdjustmentReason.allCases, id: \.self) { reason in
@@ -329,8 +331,9 @@ struct InventoryAdjustmentModal: View {
                 .padding(.horizontal, 16)
             }
 
-            // Current stock and quantity input
+            // Current stock and quantity input - always 3 columns to prevent shifting
             HStack(spacing: 16) {
+                // Column 1: Current stock
                 if let current = currentStock {
                     VStack(spacing: 4) {
                         Text("Current")
@@ -343,6 +346,7 @@ struct InventoryAdjustmentModal: View {
                     .frame(maxWidth: .infinity)
                 }
 
+                // Column 2: Input quantity (always visible, center/larger)
                 VStack(spacing: 4) {
                     Text(hasInventory ? selectedReason.fieldLabel : "Received")
                         .font(.caption)
@@ -353,19 +357,28 @@ struct InventoryAdjustmentModal: View {
                 }
                 .frame(maxWidth: .infinity)
 
-                if let newTotal = calculatedNewTotal, hasInventory {
+                // Column 3: Result (always visible to prevent shifting)
+                if hasInventory {
                     VStack(spacing: 4) {
                         Text(selectedReason.isAbsolute ? "Variance" : "New Total")
                             .font(.caption)
                             .foregroundColor(.secondary)
-                        if selectedReason.isAbsolute, let varianceValue = variance {
-                            Text("\(varianceValue >= 0 ? "+" : "")\(varianceValue)")
-                                .font(.system(size: 20, weight: .semibold))
-                                .foregroundColor(varianceValue >= 0 ? .green : .red)
+
+                        if let newTotal = calculatedNewTotal {
+                            if selectedReason.isAbsolute, let varianceValue = variance {
+                                Text("\(varianceValue >= 0 ? "+" : "")\(varianceValue)")
+                                    .font(.system(size: 20, weight: .semibold))
+                                    .foregroundColor(varianceValue >= 0 ? .green : .red)
+                            } else {
+                                Text("\(newTotal)")
+                                    .font(.system(size: 20, weight: .semibold))
+                                    .foregroundColor(.primary)
+                            }
                         } else {
-                            Text("\(newTotal)")
+                            // Placeholder when no input yet
+                            Text("--")
                                 .font(.system(size: 20, weight: .semibold))
-                                .foregroundColor(.primary)
+                                .foregroundColor(.secondary)
                         }
                     }
                     .frame(maxWidth: .infinity)
