@@ -1,5 +1,120 @@
 import SwiftUI
 import SwiftData
+import UIKit
+
+// MARK: - External Keyboard Handler for Modal
+class InventoryKeyboardViewController: UIViewController {
+    var onNumberInput: ((Int) -> Void)?
+    var onEnter: (() -> Void)?
+    var onBackspace: (() -> Void)?
+    var onEscape: (() -> Void)?
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        becomeFirstResponder()
+    }
+
+    override var canBecomeFirstResponder: Bool { true }
+
+    override var keyCommands: [UIKeyCommand]? {
+        var commands: [UIKeyCommand] = []
+
+        // Numbers 0-9
+        for i in 0...9 {
+            commands.append(UIKeyCommand(
+                input: "\(i)",
+                modifierFlags: [],
+                action: #selector(handleNumber(_:))
+            ))
+        }
+
+        // Enter/Return
+        commands.append(UIKeyCommand(
+            input: "\r",
+            modifierFlags: [],
+            action: #selector(handleEnter)
+        ))
+
+        // Delete/Backspace
+        commands.append(UIKeyCommand(
+            input: "\u{8}",
+            modifierFlags: [],
+            action: #selector(handleBackspace)
+        ))
+
+        // Escape
+        commands.append(UIKeyCommand(
+            input: UIKeyCommand.inputEscape,
+            modifierFlags: [],
+            action: #selector(handleEscape)
+        ))
+
+        return commands
+    }
+
+    @objc private func handleNumber(_ command: UIKeyCommand) {
+        if let input = command.input, let digit = Int(input) {
+            onNumberInput?(digit)
+        }
+    }
+
+    @objc private func handleEnter() {
+        onEnter?()
+    }
+
+    @objc private func handleBackspace() {
+        onBackspace?()
+    }
+
+    @objc private func handleEscape() {
+        onEscape?()
+    }
+}
+
+// MARK: - SwiftUI Wrapper for Keyboard Handler
+struct InventoryKeyboardHandler: UIViewControllerRepresentable {
+    @Binding var quantityInput: Int
+    let onSave: () -> Void
+    let onDismiss: () -> Void
+    let maxValue: Int
+
+    func makeUIViewController(context: Context) -> InventoryKeyboardViewController {
+        let vc = InventoryKeyboardViewController()
+
+        vc.onNumberInput = { digit in
+            let newValue = (quantityInput * 10) + digit
+            if newValue <= maxValue {
+                quantityInput = newValue
+            }
+        }
+
+        vc.onBackspace = {
+            quantityInput = quantityInput / 10
+        }
+
+        vc.onEnter = onSave
+        vc.onEscape = onDismiss
+
+        return vc
+    }
+
+    func updateUIViewController(_ uiViewController: InventoryKeyboardViewController, context: Context) {
+        // Update callbacks in case bindings change
+        uiViewController.onNumberInput = { digit in
+            let newValue = (quantityInput * 10) + digit
+            if newValue <= maxValue {
+                quantityInput = newValue
+            }
+        }
+
+        uiViewController.onBackspace = {
+            quantityInput = quantityInput / 10
+        }
+
+        uiViewController.onEnter = onSave
+        uiViewController.onEscape = onDismiss
+    }
+}
 
 // MARK: - Inventory Adjustment Modal
 /// Modal for adjusting inventory counts with numpad input and image display
@@ -88,57 +203,73 @@ struct InventoryAdjustmentModal: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Custom header
-            HStack {
-                Button("Cancel") {
-                    onDismiss()
+        ZStack {
+            VStack(spacing: 0) {
+                // Custom header
+                HStack {
+                    Button("Cancel") {
+                        onDismiss()
+                    }
+                    .font(.headline)
+                    .foregroundColor(.red)
+
+                    Spacer()
+
+                    if let variation = variation, let location = location {
+                        Text("\(variation.name ?? "Unnamed") • \(location.name)")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                    }
+
+                    Spacer()
+
+                    Button(isSaving ? "Saving..." : "Save") {
+                        saveAdjustment()
+                    }
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundColor(canSave ? .blue : .gray)
+                    .disabled(!canSave)
                 }
-                .font(.headline)
-                .foregroundColor(.red)
+                .padding()
+                .background(Color(.systemBackground))
+                .overlay(
+                    Divider()
+                        .frame(maxWidth: .infinity, maxHeight: 1)
+                        .background(Color(.separator)),
+                    alignment: .bottom
+                )
 
-                Spacer()
+                ScrollView {
+                    VStack(spacing: 0) {
+                        // Image section
+                        imageSection
 
-                if let variation = variation, let location = location {
-                    Text("\(variation.name ?? "Unnamed") • \(location.name)")
-                        .font(.headline)
-                        .fontWeight(.semibold)
+                        // Details and input section
+                        detailsSection
+
+                        // Numpad section
+                        numpadSection
+
+                        Spacer(minLength: 20)
+                    }
                 }
-
-                Spacer()
-
-                Button(isSaving ? "Saving..." : "Save") {
-                    saveAdjustment()
-                }
-                .font(.headline)
-                .fontWeight(.bold)
-                .foregroundColor(canSave ? .blue : .gray)
-                .disabled(!canSave)
+                .background(Color(.systemGroupedBackground))
             }
-            .padding()
-            .background(Color(.systemBackground))
-            .overlay(
-                Divider()
-                    .frame(maxWidth: .infinity, maxHeight: 1)
-                    .background(Color(.separator)),
-                alignment: .bottom
+
+            // Invisible keyboard handler
+            InventoryKeyboardHandler(
+                quantityInput: $quantityInput,
+                onSave: {
+                    if canSave && !isSaving {
+                        saveAdjustment()
+                    }
+                },
+                onDismiss: onDismiss,
+                maxValue: 999_999
             )
-
-            ScrollView {
-                VStack(spacing: 0) {
-                    // Image section
-                    imageSection
-
-                    // Details and input section
-                    detailsSection
-
-                    // Numpad section
-                    numpadSection
-
-                    Spacer(minLength: 20)
-                }
-            }
-            .background(Color(.systemGroupedBackground))
+            .frame(width: 0, height: 0)
+            .opacity(0)
         }
     }
 
@@ -317,6 +448,7 @@ struct InventoryAdjustmentModal: View {
             }
         }
     }
+
 }
 
 // MARK: - Preview
