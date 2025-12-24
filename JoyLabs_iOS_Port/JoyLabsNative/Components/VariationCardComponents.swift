@@ -521,60 +521,74 @@ private struct VariationInventoryRow: View {
     }
 
     var body: some View {
-        Button(action: onTap) {
+        ItemDetailsFieldRow {
             VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
-                // Line 1: Column headers (always visible)
-                HStack(spacing: 0) {
-                    Text("Stock on hand")
+                // Line 1: Column headers
+                HStack(spacing: 8) {
+                    // Location column (flexible)
+                    Text("Location")
                         .font(.itemDetailsCaption)
                         .foregroundColor(.itemDetailsSecondaryText)
                         .frame(maxWidth: .infinity, alignment: .leading)
+
+                    // Numeric columns (fixed width for alignment)
+                    Text("Stock on hand")
+                        .font(.itemDetailsCaption)
+                        .foregroundColor(.itemDetailsSecondaryText)
+                        .frame(width: 90, alignment: .center)
 
                     Text("Committed")
                         .font(.itemDetailsCaption)
                         .foregroundColor(.itemDetailsSecondaryText)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(width: 90, alignment: .center)
 
-                    Text("Available to sell")
+                    Text("Available")
                         .font(.itemDetailsCaption)
                         .foregroundColor(.itemDetailsSecondaryText)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(width: 90, alignment: .center)
+
+                    // Button column spacer
+                    Spacer()
+                        .frame(width: 70)
                 }
 
-                // Line 2: Values on left, location name on right
-                HStack(spacing: 0) {
-                    // Values section (3 columns)
-                    HStack(spacing: 0) {
-                        Text(stockOnHand != nil ? "\(stockOnHand!)" : "N/A")
-                            .font(.itemDetailsBody)
-                            .foregroundColor(stockOnHand == nil ? .itemDetailsSecondaryText : .itemDetailsPrimaryText)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                // Line 2: Values and button
+                HStack(spacing: 8) {
+                    // Location name (flexible, takes remaining space)
+                    Text(locationName)
+                        .font(.itemDetailsBody)
+                        .foregroundColor(.itemDetailsPrimaryText)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .lineLimit(1)
 
-                        Text("0")
-                            .font(.itemDetailsBody)
-                            .foregroundColor(.itemDetailsPrimaryText)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                    // Stock on hand
+                    Text(stockOnHand != nil ? "\(stockOnHand!)" : "N/A")
+                        .font(.itemDetailsBody)
+                        .foregroundColor(stockOnHand == nil ? .itemDetailsSecondaryText : .itemDetailsPrimaryText)
+                        .frame(width: 90, alignment: .center)
 
-                        Text(stockOnHand != nil ? "\(stockOnHand!)" : "N/A")
+                    // Committed (always 0 for now)
+                    Text("0")
+                        .font(.itemDetailsBody)
+                        .foregroundColor(.itemDetailsPrimaryText)
+                        .frame(width: 90, alignment: .center)
+
+                    // Available to sell
+                    Text(stockOnHand != nil ? "\(stockOnHand!)" : "N/A")
+                        .font(.itemDetailsBody)
+                        .foregroundColor(stockOnHand == nil ? .itemDetailsSecondaryText : .itemDetailsPrimaryText)
+                        .frame(width: 90, alignment: .center)
+
+                    // Adjust button
+                    Button(action: onTap) {
+                        Text("Adjust")
                             .font(.itemDetailsBody)
-                            .foregroundColor(stockOnHand == nil ? .itemDetailsSecondaryText : .itemDetailsPrimaryText)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .foregroundColor(.blue)
                     }
-
-                    // Location name on right (if not default)
-                    if locationName != "Default Location" {
-                        Text(locationName)
-                            .font(.itemDetailsFootnote)
-                            .foregroundColor(.itemDetailsSecondaryText)
-                            .lineLimit(1)
-                    }
+                    .frame(width: 70)
                 }
             }
-            .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
-            .padding(.vertical, ItemDetailsSpacing.compactSpacing)
-            .contentShape(Rectangle())
         }
-        .buttonStyle(PlainButtonStyle())
     }
 }
 
