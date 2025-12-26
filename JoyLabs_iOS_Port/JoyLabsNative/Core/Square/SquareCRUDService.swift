@@ -1079,4 +1079,192 @@ extension SquareCRUDService {
             throw error
         }
     }
+
+    // MARK: - Image Management Operations
+
+    /// Reorder images by updating the imageIds array
+    /// Per Square API: first image in array is the primary image
+    func reorderItemImages(itemId: String, newImageOrder: [String]) async throws {
+        logger.info("Reordering images for item \(itemId), new order: \(newImageOrder)")
+
+        isProcessing = true
+        defer { isProcessing = false }
+
+        do {
+            // 1. Fetch current item to get version
+            let currentObject = try await squareAPIService.retrieveCatalogObject(itemId)
+
+            guard let itemData = currentObject.itemData else {
+                throw SquareAPIError.invalidData("Item \(itemId) has no item data")
+            }
+
+            // 2. Create updated object with reordered imageIds
+            let updatedItemData = ItemData(
+                name: itemData.name,
+                description: itemData.description,
+                categoryId: itemData.categoryId,
+                taxIds: itemData.taxIds,
+                variations: itemData.variations,
+                productType: itemData.productType,
+                skipModifierScreen: itemData.skipModifierScreen,
+                itemOptions: itemData.itemOptions,
+                modifierListInfo: itemData.modifierListInfo,
+                images: itemData.images,
+                labelColor: itemData.labelColor,
+                availableOnline: itemData.availableOnline,
+                availableForPickup: itemData.availableForPickup,
+                availableElectronically: itemData.availableElectronically,
+                abbreviation: itemData.abbreviation,
+                categories: itemData.categories,
+                reportingCategory: itemData.reportingCategory,
+                imageIds: newImageOrder, // REORDERED
+                isTaxable: itemData.isTaxable,
+                isAlcoholic: itemData.isAlcoholic,
+                sortName: itemData.sortName,
+                taxNames: itemData.taxNames,
+                modifierNames: itemData.modifierNames
+            )
+
+            let updatedObject = CatalogObject(
+                type: "ITEM",
+                id: itemId,
+                updatedAt: nil,
+                version: currentObject.version,
+                isDeleted: false,
+                presentAtAllLocations: currentObject.presentAtAllLocations,
+                presentAtLocationIds: currentObject.presentAtLocationIds,
+                absentAtLocationIds: currentObject.absentAtLocationIds,
+                itemData: updatedItemData,
+                categoryData: nil,
+                itemVariationData: nil,
+                taxData: nil,
+                discountData: nil,
+                modifierListData: nil,
+                modifierData: nil,
+                imageData: nil
+            )
+
+            // 3. Update via Square API
+            let idempotencyKey = "reorder_images_\(UUID().uuidString)"
+            let response = try await squareAPIService.upsertCatalogObjectWithMappings(
+                updatedObject,
+                idempotencyKey: idempotencyKey
+            )
+
+            guard let resultObject = response.catalogObject else {
+                throw SquareAPIError.upsertFailed("No object returned from reorder operation")
+            }
+
+            // 4. Update local database
+            try await updateLocalDatabaseAfterUpdate(resultObject)
+
+            logger.info("✅ Successfully reordered images for item \(itemId)")
+
+        } catch {
+            logger.error("❌ Failed to reorder images: \(error)")
+            throw error
+        }
+    }
+
+    /// Delete an image from Square catalog
+    func deleteImage(imageId: String, itemId: String) async throws {
+        logger.info("Deleting image \(imageId) from item \(itemId)")
+
+        isProcessing = true
+        defer { isProcessing = false }
+
+        do {
+            // 1. Delete image object from Square
+            try await squareAPIService.deleteCatalogObject(imageId)
+            logger.info("✅ Deleted image \(imageId) from Square")
+
+            // 2. Fetch current item to get updated imageIds
+            let currentObject = try await squareAPIService.retrieveCatalogObject(itemId)
+
+            guard let itemData = currentObject.itemData else {
+                throw SquareAPIError.invalidData("Item \(itemId) has no item data")
+            }
+
+            // 3. Remove imageId from array
+            let updatedImageIds = (itemData.imageIds ?? []).filter { $0 != imageId }
+
+            // 4. Update item with new imageIds array
+            let updatedItemData = ItemData(
+                name: itemData.name,
+                description: itemData.description,
+                categoryId: itemData.categoryId,
+                taxIds: itemData.taxIds,
+                variations: itemData.variations,
+                productType: itemData.productType,
+                skipModifierScreen: itemData.skipModifierScreen,
+                itemOptions: itemData.itemOptions,
+                modifierListInfo: itemData.modifierListInfo,
+                images: itemData.images,
+                labelColor: itemData.labelColor,
+                availableOnline: itemData.availableOnline,
+                availableForPickup: itemData.availableForPickup,
+                availableElectronically: itemData.availableElectronically,
+                abbreviation: itemData.abbreviation,
+                categories: itemData.categories,
+                reportingCategory: itemData.reportingCategory,
+                imageIds: updatedImageIds, // REMOVED imageId
+                isTaxable: itemData.isTaxable,
+                isAlcoholic: itemData.isAlcoholic,
+                sortName: itemData.sortName,
+                taxNames: itemData.taxNames,
+                modifierNames: itemData.modifierNames
+            )
+
+            let updatedObject = CatalogObject(
+                type: "ITEM",
+                id: itemId,
+                updatedAt: nil,
+                version: currentObject.version,
+                isDeleted: false,
+                presentAtAllLocations: currentObject.presentAtAllLocations,
+                presentAtLocationIds: currentObject.presentAtLocationIds,
+                absentAtLocationIds: currentObject.absentAtLocationIds,
+                itemData: updatedItemData,
+                categoryData: nil,
+                itemVariationData: nil,
+                taxData: nil,
+                discountData: nil,
+                modifierListData: nil,
+                modifierData: nil,
+                imageData: nil
+            )
+
+            // 5. Update via Square API
+            let idempotencyKey = "delete_image_\(UUID().uuidString)"
+            let response = try await squareAPIService.upsertCatalogObjectWithMappings(
+                updatedObject,
+                idempotencyKey: idempotencyKey
+            )
+
+            guard let resultObject = response.catalogObject else {
+                throw SquareAPIError.upsertFailed("No object returned from delete operation")
+            }
+
+            // 6. Update local database
+            try await updateLocalDatabaseAfterUpdate(resultObject)
+
+            // 7. Delete image from local database
+            let db = databaseManager.getContext()
+            let predicate = #Predicate<ImageModel> { model in
+                model.id == imageId
+            }
+            let descriptor = FetchDescriptor(predicate: predicate)
+            if let imageToDelete = try? db.fetch(descriptor).first {
+                db.delete(imageToDelete)
+                try db.save()
+                logger.info("✅ Deleted image \(imageId) from local database")
+            }
+
+            logger.info("✅ Successfully deleted image \(imageId)")
+
+        } catch {
+            logger.error("❌ Failed to delete image: \(error)")
+            throw error
+        }
+    }
 }
