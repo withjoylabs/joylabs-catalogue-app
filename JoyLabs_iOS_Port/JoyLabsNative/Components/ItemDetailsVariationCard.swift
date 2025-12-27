@@ -100,7 +100,7 @@ struct ItemDetailsVariationCard: View {
                     showingImagePicker = false
                 }
             )
-            .nestedComponentModal()
+            .imagePickerModal()
         }
     }
 

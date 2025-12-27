@@ -51,29 +51,24 @@ extension View {
     }
     
     /// Pattern 4: Image Picker Modal
-    /// Usage: UnifiedImagePickerModal with 70% width for better UX
-    /// Applied to: All UnifiedImagePickerModal presentations
+    /// Usage: UnifiedImagePickerModal with full-height layout for comfortable photo browsing
+    /// Applied to: All UnifiedImagePickerModal presentations (item and variation level)
     func imagePickerModal() -> some View {
-        // Make the modal exactly the width needed for a good-sized square preview
+        // Full-height modal for comfortable photo browsing (like social media apps)
+        // Provides space for header, preview, and full photo grid
         if UIDevice.current.userInterfaceIdiom == .pad {
-            // Use containerRelativeFrame to calculate size relative to container
-            let idealPreviewSize: CGFloat = 400  // Fixed size that works well
             if #available(iOS 18.0, *) {
                 return AnyView(
                     self
-                        .frame(width: idealPreviewSize)
-                        .presentationSizing(.fitted)
+                        .presentationDetents([.large])
                         .presentationBackground(.regularMaterial)
                         .presentationCornerRadius(12)
-                        .presentationCompactAdaptation(.popover)
                 )
             } else {
                 return AnyView(
                     self
-                        .frame(width: idealPreviewSize)
                         .presentationDetents([.large])
                         .presentationBackground(.regularMaterial)
-                        .presentationCompactAdaptation(.popover)
                 )
             }
         } else {

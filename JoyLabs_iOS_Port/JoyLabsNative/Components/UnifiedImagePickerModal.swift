@@ -369,20 +369,26 @@ struct UnifiedImagePickerModal: View {
     }
 
     private func loadPhotoAssets() async {
-        print("[UnifiedImagePickerModal] Starting to load initial photo assets...")
+        logger.info("[PhotoLibrary] Starting to load initial photo assets...")
         await MainActor.run {
             isLoadingPhotos = true
             photoAssets = [] // Reset array
             hasMorePhotos = true
         }
-        
+
+        // Get total count for diagnostics
+        let fetchOptions = PHFetchOptions()
+        fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+        let allAssets = PHAsset.fetchAssets(with: .image, options: fetchOptions)
+        logger.info("[PhotoLibrary] Total photos in library: \(allAssets.count)")
+
         let (assets, hasMore) = await loadPhotoBatch(startIndex: 0, batchSize: 40)
         await MainActor.run {
             photoAssets = assets
             hasMorePhotos = hasMore
             isLoadingPhotos = false
-            print("[UnifiedImagePickerModal] Initial photo assets loaded: \(assets.count), hasMore: \(hasMore)")
-            
+            logger.info("[PhotoLibrary] Initial batch loaded: \(assets.count)/\(allAssets.count) photos, hasMore: \(hasMore)")
+
             // Auto-preview the first photo if available
             if let firstAsset = assets.first {
                 selectPhoto(firstAsset.asset)
@@ -392,21 +398,21 @@ struct UnifiedImagePickerModal: View {
     
     private func loadMorePhotos() {
         guard hasMorePhotos && !isLoadingMorePhotos else { return }
-        
+
         Task {
             await MainActor.run {
-                print("[UnifiedImagePickerModal] Loading more photos from index \(photoAssets.count)...")
+                logger.info("[PhotoLibrary] Pagination triggered - loading more photos from index \(photoAssets.count)")
                 isLoadingMorePhotos = true
             }
-            
+
             let startIndex = await MainActor.run { photoAssets.count }
             let (newAssets, hasMore) = await loadPhotoBatch(startIndex: startIndex, batchSize: 20)
-            
+
             await MainActor.run {
                 photoAssets.append(contentsOf: newAssets)
                 hasMorePhotos = hasMore
                 isLoadingMorePhotos = false
-                print("[UnifiedImagePickerModal] Loaded \(newAssets.count) more photos, total: \(photoAssets.count), hasMore: \(hasMore)")
+                logger.info("[PhotoLibrary] Pagination complete - loaded \(newAssets.count) more photos, total: \(photoAssets.count), hasMore: \(hasMore)")
             }
         }
     }
@@ -416,27 +422,25 @@ struct UnifiedImagePickerModal: View {
             autoreleasepool {
                 let fetchOptions = PHFetchOptions()
                 fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-                
+
                 let allAssets = PHAsset.fetchAssets(with: .image, options: fetchOptions)
-                print("[UnifiedImagePickerModal] Found \(allAssets.count) total assets in photo library")
-                
+
                 let endIndex = min(startIndex + batchSize, allAssets.count)
                 let hasMore = endIndex < allAssets.count
-                
+
                 guard startIndex < allAssets.count else {
                     continuation.resume(returning: ([], false))
                     return
                 }
-                
+
                 let imageManager = PHImageManager.default()
                 let requestOptions = PHImageRequestOptions()
                 requestOptions.deliveryMode = .highQualityFormat // High quality thumbnails
                 requestOptions.resizeMode = .exact
                 requestOptions.isNetworkAccessAllowed = true
                 requestOptions.isSynchronous = false
-                
+
                 let assetsToProcess = endIndex - startIndex
-                print("[UnifiedImagePickerModal] Processing \(assetsToProcess) assets from index \(startIndex) to \(endIndex-1)")
                 
                 let dispatchGroup = DispatchGroup()
                 var photoAssets: [PhotoAsset] = []
