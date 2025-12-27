@@ -872,6 +872,9 @@ struct VariationImageGallery: View {
     let onUpload: () -> Void
     let viewModel: ItemDetailsViewModel
 
+    @State private var selectedImageId: String?
+    @State private var showingPreview = false
+
     private let thumbnailSize: CGFloat = 60  // Smaller than item-level (80px)
 
     var body: some View {
@@ -922,7 +925,8 @@ struct VariationImageGallery: View {
                                 size: thumbnailSize,
                                 viewModel: viewModel,
                                 onTap: {
-                                    // TODO: Show preview modal
+                                    selectedImageId = imageId
+                                    showingPreview = true
                                 }
                             )
                             .onDrag {
@@ -944,6 +948,21 @@ struct VariationImageGallery: View {
             }
         }
         .padding(.vertical, 8)
+        .sheet(isPresented: $showingPreview) {
+            if let imageId = selectedImageId {
+                ImagePreviewModal(
+                    imageId: imageId,
+                    isPrimary: variation.imageIds.first == imageId,
+                    onDelete: {
+                        onDelete(imageId)
+                        showingPreview = false
+                    },
+                    onDismiss: {
+                        showingPreview = false
+                    }
+                )
+            }
+        }
     }
 }
 

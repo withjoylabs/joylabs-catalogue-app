@@ -114,7 +114,12 @@ final class ItemVariationModel {
               let jsonData = jsonString.data(using: .utf8) else {
             return nil
         }
-        
-        return try? JSONDecoder().decode(ItemVariationData.self, from: jsonData)
+
+        // Decode as CatalogObject (what's actually stored), then extract itemVariationData
+        guard let catalogObject = try? JSONDecoder().decode(CatalogObject.self, from: jsonData) else {
+            return nil
+        }
+
+        return catalogObject.itemVariationData
     }
 }

@@ -182,10 +182,13 @@ class SwiftDataCatalogSyncService: ObservableObject {
         for imageObject in imageObjects {
             await processImageURLMapping(imageObject)
         }
-        
-        // Final save
+
+        // Save sync timestamp BEFORE final save to ensure it's in the same transaction
+        try await saveSyncTimestamp()
+
+        // Final save to commit everything including timestamp
         try catalogManager.save()
-        
+
         logger.info("[Sync] Full sync completed: \(self.syncProgress.syncedObjects) objects processed")
     }
     
@@ -213,10 +216,13 @@ class SwiftDataCatalogSyncService: ObservableObject {
             // Sort and process updated objects
             let sortedObjects = sortObjectsByDependency(updatedObjects)
             try await processCatalogObjectsBatch(sortedObjects)
-            
-            // Save changes
+
+            // Save sync timestamp BEFORE final save
+            try await saveSyncTimestamp()
+
+            // Save changes including timestamp
             try catalogManager.save()
-            
+
         } else {
             logger.info("[Sync] No previous sync found, performing full sync")
             try await performFullSync()
@@ -310,6 +316,27 @@ class SwiftDataCatalogSyncService: ObservableObject {
         // For SwiftData, we store the image URL directly in the ImageModel
         // Native URLCache and AsyncImage handle the actual image caching
         logger.debug("[Sync] Processed image URL mapping for: \(object.id) -> \(awsUrl)")
+    }
+
+    /// Save sync timestamp to SyncStatusModel for cross-service sync tracking
+    /// Note: Does NOT save - caller must call catalogManager.save() to commit
+    private func saveSyncTimestamp() async throws {
+        let modelContext = catalogManager.getContext()
+
+        let descriptor = FetchDescriptor<SyncStatusModel>(
+            predicate: #Predicate { $0.id == 1 }
+        )
+
+        let syncStatus: SyncStatusModel
+        if let existing = try modelContext.fetch(descriptor).first {
+            syncStatus = existing
+        } else {
+            syncStatus = SyncStatusModel(id: 1)
+            modelContext.insert(syncStatus)
+        }
+
+        syncStatus.lastSyncTime = Date()
+        logger.info("[Sync] Updated sync timestamp: \(syncStatus.lastSyncTime!) (will commit with catalog save)")
     }
 }
 
