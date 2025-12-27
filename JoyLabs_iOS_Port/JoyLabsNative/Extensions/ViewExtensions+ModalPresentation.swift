@@ -50,13 +50,19 @@ extension View {
         self.presentationDetents([.fraction(fraction), .medium])
     }
     
-    /// Pattern 4: Image Picker Full Screen
-    /// Usage: UnifiedImagePickerModal with full screen presentation (industry standard)
+    /// Pattern 4: Image Picker Form Sheet
+    /// Usage: UnifiedImagePickerModal with iOS 26 form sheet presentation
     /// Applied to: All UnifiedImagePickerModal presentations (item and variation level)
-    func imagePickerFullScreen() -> some View {
-        // Full screen presentation like Instagram, Photos app, WhatsApp
-        // Prevents content clipping and provides comfortable photo browsing experience
-        return AnyView(self)
+    func imagePickerFormSheet() -> some View {
+        // iOS 26 / iPadOS 18+ form sheet presentation
+        // Compact, centered modal like Apple's Journal app photo picker
+        // Liquid Glass design with proper header visibility and scrolling
+        if #available(iOS 18.0, *) {
+            return AnyView(self.presentationSizing(.form))
+        } else {
+            // iOS 17 fallback - use default sheet behavior
+            return AnyView(self)
+        }
     }
     
     /// Pattern 5: iPad Force Full Screen

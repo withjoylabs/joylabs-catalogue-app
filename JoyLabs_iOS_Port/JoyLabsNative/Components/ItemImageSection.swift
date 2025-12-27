@@ -83,7 +83,7 @@ struct ItemImageSection: View {
         .padding()
         .background(Color.itemDetailsFieldBackground)
         .cornerRadius(12)
-        .fullScreenCover(isPresented: $showingImagePicker) {
+        .sheet(isPresented: $showingImagePicker) {
             UnifiedImagePickerModal(
                 context: .itemDetails(itemId: viewModel.staticData.id),
                 onDismiss: {
@@ -119,7 +119,7 @@ struct ItemImageSection: View {
                     showingImagePicker = false
                 }
             )
-            .imagePickerFullScreen()
+            .imagePickerFormSheet()
         }
 
     }
