@@ -84,8 +84,8 @@ struct SwipeableReorderCard: View {
                 .buttonStyle(PlainButtonStyle())
 
                 // Thumbnail image - exact same size as scan page (50px) - tappable for enlargement, long-press for update
-                SimpleImageView.thumbnail(
-                    imageURL: item.imageUrl,
+                NativeImageView.thumbnail(
+                    imageId: item.imageId,
                     size: 50
                 )
                 .contentShape(Rectangle())

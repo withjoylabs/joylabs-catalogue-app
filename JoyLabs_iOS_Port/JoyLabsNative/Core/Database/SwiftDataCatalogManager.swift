@@ -418,10 +418,10 @@ class SwiftDataCatalogManager {
         logger.trace("[Database] Inserted/updated discount: \(object.id)")
     }
     
-    // MARK: - Image Cache Management
-    // NOTE: We NO LONGER use SwiftData relationships for images
+    // MARK: - Image Management
+    // NOTE: Images stored in SwiftData ImageModel, accessed via @Query
     // Per Square API docs, images are referenced by ID, not relationships
-    // ImageURLCache provides simple imageId->URL lookups
+    // Native SwiftData @Query provides reactive imageId->URL lookups
 
     // MARK: - Fetch Operations
     

@@ -266,19 +266,16 @@ struct SwipeableScanResultCard: View {
         )
     }
 
-    private var imageURL: String? {
-        return result.images?.first?.imageData?.url
+    private var imageId: String? {
+        return result.images?.first?.id
     }
-    
-    private var scanResultContent: some View {
-        // Extract image data for search results
-        let _ = result.images?.first?.id
 
+    private var scanResultContent: some View {
         return HStack(spacing: 12) {
-            // Thumbnail image (left side) - using simple image system
+            // Thumbnail image (left side) - using native iOS image system
             // Long press to update image
-            SimpleImageView.thumbnail(
-                imageURL: imageURL,
+            NativeImageView.thumbnail(
+                imageId: imageId,
                 size: 50
             )
             .onLongPressGesture {

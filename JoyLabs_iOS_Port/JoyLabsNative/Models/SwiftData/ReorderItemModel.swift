@@ -87,7 +87,15 @@ final class ReorderItemModel {
             return item?.primaryImageUrl
         }
     }
-    
+
+    /// Current catalog image ID (for native iOS image loading)
+    var imageId: String? {
+        return MainActor.assumeIsolated {
+            let item = CatalogLookupService.shared.getItem(id: catalogItemId)
+            return item?.primaryImageId
+        }
+    }
+
     /// Tax status from catalog
     var hasTax: Bool {
         return MainActor.assumeIsolated {

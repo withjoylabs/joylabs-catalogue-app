@@ -301,9 +301,9 @@ struct CatalogItemRow: View {
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 12) {
-                // Item image using SimpleImageView
-                SimpleImageView.thumbnail(
-                    imageURL: item.images?.first?.imageData?.url,
+                // Item image using native iOS image system
+                NativeImageView.thumbnail(
+                    imageId: item.images?.first?.id,
                     size: 50
                 )
                 .frame(width: 60, height: 60)

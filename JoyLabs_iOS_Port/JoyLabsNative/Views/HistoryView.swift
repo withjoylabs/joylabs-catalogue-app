@@ -93,9 +93,9 @@ struct HistoryListView: View {
 struct HistoryItemCard: View {
     let item: ScanHistoryItem
     let index: Int
-    @State private var itemImageUrl: String?
+    @State private var itemImageId: String?
     @State private var variationName: String?
-    
+
     var body: some View {
         HStack(spacing: 12) {
             // Index number
@@ -103,10 +103,10 @@ struct HistoryItemCard: View {
                 .font(.system(size: 14, weight: .medium))
                 .foregroundColor(Color.secondary)
                 .frame(width: 20, alignment: .center)
-            
-            // Item thumbnail using SimpleImageView
-            SimpleImageView.thumbnail(
-                imageURL: itemImageUrl,
+
+            // Item thumbnail using native iOS image system
+            NativeImageView.thumbnail(
+                imageId: itemImageId,
                 size: 50
             )
             
@@ -237,9 +237,9 @@ struct HistoryItemCard: View {
             let catalogLookupService = CatalogLookupService.shared
             if let catalogItem = catalogLookupService.getItem(id: item.itemId) {
                 let variation = catalogLookupService.getVariationName(for: item.itemId)
-                
+
                 await MainActor.run {
-                    itemImageUrl = catalogItem.primaryImageUrl
+                    itemImageId = catalogItem.primaryImageId
                     variationName = variation
                 }
             }

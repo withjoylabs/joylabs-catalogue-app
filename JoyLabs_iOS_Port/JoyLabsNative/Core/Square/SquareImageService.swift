@@ -106,7 +106,7 @@ class SquareImageService: ObservableObject {
     ) async throws -> String {
         logger.info("Caching image with mapping (same as sync process): \(squareImageId)")
 
-        // SimpleImageView uses AsyncImage with native URLCache - return AWS URL directly
+        // NativeImageView uses AsyncImage with native URLCache - return AWS URL directly
         let cacheUrl: String? = awsUrl
 
         guard let cacheUrl = cacheUrl else {

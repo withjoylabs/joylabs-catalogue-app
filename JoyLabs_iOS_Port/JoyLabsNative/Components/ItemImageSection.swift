@@ -9,17 +9,12 @@ struct ItemImageSection: View {
 
     private let logger = Logger(subsystem: "com.joylabs.native", category: "ItemImageSection")
 
-    // Computed property for primary image URL (first in imageIds array)
-    private var primaryImageURL: String? {
+    // Computed property for primary image ID (first in imageIds array)
+    private var primaryImageId: String? {
         let imageIds = viewModel.staticData.imageIds
 
         // If imageIds array has images, use first one
-        if !imageIds.isEmpty {
-            return imageIds.first.flatMap { viewModel.getImageURL(for: $0) }
-        }
-
-        // Fallback to legacy imageURL if imageIds is empty
-        return viewModel.imageURL
+        return imageIds.first
     }
 
     var body: some View {
@@ -27,14 +22,14 @@ struct ItemImageSection: View {
             HStack {
                 Spacer()
 
-                // Image Display/Placeholder using unified image system
+                // Image Display/Placeholder using native iOS image system
                 Button(action: {
                     showingImagePicker = true
                 }) {
-                    if let imageURL = primaryImageURL, !imageURL.isEmpty {
-                        // Use simple image system
-                        SimpleImageView.large(
-                            imageURL: imageURL,
+                    if let imageId = primaryImageId, !imageId.isEmpty {
+                        // Use native iOS image system
+                        NativeImageView.large(
+                            imageId: imageId,
                             size: 200
                         )
                         .clipShape(RoundedRectangle(cornerRadius: 12))

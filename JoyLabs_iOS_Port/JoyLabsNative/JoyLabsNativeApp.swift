@@ -105,7 +105,7 @@ struct JoyLabsNativeApp: App {
         )
         logger.info("[App] Phase 1: URLCache configured with 250MB memory, 4GB disk at: \(imageCacheURL.path)")
         
-        // SimpleImageView uses native URLCache - no session cache clearing needed
+        // NativeImageView uses AsyncImage with native URLCache - no session cache clearing needed
         
         // Initialize field configuration manager synchronously
         let _ = FieldConfigurationManager.shared

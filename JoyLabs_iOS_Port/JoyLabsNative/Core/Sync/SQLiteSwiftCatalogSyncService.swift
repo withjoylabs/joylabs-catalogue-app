@@ -19,7 +19,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
 
     private let squareAPIService: SquareAPIService
     private var databaseManager: SQLiteSwiftCatalogManager
-    // SimpleImageView uses native URLCache - no custom cache service needed
+    // NativeImageView uses AsyncImage with native URLCache - no custom cache service needed
     private let logger = Logger(subsystem: "com.joylabs.native", category: "SQLiteSwiftCatalogSync")
 
     // Configuration: Skip orphaned images to reduce overhead
@@ -46,7 +46,7 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
         // Use the shared database manager that's already connected in Phase 1
         self.databaseManager = SquareAPIServiceFactory.createDatabaseManager()
 
-        // SimpleImageView uses native URLCache - no custom cache initialization needed
+        // NativeImageView uses AsyncImage with native URLCache - no custom cache initialization needed
 
         // Database is already connected from Phase 1 - no need to reconnect
         logger.debug("[CatalogSync] Using shared database manager (already connected)")
@@ -462,9 +462,8 @@ class SQLiteSwiftCatalogSyncService: ObservableObject {
 
         logger.debug("[CatalogSync] Completed: \(processedItems) items, \(objects.count) objects")
 
-        // NOTE: Image URLs are now cached during insertImage() - no post-processing needed
-        let stats = ImageURLCache.shared.getStats()
-        logger.info("[CatalogSync] Image cache contains \(stats.count) URLs")
+        // NOTE: Image URLs are stored in SwiftData ImageModel - no caching layer needed
+        logger.info("[CatalogSync] Image data stored in SwiftData")
     }
 
     /// Get processing priority for object types (lower number = higher priority)

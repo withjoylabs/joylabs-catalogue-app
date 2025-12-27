@@ -68,7 +68,7 @@ class CatalogLookupService {
                 item.id == id && !item.isDeleted
             }
         )
-        // NOTE: No need to prefetch images - using ImageURLCache instead
+        // NOTE: Images accessed via SwiftData @Query for reactive updates
 
         guard let item = try? catalogContext.fetch(descriptor).first else {
             return nil
@@ -103,7 +103,7 @@ class CatalogLookupService {
                     missingIds.contains(item.id) && !item.isDeleted
                 }
             )
-            // NOTE: No need to prefetch images - using ImageURLCache instead
+            // NOTE: Images accessed via SwiftData @Query for reactive updates
 
             if let results = try? catalogContext.fetch(descriptor) {
                 fetchedItems = results
@@ -291,7 +291,7 @@ class CatalogLookupService {
                 item.id == id && !item.isDeleted
             }
         )
-        // NOTE: No need to prefetch images - using ImageURLCache instead
+        // NOTE: Images accessed via SwiftData @Query for reactive updates
 
         guard let item = try? catalogContext.fetch(descriptor).first else {
             return nil

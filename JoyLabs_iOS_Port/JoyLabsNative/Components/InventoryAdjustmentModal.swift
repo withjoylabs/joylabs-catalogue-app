@@ -169,9 +169,9 @@ struct InventoryAdjustmentModal: View {
         viewModel.availableLocations.first(where: { $0.id == locationId })
     }
 
-    // Get image URL from viewModel
-    private var imageURL: String? {
-        return viewModel.itemData.imageURL
+    // Get image ID from viewModel
+    private var imageId: String? {
+        return viewModel.itemData.imageId
     }
 
     // Calculate new total based on reason and input
@@ -283,7 +283,7 @@ struct InventoryAdjustmentModal: View {
             let imageSize = isIPad ? min(280, screenWidth * 0.7) : screenWidth - padding
 
             ZoomableImageView(
-                imageURL: imageURL,
+                imageId: imageId,
                 size: imageSize
             )
             .frame(width: imageSize, height: imageSize)

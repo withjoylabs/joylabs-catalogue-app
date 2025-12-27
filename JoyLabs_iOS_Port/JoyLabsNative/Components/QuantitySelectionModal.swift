@@ -111,7 +111,7 @@ struct EmbeddedQuantitySelectionModal: View {
 
             // Use zoomable image with pinch-to-zoom functionality
             ZoomableImageView(
-                imageURL: imageURL,
+                imageId: imageId,
                 size: imageSize
             )
             .frame(width: imageSize, height: imageSize)
@@ -176,8 +176,8 @@ struct EmbeddedQuantitySelectionModal: View {
         .padding(.horizontal, 16)
     }
 
-    private var imageURL: String? {
-        return item.images?.first?.imageData?.url
+    private var imageId: String? {
+        return item.images?.first?.id
     }
     
     private var quantitySection: some View {

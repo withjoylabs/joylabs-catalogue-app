@@ -68,27 +68,29 @@ struct BufferedImageThumbnail: View {
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            // Image preview from Data
-            if let uiImage = UIImage(data: image.imageData) {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: size, height: size)
-                    .clipped()
-                    .cornerRadius(8)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(isPrimary ? Color.blue : Color.gray.opacity(0.3), lineWidth: isPrimary ? 2 : 1)
-                    )
-            } else {
-                // Fallback placeholder
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.gray.opacity(0.2))
-                    .frame(width: size, height: size)
-                    .overlay(
-                        Image(systemName: "photo")
-                            .foregroundColor(.secondary)
-                    )
+            // Image preview from Data with error handling for corrupt data
+            Group {
+                if let uiImage = createUIImage() {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: size, height: size)
+                        .clipped()
+                        .cornerRadius(8)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(isPrimary ? Color.blue : Color.gray.opacity(0.3), lineWidth: isPrimary ? 2 : 1)
+                        )
+                } else {
+                    // Fallback placeholder for corrupt or invalid image data
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.gray.opacity(0.2))
+                        .frame(width: size, height: size)
+                        .overlay(
+                            Image(systemName: "photo")
+                                .foregroundColor(.secondary)
+                        )
+                }
             }
 
             // Primary badge
@@ -113,6 +115,27 @@ struct BufferedImageThumbnail: View {
             .offset(x: 8, y: -8)
         }
         .frame(width: size, height: size)
+    }
+
+    // Helper function to safely create UIImage with error logging
+    private func createUIImage() -> UIImage? {
+        guard image.imageData.count > 0 else {
+            print("[BufferedImageThumbnail] Error: Empty image data for buffered image")
+            return nil
+        }
+
+        guard let uiImage = UIImage(data: image.imageData) else {
+            print("[BufferedImageThumbnail] Error: Failed to decode image data (possibly corrupt JPEG/PNG)")
+            return nil
+        }
+
+        // Validate image has valid dimensions
+        guard uiImage.size.width > 0 && uiImage.size.height > 0 else {
+            print("[BufferedImageThumbnail] Error: Invalid image dimensions: \(uiImage.size)")
+            return nil
+        }
+
+        return uiImage
     }
 }
 

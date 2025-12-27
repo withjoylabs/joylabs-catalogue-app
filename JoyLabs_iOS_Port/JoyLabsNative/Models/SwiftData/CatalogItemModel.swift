@@ -66,7 +66,12 @@ final class CatalogItemModel {
 
         return imageModel.url
     }
-    
+
+    var primaryImageId: String? {
+        // Per Square API docs: first image in imageIds array is the primary/icon image
+        return imageIds?.first
+    }
+
     var lowestPrice: Double? {
         guard let variations = variations else { return nil }
         let prices = variations.compactMap { variation -> Double? in

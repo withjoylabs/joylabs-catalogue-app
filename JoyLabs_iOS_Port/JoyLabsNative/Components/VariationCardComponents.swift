@@ -974,8 +974,24 @@ private struct VariationThumbnailView: View {
     let viewModel: ItemDetailsViewModel
     let onTap: () -> Void
 
+    @Query private var images: [ImageModel]
+
+    init(imageId: String, isPrimary: Bool, size: CGFloat, viewModel: ItemDetailsViewModel, onTap: @escaping () -> Void) {
+        self.imageId = imageId
+        self.isPrimary = isPrimary
+        self.size = size
+        self.viewModel = viewModel
+        self.onTap = onTap
+
+        // Query for this specific image using native SwiftData
+        let predicate = #Predicate<ImageModel> { model in
+            model.id == imageId
+        }
+        _images = Query(filter: predicate)
+    }
+
     private var imageURL: String? {
-        viewModel.getImageURL(for: imageId)
+        images.first?.url
     }
 
     var body: some View {

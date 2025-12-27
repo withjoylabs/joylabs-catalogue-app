@@ -28,8 +28,8 @@ struct ReorderPhotoCard: View {
                 let imageSize = geometry.size.width
                 ZStack {
                     // Background image
-                    SimpleImageView(
-                        imageURL: item.imageUrl,
+                    NativeImageView(
+                        imageId: item.imageId,
                         size: imageSize,
                         contentMode: .fill
                     )

@@ -1643,21 +1643,6 @@ class ItemDetailsViewModel: ObservableObject {
 
     // MARK: - Image Helper Methods
 
-    /// Get image URL from SwiftData for a given image ID
-    func getImageURL(for imageId: String) -> String? {
-        let db = databaseManager.getContext()
-        let predicate = #Predicate<ImageModel> { model in
-            model.id == imageId
-        }
-        let descriptor = FetchDescriptor(predicate: predicate)
-
-        guard let image = try? db.fetch(descriptor).first else {
-            return nil
-        }
-
-        return image.url
-    }
-
     /// Refresh item data from Square API (used when CRUD operations fail to revert local state)
     func refreshFromSquare() async {
         guard let itemId = staticData.id, !itemId.isEmpty else {

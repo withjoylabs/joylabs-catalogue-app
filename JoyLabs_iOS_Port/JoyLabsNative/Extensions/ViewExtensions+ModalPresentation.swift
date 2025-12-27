@@ -56,10 +56,13 @@ extension View {
     func imagePickerModal() -> some View {
         // Full-height modal for comfortable photo browsing (like social media apps)
         // Provides space for header, preview, and full photo grid
+        // Fixed 400pt width matches the square large preview image size
         if UIDevice.current.userInterfaceIdiom == .pad {
+            let idealPreviewSize: CGFloat = 400  // Fixed size matching image preview
             if #available(iOS 18.0, *) {
                 return AnyView(
                     self
+                        .frame(width: idealPreviewSize)
                         .presentationDetents([.large])
                         .presentationBackground(.regularMaterial)
                         .presentationCornerRadius(12)
@@ -67,6 +70,7 @@ extension View {
             } else {
                 return AnyView(
                     self
+                        .frame(width: idealPreviewSize)
                         .presentationDetents([.large])
                         .presentationBackground(.regularMaterial)
                 )

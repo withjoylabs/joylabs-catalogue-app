@@ -3,19 +3,19 @@ import SwiftUI
 /// Zoom-only Image View - simple pinch-to-zoom with overflow capability
 /// No panning to avoid gesture conflicts with modal
 struct ZoomableImageView: View {
-    let imageURL: String?
+    let imageId: String?
     let size: CGFloat
-    
+
     @State private var scale: CGFloat = 1.0
     @State private var lastScale: CGFloat = 1.0
-    
+
     // Scale limits
     private let minScale: CGFloat = 1.0
     private let maxScale: CGFloat = 3.0
-    
+
     var body: some View {
-        SimpleImageView.large(
-            imageURL: imageURL,
+        NativeImageView.large(
+            imageId: imageId,
             size: size
         )
         .scaleEffect(scale)
@@ -44,7 +44,7 @@ struct ZoomableImageView: View {
 
 #Preview {
     ZoomableImageView(
-        imageURL: "https://example.com/sample-image.jpg",
+        imageId: nil, // Use nil for preview - real imageId required for actual use
         size: 200
     )
     .clipShape(RoundedRectangle(cornerRadius: 12))

@@ -25,6 +25,9 @@ struct UnifiedImagePickerModal: View {
     @State private var squareCropViewRef: SquareCropView?
     @StateObject private var scrollViewState = ScrollViewState() // Stable state for transform extraction
 
+    // Persistent image manager for photo library - prevents request cancellation
+    @State private var imageManager = PHCachingImageManager()
+
     @StateObject private var imageService = SimpleImageService.shared
     @StateObject private var imageSaveService = ImageSaveService.shared
     private let imageProcessor = ImageProcessor()
@@ -389,6 +392,9 @@ struct UnifiedImagePickerModal: View {
             isLoadingPhotos = false
             logger.info("[PhotoLibrary] Initial batch loaded: \(assets.count)/\(allAssets.count) photos, hasMore: \(hasMore)")
 
+            // Load thumbnails asynchronously
+            loadThumbnailsAsync(for: assets)
+
             // Auto-preview the first photo if available
             if let firstAsset = assets.first {
                 selectPhoto(firstAsset.asset)
@@ -413,6 +419,9 @@ struct UnifiedImagePickerModal: View {
                 hasMorePhotos = hasMore
                 isLoadingMorePhotos = false
                 logger.info("[PhotoLibrary] Pagination complete - loaded \(newAssets.count) more photos, total: \(photoAssets.count), hasMore: \(hasMore)")
+
+                // Load thumbnails asynchronously for new batch
+                loadThumbnailsAsync(for: newAssets)
             }
         }
     }
@@ -428,73 +437,78 @@ struct UnifiedImagePickerModal: View {
                 let endIndex = min(startIndex + batchSize, allAssets.count)
                 let hasMore = endIndex < allAssets.count
 
+                print("[PhotoLibrary] Total photos in library: \(allAssets.count)")
+                print("[PhotoLibrary] Loading batch from \(startIndex) to \(endIndex), hasMore: \(hasMore)")
+
                 guard startIndex < allAssets.count else {
                     continuation.resume(returning: ([], false))
                     return
                 }
 
-                let imageManager = PHImageManager.default()
-                let requestOptions = PHImageRequestOptions()
-                requestOptions.deliveryMode = .highQualityFormat // High quality thumbnails
-                requestOptions.resizeMode = .exact
-                requestOptions.isNetworkAccessAllowed = true
-                requestOptions.isSynchronous = false
-
-                let assetsToProcess = endIndex - startIndex
-                
-                let dispatchGroup = DispatchGroup()
+                // Return all assets immediately with nil thumbnails
                 var photoAssets: [PhotoAsset] = []
-                
-                // Calculate proper thumbnail size - smaller for memory efficiency
-                // Use a fixed thumbnail size that works well across devices
-                // Estimate a reasonable item width (will be properly sized in the view)
-                let estimatedItemWidth: CGFloat = 100
-                // Use 2x scale for retina quality thumbnails
-                let targetSize = CGSize(width: estimatedItemWidth * 2, height: estimatedItemWidth * 2)
-                
                 for i in startIndex..<endIndex {
                     let asset = allAssets.object(at: i)
-                    dispatchGroup.enter()
-                    
-                    imageManager.requestImage(
-                        for: asset,
-                        targetSize: targetSize,
-                        contentMode: .aspectFill,
-                        options: requestOptions
-                    ) { image, info in
-                        autoreleasepool {
-                            defer { dispatchGroup.leave() }
-                            
-                            // Comprehensive error checking
-                            if let info = info {
-                                if let error = info[PHImageErrorKey] as? Error {
-                                    print("[UnifiedImagePickerModal] Image request error: \(error.localizedDescription)")
-                                    return
-                                }
-                                
-                                if let cancelled = info[PHImageCancelledKey] as? Bool, cancelled {
-                                    print("[UnifiedImagePickerModal] Image request was cancelled")
-                                    return
-                                }
-                                
-                                if let degraded = info[PHImageResultIsDegradedKey] as? Bool, degraded {
-                                    return // Skip degraded images silently
-                                }
-                            }
-                            
-                            guard let image = image, image.size.width > 0, image.size.height > 0 else {
-                                return
-                            }
-                            
-                            let photoAsset = PhotoAsset(asset: asset, thumbnail: image)
-                            photoAssets.append(photoAsset)
-                        }
-                    }
+                    let photoAsset = PhotoAsset(asset: asset, thumbnail: nil)
+                    photoAssets.append(photoAsset)
                 }
-                
-                dispatchGroup.notify(queue: .main) {
-                    print("[UnifiedImagePickerModal] Successfully processed \(photoAssets.count) photo assets")
-                    continuation.resume(returning: (photoAssets, hasMore))
+
+                print("[PhotoLibrary] Returning \(photoAssets.count) assets immediately, thumbnails will load async")
+                continuation.resume(returning: (photoAssets, hasMore))
+            }
+        }
+    }
+
+    private func loadThumbnailsAsync(for photoAssets: [PhotoAsset]) {
+        let requestOptions = PHImageRequestOptions()
+        requestOptions.deliveryMode = .opportunistic  // Fast degraded first, then high-res
+        requestOptions.resizeMode = .fast
+        requestOptions.isNetworkAccessAllowed = true
+        requestOptions.isSynchronous = false
+
+        let estimatedItemWidth: CGFloat = 100
+        let targetSize = CGSize(width: estimatedItemWidth * 2, height: estimatedItemWidth * 2)
+
+        // Proactive caching for better scrolling performance
+        let assets = photoAssets.map { $0.asset }
+        imageManager.startCachingImages(
+            for: assets,
+            targetSize: targetSize,
+            contentMode: .aspectFill,
+            options: requestOptions
+        )
+
+        // Load individual thumbnails
+        for photoAsset in photoAssets {
+            imageManager.requestImage(
+                for: photoAsset.asset,
+                targetSize: targetSize,
+                contentMode: .aspectFill,
+                options: requestOptions
+            ) { image, info in
+                autoreleasepool {
+                    // Log any errors for debugging CMPhotoJFIFUtilities issues
+                    if let error = info?[PHImageErrorKey] as? Error {
+                        self.logger.error("[ImagePicker] Thumbnail load error: \(error.localizedDescription)")
+                        return
+                    }
+
+                    // Check for cancellation
+                    if let cancelled = info?[PHImageCancelledKey] as? Bool, cancelled {
+                        self.logger.debug("[ImagePicker] Thumbnail request cancelled for asset")
+                        return
+                    }
+
+                    guard let image = image else {
+                        self.logger.warning("[ImagePicker] No image returned for asset")
+                        return
+                    }
+
+                    // Accept BOTH degraded and final images
+                    // PHImageManager delivers in two passes: degraded (fast) then final (slower)
+                    DispatchQueue.main.async {
+                        photoAsset.thumbnail = image
+                    }
                 }
             }
         }
@@ -660,7 +674,7 @@ struct UnifiedImagePickerModal: View {
                     let result = ImageUploadResult(
                         squareImageId: "", // SimpleImageService doesn't return this
                         awsUrl: awsURL,
-                        localCacheUrl: awsURL, // SimpleImageView uses AWS URL directly
+                        localCacheUrl: awsURL, // NativeImageView uses AWS URL with AsyncImage
                         context: context
                     )
 
@@ -703,11 +717,16 @@ struct UnifiedImagePickerModal: View {
 
 // MARK: - Supporting Types and Components
 
-/// Photo Asset for grid display
-struct PhotoAsset: Identifiable {
+/// Photo Asset for grid display with async thumbnail loading
+class PhotoAsset: Identifiable, ObservableObject {
     let id = UUID()
     let asset: PHAsset
-    let thumbnail: UIImage // Non-optional since we load synchronously
+    @Published var thumbnail: UIImage? // Optional - loads asynchronously
+
+    init(asset: PHAsset, thumbnail: UIImage? = nil) {
+        self.asset = asset
+        self.thumbnail = thumbnail
+    }
 }
 
 /// Camera Button View for grid
@@ -734,9 +753,9 @@ struct CameraButtonView: View {
     }
 }
 
-/// Photo Thumbnail View for grid
+/// Photo Thumbnail View for grid with async loading support
 struct PhotoThumbnailView: View {
-    let photoAsset: PhotoAsset
+    @ObservedObject var photoAsset: PhotoAsset // ObservedObject to watch thumbnail updates
     let thumbnailSize: CGFloat
     let onTap: () -> Void
 
@@ -747,18 +766,25 @@ struct PhotoThumbnailView: View {
                 Rectangle()
                     .fill(Color(.systemGray6))
                     .frame(width: thumbnailSize, height: thumbnailSize)
-                
-                // Image
-                Image(uiImage: photoAsset.thumbnail)
-                    .resizable()
-                    .interpolation(.high) // Use high quality interpolation for rendering
-                    .scaledToFill() // Fill the entire square
-                    .frame(width: thumbnailSize, height: thumbnailSize)
-                    .clipped() // Crop to exact square
+
+                // Image or placeholder
+                if let thumbnail = photoAsset.thumbnail {
+                    Image(uiImage: thumbnail)
+                        .resizable()
+                        .interpolation(.high)
+                        .scaledToFill()
+                        .frame(width: thumbnailSize, height: thumbnailSize)
+                        .clipped()
+                } else {
+                    // Placeholder while thumbnail loads
+                    ProgressView()
+                        .scaleEffect(0.6)
+                        .tint(.gray)
+                }
             }
         }
         .buttonStyle(PlainButtonStyle())
-        .frame(width: thumbnailSize, height: thumbnailSize) // Enforce exact square dimensions
+        .frame(width: thumbnailSize, height: thumbnailSize)
     }
 }
 

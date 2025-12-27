@@ -12,9 +12,9 @@ struct ImageEnlargementView: View {
                     VStack(spacing: 20) {
                         // Enlarged image - takes up shortest dimension for iPad compatibility
                         let imageSize = min(geometry.size.width, geometry.size.height) * 0.8
-                        
-                        SimpleImageView.large(
-                            imageURL: item.imageUrl,
+
+                        NativeImageView.large(
+                            imageId: item.imageId,
                             size: imageSize
                         )
                         .frame(width: imageSize, height: imageSize)

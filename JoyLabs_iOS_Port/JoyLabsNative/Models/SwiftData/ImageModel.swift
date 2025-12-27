@@ -20,7 +20,7 @@ final class ImageModel {
     // Store complete image data as JSON for complex operations
     var dataJson: String?
 
-    // NOTE: No relationships needed - ImageURLCache provides imageId->URL lookups
+    // NOTE: URLs accessed via SwiftData @Query for reactive updates
 
     // Computed properties
     var hasValidUrl: Bool {
