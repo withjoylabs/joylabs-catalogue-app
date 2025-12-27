@@ -24,14 +24,11 @@ private func formatDisplayName(itemName: String?, variationName: String?) -> Str
 // MARK: - Search Sheet Management
 enum SearchSheet: Identifiable {
     case itemDetails(SearchResultItem)
-    case imagePicker(SearchResultItem)
-    
+
     var id: String {
         switch self {
         case .itemDetails(let item):
             return "itemDetails_\(item.id)"
-        case .imagePicker(let item):
-            return "imagePicker_\(item.id)"
         }
     }
 }
@@ -120,6 +117,7 @@ struct SwipeableScanResultCard: View {
     let onPrint: () -> Void
     let onItemUpdated: (() -> Void)?
     @State private var activeSheet: SearchSheet?
+    @State private var showingImagePicker = false
     @State private var offset: CGFloat = 0
     @State private var isDragging = false
     
@@ -279,7 +277,7 @@ struct SwipeableScanResultCard: View {
                 size: 50
             )
             .onLongPressGesture {
-                activeSheet = .imagePicker(result)
+                showingImagePicker = true
             }
 
             // Main content section
@@ -383,28 +381,29 @@ struct SwipeableScanResultCard: View {
                     onSave: { itemData in
                         // Dismiss the modal
                         activeSheet = nil
-                        
+
                         // Trigger search refresh to show updated item data
                         onItemUpdated?()
                     }
                 )
                 .fullScreenModal()
-            case .imagePicker(let item):
-                UnifiedImagePickerModal(
-                    context: .scanViewLongPress(
-                        itemId: item.id,
-                        imageId: item.images?.first?.id
-                    ),
-                    onDismiss: {
-                        activeSheet = nil
-                    },
-                    onImageUploaded: { uploadResult in
-                        // SimpleImageService handles all refresh notifications
-                        activeSheet = nil
-                    }
-                )
-                .imagePickerModal()
             }
+        }
+        .popover(isPresented: $showingImagePicker, arrowEdge: .bottom) {
+            UnifiedImagePickerModal(
+                context: .scanViewLongPress(
+                    itemId: result.id,
+                    imageId: result.images?.first?.id
+                ),
+                onDismiss: {
+                    showingImagePicker = false
+                },
+                onImageUploaded: { uploadResult in
+                    // SimpleImageService handles all refresh notifications
+                    showingImagePicker = false
+                }
+            )
+            .imagePickerPopover()
         }
     }
 

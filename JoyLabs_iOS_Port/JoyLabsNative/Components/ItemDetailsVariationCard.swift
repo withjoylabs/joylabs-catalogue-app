@@ -75,7 +75,7 @@ struct ItemDetailsVariationCard: View {
         }
         .background(Color.itemDetailsSectionBackground)
         .cornerRadius(ItemDetailsSpacing.sectionCornerRadius)
-        .sheet(isPresented: $showingImagePicker) {
+        .popover(isPresented: $showingImagePicker, arrowEdge: .bottom) {
             UnifiedImagePickerModal(
                 context: .variationDetails(variationId: variation.id ?? ""),
                 onDismiss: {
@@ -100,7 +100,7 @@ struct ItemDetailsVariationCard: View {
                     showingImagePicker = false
                 }
             )
-            .imagePickerModal()
+            .imagePickerPopover()
         }
     }
 

@@ -2,14 +2,11 @@ import SwiftUI
 import UIKit
 
 enum ReordersSheet: Identifiable {
-    case imagePicker(ReorderItem)
     case itemDetails(ReorderItem)
     case quantityModal(SearchResultItem)
-    
+
     var id: String {
         switch self {
-        case .imagePicker(let item):
-            return "imagePicker_\(item.itemId)"
         case .itemDetails(let item):
             return "itemDetails_\(item.itemId)"
         case .quantityModal(let item):
@@ -60,7 +57,9 @@ struct ReordersView: SwiftUI.View {
     // Remove focus monitor - using direct focus state instead
     
     @FocusState private var isScannerFieldFocused: Bool
-    
+    @State private var showingImagePicker = false
+    @State private var imagePickerItem: ReorderItem?
+
     // Binding for focus state to pass up to ContentView
     let onFocusStateChanged: ((Bool) -> Void)?
     
@@ -97,7 +96,10 @@ struct ReordersView: SwiftUI.View {
                     onImageTap: { item in
                         print("[ReordersView] Image tapped for item: \(item.name)")
                     },
-                    onImageLongPress: viewModel.showImagePicker,
+                    onImageLongPress: { item in
+                        imagePickerItem = item
+                        showingImagePicker = true
+                    },
                     onQuantityTap: viewModel.showQuantityModal,
                     onItemDetailsLongPress: viewModel.showItemDetails
                 )
@@ -144,25 +146,11 @@ struct ReordersView: SwiftUI.View {
                     await viewModel.handleExportSelection(format)
                 }
             )
-            .imagePickerModal()
+            .nestedComponentModal()
         }
         // Unified Sheet Modal
         .sheet(item: $viewModel.activeSheet) { sheet in
             switch sheet {
-            case .imagePicker(let item):
-                UnifiedImagePickerModal(
-                    context: .reordersViewLongPress(
-                        itemId: item.itemId,
-                        imageId: item.imageId
-                    ),
-                    onDismiss: {
-                        viewModel.dismissActiveSheet()
-                    },
-                    onImageUploaded: { result in
-                        viewModel.dismissActiveSheet()
-                    }
-                )
-                .imagePickerModal()
             case .itemDetails(let item):
                 ItemDetailsModal(
                     context: .editExisting(itemId: item.itemId),
@@ -195,6 +183,25 @@ struct ReordersView: SwiftUI.View {
                     )
                     .quantityModal()
                 }
+            }
+        }
+        .popover(isPresented: $showingImagePicker, arrowEdge: .bottom) {
+            if let item = imagePickerItem {
+                UnifiedImagePickerModal(
+                    context: .reordersViewLongPress(
+                        itemId: item.itemId,
+                        imageId: item.imageId
+                    ),
+                    onDismiss: {
+                        showingImagePicker = false
+                        imagePickerItem = nil
+                    },
+                    onImageUploaded: { result in
+                        showingImagePicker = false
+                        imagePickerItem = nil
+                    }
+                )
+                .imagePickerPopover()
             }
         }
     }

@@ -50,33 +50,17 @@ extension View {
         self.presentationDetents([.fraction(fraction), .medium])
     }
     
-    /// Pattern 4: Image Picker Modal
-    /// Usage: UnifiedImagePickerModal with full-height layout for comfortable photo browsing
+    /// Pattern 4: Image Picker Popover
+    /// Usage: UnifiedImagePickerModal with fixed 400pt width and proper top anchoring
     /// Applied to: All UnifiedImagePickerModal presentations (item and variation level)
-    func imagePickerModal() -> some View {
-        // Full-height modal for comfortable photo browsing (like social media apps)
-        // Provides space for header, preview, and full photo grid
-        // Fixed 400pt width matches the square large preview image size
+    func imagePickerPopover() -> some View {
+        // Popover naturally handles fixed width with top-anchored content
+        // Header stays visible, photo grid scrolls infinitely
         if UIDevice.current.userInterfaceIdiom == .pad {
-            let idealPreviewSize: CGFloat = 400  // Fixed size matching image preview
-            if #available(iOS 18.0, *) {
-                return AnyView(
-                    self
-                        .frame(width: idealPreviewSize)
-                        .presentationDetents([.large])
-                        .presentationBackground(.regularMaterial)
-                        .presentationCornerRadius(12)
-                )
-            } else {
-                return AnyView(
-                    self
-                        .frame(width: idealPreviewSize)
-                        .presentationDetents([.large])
-                        .presentationBackground(.regularMaterial)
-                )
-            }
+            return AnyView(self.frame(width: 400))
         } else {
-            return AnyView(self.presentationDetents([.large]))
+            // iPhone: full width sheet
+            return AnyView(self)
         }
     }
     

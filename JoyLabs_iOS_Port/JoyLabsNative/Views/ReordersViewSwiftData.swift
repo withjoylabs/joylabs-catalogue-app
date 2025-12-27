@@ -5,13 +5,11 @@ import UIKit
 // MARK: - Supporting Types for ReordersViewSwiftData
 
 enum ReordersSheet: Identifiable {
-    case imagePicker(ReorderItem)
     case itemDetails(ReorderItem)
     case quantityModal(SearchResultItem)
-    
+
     var id: String {
         switch self {
-        case .imagePicker(let item): return "imagePicker-\(item.id)"
         case .itemDetails(let item): return "itemDetails-\(item.id)"
         case .quantityModal(let item): return "quantityModal-\(item.id)"
         }
@@ -61,6 +59,8 @@ struct ReordersViewSwiftData: SwiftUI.View {
     
     // Professional sheet management (restored original ReordersSheet enum)
     @State private var activeSheet: ReordersSheet?
+    @State private var showingImagePicker = false
+    @State private var imagePickerItem: ReorderItem?
     @State private var showingExportModal = false
     @State private var showingClearAlert = false
     @State private var showingMarkAllReceivedAlert = false
@@ -297,20 +297,6 @@ struct ReordersViewSwiftData: SwiftUI.View {
         // RESTORED: Professional unified sheet modal with original ReordersSheet enum
         .sheet(item: $activeSheet) { (sheet: ReordersSheet) in
             switch sheet {
-            case .imagePicker(let item):
-                UnifiedImagePickerModal(
-                    context: .reordersViewLongPress(
-                        itemId: item.itemId,
-                        imageId: item.imageId
-                    ),
-                    onDismiss: {
-                        dismissActiveSheet()
-                    },
-                    onImageUploaded: { result in
-                        dismissActiveSheet()
-                    }
-                )
-                .imagePickerModal()
             case .itemDetails(let item):
                 ItemDetailsModal(
                     context: .editExisting(itemId: item.itemId),
@@ -343,6 +329,25 @@ struct ReordersViewSwiftData: SwiftUI.View {
                     }
                 )
                 .quantityModal()
+            }
+        }
+        .popover(isPresented: $showingImagePicker, arrowEdge: .bottom) {
+            if let item = imagePickerItem {
+                UnifiedImagePickerModal(
+                    context: .reordersViewLongPress(
+                        itemId: item.itemId,
+                        imageId: item.imageId
+                    ),
+                    onDismiss: {
+                        showingImagePicker = false
+                        imagePickerItem = nil
+                    },
+                    onImageUploaded: { result in
+                        showingImagePicker = false
+                        imagePickerItem = nil
+                    }
+                )
+                .imagePickerPopover()
             }
         }
     }
@@ -456,7 +461,8 @@ struct ReordersViewSwiftData: SwiftUI.View {
     }
 
     private func showImagePicker(_ item: ReorderItem) {
-        activeSheet = .imagePicker(item)
+        imagePickerItem = item
+        showingImagePicker = true
     }
     
     private func showItemDetails(_ item: ReorderItem) {
