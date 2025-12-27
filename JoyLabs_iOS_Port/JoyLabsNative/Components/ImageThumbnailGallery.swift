@@ -134,8 +134,8 @@ private struct ThumbnailView: View {
         Button(action: onTap) {
             ZStack(alignment: .topTrailing) {
                 // Image
-                if let url = imageURL {
-                    AsyncImage(url: URL(string: url)) { phase in
+                if let url = imageURL, !url.isEmpty, let validURL = URL(string: url) {
+                    AsyncImage(url: validURL) { phase in
                         switch phase {
                         case .empty:
                             ProgressView()
@@ -252,8 +252,8 @@ struct ImagePreviewModal: View {
             ZStack {
                 Color.black.ignoresSafeArea()
 
-                if let url = imageURL {
-                    AsyncImage(url: URL(string: url)) { phase in
+                if let url = imageURL, !url.isEmpty, let validURL = URL(string: url) {
+                    AsyncImage(url: validURL) { phase in
                         switch phase {
                         case .empty:
                             ProgressView()
