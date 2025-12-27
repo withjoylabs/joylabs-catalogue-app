@@ -389,7 +389,7 @@ struct SwipeableScanResultCard: View {
                 .fullScreenModal()
             }
         }
-        .popover(isPresented: $showingImagePicker, arrowEdge: .bottom) {
+        .fullScreenCover(isPresented: $showingImagePicker) {
             UnifiedImagePickerModal(
                 context: .scanViewLongPress(
                     itemId: result.id,
@@ -403,7 +403,7 @@ struct SwipeableScanResultCard: View {
                     showingImagePicker = false
                 }
             )
-            .imagePickerPopover()
+            .imagePickerFullScreen()
         }
     }
 

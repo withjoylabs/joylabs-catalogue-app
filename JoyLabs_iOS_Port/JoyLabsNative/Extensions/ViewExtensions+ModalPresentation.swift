@@ -50,18 +50,13 @@ extension View {
         self.presentationDetents([.fraction(fraction), .medium])
     }
     
-    /// Pattern 4: Image Picker Popover
-    /// Usage: UnifiedImagePickerModal with fixed 400pt width and proper top anchoring
+    /// Pattern 4: Image Picker Full Screen
+    /// Usage: UnifiedImagePickerModal with full screen presentation (industry standard)
     /// Applied to: All UnifiedImagePickerModal presentations (item and variation level)
-    func imagePickerPopover() -> some View {
-        // Popover naturally handles fixed width with top-anchored content
-        // Header stays visible, photo grid scrolls infinitely
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            return AnyView(self.frame(width: 400))
-        } else {
-            // iPhone: full width sheet
-            return AnyView(self)
-        }
+    func imagePickerFullScreen() -> some View {
+        // Full screen presentation like Instagram, Photos app, WhatsApp
+        // Prevents content clipping and provides comfortable photo browsing experience
+        return AnyView(self)
     }
     
     /// Pattern 5: iPad Force Full Screen

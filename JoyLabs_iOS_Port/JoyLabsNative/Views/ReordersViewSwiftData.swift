@@ -331,7 +331,7 @@ struct ReordersViewSwiftData: SwiftUI.View {
                 .quantityModal()
             }
         }
-        .popover(isPresented: $showingImagePicker, arrowEdge: .bottom) {
+        .fullScreenCover(isPresented: $showingImagePicker) {
             if let item = imagePickerItem {
                 UnifiedImagePickerModal(
                     context: .reordersViewLongPress(
@@ -347,7 +347,7 @@ struct ReordersViewSwiftData: SwiftUI.View {
                         imagePickerItem = nil
                     }
                 )
-                .imagePickerPopover()
+                .imagePickerFullScreen()
             }
         }
     }
