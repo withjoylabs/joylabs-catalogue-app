@@ -54,13 +54,21 @@ extension View {
     /// Usage: UnifiedImagePickerModal with iOS 26 form sheet presentation
     /// Applied to: All UnifiedImagePickerModal presentations (item and variation level)
     func imagePickerFormSheet() -> some View {
-        // iOS 26 / iPadOS 18+ form sheet presentation
-        // Compact, centered modal like Apple's Journal app photo picker
-        // Liquid Glass design with proper header visibility and scrolling
-        if #available(iOS 18.0, *) {
-            return AnyView(self.presentationSizing(.form))
+        // iOS 26 / iPadOS 18+ form sheet presentation with custom width
+        // Wider than default .form to accommodate sidebar + 5-column grid
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            if #available(iOS 18.0, *) {
+                return AnyView(
+                    self
+                        .frame(width: 900, height: 700)  // Custom size for sidebar + grid
+                        .presentationSizing(.fitted)
+                )
+            } else {
+                // iOS 17 fallback
+                return AnyView(self.frame(width: 900, height: 700))
+            }
         } else {
-            // iOS 17 fallback - use default sheet behavior
+            // iPhone: full screen
             return AnyView(self)
         }
     }

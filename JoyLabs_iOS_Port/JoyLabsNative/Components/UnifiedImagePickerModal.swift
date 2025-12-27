@@ -38,6 +38,42 @@ struct UnifiedImagePickerModal: View {
     @State private var selectedAlbum: String = "Photos"
     @State private var searchText: String = ""
 
+    // Computed fetch options based on selected album
+    private var photoFetchOptions: PHFetchOptions {
+        let options = PHFetchOptions()
+        options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+
+        switch selectedAlbum {
+        case "Favorites":
+            options.predicate = NSPredicate(format: "isFavorite == YES")
+        case "Videos":
+            // Will fetch videos separately
+            break
+        case "Screenshots":
+            options.predicate = NSPredicate(format: "mediaSubtypes == %d", PHAssetMediaSubtype.photoScreenshot.rawValue)
+        case "Recently Saved":
+            // Photos from last 30 days
+            let thirtyDaysAgo = Calendar.current.date(byAdding: .day, value: -30, to: Date())!
+            options.predicate = NSPredicate(format: "creationDate >= %@", thirtyDaysAgo as NSDate)
+        default:
+            // "Photos" - no additional filtering
+            break
+        }
+
+        // Apply search filtering
+        if !searchText.isEmpty {
+            // Combine with existing predicate if any
+            let searchPredicate = NSPredicate(format: "mediaType == %d", PHAssetMediaType.image.rawValue)
+            if let existingPredicate = options.predicate {
+                options.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [existingPredicate, searchPredicate])
+            } else {
+                options.predicate = searchPredicate
+            }
+        }
+
+        return options
+    }
+
     // Responsive columns: 5 columns (Journal app style)
     private var columns: [GridItem] {
         let columnCount = 5
@@ -102,6 +138,22 @@ struct UnifiedImagePickerModal: View {
         .presentationDragIndicator(.visible)
         .onAppear {
             requestPhotoLibraryAccess()
+        }
+        .onChange(of: selectedAlbum) { _, _ in
+            // Reload photos when album selection changes
+            Task {
+                await loadPhotoAssets()
+            }
+        }
+        .onChange(of: searchText) { _, newValue in
+            // Reload photos when search text changes (debounced)
+            if newValue.isEmpty || newValue.count >= 2 {
+                Task {
+                    // Small delay to avoid too many reloads while typing
+                    try? await Task.sleep(for: .milliseconds(300))
+                    await loadPhotoAssets()
+                }
+            }
         }
         .alert("Upload Error", isPresented: $showingErrorAlert) {
             Button("OK") { }
@@ -453,18 +505,25 @@ struct UnifiedImagePickerModal: View {
     }
 
     private func loadPhotoAssets() async {
-        logger.info("[PhotoLibrary] Starting to load initial photo assets...")
+        logger.info("[PhotoLibrary] Starting to load photo assets for album: \(await MainActor.run { selectedAlbum })")
         await MainActor.run {
             isLoadingPhotos = true
             photoAssets = [] // Reset array
             hasMorePhotos = true
         }
 
-        // Get total count for diagnostics
-        let fetchOptions = PHFetchOptions()
-        fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-        let allAssets = PHAsset.fetchAssets(with: .image, options: fetchOptions)
-        logger.info("[PhotoLibrary] Total photos in library: \(allAssets.count)")
+        // Get fetch options based on selected album
+        let fetchOptions = await MainActor.run { photoFetchOptions }
+
+        // Handle Videos separately (they need .video mediaType)
+        let allAssets: PHFetchResult<PHAsset>
+        let selectedAlbumValue = await MainActor.run { selectedAlbum }
+        if selectedAlbumValue == "Videos" {
+            allAssets = PHAsset.fetchAssets(with: .video, options: fetchOptions)
+        } else {
+            allAssets = PHAsset.fetchAssets(with: .image, options: fetchOptions)
+        }
+        logger.info("[PhotoLibrary] Total \(selectedAlbumValue) in library: \(allAssets.count)")
 
         let (assets, hasMore) = await loadPhotoBatch(startIndex: 0, batchSize: 40)
         await MainActor.run {
@@ -508,12 +567,19 @@ struct UnifiedImagePickerModal: View {
     }
     
     private func loadPhotoBatch(startIndex: Int, batchSize: Int) async -> ([PhotoAsset], Bool) {
+        // Capture values from MainActor for use in continuation
+        let fetchOptions = await MainActor.run { photoFetchOptions }
+        let selectedAlbumValue = await MainActor.run { selectedAlbum }
+
         return await withCheckedContinuation { continuation in
             autoreleasepool {
-                let fetchOptions = PHFetchOptions()
-                fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-
-                let allAssets = PHAsset.fetchAssets(with: .image, options: fetchOptions)
+                // Handle Videos separately (they need .video mediaType)
+                let allAssets: PHFetchResult<PHAsset>
+                if selectedAlbumValue == "Videos" {
+                    allAssets = PHAsset.fetchAssets(with: .video, options: fetchOptions)
+                } else {
+                    allAssets = PHAsset.fetchAssets(with: .image, options: fetchOptions)
+                }
 
                 let endIndex = min(startIndex + batchSize, allAssets.count)
                 let hasMore = endIndex < allAssets.count
