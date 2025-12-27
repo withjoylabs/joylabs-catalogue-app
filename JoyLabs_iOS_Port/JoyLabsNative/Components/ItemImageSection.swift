@@ -53,6 +53,7 @@ struct ItemImageSection: View {
 
             // Image Thumbnail Gallery (below main image)
             if let itemId = viewModel.staticData.id, !itemId.isEmpty {
+                // EXISTING ITEM: Full thumbnail gallery with reorder/delete
                 ImageThumbnailGallery(
                     imageIds: Binding(
                         get: { viewModel.staticData.imageIds },
@@ -68,6 +69,20 @@ struct ItemImageSection: View {
                         showingImagePicker = true
                     }
                 )
+            } else {
+                // NEW ITEM: Simple image buffer view (images upload after item creation)
+                NewItemImageBufferView(
+                    pendingImages: Binding(
+                        get: { viewModel.staticData.pendingImages },
+                        set: { viewModel.staticData.pendingImages = $0 }
+                    ),
+                    onUpload: {
+                        showingImagePicker = true
+                    },
+                    onRemove: { imageId in
+                        viewModel.staticData.pendingImages.removeAll { $0.id.uuidString == imageId }
+                    }
+                )
             }
         }
         .padding()
@@ -80,18 +95,33 @@ struct ItemImageSection: View {
                     showingImagePicker = false
                 },
                 onImageUploaded: { result in
-                    logger.info("[ItemModal] Image upload completed")
-                    logger.info("[ItemModal] New image ID: \(result.squareImageId)")
+                    if viewModel.staticData.id == nil || viewModel.staticData.id!.isEmpty {
+                        // NEW ITEM: Buffer image for upload after item creation
+                        if let imageData = result.pendingImageData,
+                           let fileName = result.pendingFileName {
+                            let pendingImage = PendingImageData(
+                                imageData: imageData,
+                                fileName: fileName,
+                                isPrimary: viewModel.staticData.pendingImages.isEmpty  // First = primary
+                            )
+                            viewModel.staticData.pendingImages.append(pendingImage)
+                            logger.info("[ItemModal] Buffered image for new item (total: \(viewModel.staticData.pendingImages.count))")
+                        }
+                    } else {
+                        // EXISTING ITEM: Image already uploaded
+                        logger.info("[ItemModal] Image upload completed")
+                        logger.info("[ItemModal] New image ID: \(result.squareImageId)")
 
-                    // Add to imageIds array (append to end, user can reorder to make primary)
-                    viewModel.staticData.imageIds.append(result.squareImageId)
+                        // Add to imageIds array (append to end, user can reorder to make primary)
+                        viewModel.staticData.imageIds.append(result.squareImageId)
 
-                    // Update legacy fields for compatibility
-                    viewModel.imageURL = result.awsUrl
-                    viewModel.imageId = result.squareImageId
+                        // Update legacy fields for compatibility
+                        viewModel.imageURL = result.awsUrl
+                        viewModel.imageId = result.squareImageId
+
+                        // SimpleImageService handles all notifications automatically
+                    }
                     showingImagePicker = false
-
-                    // SimpleImageService handles all notifications automatically
                 }
             )
             .imagePickerModal()

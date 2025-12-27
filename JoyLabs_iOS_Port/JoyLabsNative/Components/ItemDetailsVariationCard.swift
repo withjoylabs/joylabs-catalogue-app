@@ -37,11 +37,12 @@ struct ItemDetailsVariationCard: View {
                 viewModel: viewModel
             )
 
-            // Image gallery (only show for existing variations with IDs)
-            if let variationId = variation.id, !variationId.isEmpty {
-                Divider()
-                    .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
+            // Image gallery
+            Divider()
+                .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
 
+            if let variationId = variation.id, !variationId.isEmpty {
+                // EXISTING VARIATION: Full image gallery with reorder/delete
                 VariationImageGallery(
                     variation: $variation,
                     onReorder: { newOrder in
@@ -55,25 +56,51 @@ struct ItemDetailsVariationCard: View {
                     },
                     viewModel: viewModel
                 )
+            } else {
+                // NEW VARIATION: Simple image buffer view (images upload after item creation)
+                NewItemImageBufferView(
+                    pendingImages: Binding(
+                        get: { variation.pendingImages },
+                        set: { variation.pendingImages = $0 }
+                    ),
+                    onUpload: {
+                        showingImagePicker = true
+                    },
+                    onRemove: { imageId in
+                        variation.pendingImages.removeAll { $0.id.uuidString == imageId }
+                    }
+                )
+                .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
             }
         }
         .background(Color.itemDetailsSectionBackground)
         .cornerRadius(ItemDetailsSpacing.sectionCornerRadius)
         .sheet(isPresented: $showingImagePicker) {
-            if let variationId = variation.id {
-                UnifiedImagePickerModal(
-                    context: .variationDetails(variationId: variationId),
-                    onDismiss: {
-                        showingImagePicker = false
-                    },
-                    onImageUploaded: { result in
-                        // Add to variation's imageIds array
+            UnifiedImagePickerModal(
+                context: .variationDetails(variationId: variation.id ?? ""),
+                onDismiss: {
+                    showingImagePicker = false
+                },
+                onImageUploaded: { result in
+                    if variation.id == nil || variation.id!.isEmpty {
+                        // NEW VARIATION: Buffer image for upload after item/variation creation
+                        if let imageData = result.pendingImageData,
+                           let fileName = result.pendingFileName {
+                            let pendingImage = PendingImageData(
+                                imageData: imageData,
+                                fileName: fileName,
+                                isPrimary: variation.pendingImages.isEmpty  // First = primary
+                            )
+                            variation.pendingImages.append(pendingImage)
+                        }
+                    } else {
+                        // EXISTING VARIATION: Image already uploaded
                         variation.imageIds.append(result.squareImageId)
-                        showingImagePicker = false
                     }
-                )
-                .nestedComponentModal()
-            }
+                    showingImagePicker = false
+                }
+            )
+            .nestedComponentModal()
         }
     }
 

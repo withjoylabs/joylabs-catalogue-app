@@ -89,6 +89,68 @@ class SimpleImageService: ObservableObject {
         return awsURL
     }
     
+    /// Upload image and return both ID and URL (for new item buffer uploads)
+    func uploadImageWithId(
+        imageData: Data,
+        fileName: String,
+        itemId: String
+    ) async throws -> (imageId: String, awsURL: String) {
+        logger.info("🚀 Uploading image for item: \(itemId)")
+
+        // Validate image data
+        guard imageData.count > 0 else {
+            throw SimpleImageError.invalidImageData
+        }
+
+        // Generate idempotency key
+        let idempotencyKey = UUID().uuidString
+
+        // Detect MIME type from filename or data
+        let mimeType = detectMimeType(from: fileName, data: imageData)
+
+        // Upload to Square
+        let response = try await httpClient.uploadImageToSquare(
+            imageData: imageData,
+            fileName: fileName,
+            itemId: itemId,
+            idempotencyKey: idempotencyKey,
+            mimeType: mimeType
+        )
+
+        guard let imageObject = response.image,
+              let awsURL = imageObject.imageData?.url else {
+            throw SimpleImageError.uploadFailed
+        }
+
+        let imageId = imageObject.id
+
+        logger.info("✅ Image uploaded successfully: \(imageId)")
+
+        // Create SwiftData image model and link to item
+        try await createSwiftDataImageModel(
+            imageId: imageId,
+            awsURL: awsURL,
+            itemId: itemId
+        )
+
+        // Clear URLCache for this item to force refresh
+        clearCacheForItem(itemId: itemId)
+
+        // Send notification for UI refresh
+        NotificationCenter.default.post(
+            name: .imageUpdated,
+            object: nil,
+            userInfo: [
+                "itemId": itemId,
+                "imageId": imageId,
+                "imageURL": awsURL,
+                "action": "upload"
+            ]
+        )
+
+        return (imageId, awsURL)
+    }
+
     /// Get primary image URL for an item using SwiftData relationships (Pure SwiftData approach)
     func getPrimaryImageURL(for itemId: String) async -> String? {
         // Use CatalogLookupService for Single Source of Truth
@@ -233,6 +295,10 @@ struct ImageUploadResult {
     let awsUrl: String
     let localCacheUrl: String
     let context: ImageUploadContext
+
+    // For new items - buffer data before upload
+    var pendingImageData: Data?
+    var pendingFileName: String?
 }
 
 // Compatibility aliases for migration

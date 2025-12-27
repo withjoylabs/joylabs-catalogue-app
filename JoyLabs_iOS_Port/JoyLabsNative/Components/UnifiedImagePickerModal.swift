@@ -620,21 +620,25 @@ struct UnifiedImagePickerModal: View {
                 if itemId.isEmpty {
                     // NEW ITEM: No itemId yet - return processed image data for item creation
                     logger.info("[ImagePicker] New item detected - preparing processed image data for inclusion in item creation")
-                    
-                    // Convert processed image data to base64 for temporary storage
+
+                    // Convert processed image data to base64 for temporary storage/preview
                     let base64Image = processedResult.data.base64EncodedString()
                     let dataURL = "data:\(processedResult.format.mimeType);base64,\(base64Image)"
-                    
+
+                    let fileName = "joylabs_pending_\(UUID().uuidString).\(processedResult.format.fileExtension)"
+
                     let result = ImageUploadResult(
-                        squareImageId: "", // Will be set after item creation
-                        awsUrl: dataURL, // Base64 data URL for temporary storage
+                        squareImageId: UUID().uuidString, // Temporary ID for tracking
+                        awsUrl: dataURL, // Base64 data URL for temporary preview
                         localCacheUrl: dataURL,
-                        context: context
+                        context: context,
+                        pendingImageData: processedResult.data, // Actual data for later upload
+                        pendingFileName: fileName // Filename for later upload
                     )
-                    
+
                     await MainActor.run {
                         isUploading = false
-                        logger.info("[ImagePicker] Processed image data prepared for new item creation")
+                        logger.info("[ImagePicker] Processed image data prepared for new item creation (size: \(processedResult.data.count) bytes)")
                         onImageUploaded(result)
                     }
                 } else {

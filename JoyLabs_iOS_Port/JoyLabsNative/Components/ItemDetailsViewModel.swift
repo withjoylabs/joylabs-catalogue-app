@@ -147,6 +147,15 @@ enum InventoryAlertType: String, CaseIterable, Codable {
     }
 }
 
+// MARK: - Pending Image Data
+/// Holds image data before item/variation ID is available (similar to pendingInventoryQty)
+struct PendingImageData: Identifiable {
+    let id = UUID()
+    let imageData: Data
+    let fileName: String
+    var isPrimary: Bool = false  // First image is primary
+}
+
 // MARK: - Item Variation Data
 struct ItemDetailsVariationData: Identifiable {
     var id: String?
@@ -172,6 +181,9 @@ struct ItemDetailsVariationData: Identifiable {
     // Pending inventory quantity for new items (before variation ID is assigned)
     // Dictionary: locationId -> quantity
     var pendingInventoryQty: [String: Int] = [:]
+
+    // Pending images for new items (before variation ID is assigned)
+    var pendingImages: [PendingImageData] = []
 
     // Removed complex isEqual method - using simple flag-based change tracking instead
 }
@@ -248,7 +260,10 @@ struct ItemDetailsStaticData {
     
     // Images
     var imageIds: [String] = []
-    
+
+    // Pending images for new items (before item ID is assigned)
+    var pendingImages: [PendingImageData] = []
+
     // Advanced features
     var skipModifierScreen: Bool = false
     var availableOnline: Bool = true
@@ -661,6 +676,9 @@ class ItemDetailsViewModel: ObservableObject {
 
                 // Set initial inventory from pendingInventoryQty if user entered any
                 try await setInitialInventoryForNewItem(savedObject: savedObject, originalVariations: currentItemData.variations)
+
+                // Upload pending images for new item (after item ID is assigned)
+                try await uploadPendingImagesForNewItem(savedObject: savedObject, originalItemData: currentItemData)
             } else {
                 // UPDATE: Existing item
                 print("Updating existing item via Square API: \(staticData.id!)")
@@ -1532,6 +1550,95 @@ class ItemDetailsViewModel: ObservableObject {
                 }
             }
         }
+    }
+
+    /// Upload pending images for newly created item
+    /// Called after item creation to use newly assigned item/variation IDs
+    /// Similar to setInitialInventoryForNewItem pattern
+    private func uploadPendingImagesForNewItem(savedObject: CatalogObject, originalItemData: ItemDetailsData) async throws {
+        let itemId = savedObject.id
+        logger.info("[ImageUpload] Uploading pending images for new item: \(itemId)")
+
+        let imageService = SimpleImageService.shared
+
+        // 1. Upload item-level pending images
+        if !self.staticData.pendingImages.isEmpty {
+            logger.info("[ImageUpload] Uploading \(self.staticData.pendingImages.count) item-level images")
+            var uploadedImageIds: [String] = []
+
+            for (index, pendingImage) in self.staticData.pendingImages.enumerated() {
+                do {
+                    let (imageId, _) = try await imageService.uploadImageWithId(
+                        imageData: pendingImage.imageData,
+                        fileName: pendingImage.fileName,
+                        itemId: itemId
+                    )
+
+                    uploadedImageIds.append(imageId)
+                    logger.info("[ImageUpload] ✅ Uploaded item image \(index + 1)/\(self.staticData.pendingImages.count): \(imageId)")
+                } catch {
+                    logger.error("[ImageUpload] ⚠️ Failed to upload item image \(index + 1): \(error)")
+                    // Continue with other images even if one fails
+                }
+            }
+
+            // Update item's imageIds via Square API to establish proper relationships
+            if !uploadedImageIds.isEmpty {
+                logger.info("[ImageUpload] Attaching \(uploadedImageIds.count) images to item")
+                // Images are already attached during upload via Square API
+                // Update local state
+                await MainActor.run {
+                    self.staticData.imageIds = uploadedImageIds
+                    self.staticData.pendingImages.removeAll()
+                }
+            }
+        }
+
+        // 2. Upload variation-level pending images
+        guard let itemData = savedObject.itemData,
+              let savedVariations = itemData.variations else {
+            return
+        }
+
+        for (index, savedVariation) in savedVariations.enumerated() {
+            guard index < originalItemData.variations.count else { continue }
+            guard let variationId = savedVariation.id else { continue }
+
+            let originalVariation = originalItemData.variations[index]
+
+            if !originalVariation.pendingImages.isEmpty {
+                logger.info("[ImageUpload] Uploading \(originalVariation.pendingImages.count) images for variation \(index + 1)")
+                var uploadedImageIds: [String] = []
+
+                for (imageIndex, pendingImage) in originalVariation.pendingImages.enumerated() {
+                    do {
+                        let (imageId, _) = try await imageService.uploadImageWithId(
+                            imageData: pendingImage.imageData,
+                            fileName: pendingImage.fileName,
+                            itemId: variationId
+                        )
+
+                        uploadedImageIds.append(imageId)
+                        logger.info("[ImageUpload] ✅ Uploaded variation image \(imageIndex + 1)/\(originalVariation.pendingImages.count): \(imageId)")
+                    } catch {
+                        logger.error("[ImageUpload] ⚠️ Failed to upload variation image: \(error)")
+                        // Continue with other images
+                    }
+                }
+
+                // Update local variation state
+                if !uploadedImageIds.isEmpty {
+                    await MainActor.run {
+                        if index < self.variations.count {
+                            self.variations[index].imageIds = uploadedImageIds
+                            self.variations[index].pendingImages.removeAll()
+                        }
+                    }
+                }
+            }
+        }
+
+        logger.info("[ImageUpload] ✅ Completed uploading all pending images")
     }
 
     // MARK: - Image Helper Methods
