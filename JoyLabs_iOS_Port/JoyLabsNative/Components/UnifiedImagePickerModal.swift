@@ -34,103 +34,69 @@ struct UnifiedImagePickerModal: View {
 
     private let logger = Logger(subsystem: "com.joylabs.native", category: "UnifiedImagePickerModal")
 
-    // Responsive columns: 4 on iPad, 4 on iPhone
+    // Album navigation state
+    @State private var selectedAlbum: String = "Photos"
+    @State private var searchText: String = ""
+
+    // Responsive columns: 5 columns (Journal app style)
     private var columns: [GridItem] {
-        let columnCount = 4
+        let columnCount = 5
         return Array(repeating: GridItem(.flexible(), spacing: 1), count: columnCount)
     }
-    
+
     var body: some View {
-        VStack(spacing: 0) {
-                // Header with title and buttons
-                HStack {
-                    Button("Cancel") {
-                        onDismiss()
-                    }
-                    .foregroundColor(.red)
-                    
-                    Spacer()
-                    
-                    Text("Select Photo")
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                    
-                    Spacer()
-                    
-                    Button("Upload") {
-                        guard let image = selectedImage else {
-                            uploadError = "No image selected"
-                            showingErrorAlert = true
-                            return
-                        }
-                        
-                        Task {
-                            await handleUpload(image: image)
-                        }
-                    }
-                    .disabled(selectedImage == nil || isUploading)
-                    .foregroundColor(selectedImage != nil && !isUploading ? .blue : .gray)
-                    .fontWeight(.semibold)
-                    .frame(minWidth: 60, minHeight: 44)
-                    .contentShape(Rectangle())
-                    .buttonStyle(PlainButtonStyle())
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(Color(.systemBackground))
-                .overlay(
-                    Divider()
-                        .frame(maxWidth: .infinity, maxHeight: 1)
-                        .background(Color(.separator))
-                        .allowsHitTesting(false), // Ensure divider doesn't block touches
-                    alignment: .bottom
-                )
-                .zIndex(1) // Ensure header is above other content
-                
-            // Square crop view for selected image
-            if let selectedImage = selectedImage {
-                let cropView = SquareCropView(image: selectedImage, scrollViewState: scrollViewState)
-                cropView
-                    .frame(height: UIDevice.current.userInterfaceIdiom == .pad ? 400 : nil)
-                    .id(cropViewKey) // Force recreation when image changes
-                    .onAppear {
-                        squareCropViewRef = cropView
-                    }
-            } else {
-                // Placeholder when no image selected
-                GeometryReader { geometry in
-                    let placeholderHeight: CGFloat = {
-                        if UIDevice.current.userInterfaceIdiom == .pad {
-                            return 400
-                        } else {
-                            // iPhone: Use square aspect ratio based on available width
-                            return min(geometry.size.width, 400)
-                        }
-                    }()
+        HStack(spacing: 0) {
+            // Left Sidebar - Full height navigation
+            sidebarNavigation()
+                .frame(width: 260)
+                .background(Color(.systemGroupedBackground))
 
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color(.systemGray6))
-                        .frame(height: placeholderHeight)
-                        .overlay(
-                            VStack(spacing: 12) {
-                                Image(systemName: "photo")
-                                    .font(.system(size: 40))
-                                    .foregroundColor(.gray)
-                                Text("Select a photo to crop")
-                                    .font(.headline)
-                                    .foregroundColor(Color.secondary)
-                            }
-                        )
-                        .padding(.horizontal, 16)
-                }
-            }
-
-            // Divider
             Divider()
 
-                // iOS Photo Library Grid (Bottom)
-                photoLibrarySectionWithPermissions()
-                    .frame(minHeight: 350) // Reserve consistent height to prevent modal jumping during loading
+            // Right Content Area - Floating header + content
+            ZStack(alignment: .top) {
+                // Background: Content area (crop preview + photo grid)
+                VStack(spacing: 0) {
+                    // Reserve space for floating header
+                    Color.clear.frame(height: 60)
+
+                    // Square crop view for selected image
+                    if let selectedImage = selectedImage {
+                        let cropView = SquareCropView(image: selectedImage, scrollViewState: scrollViewState)
+                        cropView
+                            .frame(height: 400)
+                            .id(cropViewKey)
+                            .onAppear {
+                                squareCropViewRef = cropView
+                            }
+                    } else {
+                        // Placeholder when no image selected
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color(.systemGray6))
+                            .frame(height: 400)
+                            .overlay(
+                                VStack(spacing: 12) {
+                                    Image(systemName: "photo")
+                                        .font(.system(size: 40))
+                                        .foregroundColor(.gray)
+                                    Text("Select a photo to crop")
+                                        .font(.headline)
+                                        .foregroundColor(Color.secondary)
+                                }
+                            )
+                            .padding(.horizontal, 16)
+                    }
+
+                    Divider()
+
+                    // iOS Photo Library Grid (Scrollable)
+                    photoLibrarySectionWithPermissions()
+                }
+
+                // Foreground: Floating header
+                floatingHeader()
+                    .zIndex(10)
+            }
         }
         .interactiveDismissDisabled(false)
         .presentationDragIndicator(.visible)
@@ -159,9 +125,124 @@ struct UnifiedImagePickerModal: View {
             .nestedComponentModal()
         }
     }
-    
+
+    // MARK: - Sidebar Navigation
+
+    private func sidebarNavigation() -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // "Photos" / "Collections" toggle (simplified - just show Photos navigation)
+            Text("Photos")
+                .font(.title2)
+                .fontWeight(.bold)
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                .padding(.bottom, 12)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 4) {
+                    // All Photos
+                    SidebarNavigationItem(
+                        title: "Photos",
+                        icon: "photo.on.rectangle",
+                        isSelected: selectedAlbum == "Photos"
+                    ) {
+                        selectedAlbum = "Photos"
+                    }
+
+                    // Favorites
+                    SidebarNavigationItem(
+                        title: "Favorites",
+                        icon: "heart",
+                        isSelected: selectedAlbum == "Favorites"
+                    ) {
+                        selectedAlbum = "Favorites"
+                    }
+
+                    // Recently Saved
+                    SidebarNavigationItem(
+                        title: "Recently Saved",
+                        icon: "clock",
+                        isSelected: selectedAlbum == "Recently Saved"
+                    ) {
+                        selectedAlbum = "Recently Saved"
+                    }
+
+                    // Videos
+                    SidebarNavigationItem(
+                        title: "Videos",
+                        icon: "video",
+                        isSelected: selectedAlbum == "Videos"
+                    ) {
+                        selectedAlbum = "Videos"
+                    }
+
+                    // Screenshots
+                    SidebarNavigationItem(
+                        title: "Screenshots",
+                        icon: "camera.viewfinder",
+                        isSelected: selectedAlbum == "Screenshots"
+                    ) {
+                        selectedAlbum = "Screenshots"
+                    }
+                }
+                .padding(.horizontal, 8)
+            }
+        }
+    }
+
+    // MARK: - Floating Header
+
+    private func floatingHeader() -> some View {
+        HStack(spacing: 12) {
+            // Search bar
+            HStack {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.secondary)
+                TextField("Search your library...", text: $searchText)
+                if !searchText.isEmpty {
+                    Button(action: { searchText = "" }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            .padding(8)
+            .background(Color(.systemGray6))
+            .cornerRadius(10)
+
+            // Upload button
+            Button("Upload") {
+                guard let image = selectedImage else {
+                    uploadError = "No image selected"
+                    showingErrorAlert = true
+                    return
+                }
+
+                Task {
+                    await handleUpload(image: image)
+                }
+            }
+            .disabled(selectedImage == nil || isUploading)
+            .foregroundColor(selectedImage != nil && !isUploading ? .blue : .gray)
+            .fontWeight(.semibold)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(selectedImage != nil && !isUploading ? Color.blue.opacity(0.1) : Color.clear)
+            .cornerRadius(10)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(Color(.systemBackground).opacity(0.95))
+        .overlay(
+            Divider()
+                .frame(maxWidth: .infinity, maxHeight: 1)
+                .background(Color(.separator)),
+            alignment: .bottom
+        )
+    }
+
     // MARK: - UI Sections
-    
+
     private func photoLibrarySectionWithPermissions() -> some View {
         VStack(spacing: 0) {
             if authorizationStatus == .notDetermined {
@@ -182,7 +263,7 @@ struct UnifiedImagePickerModal: View {
                 // Photo grid with camera button + pagination
                 GeometryReader { geometry in
                     let containerWidth = geometry.size.width
-                    let columnCount: CGFloat = 4
+                    let columnCount: CGFloat = 5  // 5-column grid (Journal app style)
                     let spacing = columnCount - 1 // 1pt spacing between columns
                     let currentThumbnailSize = (containerWidth - spacing) / columnCount
                 
@@ -937,5 +1018,36 @@ extension UIImage {
         print("[UIImage+Orientation] ========== ORIENTATION FIX END ==========")
         
         return fixedImage
+    }
+}
+
+// MARK: - Sidebar Navigation Item Component
+
+struct SidebarNavigationItem: View {
+    let title: String
+    let icon: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 16))
+                    .frame(width: 20)
+                    .foregroundColor(isSelected ? .white : .primary)
+
+                Text(title)
+                    .font(.system(size: 15))
+                    .foregroundColor(isSelected ? .white : .primary)
+
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(isSelected ? Color.blue : Color.clear)
+            .cornerRadius(8)
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 }
