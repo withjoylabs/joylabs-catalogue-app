@@ -425,7 +425,8 @@ struct ItemVariationData: Codable {
     let measurementUnitId: String?
     let sellable: Bool?
     let stockable: Bool?
-    
+    let imageIds: [String]?  // Variation-specific images (Square API support)
+
     enum CodingKeys: String, CodingKey {
         case name, sku, upc, ordinal
         case itemId = "item_id"
@@ -443,6 +444,7 @@ struct ItemVariationData: Codable {
         case itemOptionValues = "item_option_values"
         case measurementUnitId = "measurement_unit_id"
         case sellable, stockable
+        case imageIds = "image_ids"
     }
     
     // Memberwise initializer (required when providing custom decoder)
@@ -466,7 +468,8 @@ struct ItemVariationData: Codable {
         itemOptionValues: [ItemOptionValue]? = nil,
         measurementUnitId: String? = nil,
         sellable: Bool? = nil,
-        stockable: Bool? = nil
+        stockable: Bool? = nil,
+        imageIds: [String]? = nil
     ) {
         self.itemId = itemId
         self.name = name
@@ -488,15 +491,16 @@ struct ItemVariationData: Codable {
         self.measurementUnitId = measurementUnitId
         self.sellable = sellable
         self.stockable = stockable
+        self.imageIds = imageIds
     }
     
     // Custom decoder to handle orphaned variations (missing item_id)
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        
+
         // Gracefully handle missing item_id for orphaned variations
         self.itemId = try container.decodeIfPresent(String.self, forKey: .itemId) ?? ""
-        
+
         self.name = try container.decodeIfPresent(String.self, forKey: .name)
         self.sku = try container.decodeIfPresent(String.self, forKey: .sku)
         self.upc = try container.decodeIfPresent(String.self, forKey: .upc)
@@ -516,6 +520,7 @@ struct ItemVariationData: Codable {
         self.measurementUnitId = try container.decodeIfPresent(String.self, forKey: .measurementUnitId)
         self.sellable = try container.decodeIfPresent(Bool.self, forKey: .sellable)
         self.stockable = try container.decodeIfPresent(Bool.self, forKey: .stockable)
+        self.imageIds = try container.decodeIfPresent([String].self, forKey: .imageIds)
     }
 }
 

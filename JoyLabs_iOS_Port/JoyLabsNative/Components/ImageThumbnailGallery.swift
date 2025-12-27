@@ -42,29 +42,18 @@ struct ImageThumbnailGallery: View {
             .padding(.horizontal, 16)
 
             if imageIds.isEmpty {
-                // Empty state
-                VStack(spacing: 12) {
+                // Empty state (simple message, user clicks "Add Image" button in header)
+                VStack(spacing: 8) {
                     Image(systemName: "photo.on.rectangle.angled")
-                        .font(.system(size: 40))
+                        .font(.system(size: 32))
                         .foregroundColor(.secondary)
 
                     Text("No images added")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
-
-                    Button(action: onUpload) {
-                        Text("Add First Image")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(Color.blue)
-                            .cornerRadius(8)
-                    }
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 32)
+                .padding(.vertical, 24)
                 .background(Color(.systemGray6))
                 .cornerRadius(12)
                 .padding(.horizontal, 16)
@@ -199,7 +188,8 @@ private struct ThumbnailView: View {
 }
 
 // MARK: - Image Drop Delegate
-private struct ImageDropDelegate: DropDelegate {
+/// Shared drop delegate for image reordering (used by both item and variation galleries)
+struct ImageDropDelegate: DropDelegate {
     let item: String
     @Binding var items: [String]
     let onReorder: ([String]) -> Void

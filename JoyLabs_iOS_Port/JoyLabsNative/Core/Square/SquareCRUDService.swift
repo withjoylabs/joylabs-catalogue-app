@@ -1092,10 +1092,10 @@ extension SquareCRUDService {
 
         do {
             // 1. Fetch current item to get version
-            let currentObject = try await squareAPIService.retrieveCatalogObject(itemId)
+            let currentObject = try await squareAPIService.fetchCatalogObjectById(itemId)
 
             guard let itemData = currentObject.itemData else {
-                throw SquareAPIError.invalidData("Item \(itemId) has no item data")
+                throw SquareAPIError.objectNotFound("Item \(itemId) has no item data")
             }
 
             // 2. Create updated object with reordered imageIds
@@ -1126,8 +1126,8 @@ extension SquareCRUDService {
             )
 
             let updatedObject = CatalogObject(
-                type: "ITEM",
                 id: itemId,
+                type: "ITEM",
                 updatedAt: nil,
                 version: currentObject.version,
                 isDeleted: false,
@@ -1137,10 +1137,10 @@ extension SquareCRUDService {
                 itemData: updatedItemData,
                 categoryData: nil,
                 itemVariationData: nil,
+                modifierData: nil,
+                modifierListData: nil,
                 taxData: nil,
                 discountData: nil,
-                modifierListData: nil,
-                modifierData: nil,
                 imageData: nil
             )
 
@@ -1176,13 +1176,13 @@ extension SquareCRUDService {
         do {
             // 1. Delete image object from Square
             try await squareAPIService.deleteCatalogObject(imageId)
-            logger.info("✅ Deleted image \(imageId) from Square")
+            logger.info("Deleted image \(imageId) from Square")
 
             // 2. Fetch current item to get updated imageIds
-            let currentObject = try await squareAPIService.retrieveCatalogObject(itemId)
+            let currentObject = try await squareAPIService.fetchCatalogObjectById(itemId)
 
             guard let itemData = currentObject.itemData else {
-                throw SquareAPIError.invalidData("Item \(itemId) has no item data")
+                throw SquareAPIError.objectNotFound("Item \(itemId) has no item data")
             }
 
             // 3. Remove imageId from array
@@ -1216,8 +1216,8 @@ extension SquareCRUDService {
             )
 
             let updatedObject = CatalogObject(
-                type: "ITEM",
                 id: itemId,
+                type: "ITEM",
                 updatedAt: nil,
                 version: currentObject.version,
                 isDeleted: false,
@@ -1227,10 +1227,10 @@ extension SquareCRUDService {
                 itemData: updatedItemData,
                 categoryData: nil,
                 itemVariationData: nil,
+                modifierData: nil,
+                modifierListData: nil,
                 taxData: nil,
                 discountData: nil,
-                modifierListData: nil,
-                modifierData: nil,
                 imageData: nil
             )
 
@@ -1264,6 +1264,189 @@ extension SquareCRUDService {
 
         } catch {
             logger.error("❌ Failed to delete image: \(error)")
+            throw error
+        }
+    }
+
+    // MARK: - Variation Image Management
+
+    /// Reorder images for a specific variation
+    func reorderVariationImages(variationId: String, newImageOrder: [String]) async throws {
+        logger.info("Reordering images for variation \(variationId), new order: \(newImageOrder)")
+
+        isProcessing = true
+        defer { isProcessing = false }
+
+        do {
+            // 1. Fetch current variation to get version
+            let currentObject = try await squareAPIService.fetchCatalogObjectById(variationId)
+
+            guard let variationData = currentObject.itemVariationData else {
+                throw SquareAPIError.objectNotFound("Variation \(variationId) has no variation data")
+            }
+
+            // 2. Create updated object with reordered imageIds
+            let updatedVariationData = ItemVariationData(
+                itemId: variationData.itemId,
+                name: variationData.name,
+                sku: variationData.sku,
+                upc: variationData.upc,
+                ordinal: variationData.ordinal,
+                pricingType: variationData.pricingType,
+                priceMoney: variationData.priceMoney,
+                basePriceMoney: variationData.basePriceMoney,
+                defaultUnitCost: variationData.defaultUnitCost,
+                locationOverrides: variationData.locationOverrides,
+                trackInventory: variationData.trackInventory,
+                inventoryAlertType: variationData.inventoryAlertType,
+                inventoryAlertThreshold: variationData.inventoryAlertThreshold,
+                userData: variationData.userData,
+                serviceDuration: variationData.serviceDuration,
+                availableForBooking: variationData.availableForBooking,
+                itemOptionValues: variationData.itemOptionValues,
+                measurementUnitId: variationData.measurementUnitId,
+                sellable: variationData.sellable,
+                stockable: variationData.stockable,
+                imageIds: newImageOrder  // REORDERED
+            )
+
+            let updatedObject = CatalogObject(
+                id: variationId,
+                type: "ITEM_VARIATION",
+                updatedAt: nil,
+                version: currentObject.version,
+                isDeleted: false,
+                presentAtAllLocations: currentObject.presentAtAllLocations,
+                presentAtLocationIds: currentObject.presentAtLocationIds,
+                absentAtLocationIds: currentObject.absentAtLocationIds,
+                itemData: nil,
+                categoryData: nil,
+                itemVariationData: updatedVariationData,
+                modifierData: nil,
+                modifierListData: nil,
+                taxData: nil,
+                discountData: nil,
+                imageData: nil
+            )
+
+            // 3. Update via Square API
+            let idempotencyKey = "reorder_variation_images_\(UUID().uuidString)"
+            let response = try await squareAPIService.upsertCatalogObjectWithMappings(
+                updatedObject,
+                idempotencyKey: idempotencyKey
+            )
+
+            guard let resultObject = response.catalogObject else {
+                throw SquareAPIError.upsertFailed("No object returned from reorder operation")
+            }
+
+            // 4. Update local database
+            try await updateLocalDatabaseAfterUpdate(resultObject)
+
+            logger.info("✅ Successfully reordered images for variation \(variationId)")
+
+        } catch {
+            logger.error("❌ Failed to reorder variation images: \(error)")
+            throw error
+        }
+    }
+
+    /// Delete an image from a specific variation
+    func deleteVariationImage(imageId: String, variationId: String) async throws {
+        logger.info("Deleting image \(imageId) from variation \(variationId)")
+
+        isProcessing = true
+        defer { isProcessing = false }
+
+        do {
+            // 1. Delete image object from Square
+            try await squareAPIService.deleteCatalogObject(imageId)
+            logger.info("Deleted image \(imageId) from Square")
+
+            // 2. Fetch current variation to get updated imageIds
+            let currentObject = try await squareAPIService.fetchCatalogObjectById(variationId)
+
+            guard let variationData = currentObject.itemVariationData else {
+                throw SquareAPIError.objectNotFound("Variation \(variationId) has no variation data")
+            }
+
+            // 3. Remove imageId from array
+            let updatedImageIds = (variationData.imageIds ?? []).filter { $0 != imageId }
+
+            // 4. Update variation with new imageIds array
+            let updatedVariationData = ItemVariationData(
+                itemId: variationData.itemId,
+                name: variationData.name,
+                sku: variationData.sku,
+                upc: variationData.upc,
+                ordinal: variationData.ordinal,
+                pricingType: variationData.pricingType,
+                priceMoney: variationData.priceMoney,
+                basePriceMoney: variationData.basePriceMoney,
+                defaultUnitCost: variationData.defaultUnitCost,
+                locationOverrides: variationData.locationOverrides,
+                trackInventory: variationData.trackInventory,
+                inventoryAlertType: variationData.inventoryAlertType,
+                inventoryAlertThreshold: variationData.inventoryAlertThreshold,
+                userData: variationData.userData,
+                serviceDuration: variationData.serviceDuration,
+                availableForBooking: variationData.availableForBooking,
+                itemOptionValues: variationData.itemOptionValues,
+                measurementUnitId: variationData.measurementUnitId,
+                sellable: variationData.sellable,
+                stockable: variationData.stockable,
+                imageIds: updatedImageIds  // REMOVED imageId
+            )
+
+            let updatedObject = CatalogObject(
+                id: variationId,
+                type: "ITEM_VARIATION",
+                updatedAt: nil,
+                version: currentObject.version,
+                isDeleted: false,
+                presentAtAllLocations: currentObject.presentAtAllLocations,
+                presentAtLocationIds: currentObject.presentAtLocationIds,
+                absentAtLocationIds: currentObject.absentAtLocationIds,
+                itemData: nil,
+                categoryData: nil,
+                itemVariationData: updatedVariationData,
+                modifierData: nil,
+                modifierListData: nil,
+                taxData: nil,
+                discountData: nil,
+                imageData: nil
+            )
+
+            // 5. Update via Square API
+            let idempotencyKey = "delete_variation_image_\(UUID().uuidString)"
+            let response = try await squareAPIService.upsertCatalogObjectWithMappings(
+                updatedObject,
+                idempotencyKey: idempotencyKey
+            )
+
+            guard let resultObject = response.catalogObject else {
+                throw SquareAPIError.upsertFailed("No object returned from delete operation")
+            }
+
+            // 6. Update local database
+            try await updateLocalDatabaseAfterUpdate(resultObject)
+
+            // 7. Delete image from local database
+            let db = databaseManager.getContext()
+            let predicate = #Predicate<ImageModel> { model in
+                model.id == imageId
+            }
+            let descriptor = FetchDescriptor(predicate: predicate)
+            if let imageToDelete = try? db.fetch(descriptor).first {
+                db.delete(imageToDelete)
+                try db.save()
+                logger.info("✅ Deleted image \(imageId) from local database")
+            }
+
+            logger.info("✅ Successfully deleted image \(imageId) from variation")
+
+        } catch {
+            logger.error("❌ Failed to delete variation image: \(error)")
             throw error
         }
     }

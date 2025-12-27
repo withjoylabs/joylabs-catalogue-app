@@ -202,6 +202,7 @@ enum SimpleImageError: LocalizedError {
 /// Context for image upload operations (compatibility with old system)
 enum ImageUploadContext {
     case itemDetails(itemId: String?)
+    case variationDetails(variationId: String)
     case scanViewLongPress(itemId: String, imageId: String?)
     case reordersViewLongPress(itemId: String, imageId: String?)
 
@@ -209,6 +210,8 @@ enum ImageUploadContext {
         switch self {
         case .itemDetails:
             return "Add Photo"
+        case .variationDetails:
+            return "Add Variation Photo"
         case .scanViewLongPress, .reordersViewLongPress:
             return "Update Photo"
         }
@@ -216,7 +219,7 @@ enum ImageUploadContext {
 
     var isUpdate: Bool {
         switch self {
-        case .itemDetails:
+        case .itemDetails, .variationDetails:
             return false
         case .scanViewLongPress, .reordersViewLongPress:
             return true

@@ -360,7 +360,8 @@ class ItemDataTransformers {
                     itemOptionValues: nil,
                     measurementUnitId: nil,
                     sellable: variation.sellable,
-                    stockable: variation.stockable
+                    stockable: variation.stockable,
+                    imageIds: variation.imageIds.isEmpty ? nil : variation.imageIds
                 )
             )
         }

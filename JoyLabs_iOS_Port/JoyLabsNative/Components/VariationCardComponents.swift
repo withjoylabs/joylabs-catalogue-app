@@ -861,3 +861,157 @@ struct PriceOverrideRow: View {
         }
     }
 }
+
+// MARK: - Variation Image Gallery
+/// Image thumbnail gallery specifically for variation-level images
+/// Smaller thumbnails (60px) to differentiate from item-level gallery
+struct VariationImageGallery: View {
+    @Binding var variation: ItemDetailsVariationData
+    let onReorder: ([String]) -> Void
+    let onDelete: (String) -> Void
+    let onUpload: () -> Void
+    let viewModel: ItemDetailsViewModel
+
+    private let thumbnailSize: CGFloat = 60  // Smaller than item-level (80px)
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Variation Images")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.secondary)
+
+                Spacer()
+
+                Button(action: onUpload) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus.circle.fill")
+                        Text("Add Image")
+                    }
+                    .font(.caption)
+                    .foregroundColor(.blue)
+                }
+            }
+            .padding(.horizontal, 12)
+
+            if variation.imageIds.isEmpty {
+                // Empty state (simple message)
+                VStack(spacing: 6) {
+                    Image(systemName: "photo.on.rectangle.angled")
+                        .font(.system(size: 24))
+                        .foregroundColor(.secondary)
+
+                    Text("No variation images")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .background(Color(.systemGray6))
+                .cornerRadius(8)
+                .padding(.horizontal, 12)
+            } else {
+                // Thumbnail grid with drag-to-reorder
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(Array(variation.imageIds.enumerated()), id: \.element) { index, imageId in
+                            VariationThumbnailView(
+                                imageId: imageId,
+                                isPrimary: index == 0,
+                                size: thumbnailSize,
+                                viewModel: viewModel,
+                                onTap: {
+                                    // TODO: Show preview modal
+                                }
+                            )
+                            .onDrag {
+                                NSItemProvider(object: imageId as NSString)
+                            }
+                            .onDrop(of: [.text], delegate: ImageDropDelegate(
+                                item: imageId,
+                                items: Binding(
+                                    get: { variation.imageIds },
+                                    set: { variation.imageIds = $0 }
+                                ),
+                                onReorder: onReorder
+                            ))
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                }
+            }
+        }
+        .padding(.vertical, 8)
+    }
+}
+
+// MARK: - Variation Thumbnail View
+private struct VariationThumbnailView: View {
+    let imageId: String
+    let isPrimary: Bool
+    let size: CGFloat
+    let viewModel: ItemDetailsViewModel
+    let onTap: () -> Void
+
+    private var imageURL: String? {
+        viewModel.getImageURL(for: imageId)
+    }
+
+    var body: some View {
+        Button(action: onTap) {
+            ZStack(alignment: .topTrailing) {
+                // Image
+                if let url = imageURL {
+                    AsyncImage(url: URL(string: url)) { phase in
+                        switch phase {
+                        case .empty:
+                            ProgressView()
+                                .frame(width: size, height: size)
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: size, height: size)
+                                .clipped()
+                        case .failure:
+                            Image(systemName: "photo")
+                                .font(.system(size: 20))
+                                .foregroundColor(.secondary)
+                                .frame(width: size, height: size)
+                                .background(Color(.systemGray5))
+                        @unknown default:
+                            EmptyView()
+                        }
+                    }
+                } else {
+                    Image(systemName: "photo")
+                        .font(.system(size: 20))
+                        .foregroundColor(.secondary)
+                        .frame(width: size, height: size)
+                        .background(Color(.systemGray5))
+                }
+
+                // Primary badge (smaller for variation thumbnails)
+                if isPrimary {
+                    Text("PRIMARY")
+                        .font(.system(size: 6, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 3)
+                        .padding(.vertical, 1)
+                        .background(Color.blue)
+                        .cornerRadius(3)
+                        .padding(3)
+                }
+            }
+            .cornerRadius(6)
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(isPrimary ? Color.blue : Color.clear, lineWidth: 1.5)
+            )
+            .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}

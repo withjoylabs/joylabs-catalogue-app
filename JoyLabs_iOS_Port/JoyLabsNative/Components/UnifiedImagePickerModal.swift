@@ -677,6 +677,8 @@ struct UnifiedImagePickerModal: View {
         switch context {
         case .itemDetails(let itemId):
             return itemId ?? ""
+        case .variationDetails(let variationId):
+            return variationId
         case .scanViewLongPress(let itemId, _):
             return itemId
         case .reordersViewLongPress(let itemId, _):

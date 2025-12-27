@@ -9,16 +9,29 @@ struct ItemImageSection: View {
 
     private let logger = Logger(subsystem: "com.joylabs.native", category: "ItemImageSection")
 
+    // Computed property for primary image URL (first in imageIds array)
+    private var primaryImageURL: String? {
+        let imageIds = viewModel.staticData.imageIds
+
+        // If imageIds array has images, use first one
+        if !imageIds.isEmpty {
+            return imageIds.first.flatMap { viewModel.getImageURL(for: $0) }
+        }
+
+        // Fallback to legacy imageURL if imageIds is empty
+        return viewModel.imageURL
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Spacer()
-                
+
                 // Image Display/Placeholder using unified image system
                 Button(action: {
                     showingImagePicker = true
                 }) {
-                    if let imageURL = viewModel.imageURL, !imageURL.isEmpty {
+                    if let imageURL = primaryImageURL, !imageURL.isEmpty {
                         // Use simple image system
                         SimpleImageView.large(
                             imageURL: imageURL,
@@ -34,42 +47,27 @@ struct ItemImageSection: View {
                     }
                 }
                 .buttonStyle(PlainButtonStyle())
-                
+
                 Spacer()
             }
-            
-            // Image Actions
-            HStack {
-                Spacer()
-                
-                Button(action: {
-                    showingImagePicker = true
-                }) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "camera")
-                        Text("Add Photo")
+
+            // Image Thumbnail Gallery (below main image)
+            if let itemId = viewModel.staticData.id, !itemId.isEmpty {
+                ImageThumbnailGallery(
+                    imageIds: Binding(
+                        get: { viewModel.staticData.imageIds },
+                        set: { viewModel.staticData.imageIds = $0 }
+                    ),
+                    onReorder: { newOrder in
+                        handleImageReorder(newOrder: newOrder)
+                    },
+                    onDelete: { imageId in
+                        handleImageDeletion(imageId: imageId)
+                    },
+                    onUpload: {
+                        showingImagePicker = true
                     }
-                    .font(.subheadline)
-                    .foregroundColor(.itemDetailsAccent)
-                }
-                
-                if viewModel.imageURL != nil && !viewModel.imageURL!.isEmpty {
-                    Button(action: {
-                        Task {
-                            await handleImageRemoval()
-                        }
-                    }) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "trash")
-                            Text("Remove")
-                        }
-                        .font(.subheadline)
-                        .foregroundColor(.itemDetailsDestructive)
-                    }
-                    .padding(.leading, 20)
-                }
-                
-                Spacer()
+                )
             }
         }
         .padding()
@@ -82,11 +80,13 @@ struct ItemImageSection: View {
                     showingImagePicker = false
                 },
                 onImageUploaded: { result in
-                    print("🔄 [ItemModal] Image upload completed, updating view model")
-                    print("🔄 [ItemModal] New image ID: \(result.squareImageId)")
-                    print("🔄 [ItemModal] New AWS URL: \(result.awsUrl)")
+                    logger.info("[ItemModal] Image upload completed")
+                    logger.info("[ItemModal] New image ID: \(result.squareImageId)")
 
-                    // Update the view model with the new image (use AWS URL for proper URLCache)
+                    // Add to imageIds array (append to end, user can reorder to make primary)
+                    viewModel.staticData.imageIds.append(result.squareImageId)
+
+                    // Update legacy fields for compatibility
                     viewModel.imageURL = result.awsUrl
                     viewModel.imageId = result.squareImageId
                     showingImagePicker = false
@@ -101,7 +101,73 @@ struct ItemImageSection: View {
 
     // MARK: - Private Methods
 
-    /// Handle image removal with Square API integration
+    /// Handle image reordering via Square API
+    private func handleImageReorder(newOrder: [String]) {
+        guard let itemId = viewModel.staticData.id, !itemId.isEmpty else {
+            logger.warning("No item ID found for image reorder")
+            return
+        }
+
+        Task {
+            do {
+                logger.info("Reordering images for item \(itemId)")
+                let crudService = SquareAPIServiceFactory.createCRUDService()
+                try await crudService.reorderItemImages(itemId: itemId, newImageOrder: newOrder)
+
+                await MainActor.run {
+                    // Update local state - already updated via binding
+                    logger.info("Successfully reordered images")
+                    ToastNotificationService.shared.showSuccess("Image order updated")
+                }
+            } catch {
+                await MainActor.run {
+                    logger.error("Failed to reorder images: \(error)")
+                    ToastNotificationService.shared.showError("Failed to update image order")
+
+                    // Revert local state on error
+                    Task {
+                        await viewModel.refreshFromSquare()
+                    }
+                }
+            }
+        }
+    }
+
+    /// Handle image deletion via Square API
+    private func handleImageDeletion(imageId: String) {
+        guard let itemId = viewModel.staticData.id, !itemId.isEmpty else {
+            logger.warning("No item ID found for image deletion")
+            return
+        }
+
+        Task {
+            do {
+                logger.info("Deleting image \(imageId) from item \(itemId)")
+                let crudService = SquareAPIServiceFactory.createCRUDService()
+                try await crudService.deleteImage(imageId: imageId, itemId: itemId)
+
+                await MainActor.run {
+                    // Remove from local imageIds array
+                    viewModel.staticData.imageIds.removeAll { $0 == imageId }
+
+                    logger.info("Successfully deleted image")
+                    ToastNotificationService.shared.showSuccess("Image deleted")
+                }
+            } catch {
+                await MainActor.run {
+                    logger.error("Failed to delete image: \(error)")
+                    ToastNotificationService.shared.showError("Failed to delete image")
+
+                    // Refresh from Square on error
+                    Task {
+                        await viewModel.refreshFromSquare()
+                    }
+                }
+            }
+        }
+    }
+
+    /// Handle image removal with Square API integration (legacy single image support)
     private func handleImageRemoval() async {
         guard let imageId = viewModel.imageId, !imageId.isEmpty else {
             logger.warning("No image ID found for removal")
@@ -124,7 +190,7 @@ struct ItemImageSection: View {
 
             // Trigger UI refresh across all views
             let itemId = viewModel.staticData.id ?? ""
-            print("📢 Posting imageUpdated notification for deleted image, item: \(itemId)")
+            logger.info("Posting imageUpdated notification for deleted image, item: \(itemId)")
             NotificationCenter.default.post(name: .imageUpdated, object: nil, userInfo: [
                 "itemId": itemId,
                 "action": "deleted"

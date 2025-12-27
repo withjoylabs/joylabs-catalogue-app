@@ -167,6 +167,7 @@ struct ItemDetailsVariationData: Identifiable {
     var teamMemberIds: [String] = []
     var stockable: Bool = true
     var sellable: Bool = true
+    var imageIds: [String] = []  // Variation-specific images
 
     // Pending inventory quantity for new items (before variation ID is assigned)
     // Dictionary: locationId -> quantity
@@ -948,7 +949,10 @@ class ItemDetailsViewModel: ObservableObject {
             // PERFORMANCE OPTIMIZATION: Load pre-resolved tax and modifier names from database
             await loadPreResolvedNamesForCurrentItem()
 
-            // Images - use unified image service with CatalogLookupService
+            // Images - load both legacy fields and imageIds array
+            self.staticData.imageIds = itemData.imageIds ?? []
+            logger.info("Loaded \(self.staticData.imageIds.count) image IDs for item")
+
             if let itemId = self.staticData.id {
                 let imageURL = getPrimaryImageURL(for: itemId)
                 if let imageURL = imageURL {
@@ -959,7 +963,7 @@ class ItemDetailsViewModel: ObservableObject {
                     logger.info("No images found for item: \(itemId)")
                 }
             }
-            
+
             // No need to check initial changes - using simple flag tracking
         }
     }
@@ -1124,6 +1128,11 @@ class ItemDetailsViewModel: ObservableObject {
                 // Parse version (stored as TEXT in database)
                 let versionStr = variationModel.version
                 variation.version = Int64(versionStr)
+
+                // Load imageIds from stored variation data
+                if let variationData = variationModel.toItemVariationData() {
+                    variation.imageIds = variationData.imageIds ?? []
+                }
 
                 loadedVariations.append(variation)
                 logger.info("Loaded variation: \(variation.name ?? "unnamed") - SKU: \(variation.sku ?? "none") - UPC: \(variation.upc ?? "none") - Version: \(variation.version?.description ?? "nil")")
@@ -1522,6 +1531,46 @@ class ItemDetailsViewModel: ObservableObject {
                     // Continue with other variations even if one fails
                 }
             }
+        }
+    }
+
+    // MARK: - Image Helper Methods
+
+    /// Get image URL from SwiftData for a given image ID
+    func getImageURL(for imageId: String) -> String? {
+        let db = databaseManager.getContext()
+        let predicate = #Predicate<ImageModel> { model in
+            model.id == imageId
+        }
+        let descriptor = FetchDescriptor(predicate: predicate)
+
+        guard let image = try? db.fetch(descriptor).first else {
+            return nil
+        }
+
+        return image.url
+    }
+
+    /// Refresh item data from Square API (used when CRUD operations fail to revert local state)
+    func refreshFromSquare() async {
+        guard let itemId = staticData.id, !itemId.isEmpty else {
+            logger.warning("Cannot refresh: no item ID")
+            return
+        }
+
+        do {
+            let squareAPIService = SquareAPIServiceFactory.createService()
+            let catalogObject = try await squareAPIService.fetchCatalogObjectById(itemId)
+
+            await MainActor.run {
+                // Update from fresh Square data
+                if let itemData = catalogObject.itemData {
+                    self.staticData.imageIds = itemData.imageIds ?? []
+                }
+                logger.info("Successfully refreshed item data from Square")
+            }
+        } catch {
+            logger.error("Failed to refresh from Square: \(error)")
         }
     }
 
