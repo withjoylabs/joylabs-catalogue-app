@@ -60,12 +60,12 @@ extension View {
             if #available(iOS 18.0, *) {
                 return AnyView(
                     self
-                        .frame(width: 900, height: 700)  // Custom size for sidebar + grid
+                        .frame(width: 700, height: 700)  // Sidebar (260) + content (400) + padding (40)
                         .presentationSizing(.fitted)
                 )
             } else {
                 // iOS 17 fallback
-                return AnyView(self.frame(width: 900, height: 700))
+                return AnyView(self.frame(width: 700, height: 700))
             }
         } else {
             // iPhone: full screen

@@ -39,7 +39,7 @@ struct UnifiedImagePickerModal: View {
     @State private var searchText: String = ""
 
     // Computed fetch options based on selected album
-    private var photoFetchOptions: PHFetchOptions {
+    private func photoFetchOptions() -> PHFetchOptions {
         let options = PHFetchOptions()
         options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
 
@@ -92,41 +92,45 @@ struct UnifiedImagePickerModal: View {
             // Right Content Area - Floating header + content
             ZStack(alignment: .top) {
                 // Background: Content area (crop preview + photo grid)
-                VStack(spacing: 0) {
-                    // Reserve space for floating header
-                    Color.clear.frame(height: 60)
+                HStack {
+                    Spacer()
+                    VStack(spacing: 0) {
+                        // Reserve space for floating header
+                        Color.clear.frame(height: 60)
 
-                    // Square crop view for selected image
-                    if let selectedImage = selectedImage {
-                        let cropView = SquareCropView(image: selectedImage, scrollViewState: scrollViewState)
-                        cropView
-                            .frame(height: 400)
-                            .id(cropViewKey)
-                            .onAppear {
-                                squareCropViewRef = cropView
-                            }
-                    } else {
-                        // Placeholder when no image selected
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color(.systemGray6))
-                            .frame(height: 400)
-                            .overlay(
-                                VStack(spacing: 12) {
-                                    Image(systemName: "photo")
-                                        .font(.system(size: 40))
-                                        .foregroundColor(.gray)
-                                    Text("Select a photo to crop")
-                                        .font(.headline)
-                                        .foregroundColor(Color.secondary)
+                        // Square crop view for selected image
+                        if let selectedImage = selectedImage {
+                            let cropView = SquareCropView(image: selectedImage, scrollViewState: scrollViewState)
+                            cropView
+                                .frame(width: 400, height: 400)
+                                .id(cropViewKey)
+                                .onAppear {
+                                    squareCropViewRef = cropView
                                 }
-                            )
-                            .padding(.horizontal, 16)
+                        } else {
+                            // Placeholder when no image selected
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color(.systemGray6))
+                                .frame(width: 400, height: 400)
+                                .overlay(
+                                    VStack(spacing: 12) {
+                                        Image(systemName: "photo")
+                                            .font(.system(size: 40))
+                                            .foregroundColor(.gray)
+                                        Text("Select a photo to crop")
+                                            .font(.headline)
+                                            .foregroundColor(Color.secondary)
+                                    }
+                                )
+                        }
+
+                        Divider()
+                            .frame(width: 400)
+
+                        // iOS Photo Library Grid (Scrollable)
+                        photoLibrarySectionWithPermissions()
                     }
-
-                    Divider()
-
-                    // iOS Photo Library Grid (Scrollable)
-                    photoLibrarySectionWithPermissions()
+                    Spacer()
                 }
 
                 // Foreground: Floating header
@@ -284,6 +288,7 @@ struct UnifiedImagePickerModal: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
+        .frame(width: 400)
         .background(Color(.systemBackground).opacity(0.95))
         .overlay(
             Divider()
@@ -314,7 +319,7 @@ struct UnifiedImagePickerModal: View {
             } else {
                 // Photo grid with camera button + pagination
                 GeometryReader { geometry in
-                    let containerWidth = geometry.size.width
+                    let containerWidth: CGFloat = 400  // Fixed width to match preview
                     let columnCount: CGFloat = 5  // 5-column grid (Journal app style)
                     let spacing = columnCount - 1 // 1pt spacing between columns
                     let currentThumbnailSize = (containerWidth - spacing) / columnCount
@@ -328,7 +333,7 @@ struct UnifiedImagePickerModal: View {
                                 showingCamera = true
                             }
                         }
-                        
+
                         // Photo library items
                         ForEach(photoAssets) { photoAsset in
                             PhotoThumbnailView(
@@ -344,7 +349,7 @@ struct UnifiedImagePickerModal: View {
                                 }
                             }
                         }
-                        
+
                         // Loading indicator for pagination
                         if isLoadingMorePhotos {
                             VStack {
@@ -360,6 +365,7 @@ struct UnifiedImagePickerModal: View {
                         }
                     }
                 }
+                .frame(width: 400)
                 } // Close GeometryReader
             }
         }
@@ -505,7 +511,8 @@ struct UnifiedImagePickerModal: View {
     }
 
     private func loadPhotoAssets() async {
-        logger.info("[PhotoLibrary] Starting to load photo assets for album: \(await MainActor.run { selectedAlbum })")
+        let albumName = await MainActor.run { selectedAlbum }
+        logger.info("[PhotoLibrary] Starting to load photo assets for album: \(albumName)")
         await MainActor.run {
             isLoadingPhotos = true
             photoAssets = [] // Reset array
@@ -513,7 +520,7 @@ struct UnifiedImagePickerModal: View {
         }
 
         // Get fetch options based on selected album
-        let fetchOptions = await MainActor.run { photoFetchOptions }
+        let fetchOptions = await MainActor.run { photoFetchOptions() }
 
         // Handle Videos separately (they need .video mediaType)
         let allAssets: PHFetchResult<PHAsset>
@@ -568,7 +575,7 @@ struct UnifiedImagePickerModal: View {
     
     private func loadPhotoBatch(startIndex: Int, batchSize: Int) async -> ([PhotoAsset], Bool) {
         // Capture values from MainActor for use in continuation
-        let fetchOptions = await MainActor.run { photoFetchOptions }
+        let fetchOptions = await MainActor.run { photoFetchOptions() }
         let selectedAlbumValue = await MainActor.run { selectedAlbum }
 
         return await withCheckedContinuation { continuation in
