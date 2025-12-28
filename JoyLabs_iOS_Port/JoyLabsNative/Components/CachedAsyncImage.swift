@@ -31,8 +31,11 @@ struct CachedAsyncImage<Content: View>: View {
 
         do {
             // Use custom URLSession with aggressive caching
+            // CRITICAL: Create explicit URLRequest with cache policy to override server headers
             let urlSession = ImageCacheManager.shared.urlSession
-            let (data, response) = try await urlSession.data(from: url)
+            var request = URLRequest(url: url)
+            request.cachePolicy = .returnCacheDataElseLoad
+            let (data, response) = try await urlSession.data(for: request)
 
             // Validate response
             guard let httpResponse = response as? HTTPURLResponse,
