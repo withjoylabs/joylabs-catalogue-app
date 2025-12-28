@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import Kingfisher
 
 // MARK: - Image Thumbnail Gallery
 /// Displays a horizontal scrolling row of image thumbnails with drag-to-reorder functionality
@@ -133,29 +134,17 @@ private struct ThumbnailView: View {
     var body: some View {
         Button(action: onTap) {
             ZStack(alignment: .topTrailing) {
-                // Image
+                // Image with Kingfisher caching
                 if let url = imageURL, !url.isEmpty, let validURL = URL(string: url) {
-                    AsyncImage(url: validURL) { phase in
-                        switch phase {
-                        case .empty:
+                    KFImage(validURL)
+                        .placeholder {
                             ProgressView()
                                 .frame(width: size, height: size)
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(width: size, height: size)
-                                .clipped()
-                        case .failure:
-                            Image(systemName: "photo")
-                                .font(.system(size: 30))
-                                .foregroundColor(.secondary)
-                                .frame(width: size, height: size)
-                                .background(Color(.systemGray5))
-                        @unknown default:
-                            EmptyView()
                         }
-                    }
+                        .resizable()
+                        .aspectRatio(contentMode: SwiftUI.ContentMode.fill)
+                        .frame(width: size, height: size)
+                        .clipped()
                 } else {
                     Image(systemName: "photo")
                         .font(.system(size: 30))
@@ -253,27 +242,13 @@ struct ImagePreviewModal: View {
                 Color.black.ignoresSafeArea()
 
                 if let url = imageURL, !url.isEmpty, let validURL = URL(string: url) {
-                    AsyncImage(url: validURL) { phase in
-                        switch phase {
-                        case .empty:
+                    KFImage(validURL)
+                        .placeholder {
                             ProgressView()
                                 .tint(.white)
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                        case .failure:
-                            VStack(spacing: 16) {
-                                Image(systemName: "exclamationmark.triangle")
-                                    .font(.system(size: 50))
-                                    .foregroundColor(.white)
-                                Text("Failed to load image")
-                                    .foregroundColor(.white)
-                            }
-                        @unknown default:
-                            EmptyView()
                         }
-                    }
+                        .resizable()
+                        .aspectRatio(contentMode: SwiftUI.ContentMode.fit)
                 }
             }
             .navigationBarTitleDisplayMode(.inline)

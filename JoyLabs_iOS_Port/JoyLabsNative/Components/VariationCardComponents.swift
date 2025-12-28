@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import Kingfisher
 
 // MARK: - Supporting Types
 
@@ -997,29 +998,17 @@ private struct VariationThumbnailView: View {
     var body: some View {
         Button(action: onTap) {
             ZStack(alignment: .topTrailing) {
-                // Image
+                // Image with Kingfisher caching
                 if let url = imageURL, !url.isEmpty, let validURL = URL(string: url) {
-                    AsyncImage(url: validURL) { phase in
-                        switch phase {
-                        case .empty:
+                    KFImage(validURL)
+                        .placeholder {
                             ProgressView()
                                 .frame(width: size, height: size)
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(width: size, height: size)
-                                .clipped()
-                        case .failure:
-                            Image(systemName: "photo")
-                                .font(.system(size: 20))
-                                .foregroundColor(.secondary)
-                                .frame(width: size, height: size)
-                                .background(Color(.systemGray5))
-                        @unknown default:
-                            EmptyView()
                         }
-                    }
+                        .resizable()
+                        .aspectRatio(contentMode: SwiftUI.ContentMode.fill)
+                        .frame(width: size, height: size)
+                        .clipped()
                 } else {
                     Image(systemName: "photo")
                         .font(.system(size: 20))
