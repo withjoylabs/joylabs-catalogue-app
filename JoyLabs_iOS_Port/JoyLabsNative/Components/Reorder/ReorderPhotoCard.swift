@@ -31,7 +31,7 @@ struct ReorderPhotoCard: View {
                     NativeImageView(
                         imageId: item.imageId,
                         size: imageSize,
-                        contentMode: .fill
+                        contentMode: SwiftUI.ContentMode.fill
                     )
                     .frame(width: imageSize, height: imageSize) // Perfect 1:1 square
                     .clipped()

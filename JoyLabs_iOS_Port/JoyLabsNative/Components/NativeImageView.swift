@@ -9,7 +9,7 @@ struct NativeImageView: View {
     let imageId: String?
     let size: CGFloat
     let placeholder: String
-    let contentMode: ContentMode
+    let contentMode: SwiftUI.ContentMode
 
     @Query private var images: [ImageModel]
 
@@ -17,7 +17,7 @@ struct NativeImageView: View {
         imageId: String?,
         size: CGFloat,
         placeholder: String = "photo",
-        contentMode: ContentMode = .fit
+        contentMode: SwiftUI.ContentMode = .fit
     ) {
         self.imageId = imageId
         self.size = size
@@ -52,10 +52,6 @@ struct NativeImageView: View {
                     }
                     .resizable()
                     .aspectRatio(contentMode: contentMode)
-                    .onFailure { _ in
-                        Image(systemName: placeholder)
-                            .foregroundColor(.gray)
-                    }
             } else {
                 // No URL - show placeholder
                 Image(systemName: placeholder)
@@ -69,14 +65,14 @@ struct NativeImageView: View {
 // MARK: - Factory Methods (convenience sizing presets)
 extension NativeImageView {
     static func thumbnail(imageId: String?, size: CGFloat = 50) -> NativeImageView {
-        NativeImageView(imageId: imageId, size: size, placeholder: "photo", contentMode: .fit)
+        NativeImageView(imageId: imageId, size: size, placeholder: "photo", contentMode: SwiftUI.ContentMode.fit)
     }
 
     static func catalogItem(imageId: String?, size: CGFloat = 100) -> NativeImageView {
-        NativeImageView(imageId: imageId, size: size, placeholder: "photo", contentMode: .fit)
+        NativeImageView(imageId: imageId, size: size, placeholder: "photo", contentMode: SwiftUI.ContentMode.fit)
     }
 
     static func large(imageId: String?, size: CGFloat = 200) -> NativeImageView {
-        NativeImageView(imageId: imageId, size: size, placeholder: "photo", contentMode: .fit)
+        NativeImageView(imageId: imageId, size: size, placeholder: "photo", contentMode: SwiftUI.ContentMode.fit)
     }
 }
