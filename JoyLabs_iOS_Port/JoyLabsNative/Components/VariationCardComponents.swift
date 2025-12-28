@@ -1005,6 +1005,9 @@ private struct VariationThumbnailView: View {
                             ProgressView()
                                 .frame(width: size, height: size)
                         }
+                        .onFailure { error in
+                            // Silently handle image load failures
+                        }
                         .resizable()
                         .aspectRatio(contentMode: SwiftUI.ContentMode.fill)
                         .frame(width: size, height: size)

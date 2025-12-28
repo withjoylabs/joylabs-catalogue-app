@@ -27,6 +27,9 @@ struct SwipeableReorderCard: View {
     private let cardHeight: CGFloat = 66
 
     var body: some View {
+        // Get catalog ModelContext for NativeImageView (images are in catalogContainer, not reorderContainer)
+        let catalogContext = SquareAPIServiceFactory.createDatabaseManager().getContext()
+
         ZStack {
             // Background layer - action buttons (behind main content)
             HStack(spacing: 0) {
@@ -88,6 +91,7 @@ struct SwipeableReorderCard: View {
                     imageId: item.imageId,
                     size: 50
                 )
+                .environment(\.modelContext, catalogContext)  // FIX: Override to catalog container for image queries
                 .contentShape(Rectangle())
                 .highPriorityGesture(
                     // High priority: Long press for image update

@@ -141,6 +141,9 @@ private struct ThumbnailView: View {
                             ProgressView()
                                 .frame(width: size, height: size)
                         }
+                        .onFailure { error in
+                            // Silently handle image load failures
+                        }
                         .resizable()
                         .aspectRatio(contentMode: SwiftUI.ContentMode.fill)
                         .frame(width: size, height: size)
@@ -246,6 +249,9 @@ struct ImagePreviewModal: View {
                         .placeholder {
                             ProgressView()
                                 .tint(.white)
+                        }
+                        .onFailure { error in
+                            // Silently handle image load failures
                         }
                         .resizable()
                         .aspectRatio(contentMode: SwiftUI.ContentMode.fit)

@@ -91,7 +91,16 @@ struct JoyLabsNativeApp: App {
         ImageCache.default.memoryStorage.config.totalCostLimit = 250 * 1024 * 1024  // 250MB
         ImageCache.default.diskStorage.config.sizeLimit = 4 * 1024 * 1024 * 1024    // 4GB
         ImageCache.default.diskStorage.config.expiration = .never  // Never expire (URLs are unique)
-        logger.info("[App] Phase 1: Kingfisher image cache configured (250MB memory, 4GB disk)")
+
+        // Performance optimizations for faster image loading
+        KingfisherManager.shared.defaultOptions = [
+            .loadDiskFileSynchronously,  // Load from disk cache synchronously for better perceived performance
+            .cacheOriginalImage,         // Cache original image data to avoid reprocessing
+            .diskCacheExpiration(.never), // Never expire disk cache (URLs are unique)
+            .callbackQueue(.mainAsync)   // Callbacks on main queue for UI updates
+        ]
+
+        logger.info("[App] Phase 1: Kingfisher image cache configured (250MB memory, 4GB disk, sync disk loading)")
         
         // Initialize field configuration manager synchronously
         let _ = FieldConfigurationManager.shared

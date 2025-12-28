@@ -555,7 +555,7 @@ struct ReordersViewSwiftData: SwiftUI.View {
         
         // Get image URL from catalog data directly
         reorderItem.imageUrl = catalogItem?.primaryImageUrl
-        reorderItem.imageId = nil  // Not stored directly, use imageUrl
+        reorderItem.imageId = catalogItem?.primaryImageId  // FIX: Use actual image ID for NativeImageView
         
         // Calculate tax status from catalog data directly
         reorderItem.hasTax = (catalogItem?.taxes?.count ?? 0) > 0
@@ -592,7 +592,7 @@ struct ReordersViewSwiftData: SwiftUI.View {
         reorderItem.caseQuantity = nil  // Team data not implemented yet
         reorderItem.price = swiftDataItem.price
         reorderItem.imageUrl = swiftDataItem.imageUrl
-        reorderItem.imageId = nil  // Not stored directly, use imageUrl
+        reorderItem.imageId = swiftDataItem.imageId  // Use image ID from computed property
         reorderItem.hasTax = swiftDataItem.hasTax
         reorderItem.priority = swiftDataItem.priorityEnum
         reorderItem.purchasedDate = swiftDataItem.purchasedDate

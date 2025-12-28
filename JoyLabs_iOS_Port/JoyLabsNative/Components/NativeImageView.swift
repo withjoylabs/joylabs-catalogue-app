@@ -50,6 +50,10 @@ struct NativeImageView: View {
                             .progressViewStyle(CircularProgressViewStyle())
                             .scaleEffect(0.8)
                     }
+                    .onFailure { error in
+                        // Silently handle image load failures (e.g. corrupt JPEGs, network errors)
+                        // CMPhotoJFIFUtilities errors (-17102) are expected for some images
+                    }
                     .resizable()
                     .aspectRatio(contentMode: contentMode)
             } else {

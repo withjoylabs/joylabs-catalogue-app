@@ -22,6 +22,9 @@ struct ReorderPhotoCard: View {
     @State private var offset: CGFloat = 0
 
     var body: some View {
+        // Get catalog ModelContext for NativeImageView (images are in catalogContainer, not reorderContainer)
+        let catalogContext = SquareAPIServiceFactory.createDatabaseManager().getContext()
+
         VStack(spacing: 4) {
             // Responsive 1:1 aspect ratio image with check overlay
             GeometryReader { geometry in
@@ -33,6 +36,7 @@ struct ReorderPhotoCard: View {
                         size: imageSize,
                         contentMode: SwiftUI.ContentMode.fill
                     )
+                    .environment(\.modelContext, catalogContext)  // FIX: Override to catalog container for image queries
                     .frame(width: imageSize, height: imageSize) // Perfect 1:1 square
                     .clipped()
                     .background(Color(.systemGray6))

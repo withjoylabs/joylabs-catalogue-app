@@ -14,10 +14,14 @@ struct ZoomableImageView: View {
     private let maxScale: CGFloat = 3.0
 
     var body: some View {
+        // Get catalog ModelContext for NativeImageView (images are in catalogContainer)
+        let catalogContext = SquareAPIServiceFactory.createDatabaseManager().getContext()
+
         NativeImageView.large(
             imageId: imageId,
             size: size
         )
+        .environment(\.modelContext, catalogContext)  // FIX: Override to catalog container for image queries
         .scaleEffect(scale)
         .zIndex(scale > 1.01 ? 9999 : 0) // Bring to front when zoomed (very high z-index to escape modal bounds)
         .allowsHitTesting(true)
