@@ -3,6 +3,7 @@ import SwiftData
 import UIKit
 import OSLog
 import UserNotifications
+import Kingfisher
 
 @main
 struct JoyLabsNativeApp: App {
@@ -85,33 +86,12 @@ struct JoyLabsNativeApp: App {
     private func initializeCriticalServicesSync() {
         logger.info("[App] Phase 1: Initializing critical services synchronously...")
         
-        // Configure URLCache with generous limits for large catalogs (100,000+ items)
-        // Use absolute path in Documents directory to persist cache between app builds
-        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-        let imageCacheURL = documentsPath.appendingPathComponent("image_cache")
-        
-        // Create cache directory if it doesn't exist
-        do {
-            try FileManager.default.createDirectory(at: imageCacheURL, withIntermediateDirectories: true, attributes: nil)
-            logger.info("[App] Phase 1: Cache directory created/verified at: \(imageCacheURL.path)")
-        } catch {
-            logger.error("[App] Phase 1: Failed to create cache directory: \(error)")
-        }
-        
-        URLCache.shared = URLCache(
-            memoryCapacity: 250 * 1024 * 1024,    // 250MB memory cache (~2,500 images)
-            diskCapacity: 4 * 1024 * 1024 * 1024, // 4GB disk cache (~40,000 images)
-            directory: imageCacheURL  // Use directory URL instead of diskPath string
-        )
-        logger.info("[App] Phase 1: URLCache configured with 250MB memory, 4GB disk at: \(imageCacheURL.path)")
-
-        // Configure shared URLSession with aggressive caching for catalog images
+        // Configure Kingfisher image cache (ignores server Cache-Control headers)
         // Safe because Square uses unique URLs per image version (no stale data risk)
-        let sessionConfig = URLSessionConfiguration.default
-        sessionConfig.urlCache = URLCache.shared
-        sessionConfig.requestCachePolicy = .returnCacheDataElseLoad  // Aggressive caching
-        ImageCacheManager.shared.configureSession(with: sessionConfig)
-        logger.info("[App] Phase 1: URLSession configured with aggressive image caching")
+        ImageCache.default.memoryStorage.config.totalCostLimit = 250 * 1024 * 1024  // 250MB
+        ImageCache.default.diskStorage.config.sizeLimit = 4 * 1024 * 1024 * 1024    // 4GB
+        ImageCache.default.diskStorage.config.expiration = .never  // Never expire (URLs are unique)
+        logger.info("[App] Phase 1: Kingfisher image cache configured (250MB memory, 4GB disk)")
         
         // Initialize field configuration manager synchronously
         let _ = FieldConfigurationManager.shared

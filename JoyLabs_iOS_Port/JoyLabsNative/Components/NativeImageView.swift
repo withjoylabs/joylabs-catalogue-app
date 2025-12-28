@@ -1,8 +1,9 @@
 import SwiftUI
 import SwiftData
+import Kingfisher
 
-/// Native iOS image view using SwiftData @Query + AsyncImage
-/// Zero custom caching - leverages iOS URLCache automatically
+/// Native iOS image view using SwiftData @Query + Kingfisher
+/// Kingfisher provides aggressive caching that ignores server headers
 /// Reactive updates when ImageModel changes
 struct NativeImageView: View {
     let imageId: String?
@@ -42,24 +43,19 @@ struct NativeImageView: View {
     var body: some View {
         Group {
             if let url = imageURL, !url.isEmpty, let validURL = URL(string: url) {
-                // CachedAsyncImage uses custom URLSession with aggressive caching
-                CachedAsyncImage(url: validURL) { phase in
-                    switch phase {
-                    case .empty:
+                // Kingfisher: Aggressive caching, ignores server Cache-Control headers
+                KFImage(validURL)
+                    .placeholder {
                         ProgressView()
                             .progressViewStyle(CircularProgressViewStyle())
                             .scaleEffect(0.8)
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: contentMode)
-                    case .failure:
+                    }
+                    .resizable()
+                    .aspectRatio(contentMode: contentMode)
+                    .onFailure { _ in
                         Image(systemName: placeholder)
                             .foregroundColor(.gray)
-                    @unknown default:
-                        EmptyView()
                     }
-                }
             } else {
                 // No URL - show placeholder
                 Image(systemName: placeholder)

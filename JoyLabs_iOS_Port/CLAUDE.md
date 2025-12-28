@@ -121,17 +121,17 @@ The codebase follows a **modular service-oriented architecture** with these key 
 
 ### Simple Image System (Industry Standard)
 - **Core Service**: `SimpleImageService` (Core/Services/) - Minimal upload-only service
-- **UI Component**: `NativeImageView` (Components/) - SwiftUI view using CachedAsyncImage
-- **Image Loader**: `CachedAsyncImage` (Components/) - Custom AsyncImage with aggressive caching
-- **Cache Manager**: `ImageCacheManager` (Core/Services/) - Shared URLSession with `.returnCacheDataElseLoad` policy
+- **UI Component**: `NativeImageView` (Components/) - SwiftUI view using Kingfisher's KFImage
+- **Image Caching**: Kingfisher library (industry standard, used by Instagram/Pinterest/Twitter)
 - **Upload Modal**: `UnifiedImagePickerModal` (Components/) - Uses SimpleImageService internally
 - **Cache Strategy**:
-  - Aggressive caching via custom URLSession (configured at app startup)
-  - 250MB memory cache + 4GB disk cache in Documents/image_cache (persists between builds)
+  - Kingfisher ignores server Cache-Control headers (Square S3 sends no-cache)
+  - 250MB memory cache + 4GB disk cache (persists between builds)
   - Safe because Square uses unique URLs per image version (no stale data risk)
   - Images load instantly from cache after first fetch
+  - Configured at app startup in JoyLabsNativeApp.swift
 - **Real-time Updates**: SwiftData @Query + cache invalidation on upload
-- **Native Integration**: Leverages iOS URLSession, URLCache, SwiftData, and UIImagePickerController
+- **Why Kingfisher**: Apple's URLCache respects server cache headers. Square's S3 returns Cache-Control: no-store, preventing native caching. Kingfisher bypasses this.
 
 ### Push Notification System
 - **Core Service**: `PushNotificationService` (Core/Services/)
