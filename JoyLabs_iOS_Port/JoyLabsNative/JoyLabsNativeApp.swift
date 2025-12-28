@@ -104,8 +104,14 @@ struct JoyLabsNativeApp: App {
             directory: imageCacheURL  // Use directory URL instead of diskPath string
         )
         logger.info("[App] Phase 1: URLCache configured with 250MB memory, 4GB disk at: \(imageCacheURL.path)")
-        
-        // NativeImageView uses AsyncImage with native URLCache - no session cache clearing needed
+
+        // Configure shared URLSession with aggressive caching for catalog images
+        // Safe because Square uses unique URLs per image version (no stale data risk)
+        let sessionConfig = URLSessionConfiguration.default
+        sessionConfig.urlCache = URLCache.shared
+        sessionConfig.requestCachePolicy = .returnCacheDataElseLoad  // Aggressive caching
+        ImageCacheManager.shared.configureSession(with: sessionConfig)
+        logger.info("[App] Phase 1: URLSession configured with aggressive image caching")
         
         // Initialize field configuration manager synchronously
         let _ = FieldConfigurationManager.shared

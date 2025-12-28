@@ -42,8 +42,8 @@ struct NativeImageView: View {
     var body: some View {
         Group {
             if let url = imageURL, !url.isEmpty, let validURL = URL(string: url) {
-                // Native AsyncImage with automatic URLCache
-                AsyncImage(url: validURL) { phase in
+                // CachedAsyncImage uses custom URLSession with aggressive caching
+                CachedAsyncImage(url: validURL) { phase in
                     switch phase {
                     case .empty:
                         ProgressView()

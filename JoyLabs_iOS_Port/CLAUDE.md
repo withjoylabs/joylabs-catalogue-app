@@ -121,11 +121,17 @@ The codebase follows a **modular service-oriented architecture** with these key 
 
 ### Simple Image System (Industry Standard)
 - **Core Service**: `SimpleImageService` (Core/Services/) - Minimal upload-only service
-- **UI Component**: `SimpleImageView` (Components/) - Native AsyncImage wrapper
+- **UI Component**: `NativeImageView` (Components/) - SwiftUI view using CachedAsyncImage
+- **Image Loader**: `CachedAsyncImage` (Components/) - Custom AsyncImage with aggressive caching
+- **Cache Manager**: `ImageCacheManager` (Core/Services/) - Shared URLSession with `.returnCacheDataElseLoad` policy
 - **Upload Modal**: `UnifiedImagePickerModal` (Components/) - Uses SimpleImageService internally
-- **Cache Strategy**: Native URLCache handles all image caching automatically
-- **Real-time Updates**: AsyncImage provides automatic UI refresh when images update
-- **Native Integration**: Leverages iOS AsyncImage, URLCache, and UIImagePickerController
+- **Cache Strategy**:
+  - Aggressive caching via custom URLSession (configured at app startup)
+  - 250MB memory cache + 4GB disk cache in Documents/image_cache (persists between builds)
+  - Safe because Square uses unique URLs per image version (no stale data risk)
+  - Images load instantly from cache after first fetch
+- **Real-time Updates**: SwiftData @Query + cache invalidation on upload
+- **Native Integration**: Leverages iOS URLSession, URLCache, SwiftData, and UIImagePickerController
 
 ### Push Notification System
 - **Core Service**: `PushNotificationService` (Core/Services/)
