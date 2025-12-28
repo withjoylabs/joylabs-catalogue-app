@@ -36,7 +36,6 @@ struct UnifiedImagePickerModal: View {
 
     // Album navigation state
     @State private var selectedAlbum: String = "Photos"
-    @State private var searchText: String = ""
 
     // Computed fetch options based on selected album
     private func photoFetchOptions() -> PHFetchOptions {
@@ -58,17 +57,6 @@ struct UnifiedImagePickerModal: View {
         default:
             // "Photos" - no additional filtering
             break
-        }
-
-        // Apply search filtering
-        if !searchText.isEmpty {
-            // Combine with existing predicate if any
-            let searchPredicate = NSPredicate(format: "mediaType == %d", PHAssetMediaType.image.rawValue)
-            if let existingPredicate = options.predicate {
-                options.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [existingPredicate, searchPredicate])
-            } else {
-                options.predicate = searchPredicate
-            }
         }
 
         return options
@@ -147,16 +135,6 @@ struct UnifiedImagePickerModal: View {
             // Reload photos when album selection changes
             Task {
                 await loadPhotoAssets()
-            }
-        }
-        .onChange(of: searchText) { _, newValue in
-            // Reload photos when search text changes (debounced)
-            if newValue.isEmpty || newValue.count >= 2 {
-                Task {
-                    // Small delay to avoid too many reloads while typing
-                    try? await Task.sleep(for: .milliseconds(300))
-                    await loadPhotoAssets()
-                }
             }
         }
         .alert("Upload Error", isPresented: $showingErrorAlert) {
@@ -246,25 +224,11 @@ struct UnifiedImagePickerModal: View {
         }
     }
 
-    // MARK: - Floating Header
+    // MARK: - Floating Upload Button
 
     private func floatingHeader() -> some View {
-        HStack(spacing: 12) {
-            // Search bar
-            HStack {
-                Image(systemName: "magnifyingglass")
-                    .foregroundColor(.secondary)
-                TextField("Search your library...", text: $searchText)
-                if !searchText.isEmpty {
-                    Button(action: { searchText = "" }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.secondary)
-                    }
-                }
-            }
-            .padding(8)
-            .background(Color(.systemGray6))
-            .cornerRadius(10)
+        HStack {
+            Spacer()
 
             // Upload button
             Button("Upload") {
@@ -1121,6 +1085,6 @@ struct SidebarNavigationItem: View {
             .background(isSelected ? Color.blue : Color.clear)
             .cornerRadius(8)
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(.borderless)
     }
 }
