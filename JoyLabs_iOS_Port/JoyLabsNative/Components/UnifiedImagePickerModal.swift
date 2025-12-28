@@ -132,6 +132,10 @@ struct UnifiedImagePickerModal: View {
             requestPhotoLibraryAccess()
         }
         .onChange(of: selectedAlbum) { _, _ in
+            // Clear selected image when switching albums
+            selectedImage = nil
+            cropViewKey = UUID()
+
             // Reload photos when album selection changes
             Task {
                 await loadPhotoAssets()
@@ -273,13 +277,18 @@ struct UnifiedImagePickerModal: View {
                 // Permission denied - show guidance in preview area
                 permissionDeniedUI
             } else if isLoadingPhotos {
-                // Loading state - reserve height to prevent modal jumping
-                VStack {
-                    ProgressView("Loading Photos...")
-                        .padding(.top, 40)
-                    Spacer()
+                // Loading state - use same layout structure to prevent jumping
+                GeometryReader { geometry in
+                    ScrollView {
+                        VStack {
+                            ProgressView("Loading Photos...")
+                                .padding(.top, 40)
+                            Spacer()
+                        }
+                        .frame(minHeight: 350)
+                    }
+                    .frame(width: 400)
                 }
-                .frame(maxWidth: .infinity, minHeight: 350)  // Reserve space for photo grid
             } else {
                 // Photo grid with camera button + pagination
                 GeometryReader { geometry in
