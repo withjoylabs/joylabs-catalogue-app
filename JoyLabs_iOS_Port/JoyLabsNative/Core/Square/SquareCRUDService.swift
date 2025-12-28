@@ -1175,7 +1175,7 @@ extension SquareCRUDService {
 
         do {
             // 1. Delete image object from Square
-            try await squareAPIService.deleteCatalogObject(imageId)
+            _ = try await squareAPIService.deleteCatalogObject(imageId)
             logger.info("Deleted image \(imageId) from Square")
 
             // 2. Fetch current item to get updated imageIds
@@ -1360,7 +1360,7 @@ extension SquareCRUDService {
 
         do {
             // 1. Delete image object from Square
-            try await squareAPIService.deleteCatalogObject(imageId)
+            _ = try await squareAPIService.deleteCatalogObject(imageId)
             logger.info("Deleted image \(imageId) from Square")
 
             // 2. Fetch current variation to get updated imageIds

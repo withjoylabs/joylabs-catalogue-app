@@ -8,6 +8,11 @@ struct CachedAsyncImage<Content: View>: View {
 
     @State private var phase: AsyncImagePhase = .empty
 
+    init(url: URL, @ViewBuilder content: @escaping (AsyncImagePhase) -> Content) {
+        self.url = url
+        self.content = content
+    }
+
     var body: some View {
         content(phase)
             .task(id: url) {
