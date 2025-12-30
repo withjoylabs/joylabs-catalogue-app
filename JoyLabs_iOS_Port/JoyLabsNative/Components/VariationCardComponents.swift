@@ -521,6 +521,15 @@ private struct VariationInventoryRow: View {
         inventoryCount?.quantityInt
     }
 
+    // Responsive column widths
+    private var numericColumnWidth: CGFloat {
+        UIDevice.current.userInterfaceIdiom == .pad ? 90 : 50
+    }
+
+    private var buttonColumnWidth: CGFloat {
+        UIDevice.current.userInterfaceIdiom == .pad ? 70 : 50
+    }
+
     var body: some View {
         ItemDetailsFieldRow {
             VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
@@ -532,25 +541,25 @@ private struct VariationInventoryRow: View {
                         .foregroundColor(.itemDetailsSecondaryText)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
-                    // Numeric columns (fixed width for alignment)
+                    // Numeric columns (responsive width)
                     Text("Stock on hand")
                         .font(.itemDetailsCaption)
                         .foregroundColor(.itemDetailsSecondaryText)
-                        .frame(width: 90, alignment: .center)
+                        .frame(width: numericColumnWidth, alignment: .center)
 
                     Text("Committed")
                         .font(.itemDetailsCaption)
                         .foregroundColor(.itemDetailsSecondaryText)
-                        .frame(width: 90, alignment: .center)
+                        .frame(width: numericColumnWidth, alignment: .center)
 
                     Text("Available")
                         .font(.itemDetailsCaption)
                         .foregroundColor(.itemDetailsSecondaryText)
-                        .frame(width: 90, alignment: .center)
+                        .frame(width: numericColumnWidth, alignment: .center)
 
                     // Button column spacer
                     Spacer()
-                        .frame(width: 70)
+                        .frame(width: buttonColumnWidth)
                 }
 
                 // Line 2: Values and button
@@ -566,19 +575,19 @@ private struct VariationInventoryRow: View {
                     Text(stockOnHand != nil ? "\(stockOnHand!)" : "N/A")
                         .font(.itemDetailsBody)
                         .foregroundColor(stockOnHand == nil ? .itemDetailsSecondaryText : .itemDetailsPrimaryText)
-                        .frame(width: 90, alignment: .center)
+                        .frame(width: numericColumnWidth, alignment: .center)
 
                     // Committed (always 0 for now)
                     Text("0")
                         .font(.itemDetailsBody)
                         .foregroundColor(.itemDetailsPrimaryText)
-                        .frame(width: 90, alignment: .center)
+                        .frame(width: numericColumnWidth, alignment: .center)
 
                     // Available to sell
                     Text(stockOnHand != nil ? "\(stockOnHand!)" : "N/A")
                         .font(.itemDetailsBody)
                         .foregroundColor(stockOnHand == nil ? .itemDetailsSecondaryText : .itemDetailsPrimaryText)
-                        .frame(width: 90, alignment: .center)
+                        .frame(width: numericColumnWidth, alignment: .center)
 
                     // Adjust button
                     Button(action: onTap) {
@@ -586,7 +595,7 @@ private struct VariationInventoryRow: View {
                             .font(.itemDetailsBody)
                             .foregroundColor(.blue)
                     }
-                    .frame(width: 70)
+                    .frame(width: buttonColumnWidth)
                 }
             }
         }
@@ -876,6 +885,10 @@ struct VariationImageGallery: View {
     @State private var selectedImageId: String?
     @State private var showingPreview = false
 
+    // Drag and drop state tracking
+    @State private var draggedImageId: String?
+    @State private var dropTargetId: String?
+
     private let thumbnailSize: CGFloat = 60  // Smaller than item-level (80px)
 
     var body: some View {
@@ -918,33 +931,73 @@ struct VariationImageGallery: View {
             } else {
                 // Thumbnail grid with drag-to-reorder
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
+                    HStack(spacing: 0) {
                         ForEach(Array(variation.imageIds.enumerated()), id: \.element) { index, imageId in
                             VariationThumbnailView(
                                 imageId: imageId,
                                 isPrimary: index == 0,
                                 size: thumbnailSize,
+                                isDragging: draggedImageId == imageId,
                                 viewModel: viewModel,
                                 onTap: {
                                     selectedImageId = imageId
                                     showingPreview = true
                                 }
                             )
+                            .opacity(draggedImageId == imageId ? 0.5 : 1.0)
                             .onDrag {
-                                NSItemProvider(object: imageId as NSString)
+                                draggedImageId = imageId
+                                return NSItemProvider(object: imageId as NSString)
                             }
-                            .onDrop(of: [.text], delegate: ImageDropDelegate(
-                                item: imageId,
+                            .onDrop(of: [.text], delegate: DropViewDelegate(
+                                draggedItem: $draggedImageId,
+                                dropTargetItem: $dropTargetId,
                                 items: Binding(
                                     get: { variation.imageIds },
                                     set: { variation.imageIds = $0 }
                                 ),
+                                currentItem: imageId,
                                 onReorder: onReorder
                             ))
+
+                            // Gap AFTER this thumbnail (shows line when THIS thumbnail is hovered)
+                            VariationDropGapView(
+                                showLine: dropTargetId == imageId && draggedImageId != imageId,
+                                height: thumbnailSize
+                            )
+                        }
+
+                        // Final gap for end position (always visible)
+                        ZStack {
+                            VariationDropGapView(
+                                showLine: draggedImageId != nil && dropTargetId == "END_POSITION",
+                                height: thumbnailSize
+                            )
+
+                            // Drop target overlaps gap (2x width for easier targeting)
+                            Color.clear
+                                .frame(width: thumbnailSize * 2, height: thumbnailSize)
+                                .onDrop(of: [.text], delegate: EndDropDelegate(
+                                    draggedItem: $draggedImageId,
+                                    dropTargetItem: $dropTargetId,
+                                    items: Binding(
+                                        get: { variation.imageIds },
+                                        set: { variation.imageIds = $0 }
+                                    ),
+                                    onReorder: onReorder
+                                ))
                         }
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
+                    .onChange(of: draggedImageId) { oldValue, newValue in
+                        // Ensure state is cleared when drag ends
+                        if newValue == nil && oldValue != nil {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                dropTargetId = nil
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -972,15 +1025,17 @@ private struct VariationThumbnailView: View {
     let imageId: String
     let isPrimary: Bool
     let size: CGFloat
+    let isDragging: Bool
     let viewModel: ItemDetailsViewModel
     let onTap: () -> Void
 
     @Query private var images: [ImageModel]
 
-    init(imageId: String, isPrimary: Bool, size: CGFloat, viewModel: ItemDetailsViewModel, onTap: @escaping () -> Void) {
+    init(imageId: String, isPrimary: Bool, size: CGFloat, isDragging: Bool, viewModel: ItemDetailsViewModel, onTap: @escaping () -> Void) {
         self.imageId = imageId
         self.isPrimary = isPrimary
         self.size = size
+        self.isDragging = isDragging
         self.viewModel = viewModel
         self.onTap = onTap
 
@@ -1020,8 +1075,8 @@ private struct VariationThumbnailView: View {
                         .background(Color(.systemGray5))
                 }
 
-                // Primary badge (smaller for variation thumbnails)
-                if isPrimary {
+                // Primary badge (smaller for variation thumbnails, hidden during drag)
+                if isPrimary && !isDragging {
                     Text("PRIMARY")
                         .font(.system(size: 6, weight: .bold))
                         .foregroundColor(.white)
@@ -1040,5 +1095,26 @@ private struct VariationThumbnailView: View {
             .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
         }
         .buttonStyle(PlainButtonStyle())
+    }
+}
+// MARK: - Drop Gap View (for Variations)
+/// Renders a gap with optional centered blue drop indicator line
+private struct VariationDropGapView: View {
+    let showLine: Bool
+    let height: CGFloat
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Spacer().frame(width: 3.5)
+            if showLine {
+                Rectangle()
+                    .fill(Color.blue)
+                    .frame(width: 3, height: height)
+                    .transition(.opacity)
+            } else {
+                Spacer().frame(width: 3)
+            }
+            Spacer().frame(width: 3.5)
+        }
     }
 }

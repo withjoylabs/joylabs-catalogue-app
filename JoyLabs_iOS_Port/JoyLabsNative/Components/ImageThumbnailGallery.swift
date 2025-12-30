@@ -15,6 +15,10 @@ struct ImageThumbnailGallery: View {
     @State private var selectedImageId: String?
     @State private var showingPreview = false
 
+    // Drag and drop state tracking
+    @State private var draggedImageId: String?
+    @State private var dropTargetId: String?
+
     // SwiftData context for resolving image URLs
     @Environment(\.modelContext) private var modelContext
     @Query private var images: [ImageModel]
@@ -40,7 +44,6 @@ struct ImageThumbnailGallery: View {
                     .foregroundColor(.blue)
                 }
             }
-            .padding(.horizontal, 16)
 
             if imageIds.isEmpty {
                 // Empty state (simple message, user clicks "Add Image" button in header)
@@ -57,33 +60,69 @@ struct ImageThumbnailGallery: View {
                 .padding(.vertical, 24)
                 .background(Color(.systemGray6))
                 .cornerRadius(12)
-                .padding(.horizontal, 16)
             } else {
                 // Thumbnail grid with drag-to-reorder
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
+                    HStack(spacing: 0) {
                         ForEach(Array(imageIds.enumerated()), id: \.element) { index, imageId in
                             ThumbnailView(
                                 imageId: imageId,
                                 isPrimary: index == 0,
                                 size: thumbnailSize,
+                                isDragging: draggedImageId == imageId,
                                 onTap: {
                                     selectedImageId = imageId
                                     showingPreview = true
                                 }
                             )
+                            .opacity(draggedImageId == imageId ? 0.5 : 1.0)
                             .onDrag {
-                                NSItemProvider(object: imageId as NSString)
+                                draggedImageId = imageId
+                                return NSItemProvider(object: imageId as NSString)
                             }
-                            .onDrop(of: [.text], delegate: ImageDropDelegate(
-                                item: imageId,
+                            .onDrop(of: [.text], delegate: DropViewDelegate(
+                                draggedItem: $draggedImageId,
+                                dropTargetItem: $dropTargetId,
                                 items: $imageIds,
+                                currentItem: imageId,
                                 onReorder: onReorder
                             ))
+
+                            // Gap AFTER this thumbnail (shows line when THIS thumbnail is hovered)
+                            DropGapView(
+                                showLine: dropTargetId == imageId && draggedImageId != imageId,
+                                height: thumbnailSize
+                            )
+                        }
+
+                        // Final gap for end position (always visible)
+                        ZStack {
+                            DropGapView(
+                                showLine: draggedImageId != nil && dropTargetId == "END_POSITION",
+                                height: thumbnailSize
+                            )
+
+                            // Drop target overlaps gap (2x width for easier iPhone targeting)
+                            Color.clear
+                                .frame(width: thumbnailSize * 2, height: thumbnailSize)
+                                .onDrop(of: [.text], delegate: EndDropDelegate(
+                                    draggedItem: $draggedImageId,
+                                    dropTargetItem: $dropTargetId,
+                                    items: $imageIds,
+                                    onReorder: onReorder
+                                ))
                         }
                     }
-                    .padding(.horizontal, 16)
                     .padding(.vertical, 8)
+                    .onChange(of: draggedImageId) { oldValue, newValue in
+                        // Ensure state is cleared when drag ends (even if dropped outside valid zone)
+                        if newValue == nil && oldValue != nil {
+                            // Drag ended - clear any lingering drop target state
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                dropTargetId = nil
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -110,14 +149,16 @@ private struct ThumbnailView: View {
     let imageId: String
     let isPrimary: Bool
     let size: CGFloat
+    let isDragging: Bool
     let onTap: () -> Void
 
     @Query private var images: [ImageModel]
 
-    init(imageId: String, isPrimary: Bool, size: CGFloat, onTap: @escaping () -> Void) {
+    init(imageId: String, isPrimary: Bool, size: CGFloat, isDragging: Bool, onTap: @escaping () -> Void) {
         self.imageId = imageId
         self.isPrimary = isPrimary
         self.size = size
+        self.isDragging = isDragging
         self.onTap = onTap
 
         // Query for this specific image
@@ -156,8 +197,8 @@ private struct ThumbnailView: View {
                         .background(Color(.systemGray5))
                 }
 
-                // Primary badge
-                if isPrimary {
+                // Primary badge (hidden during drag to reduce visual noise)
+                if isPrimary && !isDragging {
                     Text("PRIMARY")
                         .font(.system(size: 8, weight: .bold))
                         .foregroundColor(.white)
@@ -179,8 +220,124 @@ private struct ThumbnailView: View {
     }
 }
 
-// MARK: - Image Drop Delegate
-/// Shared drop delegate for image reordering (used by both item and variation galleries)
+// MARK: - Modern Drop Delegate (State-Based)
+/// Modern iOS drag and drop delegate using state tracking for reliable reordering
+struct DropViewDelegate: DropDelegate {
+    @Binding var draggedItem: String?
+    @Binding var dropTargetItem: String?
+    @Binding var items: [String]
+    let currentItem: String
+    let onReorder: ([String]) -> Void
+
+    func dropEntered(info: DropInfo) {
+        // Show drop indicator at this position
+        dropTargetItem = currentItem
+    }
+
+    func dropExited(info: DropInfo) {
+        // Hide drop indicator when leaving
+        if dropTargetItem == currentItem {
+            dropTargetItem = nil
+        }
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        guard let draggedId = draggedItem,
+              let fromIndex = items.firstIndex(of: draggedId),
+              let toIndex = items.firstIndex(of: currentItem),
+              fromIndex != toIndex else {
+            // Clear state even if drop failed
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                draggedItem = nil
+                dropTargetItem = nil
+            }
+            return false
+        }
+
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            // Reorder the array
+            items.move(fromOffsets: IndexSet(integer: fromIndex), toOffset: fromIndex < toIndex ? toIndex + 1 : toIndex)
+
+            // Call the callback to sync with Square
+            onReorder(items)
+        }
+
+        // Reset state after animation starts
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            draggedItem = nil
+            dropTargetItem = nil
+        }
+        return true
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        return DropProposal(operation: .move)
+    }
+}
+
+// MARK: - End Drop Delegate
+/// Handles dropping at the end position (after last item)
+struct EndDropDelegate: DropDelegate {
+    @Binding var draggedItem: String?
+    @Binding var dropTargetItem: String?
+    @Binding var items: [String]
+    let onReorder: ([String]) -> Void
+
+    func dropEntered(info: DropInfo) {
+        // Show drop indicator at end position
+        dropTargetItem = "END_POSITION"
+    }
+
+    func dropExited(info: DropInfo) {
+        // Hide drop indicator when leaving
+        if dropTargetItem == "END_POSITION" {
+            dropTargetItem = nil
+        }
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        guard let draggedId = draggedItem,
+              let fromIndex = items.firstIndex(of: draggedId) else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                draggedItem = nil
+                dropTargetItem = nil
+            }
+            return false
+        }
+
+        // Don't move if already at end
+        if fromIndex == items.count - 1 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                draggedItem = nil
+                dropTargetItem = nil
+            }
+            return false
+        }
+
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            // Move to end position
+            items.move(fromOffsets: IndexSet(integer: fromIndex), toOffset: items.count)
+
+            // Call the callback to sync with Square
+            onReorder(items)
+        }
+
+        // Reset state after animation starts
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            draggedItem = nil
+            dropTargetItem = nil
+        }
+        return true
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        return DropProposal(operation: .move)
+    }
+}
+
+// MARK: - Legacy Drop Delegate (For Variations - Backward Compatibility)
+/// Legacy drop delegate used by variation image galleries
+/// TODO: Update VariationCardComponents to use modern DropViewDelegate pattern
 struct ImageDropDelegate: DropDelegate {
     let item: String
     @Binding var items: [String]
@@ -288,6 +445,28 @@ struct ImagePreviewModal: View {
                     Text("This action cannot be undone.")
                 }
             }
+        }
+    }
+}
+
+// MARK: - Drop Gap View
+/// Renders a gap with optional centered blue drop indicator line
+private struct DropGapView: View {
+    let showLine: Bool
+    let height: CGFloat
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Spacer().frame(width: 4.5)
+            if showLine {
+                Rectangle()
+                    .fill(Color.blue)
+                    .frame(width: 3, height: height)
+                    .transition(.opacity)
+            } else {
+                Spacer().frame(width: 3)
+            }
+            Spacer().frame(width: 4.5)
         }
     }
 }

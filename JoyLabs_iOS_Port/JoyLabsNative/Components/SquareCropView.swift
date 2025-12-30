@@ -8,7 +8,7 @@ struct SquareCropView: View {
     let scrollViewState: ScrollViewState // Injected from parent for stable lifecycle
     
     // Constants
-    private let cornerRadius: CGFloat = 8.0
+    private let cornerRadius: CGFloat = 0.0
     
     var body: some View {
         GeometryReader { geometry in
@@ -38,7 +38,6 @@ struct SquareCropView: View {
                     .allowsHitTesting(false) // Don't block UIScrollView gestures
             }
             .frame(width: squareSize, height: squareSize)
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
             .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
         }
     }
@@ -89,7 +88,6 @@ struct SquareCropScrollView: UIViewRepresentable {
         scrollView.showsVerticalScrollIndicator = false
         scrollView.backgroundColor = .clear
         scrollView.clipsToBounds = true
-        scrollView.layer.cornerRadius = 8.0
         
         // Configure image view
         imageView.contentMode = .scaleAspectFill  // Fill the frame we set
@@ -252,11 +250,6 @@ struct SquareMaskOverlay: View {
                     .blendMode(.destinationOut)
             )
             .compositingGroup()
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .stroke(Color.white, lineWidth: 2)
-                    .frame(width: squareSize, height: squareSize)
-            )
     }
 }
 

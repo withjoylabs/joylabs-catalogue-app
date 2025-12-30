@@ -62,68 +62,20 @@ struct UnifiedImagePickerModal: View {
         return options
     }
 
-    // Responsive columns: 5 columns (Journal app style)
-    private var columns: [GridItem] {
-        let columnCount = 5
-        return Array(repeating: GridItem(.flexible(), spacing: 1), count: columnCount)
+    // Responsive columns: Use .fixed() based on calculated thumbnail size (computed in GeometryReader)
+    private func columns(thumbnailSize: CGFloat) -> [GridItem] {
+        let columnCount = UIDevice.current.userInterfaceIdiom == .pad ? 5 : 4
+        return Array(repeating: GridItem(.fixed(thumbnailSize), spacing: 1), count: columnCount)
     }
 
     var body: some View {
-        HStack(spacing: 0) {
-            // Left Sidebar - Full height navigation
-            sidebarNavigation()
-                .frame(width: 260)
-                .background(Color(.systemGroupedBackground))
-
-            Divider()
-
-            // Right Content Area - Floating header + content
-            ZStack(alignment: .top) {
-                // Background: Content area (crop preview + photo grid)
-                HStack {
-                    Spacer()
-                    VStack(spacing: 0) {
-                        // Reserve space for floating header
-                        Color.clear.frame(height: 60)
-
-                        // Square crop view for selected image
-                        if let selectedImage = selectedImage {
-                            let cropView = SquareCropView(image: selectedImage, scrollViewState: scrollViewState)
-                            cropView
-                                .frame(width: 400, height: 400)
-                                .id(cropViewKey)
-                                .onAppear {
-                                    squareCropViewRef = cropView
-                                }
-                        } else {
-                            // Placeholder when no image selected
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color(.systemGray6))
-                                .frame(width: 400, height: 400)
-                                .overlay(
-                                    VStack(spacing: 12) {
-                                        Image(systemName: "photo")
-                                            .font(.system(size: 40))
-                                            .foregroundColor(.gray)
-                                        Text("Select a photo to crop")
-                                            .font(.headline)
-                                            .foregroundColor(Color.secondary)
-                                    }
-                                )
-                        }
-
-                        Divider()
-                            .frame(width: 400)
-
-                        // iOS Photo Library Grid (Scrollable)
-                        photoLibrarySectionWithPermissions()
-                    }
-                    Spacer()
-                }
-
-                // Foreground: Floating header
-                floatingHeader()
-                    .zIndex(10)
+        Group {
+            if UIDevice.current.userInterfaceIdiom == .pad {
+                // iPad Layout: Horizontal split (sidebar + content)
+                iPadLayout()
+            } else {
+                // iPhone Layout: Vertical (content + bottom nav)
+                iPhoneLayout()
             }
         }
         .interactiveDismissDisabled(false)
@@ -161,6 +113,126 @@ struct UnifiedImagePickerModal: View {
                 }
             )
             .nestedComponentModal()
+        }
+    }
+
+    // MARK: - Layout Methods
+
+    @ViewBuilder
+    private func iPadLayout() -> some View {
+        HStack(spacing: 0) {
+            // Left Sidebar - Full height navigation
+            sidebarNavigation()
+                .frame(width: 260)
+                .background(Color(.systemGroupedBackground))
+
+            Divider()
+
+            // Right Content Area - Floating header + content
+            contentArea(cropWidth: 400)
+        }
+    }
+
+    @ViewBuilder
+    private func iPhoneLayout() -> some View {
+        ZStack(alignment: .bottom) {
+            // Main content (full screen)
+            contentArea(cropWidth: UIScreen.main.bounds.width - 16)
+
+            // Translucent bottom navigation bar (iOS 26 style)
+            bottomNavigationBar()
+                .zIndex(100)
+        }
+    }
+
+    @ViewBuilder
+    private func contentArea(cropWidth: CGFloat) -> some View {
+        ZStack(alignment: .top) {
+            // Background: Content area (crop preview + photo grid)
+            VStack(spacing: 0) {
+                // Reserve space for floating header
+                Color.clear.frame(height: 60)
+
+                // Square crop view for selected image
+                if let selectedImage = selectedImage {
+                    let cropView = SquareCropView(image: selectedImage, scrollViewState: scrollViewState)
+                    cropView
+                        .frame(width: cropWidth, height: cropWidth)
+                        .id(cropViewKey)
+                        .onAppear {
+                            squareCropViewRef = cropView
+                        }
+                } else {
+                    // Placeholder when no image selected
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color(.systemGray6))
+                        .frame(width: cropWidth, height: cropWidth)
+                        .overlay(
+                            VStack(spacing: 12) {
+                                Image(systemName: "photo")
+                                    .font(.system(size: 40))
+                                    .foregroundColor(.gray)
+                                Text("Select a photo to crop")
+                                    .font(.headline)
+                                    .foregroundColor(Color.secondary)
+                            }
+                        )
+                }
+
+                Divider()
+
+                // iOS Photo Library Grid (Scrollable)
+                photoLibrarySectionWithPermissions()
+            }
+
+            // Foreground: Floating header
+            floatingHeader()
+                .zIndex(10)
+        }
+    }
+
+    @ViewBuilder
+    private func bottomNavigationBar() -> some View {
+        HStack(spacing: 8) {
+            ForEach(["Photos", "Favorites", "Recent", "Videos", "Screens"], id: \.self) { album in
+                Button(action: {
+                    // Map display names to actual album names
+                    if album == "Recent" {
+                        selectedAlbum = "Recently Saved"
+                    } else if album == "Screens" {
+                        selectedAlbum = "Screenshots"
+                    } else {
+                        selectedAlbum = album
+                    }
+                }) {
+                    VStack(spacing: 4) {
+                        Image(systemName: albumIcon(for: album))
+                            .font(.system(size: 20))
+                        Text(album)
+                            .font(.caption2)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.glass)
+                .tint(
+                    (album == "Recent" && selectedAlbum == "Recently Saved") ||
+                    (album == "Screens" && selectedAlbum == "Screenshots") ||
+                    (album == selectedAlbum) ? .blue : .secondary
+                )
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+    }
+
+    private func albumIcon(for album: String) -> String {
+        switch album {
+        case "Photos": return "photo.on.rectangle"
+        case "Favorites": return "heart.fill"
+        case "Recent": return "clock.fill"
+        case "Videos": return "video.fill"
+        case "Screens": return "camera.viewfinder"
+        default: return "photo"
         }
     }
 
@@ -287,18 +359,19 @@ struct UnifiedImagePickerModal: View {
                         }
                         .frame(minHeight: 350)
                     }
-                    .frame(width: 400)
+                    .frame(width: UIDevice.current.userInterfaceIdiom == .pad ? 400 : nil)
                 }
             } else {
                 // Photo grid with camera button + pagination
                 GeometryReader { geometry in
-                    let containerWidth: CGFloat = 400  // Fixed width to match preview
-                    let columnCount: CGFloat = 5  // 5-column grid (Journal app style)
+                    // Responsive container width and columns
+                    let containerWidth: CGFloat = UIDevice.current.userInterfaceIdiom == .pad ? 400 : geometry.size.width
+                    let columnCount: CGFloat = UIDevice.current.userInterfaceIdiom == .pad ? 5 : 4
                     let spacing = columnCount - 1 // 1pt spacing between columns
                     let currentThumbnailSize = (containerWidth - spacing) / columnCount
                 
                 ScrollView {
-                    LazyVGrid(columns: columns, spacing: 1) {
+                    LazyVGrid(columns: columns(thumbnailSize: currentThumbnailSize), spacing: 1) {
                         // Camera button as first item
                         CameraButtonView(thumbnailSize: currentThumbnailSize) {
                             // Check camera availability before showing
@@ -338,7 +411,11 @@ struct UnifiedImagePickerModal: View {
                         }
                     }
                 }
-                .frame(width: 400)
+                .safeAreaInset(edge: .bottom) {
+                    // Reserve space for floating nav bar on iPhone (invisible spacer)
+                    Color.clear.frame(height: UIDevice.current.userInterfaceIdiom == .phone ? 70 : 0)
+                }
+                .frame(width: UIDevice.current.userInterfaceIdiom == .pad ? 400 : nil)
                 } // Close GeometryReader
             }
         }
@@ -1095,5 +1172,27 @@ struct SidebarNavigationItem: View {
             .cornerRadius(8)
         }
         .buttonStyle(.borderless)
+    }
+}
+
+// MARK: - View Extensions
+
+extension View {
+    func cornerRadius(_ radius: CGFloat, corners: UIRectCorner) -> some View {
+        clipShape(RoundedCorner(radius: radius, corners: corners))
+    }
+}
+
+struct RoundedCorner: Shape {
+    var radius: CGFloat = .infinity
+    var corners: UIRectCorner = .allCorners
+
+    func path(in rect: CGRect) -> Path {
+        let path = UIBezierPath(
+            roundedRect: rect,
+            byRoundingCorners: corners,
+            cornerRadii: CGSize(width: radius, height: radius)
+        )
+        return Path(path.cgPath)
     }
 }
