@@ -246,25 +246,42 @@ struct ItemDetailsTextField: View {
             VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
                 ItemDetailsFieldLabel(title: title, isRequired: isRequired, helpText: helpText)
 
-                TextField(placeholder, text: $text)
-                    .font(.itemDetailsBody)
-                    .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
-                    .padding(.vertical, ItemDetailsSpacing.compactSpacing)
-                    .background(Color.itemDetailsFieldBackground)
-                    .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
-                    .keyboardType(keyboardType)
-                    .autocorrectionDisabled()
-                    .focused(focusedField != nil && fieldIdentifier != nil ? focusedField! : $isFocused, equals: fieldIdentifier)
-                    .onSubmit {
-                        onSubmit?()
+                Group {
+                    if let focusedField = focusedField, let fieldIdentifier = fieldIdentifier {
+                        TextField(placeholder, text: $text)
+                            .font(.itemDetailsBody)
+                            .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
+                            .padding(.vertical, ItemDetailsSpacing.compactSpacing)
+                            .background(Color.itemDetailsFieldBackground)
+                            .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
+                            .keyboardType(keyboardType)
+                            .autocorrectionDisabled()
+                            .focused(focusedField, equals: fieldIdentifier)
+                            .onSubmit {
+                                onSubmit?()
+                            }
+                    } else {
+                        TextField(placeholder, text: $text)
+                            .font(.itemDetailsBody)
+                            .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
+                            .padding(.vertical, ItemDetailsSpacing.compactSpacing)
+                            .background(Color.itemDetailsFieldBackground)
+                            .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
+                            .keyboardType(keyboardType)
+                            .autocorrectionDisabled()
+                            .focused($isFocused)
+                            .onSubmit {
+                                onSubmit?()
+                            }
                     }
-                    .overlay(
-                        RoundedRectangle(cornerRadius: ItemDetailsSpacing.fieldCornerRadius)
-                            .stroke(error != nil ? Color.itemDetailsDestructive : Color.clear, lineWidth: 1)
-                    )
-                    .onChange(of: text) { _, _ in
-                        onChange?()
-                    }
+                }
+                .overlay(
+                    RoundedRectangle(cornerRadius: ItemDetailsSpacing.fieldCornerRadius)
+                        .stroke(error != nil ? Color.itemDetailsDestructive : Color.clear, lineWidth: 1)
+                )
+                .onChange(of: text) { _, _ in
+                    onChange?()
+                }
 
                 if let error = error {
                     Text(error)

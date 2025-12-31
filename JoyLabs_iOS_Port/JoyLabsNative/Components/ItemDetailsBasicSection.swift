@@ -78,8 +78,20 @@ struct ItemDetailsBasicSection: View {
 // ItemDetailsSectionHeader and other individual components moved to ItemDetailsStyles.swift for centralized styling
 
 #Preview("Basic Section") {
-    ScrollView {
-        ItemDetailsBasicSection(viewModel: ItemDetailsViewModel())
-            .padding()
+    struct PreviewWrapper: View {
+        @FocusState private var focusedField: ItemField?
+
+        var body: some View {
+            ScrollView {
+                ItemDetailsBasicSection(
+                    viewModel: ItemDetailsViewModel(),
+                    focusedField: $focusedField,
+                    moveToNextField: { }
+                )
+                .padding()
+            }
+        }
     }
+
+    return PreviewWrapper()
 }
