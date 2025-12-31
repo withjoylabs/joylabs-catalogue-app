@@ -4,8 +4,10 @@ import SwiftUI
 /// Handles basic item information fields (name, description, abbreviation)
 struct ItemDetailsBasicSection: View {
     @ObservedObject var viewModel: ItemDetailsViewModel
+    @FocusState.Binding var focusedField: ItemField?
+    let moveToNextField: () -> Void
     @StateObject private var configManager = FieldConfigurationManager.shared
-    
+
     var body: some View {
         ItemDetailsSection(title: "Basic Information", icon: "square.and.pencil") {
             ItemDetailsCard {
@@ -19,6 +21,9 @@ struct ItemDetailsBasicSection: View {
                             error: viewModel.nameError,
                             isRequired: true,
                             autoFocus: viewModel.context.isCreating,
+                            focusedField: $focusedField,
+                            fieldIdentifier: .itemName,
+                            onSubmit: moveToNextField,
                             onChange: { viewModel.markAsChanged() }
                         )
                     }
@@ -30,7 +35,7 @@ struct ItemDetailsBasicSection: View {
                         ItemDetailsFieldRow {
                             VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
                                 ItemDetailsFieldLabel(title: "Description", helpText: "Optional item description")
-                                
+
                                 TextField("Enter item description (optional)", text: $viewModel.description, axis: .vertical)
                                     .font(.itemDetailsBody)
                                     .padding(ItemDetailsSpacing.fieldPadding)
@@ -38,6 +43,8 @@ struct ItemDetailsBasicSection: View {
                                     .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
                                     .lineLimit(3...6)
                                     .autocorrectionDisabled()
+                                    .focused($focusedField, equals: .description)
+                                    .onSubmit(moveToNextField)
                                     .onChange(of: viewModel.description) { _, _ in
                                         viewModel.markAsChanged()
                                     }
@@ -48,13 +55,16 @@ struct ItemDetailsBasicSection: View {
                     // Abbreviation (configurable)
                     if configManager.isFieldEnabled(.basicAbbreviation) {
                         ItemDetailsFieldSeparator()
-                        
+
                         ItemDetailsFieldRow {
                             ItemDetailsTextField(
                                 title: "Abbreviation",
                                 placeholder: "Short name for receipts",
                                 text: $viewModel.abbreviation,
                                 helpText: "Used on receipts and POS displays when space is limited",
+                                focusedField: $focusedField,
+                                fieldIdentifier: .abbreviation,
+                                onSubmit: moveToNextField,
                                 onChange: { viewModel.markAsChanged() }
                             )
                         }

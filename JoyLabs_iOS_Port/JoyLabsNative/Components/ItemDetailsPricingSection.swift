@@ -5,11 +5,13 @@ import SwiftData
 /// Handles pricing, variations, SKU, and UPC information
 struct ItemDetailsPricingSection: View {
     @ObservedObject var viewModel: ItemDetailsViewModel
+    @FocusState.Binding var focusedField: ItemField?
+    let moveToNextField: () -> Void
     @StateObject private var configManager = FieldConfigurationManager.shared
     let onVariationPrint: (ItemDetailsVariationData, @escaping (Bool) -> Void) -> Void
     @State private var printingVariationIndices = Set<Int>()
     @Environment(\.modelContext) private var modelContext
-    
+
     var body: some View {
         ItemDetailsSection(title: "Pricing & Variations", icon: "dollarsign.circle") {
             ItemDetailsCard {
@@ -32,6 +34,8 @@ struct ItemDetailsPricingSection: View {
                                 }
                             ),
                             index: index,
+                            focusedField: $focusedField,
+                            moveToNextField: moveToNextField,
                             onDelete: {
                                 // Safe removal with bounds checking
                                 guard index < viewModel.variations.count && viewModel.variations.count > 1 else { return }

@@ -92,10 +92,13 @@ struct VariationCardHeader: View {
 // MARK: - Variation Fields with Duplicate Detection
 struct VariationCardFields: View {
     @Binding var variation: ItemDetailsVariationData
+    let index: Int
+    @FocusState.Binding var focusedField: ItemField?
+    let moveToNextField: () -> Void
     let viewModel: ItemDetailsViewModel
     let modelContext: ModelContext
     @State private var duplicateDetection: DuplicateDetectionService?
-    
+
     var body: some View {
         VStack(spacing: 0) {
             // Variation name - using centralized component for touch targets
@@ -106,7 +109,10 @@ struct VariationCardFields: View {
                     text: Binding(
                         get: { variation.name ?? "" },
                         set: { variation.name = $0.isEmpty ? nil : $0 }
-                    )
+                    ),
+                    focusedField: $focusedField,
+                    fieldIdentifier: .variationName(index),
+                    onSubmit: moveToNextField
                 )
             }
             
@@ -131,7 +137,10 @@ struct VariationCardFields: View {
                                 )
                             }
                         ),
-                        keyboardType: .numbersAndPunctuation
+                        keyboardType: .numbersAndPunctuation,
+                        focusedField: $focusedField,
+                        fieldIdentifier: .variationUPC(index),
+                        onSubmit: moveToNextField
                     )
 
                     ItemDetailsTextField(
@@ -147,7 +156,10 @@ struct VariationCardFields: View {
                                     excludeItemId: viewModel.itemData.id
                                 )
                             }
-                        )
+                        ),
+                        focusedField: $focusedField,
+                        fieldIdentifier: .variationSKU(index),
+                        onSubmit: moveToNextField
                     )
                 }
             }
@@ -181,6 +193,9 @@ struct VariationCardFields: View {
 // MARK: - Price Section
 struct VariationCardPriceSection: View {
     @Binding var variation: ItemDetailsVariationData
+    let index: Int
+    @FocusState.Binding var focusedField: ItemField?
+    let moveToNextField: () -> Void
     let viewModel: ItemDetailsViewModel
     @StateObject private var capabilitiesService = SquareCapabilitiesService.shared
     @State private var showingAdjustmentModal = false
@@ -218,7 +233,10 @@ struct VariationCardPriceSection: View {
             // Price and pricing type - reduced spacing
             HStack(spacing: 12) {
                 PriceFieldWithTouchTarget(
-                    variation: $variation
+                    variation: $variation,
+                    index: index,
+                    focusedField: $focusedField,
+                    moveToNextField: moveToNextField
                 )
                 
                 VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
@@ -637,6 +655,9 @@ struct DuplicateDetectionSection: View {
 /// Price field with expanded touch target and calculator-style input
 struct PriceFieldWithTouchTarget: View {
     @Binding var variation: ItemDetailsVariationData
+    let index: Int
+    @FocusState.Binding var focusedField: ItemField?
+    let moveToNextField: () -> Void
     @FocusState private var isFocused: Bool
     @State private var priceInCents: Int = 0
     
@@ -653,7 +674,7 @@ struct PriceFieldWithTouchTarget: View {
     var body: some View {
         Button(action: {
             if variation.pricingType != .variablePricing {
-                isFocused = true
+                focusedField = .variationPrice(index)
             }
         }) {
             VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
@@ -676,13 +697,13 @@ struct PriceFieldWithTouchTarget: View {
                             .onChange(of: digitString) { oldValue, newValue in
                                 // Only keep digits
                                 let digitsOnly = newValue.filter { $0.isNumber }
-                                
+
                                 // Limit to 7 digits max
                                 let limited = String(digitsOnly.prefix(7))
-                                
+
                                 // Update the stored digits
                                 digitString = limited
-                                
+
                                 // Convert to cents
                                 if let cents = Int(limited) {
                                     priceInCents = cents
@@ -703,7 +724,8 @@ struct PriceFieldWithTouchTarget: View {
                         .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                        .focused($isFocused)
+                        .focused($focusedField, equals: .variationPrice(index))
+                        .onSubmit(moveToNextField)
                         .onChange(of: priceInCents) { _, newValue in
                             // Update the variation's price immediately
                             variation.priceMoney = newValue > 0 ? MoneyData(amount: newValue) : nil

@@ -5,6 +5,8 @@ import SwiftData
 struct ItemDetailsVariationCard: View {
     @Binding var variation: ItemDetailsVariationData
     let index: Int
+    @FocusState.Binding var focusedField: ItemField?
+    let moveToNextField: () -> Void
     let onDelete: () -> Void
     let onPrint: (ItemDetailsVariationData) -> Void
     let isPrinting: Bool
@@ -27,6 +29,9 @@ struct ItemDetailsVariationCard: View {
             // Fields with full duplicate detection
             VariationCardFields(
                 variation: $variation,
+                index: index,
+                focusedField: $focusedField,
+                moveToNextField: moveToNextField,
                 viewModel: viewModel,
                 modelContext: modelContext
             )
@@ -34,6 +39,9 @@ struct ItemDetailsVariationCard: View {
             // Price section with location overrides
             VariationCardPriceSection(
                 variation: $variation,
+                index: index,
+                focusedField: $focusedField,
+                moveToNextField: moveToNextField,
                 viewModel: viewModel
             )
 

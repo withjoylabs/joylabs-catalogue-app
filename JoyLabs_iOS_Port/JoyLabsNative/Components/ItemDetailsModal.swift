@@ -35,10 +35,23 @@ enum SearchQueryType: String, CaseIterable {
     case upc = "UPC"
     case sku = "SKU"
     case name = "Name"
-    
+
     var displayName: String {
         return self.rawValue
     }
+}
+
+// MARK: - Focus Field Enum
+/// Defines all focusable text fields in the item details modal
+enum ItemField: Hashable {
+    case itemName
+    case description
+    case abbreviation
+    case variationName(Int)
+    case variationUPC(Int)
+    case variationSKU(Int)
+    case variationPrice(Int)
+    case priceOverride(variationIndex: Int, overrideIndex: Int)
 }
 
 // MARK: - Item Details Modal
@@ -48,8 +61,8 @@ struct ItemDetailsModal: View {
     let onDismiss: () -> Void
     let onSave: (ItemDetailsData) -> Void
 
-    @FocusState private var isAnyFieldFocused: Bool
-    
+    @FocusState private var focusedField: ItemField?
+
     @StateObject private var viewModel = ItemDetailsViewModel()
     
     // Price selection data for FAB buttons
@@ -95,6 +108,7 @@ struct ItemDetailsModal: View {
                 ItemDetailsContent(
                     context: context,
                     viewModel: viewModel,
+                    focusedField: $focusedField,
                     onSave: handleSave,
                     onDismiss: onDismiss,
                     onVariationPrint: handleVariationPrint
@@ -183,7 +197,7 @@ struct ItemDetailsModal: View {
         print("Cancel button tapped")
 
         // Dismiss keyboard first to prevent layout conflicts
-        isAnyFieldFocused = false
+        focusedField = nil
         hideKeyboard()
 
         // This is called from FAB when hasChanges is false
@@ -493,11 +507,12 @@ struct ItemDetailsModal: View {
 struct ItemDetailsContent: View {
     let context: ItemDetailsContext
     @ObservedObject var viewModel: ItemDetailsViewModel
+    @FocusState.Binding var focusedField: ItemField?
     let onSave: () -> Void
     let onDismiss: () -> Void
     let onVariationPrint: (ItemDetailsVariationData, @escaping (Bool) -> Void) -> Void
     @StateObject private var configManager = FieldConfigurationManager.shared
-    
+
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -533,16 +548,16 @@ struct ItemDetailsContent: View {
         switch sectionId {
         case "image":
             ItemImageSection(viewModel: viewModel)
-            
+
         case "basicInfo":
-            ItemDetailsBasicSection(viewModel: viewModel)
-            
+            ItemDetailsBasicSection(viewModel: viewModel, focusedField: $focusedField, moveToNextField: moveToNextField)
+
         case "productType":
             ItemProductTypeSection(viewModel: viewModel)
-            
+
         case "pricing":
             if shouldShowPricingSection {
-                ItemDetailsPricingSection(viewModel: viewModel, onVariationPrint: onVariationPrint)
+                ItemDetailsPricingSection(viewModel: viewModel, focusedField: $focusedField, moveToNextField: moveToNextField, onVariationPrint: onVariationPrint)
             }
 
         case "inventory":
@@ -625,6 +640,86 @@ struct ItemDetailsContent: View {
                configManager.currentConfiguration.advancedFields.sellableEnabled ||
                configManager.currentConfiguration.advancedFields.stockableEnabled ||
                configManager.currentConfiguration.advancedFields.userDataEnabled
+    }
+
+    // MARK: - Field Navigation
+    private func moveToNextField() {
+        guard let current = focusedField else { return }
+
+        switch current {
+        case .itemName:
+            // Move to description if enabled
+            if configManager.isFieldEnabled(.basicDescription) {
+                focusedField = .description
+            } else if configManager.isFieldEnabled(.basicAbbreviation) {
+                focusedField = .abbreviation
+            } else {
+                // Move to first variation
+                focusedField = .variationName(0)
+            }
+
+        case .description:
+            // Move to abbreviation if enabled
+            if configManager.isFieldEnabled(.basicAbbreviation) {
+                focusedField = .abbreviation
+            } else {
+                // Move to first variation
+                focusedField = .variationName(0)
+            }
+
+        case .abbreviation:
+            // Move to first variation
+            focusedField = .variationName(0)
+
+        case .variationName(let index):
+            focusedField = .variationUPC(index)
+
+        case .variationUPC(let index):
+            focusedField = .variationSKU(index)
+
+        case .variationSKU(let index):
+            focusedField = .variationPrice(index)
+
+        case .variationPrice(let index):
+            // Check if there are price overrides for this variation
+            if index < viewModel.variations.count {
+                let variation = viewModel.variations[index]
+                if !variation.locationOverrides.isEmpty && variation.pricingType != .variablePricing {
+                    // Move to first price override
+                    focusedField = .priceOverride(variationIndex: index, overrideIndex: 0)
+                    return
+                }
+            }
+
+            // Move to next variation or done
+            let nextIndex = index + 1
+            if nextIndex < viewModel.variations.count {
+                focusedField = .variationName(nextIndex)
+            } else {
+                // All fields complete - dismiss keyboard
+                focusedField = nil
+            }
+
+        case .priceOverride(let variationIndex, let overrideIndex):
+            // Check if there's another override for this variation
+            let nextOverrideIndex = overrideIndex + 1
+            if variationIndex < viewModel.variations.count {
+                let variation = viewModel.variations[variationIndex]
+                if nextOverrideIndex < variation.locationOverrides.count {
+                    focusedField = .priceOverride(variationIndex: variationIndex, overrideIndex: nextOverrideIndex)
+                    return
+                }
+            }
+
+            // Move to next variation or done
+            let nextVariationIndex = variationIndex + 1
+            if nextVariationIndex < viewModel.variations.count {
+                focusedField = .variationName(nextVariationIndex)
+            } else {
+                // All fields complete - dismiss keyboard
+                focusedField = nil
+            }
+        }
     }
 }
 

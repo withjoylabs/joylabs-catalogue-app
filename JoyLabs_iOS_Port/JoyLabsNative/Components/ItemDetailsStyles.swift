@@ -200,6 +200,9 @@ struct ItemDetailsTextField: View {
     let isRequired: Bool
     let keyboardType: UIKeyboardType
     let autoFocus: Bool
+    var focusedField: FocusState<ItemField?>.Binding?
+    var fieldIdentifier: ItemField?
+    let onSubmit: (() -> Void)?
     let onChange: (() -> Void)?
 
     @FocusState private var isFocused: Bool
@@ -213,6 +216,9 @@ struct ItemDetailsTextField: View {
         isRequired: Bool = false,
         keyboardType: UIKeyboardType = .default,
         autoFocus: Bool = false,
+        focusedField: FocusState<ItemField?>.Binding? = nil,
+        fieldIdentifier: ItemField? = nil,
+        onSubmit: (() -> Void)? = nil,
         onChange: (() -> Void)? = nil
     ) {
         self.title = title
@@ -223,16 +229,23 @@ struct ItemDetailsTextField: View {
         self.isRequired = isRequired
         self.keyboardType = keyboardType
         self.autoFocus = autoFocus
+        self.focusedField = focusedField
+        self.fieldIdentifier = fieldIdentifier
+        self.onSubmit = onSubmit
         self.onChange = onChange
     }
     
     var body: some View {
         Button(action: {
-            isFocused = true
+            if let focusedField = focusedField, let fieldIdentifier = fieldIdentifier {
+                focusedField.wrappedValue = fieldIdentifier
+            } else {
+                isFocused = true
+            }
         }) {
             VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
                 ItemDetailsFieldLabel(title: title, isRequired: isRequired, helpText: helpText)
-                
+
                 TextField(placeholder, text: $text)
                     .font(.itemDetailsBody)
                     .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
@@ -241,7 +254,10 @@ struct ItemDetailsTextField: View {
                     .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
                     .keyboardType(keyboardType)
                     .autocorrectionDisabled()
-                    .focused($isFocused)
+                    .focused(focusedField != nil && fieldIdentifier != nil ? focusedField! : $isFocused, equals: fieldIdentifier)
+                    .onSubmit {
+                        onSubmit?()
+                    }
                     .overlay(
                         RoundedRectangle(cornerRadius: ItemDetailsSpacing.fieldCornerRadius)
                             .stroke(error != nil ? Color.itemDetailsDestructive : Color.clear, lineWidth: 1)
@@ -249,7 +265,7 @@ struct ItemDetailsTextField: View {
                     .onChange(of: text) { _, _ in
                         onChange?()
                     }
-                
+
                 if let error = error {
                     Text(error)
                         .font(.itemDetailsCaption)
@@ -262,7 +278,11 @@ struct ItemDetailsTextField: View {
         .onAppear {
             if autoFocus {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    isFocused = true
+                    if let focusedField = focusedField, let fieldIdentifier = fieldIdentifier {
+                        focusedField.wrappedValue = fieldIdentifier
+                    } else {
+                        isFocused = true
+                    }
                 }
             }
         }
