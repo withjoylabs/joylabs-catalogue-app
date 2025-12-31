@@ -1339,10 +1339,16 @@ class ItemDetailsViewModel: ObservableObject {
     /// Load locations from local database (same pattern as other data)
     /// Load locations from app-wide cache (instant, no HTTP calls)
     private func loadLocations() async {
-        // Use cached locations from LocationCacheManager (no HTTP calls!)
+        // Failsafe: If cache is empty, load from API first
+        if LocationCacheManager.shared.locations.isEmpty {
+            logger.info("Location cache empty - loading from API as fallback")
+            await LocationCacheManager.shared.loadLocations()
+        }
+
+        // Use cached locations from LocationCacheManager
         await MainActor.run {
             self.availableLocations = LocationCacheManager.shared.locations
-            logger.debug("Loaded \(self.availableLocations.count) cached locations for item modal (no HTTP call)")
+            logger.debug("Loaded \(self.availableLocations.count) cached locations for item modal")
         }
     }
 

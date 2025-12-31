@@ -83,10 +83,31 @@ class LocationCacheManager: ObservableObject {
         } catch {
             logger.error("❌ Failed to load locations: \(error.localizedDescription)")
             self.error = error
-            
-            // If we have cached data, keep using it despite the error
-            if !self.locations.isEmpty {
-                logger.info("Using stale cached locations (\(self.locations.count) locations)")
+
+            // Check for authentication failure specifically
+            if let apiError = error as? SquareAPIError, case .authenticationFailed = apiError {
+                logger.error("[LocationCache] Authentication failed - clearing tokens and notifying user")
+
+                // Clear invalid tokens
+                let tokenService = SquareAPIServiceFactory.createTokenService()
+                try? await tokenService.clearAuthData()
+
+                // Update auth state
+                squareAPIService.setAuthenticated(false)
+
+                // Clear stale location cache
+                self.locations = []
+                self.isLoaded = false
+                self.lastUpdated = nil
+
+                // Notify user
+                ToastNotificationService.shared.showError("Square authentication expired. Please reconnect in Profile.")
+
+            } else {
+                // For non-auth errors, keep using cached data if available
+                if !self.locations.isEmpty {
+                    logger.info("Using stale cached locations (\(self.locations.count) locations)")
+                }
             }
         }
         

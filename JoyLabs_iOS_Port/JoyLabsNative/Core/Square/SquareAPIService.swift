@@ -161,6 +161,11 @@ class SquareAPIService: ObservableObject {
                 authenticationState = .authenticated
                 isAuthenticated = true
                 await fetchMerchantInfo()
+
+                // Load critical data immediately after authentication
+                logger.info("[SquareAPI] Authentication successful - loading locations and capabilities")
+                await LocationCacheManager.shared.loadLocations()
+                await SquareCapabilitiesService.shared.checkInventoryCapability()
             }
         } catch {
             logger.error("Authentication failed: \(error.localizedDescription)")

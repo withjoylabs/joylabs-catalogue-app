@@ -52,6 +52,13 @@ public class TokenService {
             let expiryDate = Date().addingTimeInterval(TimeInterval(expiresIn))
             let expiryString = ISO8601DateFormatter().string(from: expiryDate)
             try keychain.store(expiryString, forKey: Keys.tokenExpiry)
+            logger.info("[TokenService] Stored token expiry from backend: \(expiresIn)s (\(expiresIn / 86400) days)")
+        } else {
+            // Backend didn't provide expires_in - use Square's actual 30-day expiry as fallback
+            let defaultExpiry = Date().addingTimeInterval(30 * 24 * 60 * 60) // 30 days
+            let expiryString = ISO8601DateFormatter().string(from: defaultExpiry)
+            try keychain.store(expiryString, forKey: Keys.tokenExpiry)
+            logger.warning("[TokenService] Backend did not provide expires_in - using 30-day default expiry")
         }
 
         logger.info("Authentication data stored successfully")
@@ -95,10 +102,11 @@ public class TokenService {
         case .missing:
             logger.info("No token available")
             return nil
-            
+
         case .unknown:
-            // Try to use existing token
-            return tokenInfo.accessToken
+            // Token has no expiry - cannot validate, treat as expired
+            logger.warning("[TokenService] Token expiry unknown - cannot validate, forcing re-authentication")
+            return nil
         }
     }
     
