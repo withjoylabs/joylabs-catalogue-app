@@ -712,8 +712,8 @@ struct ItemDetailsContent: View {
             if nextIndex < viewModel.variations.count {
                 focusedField = .variationName(nextIndex)
             } else {
-                // All fields complete - dismiss keyboard
-                focusedField = nil
+                // All fields complete - stay on current field
+                return
             }
 
         case .priceOverride(let variationIndex, let overrideIndex):
@@ -739,8 +739,8 @@ struct ItemDetailsContent: View {
             if nextVariationIndex < viewModel.variations.count {
                 focusedField = .variationName(nextVariationIndex)
             } else {
-                // All fields complete - dismiss keyboard
-                focusedField = nil
+                // All fields complete - stay on current field
+                return
             }
 
         case .initialInventory(let variationIndex, let locationIndex):
@@ -754,8 +754,8 @@ struct ItemDetailsContent: View {
                 if nextVariationIndex < viewModel.variations.count {
                     focusedField = .variationName(nextVariationIndex)
                 } else {
-                    // All fields complete - dismiss keyboard
-                    focusedField = nil
+                    // All fields complete - stay on current field
+                    return
                 }
             }
         }
