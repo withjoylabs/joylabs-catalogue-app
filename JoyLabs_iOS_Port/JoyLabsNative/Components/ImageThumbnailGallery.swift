@@ -64,23 +64,18 @@ struct ImageThumbnailGallery: View {
                 // Thumbnail grid with drag-to-reorder
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 0) {
-                        // Initial gap for start position (drop before first image)
-                        ZStack {
-                            DropGapView(
-                                showLine: draggedImageId != nil && dropTargetId == "START_POSITION",
-                                height: thumbnailSize
-                            )
-
-                            // Drop target overlaps gap (2x width for easier targeting)
-                            Color.clear
-                                .frame(width: thumbnailSize * 2, height: thumbnailSize)
-                                .onDrop(of: [.text], delegate: StartDropDelegate(
-                                    draggedItem: $draggedImageId,
-                                    dropTargetItem: $dropTargetId,
-                                    items: $imageIds,
-                                    onReorder: onReorder
-                                ))
-                        }
+                        // Half-width start gap (6px for visual balance)
+                        DropGapView(
+                            showLine: draggedImageId != nil && dropTargetId == "START_POSITION",
+                            height: thumbnailSize,
+                            isHalfWidth: true
+                        )
+                        .onDrop(of: [.text], delegate: StartDropDelegate(
+                            draggedItem: $draggedImageId,
+                            dropTargetItem: $dropTargetId,
+                            items: $imageIds,
+                            onReorder: onReorder
+                        ))
 
                         ForEach(Array(imageIds.enumerated()), id: \.element) { index, imageId in
                             ThumbnailView(
@@ -532,10 +527,13 @@ struct ImagePreviewModal: View {
 private struct DropGapView: View {
     let showLine: Bool
     let height: CGFloat
+    var isHalfWidth: Bool = false  // Half-width for start gap (6px vs 12px)
 
     var body: some View {
         HStack(spacing: 0) {
-            Spacer().frame(width: 4.5)
+            if !isHalfWidth {
+                Spacer().frame(width: 4.5)  // Left padding (only for full-width gaps)
+            }
             if showLine {
                 Rectangle()
                     .fill(Color.blue)
@@ -544,7 +542,7 @@ private struct DropGapView: View {
             } else {
                 Spacer().frame(width: 3)
             }
-            Spacer().frame(width: 4.5)
+            Spacer().frame(width: 4.5)  // Right padding (always present)
         }
     }
 }
