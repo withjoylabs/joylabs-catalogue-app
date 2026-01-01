@@ -13,6 +13,7 @@ struct NewItemImageBufferView: View {
     // Drag and drop state tracking
     @State private var draggedImageId: String?
     @State private var dropTargetId: String?
+    @State private var dropSide: DropSide? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
@@ -43,19 +44,14 @@ struct NewItemImageBufferView: View {
                 // Thumbnail grid with drag-to-reorder
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 0) {
-                        // Half-width start gap (6px for visual balance)
-                        DropGapView(
-                            showLine: draggedImageId != nil && dropTargetId == "START_POSITION",
-                            height: thumbnailSize,
-                            isHalfWidth: true
-                        )
-                        .onDrop(of: [.text], delegate: PendingImageStartDropDelegate(
-                            draggedItem: $draggedImageId,
-                            dropTargetItem: $dropTargetId,
-                            items: $pendingImages
-                        ))
-
                         ForEach(Array(pendingImages.enumerated()), id: \.element.id) { index, image in
+                            // Gap BEFORE this thumbnail (shows when hovering LEFT half of THIS image)
+                            DropGapView(
+                                showLine: dropTargetId == image.id.uuidString && dropSide == .before && draggedImageId != image.id.uuidString,
+                                height: thumbnailSize,
+                                isHalfWidth: index == 0  // First image uses half-width gap
+                            )
+
                             BufferedImageThumbnail(
                                 image: image,
                                 index: index,
@@ -72,32 +68,17 @@ struct NewItemImageBufferView: View {
                             .onDrop(of: [.text], delegate: PendingImageDropDelegate(
                                 draggedItem: $draggedImageId,
                                 dropTargetItem: $dropTargetId,
+                                dropSide: $dropSide,
                                 items: $pendingImages,
-                                currentItemId: image.id.uuidString
+                                currentItemId: image.id.uuidString,
+                                thumbnailSize: thumbnailSize
                             ))
 
-                            // Gap AFTER this thumbnail (shows line when THIS thumbnail is hovered)
+                            // Gap AFTER this thumbnail (shows when hovering RIGHT half of THIS image)
                             DropGapView(
-                                showLine: dropTargetId == image.id.uuidString && draggedImageId != image.id.uuidString,
+                                showLine: dropTargetId == image.id.uuidString && dropSide == .after && draggedImageId != image.id.uuidString,
                                 height: thumbnailSize
                             )
-                        }
-
-                        // Final gap for end position
-                        ZStack {
-                            DropGapView(
-                                showLine: draggedImageId != nil && dropTargetId == "END_POSITION",
-                                height: thumbnailSize
-                            )
-
-                            // Drop target overlaps gap (2x width for easier targeting)
-                            Color.clear
-                                .frame(width: thumbnailSize * 2, height: thumbnailSize)
-                                .onDrop(of: [.text], delegate: PendingImageEndDropDelegate(
-                                    draggedItem: $draggedImageId,
-                                    dropTargetItem: $dropTargetId,
-                                    items: $pendingImages
-                                ))
                         }
                     }
                     .padding(.vertical, 8)
@@ -106,6 +87,7 @@ struct NewItemImageBufferView: View {
                         if newValue == nil && oldValue != nil {
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                                 dropTargetId = nil
+                                dropSide = nil
                             }
                         }
                     }
@@ -203,22 +185,32 @@ struct BufferedImageThumbnail: View {
 }
 
 // MARK: - Pending Image Drop Delegate
-/// Drop delegate for reordering buffered images (no API call, just local array update)
+/// Drop delegate for reordering buffered images with left/right side detection (no API call, just local array update)
 struct PendingImageDropDelegate: DropDelegate {
     @Binding var draggedItem: String?
     @Binding var dropTargetItem: String?
+    @Binding var dropSide: DropSide?
     @Binding var items: [PendingImageData]
     let currentItemId: String
+    let thumbnailSize: CGFloat
 
-    func dropEntered(info: DropInfo) {
-        // Show drop indicator at this position
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        // Detect which half of the thumbnail the cursor is in
+        if info.location.x < thumbnailSize / 2 {
+            dropSide = .before
+        } else {
+            dropSide = .after
+        }
+
         dropTargetItem = currentItemId
+        return DropProposal(operation: .move)
     }
 
     func dropExited(info: DropInfo) {
         // Hide drop indicator when leaving
         if dropTargetItem == currentItemId {
             dropTargetItem = nil
+            dropSide = nil
         }
     }
 
@@ -231,137 +223,33 @@ struct PendingImageDropDelegate: DropDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 draggedItem = nil
                 dropTargetItem = nil
+                dropSide = nil
             }
             return false
+        }
+
+        // Calculate target index based on drop side
+        let targetIndex: Int
+        if dropSide == .before {
+            // Drop BEFORE this item
+            targetIndex = toIndex
+        } else {
+            // Drop AFTER this item
+            targetIndex = toIndex + 1
         }
 
         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
             // Reorder the array (local only - no API call)
-            items.move(fromOffsets: IndexSet(integer: fromIndex), toOffset: fromIndex < toIndex ? toIndex + 1 : toIndex)
+            items.move(fromOffsets: IndexSet(integer: fromIndex), toOffset: fromIndex < targetIndex ? targetIndex : targetIndex)
         }
 
         // Reset state after animation starts
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             draggedItem = nil
             dropTargetItem = nil
+            dropSide = nil
         }
         return true
-    }
-
-    func dropUpdated(info: DropInfo) -> DropProposal? {
-        return DropProposal(operation: .move)
-    }
-}
-
-// MARK: - Pending Image Start Drop Delegate
-/// Handles dropping at the start position (before first buffered image)
-struct PendingImageStartDropDelegate: DropDelegate {
-    @Binding var draggedItem: String?
-    @Binding var dropTargetItem: String?
-    @Binding var items: [PendingImageData]
-
-    func dropEntered(info: DropInfo) {
-        // Show drop indicator at start position
-        dropTargetItem = "START_POSITION"
-    }
-
-    func dropExited(info: DropInfo) {
-        // Hide drop indicator when leaving
-        if dropTargetItem == "START_POSITION" {
-            dropTargetItem = nil
-        }
-    }
-
-    func performDrop(info: DropInfo) -> Bool {
-        guard let draggedId = draggedItem,
-              let fromIndex = items.firstIndex(where: { $0.id.uuidString == draggedId }) else {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                draggedItem = nil
-                dropTargetItem = nil
-            }
-            return false
-        }
-
-        // Don't move if already at start
-        if fromIndex == 0 {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                draggedItem = nil
-                dropTargetItem = nil
-            }
-            return false
-        }
-
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-            // Move to start position (index 0)
-            items.move(fromOffsets: IndexSet(integer: fromIndex), toOffset: 0)
-        }
-
-        // Reset state after animation starts
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            draggedItem = nil
-            dropTargetItem = nil
-        }
-        return true
-    }
-
-    func dropUpdated(info: DropInfo) -> DropProposal? {
-        return DropProposal(operation: .move)
-    }
-}
-
-// MARK: - Pending Image End Drop Delegate
-/// Handles dropping at the end position (after last buffered image)
-struct PendingImageEndDropDelegate: DropDelegate {
-    @Binding var draggedItem: String?
-    @Binding var dropTargetItem: String?
-    @Binding var items: [PendingImageData]
-
-    func dropEntered(info: DropInfo) {
-        // Show drop indicator at end position
-        dropTargetItem = "END_POSITION"
-    }
-
-    func dropExited(info: DropInfo) {
-        // Hide drop indicator when leaving
-        if dropTargetItem == "END_POSITION" {
-            dropTargetItem = nil
-        }
-    }
-
-    func performDrop(info: DropInfo) -> Bool {
-        guard let draggedId = draggedItem,
-              let fromIndex = items.firstIndex(where: { $0.id.uuidString == draggedId }) else {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                draggedItem = nil
-                dropTargetItem = nil
-            }
-            return false
-        }
-
-        // Don't move if already at end
-        if fromIndex == items.count - 1 {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                draggedItem = nil
-                dropTargetItem = nil
-            }
-            return false
-        }
-
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-            // Move to end position (local only - no API call)
-            items.move(fromOffsets: IndexSet(integer: fromIndex), toOffset: items.count)
-        }
-
-        // Reset state after animation starts
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            draggedItem = nil
-            dropTargetItem = nil
-        }
-        return true
-    }
-
-    func dropUpdated(info: DropInfo) -> DropProposal? {
-        return DropProposal(operation: .move)
     }
 }
 
