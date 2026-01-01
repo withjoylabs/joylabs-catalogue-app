@@ -36,7 +36,7 @@ struct ItemDetailsVariationCard: View {
                 modelContext: modelContext
             )
 
-            // Price section with location overrides
+            // Price section with location overrides AND inventory section
             VariationCardPriceSection(
                 variation: $variation,
                 index: index,

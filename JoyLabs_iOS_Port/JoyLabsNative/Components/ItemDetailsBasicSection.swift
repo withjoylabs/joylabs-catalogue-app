@@ -49,6 +49,7 @@ struct ItemDetailsBasicSection: View {
                                         viewModel.markAsChanged()
                                     }
                             }
+                            .id(ItemField.description)
                         }
                     }
 

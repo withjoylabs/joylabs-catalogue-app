@@ -295,6 +295,9 @@ struct VariationCardPriceSection: View {
             // INVENTORY SECTION - After price overrides
             VariationInventorySection(
                 variation: $variation,
+                variationIndex: index,
+                focusedField: $focusedField,
+                moveToNextField: moveToNextField,
                 viewModel: viewModel,
                 capabilitiesService: capabilitiesService
             )
@@ -331,6 +334,9 @@ struct VariationCardPriceSection: View {
 /// Positioned below "Add Price Override" button as per requirements
 struct VariationInventorySection: View {
     @Binding var variation: ItemDetailsVariationData
+    let variationIndex: Int
+    @FocusState.Binding var focusedField: ItemField?
+    let moveToNextField: () -> Void
     @ObservedObject var viewModel: ItemDetailsViewModel
     @ObservedObject var capabilitiesService: SquareCapabilitiesService
     @State private var showingAdjustmentModal = false
@@ -365,13 +371,17 @@ struct VariationInventorySection: View {
 
             // New item: Show editable inventory input fields for each location
             if isNewItem {
-                ForEach(viewModel.availableLocations, id: \.id) { location in
+                ForEach(Array(viewModel.availableLocations.enumerated()), id: \.element.id) { locationIndex, location in
                     ItemDetailsFieldSeparator()
 
                     NewItemInventoryRow(
                         variation: $variation,
+                        variationIndex: variationIndex,
+                        locationIndex: locationIndex,
                         locationId: location.id,
-                        locationName: location.name
+                        locationName: location.name,
+                        focusedField: $focusedField,
+                        moveToNextField: moveToNextField
                     )
                 }
             }
@@ -452,9 +462,12 @@ struct VariationInventorySection: View {
 /// Editable inventory input field for new items (no variation ID yet)
 private struct NewItemInventoryRow: View {
     @Binding var variation: ItemDetailsVariationData
+    let variationIndex: Int
+    let locationIndex: Int
     let locationId: String
     let locationName: String
-    @FocusState private var isFocused: Bool
+    @FocusState.Binding var focusedField: ItemField?
+    let moveToNextField: () -> Void
 
     private var currentQty: String {
         if let qty = variation.pendingInventoryQty[locationId] {
@@ -498,10 +511,12 @@ private struct NewItemInventoryRow: View {
             .padding(.horizontal, 12)
             .background(Color(.systemBackground))
             .cornerRadius(8)
-            .focused($isFocused)
+            .focused($focusedField, equals: .initialInventory(variationIndex: variationIndex, locationIndex: locationIndex))
+            .onSubmit(moveToNextField)
         }
         .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
         .padding(.vertical, ItemDetailsSpacing.compactSpacing)
+        .id(ItemField.initialInventory(variationIndex: variationIndex, locationIndex: locationIndex))
     }
 }
 
@@ -736,6 +751,7 @@ struct PriceFieldWithTouchTarget: View {
         }
         .buttonStyle(PlainButtonStyle())
         .frame(maxWidth: .infinity, alignment: .leading)
+        .id(ItemField.variationPrice(index))
         .disabled(variation.pricingType == .variablePricing)
         .onAppear {
             // Initialize from existing price

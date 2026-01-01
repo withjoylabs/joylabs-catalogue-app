@@ -292,6 +292,7 @@ struct ItemDetailsTextField: View {
         }
         .buttonStyle(PlainButtonStyle())
         .frame(maxWidth: .infinity, alignment: .leading)
+        .id(fieldIdentifier)
         .onAppear {
             if autoFocus {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {

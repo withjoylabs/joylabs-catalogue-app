@@ -52,6 +52,7 @@ enum ItemField: Hashable {
     case variationSKU(Int)
     case variationPrice(Int)
     case priceOverride(variationIndex: Int, overrideIndex: Int)
+    case initialInventory(variationIndex: Int, locationIndex: Int)
 }
 
 // MARK: - Item Details Modal
@@ -539,6 +540,14 @@ struct ItemDetailsContent: View {
                 }
                 .padding()
             }
+            .onChange(of: focusedField) { _, newValue in
+                // Auto-scroll to focused field at 20% from top
+                if let field = newValue {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        proxy.scrollTo(field, anchor: UnitPoint(x: 0.5, y: 0.2))
+                    }
+                }
+            }
         }
     }
     
@@ -691,6 +700,13 @@ struct ItemDetailsContent: View {
                 }
             }
 
+            // Check if this is a new item with initial inventory fields
+            if context.isCreating && !viewModel.availableLocations.isEmpty {
+                // Move to first initial inventory field
+                focusedField = .initialInventory(variationIndex: index, locationIndex: 0)
+                return
+            }
+
             // Move to next variation or done
             let nextIndex = index + 1
             if nextIndex < viewModel.variations.count {
@@ -711,6 +727,13 @@ struct ItemDetailsContent: View {
                 }
             }
 
+            // Check if this is a new item with initial inventory fields
+            if context.isCreating && !viewModel.availableLocations.isEmpty {
+                // Move to first initial inventory field
+                focusedField = .initialInventory(variationIndex: variationIndex, locationIndex: 0)
+                return
+            }
+
             // Move to next variation or done
             let nextVariationIndex = variationIndex + 1
             if nextVariationIndex < viewModel.variations.count {
@@ -718,6 +741,22 @@ struct ItemDetailsContent: View {
             } else {
                 // All fields complete - dismiss keyboard
                 focusedField = nil
+            }
+
+        case .initialInventory(let variationIndex, let locationIndex):
+            // Move to next location's inventory field
+            let nextLocationIndex = locationIndex + 1
+            if nextLocationIndex < viewModel.availableLocations.count {
+                focusedField = .initialInventory(variationIndex: variationIndex, locationIndex: nextLocationIndex)
+            } else {
+                // All locations done for this variation, move to next variation or done
+                let nextVariationIndex = variationIndex + 1
+                if nextVariationIndex < viewModel.variations.count {
+                    focusedField = .variationName(nextVariationIndex)
+                } else {
+                    // All fields complete - dismiss keyboard
+                    focusedField = nil
+                }
             }
         }
     }
