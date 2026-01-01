@@ -517,7 +517,7 @@ struct ItemDetailsContent: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: ItemDetailsSpacing.compactSpacing) {
+                VStack(spacing: ItemDetailsSpacing.compactSpacing) {
                     // Context-specific header message
                     if case .createFromSearch(let query, let queryType) = context {
                         CreateFromSearchHeader(query: query, queryType: queryType)
