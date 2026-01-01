@@ -849,24 +849,25 @@ struct UnifiedImagePickerModal: View {
                     logger.info("[ImagePicker] Uploading processed image immediately for existing item: \(itemId)")
                     
                     let fileName = "joylabs_square_\(Int(Date().timeIntervalSince1970))_\(Int.random(in: 1000...9999)).\(processedResult.format.fileExtension)"
-                    
-                    let awsURL = try await imageService.uploadImage(
+
+                    let (imageId, awsURL) = try await imageService.uploadImageWithId(
                         imageData: processedResult.data,
                         fileName: fileName,
                         itemId: itemId
                     )
-                    
+
                     let result = ImageUploadResult(
-                        squareImageId: "", // SimpleImageService doesn't return this
+                        squareImageId: imageId,
                         awsUrl: awsURL,
-                        localCacheUrl: awsURL, // NativeImageView uses AWS URL with AsyncImage
+                        localCacheUrl: awsURL,
                         context: context
                     )
 
                     await MainActor.run {
                         isUploading = false
                         logger.info("[ImagePicker] Processed image upload completed successfully")
-                        logger.info("AWS URL: \(result.awsUrl)")
+                        logger.info("[ImagePicker] Image ID: \(imageId)")
+                        logger.info("[ImagePicker] AWS URL: \(awsURL)")
                         onImageUploaded(result)
                     }
                 }
