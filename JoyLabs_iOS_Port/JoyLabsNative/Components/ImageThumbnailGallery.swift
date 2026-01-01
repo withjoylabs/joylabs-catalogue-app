@@ -64,6 +64,24 @@ struct ImageThumbnailGallery: View {
                 // Thumbnail grid with drag-to-reorder
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 0) {
+                        // Initial gap for start position (drop before first image)
+                        ZStack {
+                            DropGapView(
+                                showLine: draggedImageId != nil && dropTargetId == "START_POSITION",
+                                height: thumbnailSize
+                            )
+
+                            // Drop target overlaps gap (2x width for easier targeting)
+                            Color.clear
+                                .frame(width: thumbnailSize * 2, height: thumbnailSize)
+                                .onDrop(of: [.text], delegate: StartDropDelegate(
+                                    draggedItem: $draggedImageId,
+                                    dropTargetItem: $dropTargetId,
+                                    items: $imageIds,
+                                    onReorder: onReorder
+                                ))
+                        }
+
                         ForEach(Array(imageIds.enumerated()), id: \.element) { index, imageId in
                             ThumbnailView(
                                 imageId: imageId,
@@ -257,6 +275,66 @@ struct DropViewDelegate: DropDelegate {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
             // Reorder the array
             items.move(fromOffsets: IndexSet(integer: fromIndex), toOffset: fromIndex < toIndex ? toIndex + 1 : toIndex)
+
+            // Call the callback to sync with Square
+            onReorder(items)
+        }
+
+        // Reset state after animation starts
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            draggedItem = nil
+            dropTargetItem = nil
+        }
+        return true
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        return DropProposal(operation: .move)
+    }
+}
+
+// MARK: - Start Drop Delegate
+/// Handles dropping at the start position (before first item)
+struct StartDropDelegate: DropDelegate {
+    @Binding var draggedItem: String?
+    @Binding var dropTargetItem: String?
+    @Binding var items: [String]
+    let onReorder: ([String]) -> Void
+
+    func dropEntered(info: DropInfo) {
+        // Show drop indicator at start position
+        dropTargetItem = "START_POSITION"
+    }
+
+    func dropExited(info: DropInfo) {
+        // Hide drop indicator when leaving
+        if dropTargetItem == "START_POSITION" {
+            dropTargetItem = nil
+        }
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        guard let draggedId = draggedItem,
+              let fromIndex = items.firstIndex(of: draggedId) else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                draggedItem = nil
+                dropTargetItem = nil
+            }
+            return false
+        }
+
+        // Don't move if already at start
+        if fromIndex == 0 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                draggedItem = nil
+                dropTargetItem = nil
+            }
+            return false
+        }
+
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            // Move to start position (index 0)
+            items.move(fromOffsets: IndexSet(integer: fromIndex), toOffset: 0)
 
             // Call the callback to sync with Square
             onReorder(items)

@@ -43,6 +43,23 @@ struct NewItemImageBufferView: View {
                 // Thumbnail grid with drag-to-reorder
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 0) {
+                        // Initial gap for start position (drop before first image)
+                        ZStack {
+                            DropGapView(
+                                showLine: draggedImageId != nil && dropTargetId == "START_POSITION",
+                                height: thumbnailSize
+                            )
+
+                            // Drop target overlaps gap (2x width for easier targeting)
+                            Color.clear
+                                .frame(width: thumbnailSize * 2, height: thumbnailSize)
+                                .onDrop(of: [.text], delegate: PendingImageStartDropDelegate(
+                                    draggedItem: $draggedImageId,
+                                    dropTargetItem: $dropTargetId,
+                                    items: $pendingImages
+                                ))
+                        }
+
                         ForEach(Array(pendingImages.enumerated()), id: \.element.id) { index, image in
                             BufferedImageThumbnail(
                                 image: image,
@@ -226,6 +243,62 @@ struct PendingImageDropDelegate: DropDelegate {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
             // Reorder the array (local only - no API call)
             items.move(fromOffsets: IndexSet(integer: fromIndex), toOffset: fromIndex < toIndex ? toIndex + 1 : toIndex)
+        }
+
+        // Reset state after animation starts
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            draggedItem = nil
+            dropTargetItem = nil
+        }
+        return true
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        return DropProposal(operation: .move)
+    }
+}
+
+// MARK: - Pending Image Start Drop Delegate
+/// Handles dropping at the start position (before first buffered image)
+struct PendingImageStartDropDelegate: DropDelegate {
+    @Binding var draggedItem: String?
+    @Binding var dropTargetItem: String?
+    @Binding var items: [PendingImageData]
+
+    func dropEntered(info: DropInfo) {
+        // Show drop indicator at start position
+        dropTargetItem = "START_POSITION"
+    }
+
+    func dropExited(info: DropInfo) {
+        // Hide drop indicator when leaving
+        if dropTargetItem == "START_POSITION" {
+            dropTargetItem = nil
+        }
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        guard let draggedId = draggedItem,
+              let fromIndex = items.firstIndex(where: { $0.id.uuidString == draggedId }) else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                draggedItem = nil
+                dropTargetItem = nil
+            }
+            return false
+        }
+
+        // Don't move if already at start
+        if fromIndex == 0 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                draggedItem = nil
+                dropTargetItem = nil
+            }
+            return false
+        }
+
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            // Move to start position (index 0)
+            items.move(fromOffsets: IndexSet(integer: fromIndex), toOffset: 0)
         }
 
         // Reset state after animation starts
