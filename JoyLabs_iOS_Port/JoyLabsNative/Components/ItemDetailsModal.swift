@@ -712,7 +712,8 @@ struct ItemDetailsContent: View {
             if nextIndex < viewModel.variations.count {
                 focusedField = .variationName(nextIndex)
             } else {
-                // All fields complete - stay on current field
+                // All fields complete - re-set focus to prevent iOS responder advancement
+                focusedField = .variationPrice(index)
                 return
             }
 
@@ -739,7 +740,8 @@ struct ItemDetailsContent: View {
             if nextVariationIndex < viewModel.variations.count {
                 focusedField = .variationName(nextVariationIndex)
             } else {
-                // All fields complete - stay on current field
+                // All fields complete - re-set focus to prevent iOS responder advancement
+                focusedField = .priceOverride(variationIndex: variationIndex, overrideIndex: overrideIndex)
                 return
             }
 
@@ -754,7 +756,8 @@ struct ItemDetailsContent: View {
                 if nextVariationIndex < viewModel.variations.count {
                     focusedField = .variationName(nextVariationIndex)
                 } else {
-                    // All fields complete - stay on current field
+                    // All fields complete - re-set focus to prevent iOS responder advancement
+                    focusedField = .initialInventory(variationIndex: variationIndex, locationIndex: locationIndex)
                     return
                 }
             }
