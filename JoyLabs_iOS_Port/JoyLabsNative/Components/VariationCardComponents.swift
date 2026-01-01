@@ -926,6 +926,7 @@ struct VariationImageGallery: View {
     // Drag and drop state tracking
     @State private var draggedImageId: String?
     @State private var dropTargetId: String?
+    @State private var dropSide: DropSide? = nil
 
     private let thumbnailSize: CGFloat = 60  // Smaller than item-level (80px)
 
@@ -971,6 +972,13 @@ struct VariationImageGallery: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 0) {
                         ForEach(Array(variation.imageIds.enumerated()), id: \.element) { index, imageId in
+                            // Gap BEFORE this thumbnail (shows when hovering LEFT half of THIS image)
+                            VariationDropGapView(
+                                showLine: dropTargetId == imageId && dropSide == .before && draggedImageId != imageId,
+                                height: thumbnailSize,
+                                isHalfWidth: index == 0  // First image uses half-width gap
+                            )
+
                             VariationThumbnailView(
                                 imageId: imageId,
                                 isPrimary: index == 0,
@@ -990,49 +998,31 @@ struct VariationImageGallery: View {
                             .onDrop(of: [.text], delegate: DropViewDelegate(
                                 draggedItem: $draggedImageId,
                                 dropTargetItem: $dropTargetId,
+                                dropSide: $dropSide,
                                 items: Binding(
                                     get: { variation.imageIds },
                                     set: { variation.imageIds = $0 }
                                 ),
                                 currentItem: imageId,
+                                thumbnailSize: thumbnailSize,
                                 onReorder: onReorder
                             ))
 
-                            // Gap AFTER this thumbnail (shows line when THIS thumbnail is hovered)
+                            // Gap AFTER this thumbnail (shows when hovering RIGHT half of THIS image)
                             VariationDropGapView(
-                                showLine: dropTargetId == imageId && draggedImageId != imageId,
+                                showLine: dropTargetId == imageId && dropSide == .after && draggedImageId != imageId,
                                 height: thumbnailSize
                             )
-                        }
-
-                        // Final gap for end position (always visible)
-                        ZStack {
-                            VariationDropGapView(
-                                showLine: draggedImageId != nil && dropTargetId == "END_POSITION",
-                                height: thumbnailSize
-                            )
-
-                            // Drop target overlaps gap (2x width for easier targeting)
-                            Color.clear
-                                .frame(width: thumbnailSize * 2, height: thumbnailSize)
-                                .onDrop(of: [.text], delegate: EndDropDelegate(
-                                    draggedItem: $draggedImageId,
-                                    dropTargetItem: $dropTargetId,
-                                    items: Binding(
-                                        get: { variation.imageIds },
-                                        set: { variation.imageIds = $0 }
-                                    ),
-                                    onReorder: onReorder
-                                ))
                         }
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
                     .onChange(of: draggedImageId) { oldValue, newValue in
-                        // Ensure state is cleared when drag ends
+                        // Clear state when drag ends
                         if newValue == nil && oldValue != nil {
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                                 dropTargetId = nil
+                                dropSide = nil
                             }
                         }
                     }
@@ -1140,10 +1130,13 @@ private struct VariationThumbnailView: View {
 private struct VariationDropGapView: View {
     let showLine: Bool
     let height: CGFloat
+    var isHalfWidth: Bool = false  // Half-width for start gap (5px vs 10px)
 
     var body: some View {
         HStack(spacing: 0) {
-            Spacer().frame(width: 3.5)
+            if !isHalfWidth {
+                Spacer().frame(width: 3.5)  // Left padding (only for full-width gaps)
+            }
             if showLine {
                 Rectangle()
                     .fill(Color.blue)
@@ -1152,7 +1145,7 @@ private struct VariationDropGapView: View {
             } else {
                 Spacer().frame(width: 3)
             }
-            Spacer().frame(width: 3.5)
+            Spacer().frame(width: 3.5)  // Right padding (always present)
         }
     }
 }
