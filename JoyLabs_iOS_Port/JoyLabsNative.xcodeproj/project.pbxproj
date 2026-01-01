@@ -61,7 +61,6 @@
 		781904893982448D104465D8 /* CategoryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3151236638CB10CA4CF5127B /* CategoryModel.swift */; };
 		7995B042235CA11634DB6A93 /* ReorderService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AE1BE4622C5C0A85C6CAA3E /* ReorderService.swift */; };
 		7D794BA319FB236BE537B4AB /* InventoryAdjustmentModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44285ED26455F43A1C86EBED /* InventoryAdjustmentModal.swift */; };
-		7DFE6CF6196B175FAD5BC8DB /* SquareCropView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B15E92D9D11628C1A160231 /* SquareCropView.swift */; };
 		823B57DE36146918AC79FFAE /* ShareableFileData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B59E873AFBCFBE04460F20A8 /* ShareableFileData.swift */; };
 		85126E4554FBE0F2C78D3609 /* ToastNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1645309EC63E18A4589C1AC3 /* ToastNotificationService.swift */; };
 		8796DF07A71B45B6C419C13A /* SwipeableReorderCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9656EA400096ADC30614CEB4 /* SwipeableReorderCard.swift */; };
@@ -200,7 +199,6 @@
 		65695EAA6350279F084BF63B /* ItemDetailsPricingSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsPricingSection.swift; path = Components/ItemDetailsPricingSection.swift; sourceTree = "<group>"; };
 		68CAE024F232AEDA149CF627 /* ItemDeleteSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDeleteSection.swift; path = Components/ItemDeleteSection.swift; sourceTree = "<group>"; };
 		6934794797FCA6EBD6A89E3F /* ModifierModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ModifierModel.swift; path = Models/SwiftData/ModifierModel.swift; sourceTree = "<group>"; };
-		6B15E92D9D11628C1A160231 /* SquareCropView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SquareCropView.swift; path = Components/SquareCropView.swift; sourceTree = "<group>"; };
 		6ECE051541206A85FCA7DCFC /* WebhookNotificationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WebhookNotificationService.swift; path = Core/Services/WebhookNotificationService.swift; sourceTree = "<group>"; };
 		7034F57676BBD40AAF7206B6 /* ItemTaxSettingsSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemTaxSettingsSection.swift; path = Components/ItemTaxSettingsSection.swift; sourceTree = "<group>"; };
 		72B794CCD01B67AB70408743 /* CSVGenerator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CSVGenerator.swift; path = Utils/CSVGenerator.swift; sourceTree = "<group>"; };
@@ -407,7 +405,6 @@
 				B59E873AFBCFBE04460F20A8 /* ShareableFileData.swift */,
 				1F3EB3C38F152ED431D193F3 /* VariationCardComponents.swift */,
 				FB694A8277941E8AAF1C9EAE /* ItemDetailsVariationCard.swift */,
-				6B15E92D9D11628C1A160231 /* SquareCropView.swift */,
 				3238AB7703FD77D6FF89132D /* HeaderButtonStyles.swift */,
 				F62407FA703D9ADAD44AB5E0 /* ItemSalesChannelsSection.swift */,
 				EB0227910810C3E530F27519 /* ItemFulfillmentSection.swift */,
@@ -904,7 +901,6 @@
 				B279269216A213D7664CB81E /* VariationCardComponents.swift in Sources */,
 				D26299835D6943163B61C770 /* ItemDetailsVariationCard.swift in Sources */,
 				38ABD53A924C800B73958281 /* ImageSaveService.swift in Sources */,
-				7DFE6CF6196B175FAD5BC8DB /* SquareCropView.swift in Sources */,
 				9D7855B629B0AFB4487D02B1 /* ImageProcessor.swift in Sources */,
 				645853E561B6680131B3E716 /* CatalogLookupService.swift in Sources */,
 				F7C69334112B308503A838E4 /* ScanHistoryService.swift in Sources */,
