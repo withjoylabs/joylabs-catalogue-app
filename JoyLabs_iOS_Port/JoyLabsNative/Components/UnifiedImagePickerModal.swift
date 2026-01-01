@@ -21,9 +21,6 @@ struct UnifiedImagePickerModal: View {
     @State private var showingCamera = false
     @State private var hasMorePhotos = true
     @State private var isLoadingMorePhotos = false
-    @State private var cropViewKey = UUID() // Force recreation of crop view when image changes
-    @State private var squareCropViewRef: SquareCropView?
-    @StateObject private var scrollViewState = ScrollViewState() // Stable state for transform extraction
 
     // Persistent image manager for photo library - prevents request cancellation
     @State private var imageManager = PHCachingImageManager()
@@ -86,7 +83,6 @@ struct UnifiedImagePickerModal: View {
         .onChange(of: selectedAlbum) { _, _ in
             // Clear selected image when switching albums
             selectedImage = nil
-            cropViewKey = UUID()
 
             // Reload photos when album selection changes
             Task {
@@ -103,7 +99,6 @@ struct UnifiedImagePickerModal: View {
                 onImageCaptured: { image in
                     // Set the captured image in preview
                     selectedImage = image
-                    cropViewKey = UUID() // Force recreation of crop view
                     // Close camera view
                     showingCamera = false
                 },
@@ -153,15 +148,21 @@ struct UnifiedImagePickerModal: View {
                 // Reserve space for floating header
                 Color.clear.frame(height: 60)
 
-                // Square crop view for selected image
+                // Square preview for selected image
                 if let selectedImage = selectedImage {
-                    let cropView = SquareCropView(image: selectedImage, scrollViewState: scrollViewState)
-                    cropView
-                        .frame(width: cropWidth, height: cropWidth)
-                        .id(cropViewKey)
-                        .onAppear {
-                            squareCropViewRef = cropView
-                        }
+                    // Simple preview - AspectFit centered in square frame
+                    ZStack {
+                        // Black background for letterboxing
+                        Color.black
+
+                        // Image (AspectFit - centered, no cropping)
+                        Image(uiImage: selectedImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: cropWidth, height: cropWidth)
+                    }
+                    .frame(width: cropWidth, height: cropWidth)
+                    .cornerRadius(8)
                 } else {
                     // Placeholder when no image selected
                     RoundedRectangle(cornerRadius: 8)
@@ -172,7 +173,7 @@ struct UnifiedImagePickerModal: View {
                                 Image(systemName: "photo")
                                     .font(.system(size: 40))
                                     .foregroundColor(.gray)
-                                Text("Select a photo to crop")
+                                Text("Select a photo")
                                     .font(.headline)
                                     .foregroundColor(Color.secondary)
                             }
@@ -788,10 +789,9 @@ struct UnifiedImagePickerModal: View {
                     }
                     print("[UnifiedImagePickerModal] Orientation changed: \(image.imageOrientation.rawValue != normalizedImage.imageOrientation.rawValue)")
                     print("[UnifiedImagePickerModal] Size changed: \(image.size != normalizedImage.size)")
-                    
+
                     selectedImage = normalizedImage
-                    cropViewKey = UUID() // Force recreation of crop view
-                    
+
                     print("[UnifiedImagePickerModal] ========== PHOTO SELECTION END ==========")
                 } else {
                     print("[UnifiedImagePickerModal] ERROR: Failed to load image from asset")
@@ -807,33 +807,14 @@ struct UnifiedImagePickerModal: View {
                 }
                 logger.info("[ImagePicker] Starting image processing and upload")
 
-                // Get transform matrix directly from stable ScrollViewState (Instagram model)
-                // Use dynamic viewport size from SquareCropView to prevent mismatched coordinates
-                let squareSize = squareCropViewRef?.getViewportSize() ?? 400 // Fallback to 400 if ref missing
-                let containerSize = CGSize(width: squareSize, height: squareSize)
-                let transform = ImageTransform(
-                    scale: scrollViewState.zoomScale,
-                    offset: CGSize(
-                        width: scrollViewState.contentOffset.x,
-                        height: scrollViewState.contentOffset.y
-                    ),
-                    squareSize: squareSize,
-                    containerSize: containerSize
-                )
-                
-                // Process image with transform matrix (background thread)
-                let processedResult = try await imageProcessor.processImage(image, with: transform)
-                logger.info("[ImagePicker] Image processed - Final size: \(String(format: "%.0fx%.0f", processedResult.finalSize.width, processedResult.finalSize.height)), Format: \(String(describing: processedResult.format))")
-                
+                // Process image (format conversion and size validation only)
+                let processedResult = try await imageProcessor.processImage(image)
+                logger.info("[ImagePicker] Image processed - Size: \(String(format: "%.0fx%.0f", processedResult.finalSize.width, processedResult.finalSize.height)), Format: \(String(describing: processedResult.format))")
+
                 // Save to camera roll if enabled
                 await MainActor.run {
                     if imageSaveService.saveProcessedImages {
-                        imageSaveService.saveProcessedImage(
-                            processedResult.image,
-                            originalSize: processedResult.originalSize,
-                            cropTransform: transform,
-                            previewSize: containerSize
-                        )
+                        imageSaveService.saveProcessedImage(processedResult.image)
                     }
                 }
                 
