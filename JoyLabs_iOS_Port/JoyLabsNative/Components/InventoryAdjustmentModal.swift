@@ -11,11 +11,7 @@ class InventoryKeyboardViewController: UIViewController {
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        // Defer becomeFirstResponder to prevent conflict with parent modal's @FocusState
-        // The keyboard commands will still work without becoming first responder immediately
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-            self?.becomeFirstResponder()
-        }
+        becomeFirstResponder()
     }
 
     override var canBecomeFirstResponder: Bool { true }

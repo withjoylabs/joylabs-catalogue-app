@@ -198,8 +198,6 @@ struct VariationCardPriceSection: View {
     let moveToNextField: () -> Void
     let viewModel: ItemDetailsViewModel
     @StateObject private var capabilitiesService = SquareCapabilitiesService.shared
-    @State private var showingAdjustmentModal = false
-    @State private var selectedLocationId: String?
 
     // Check if user can add more price overrides
     private var canAddPriceOverride: Bool {
@@ -302,30 +300,6 @@ struct VariationCardPriceSection: View {
                 capabilitiesService: capabilitiesService
             )
         }
-        .sheet(item: Binding<InventoryModalParams?>(
-            get: {
-                guard showingAdjustmentModal,
-                      let variationId = variation.id,
-                      let locationId = selectedLocationId else {
-                    return nil
-                }
-                return InventoryModalParams(variationId: variationId, locationId: locationId)
-            },
-            set: { newValue, _ in
-                showingAdjustmentModal = (newValue != nil)
-            }
-        )) { (params: InventoryModalParams) in
-            InventoryAdjustmentModal(
-                viewModel: viewModel,
-                variationId: params.variationId,
-                locationId: params.locationId,
-                onDismiss: {
-                    showingAdjustmentModal = false
-                    selectedLocationId = nil
-                }
-            )
-            .quantityModal()
-        }
     }
 }
 
@@ -339,8 +313,7 @@ struct VariationInventorySection: View {
     let moveToNextField: () -> Void
     @ObservedObject var viewModel: ItemDetailsViewModel
     @ObservedObject var capabilitiesService: SquareCapabilitiesService
-    @State private var showingAdjustmentModal = false
-    @State private var selectedLocationId: String?
+    @State private var inventoryParams: InventoryModalParams?
 
     private var variationId: String? {
         variation.id
@@ -424,33 +397,22 @@ struct VariationInventorySection: View {
                         locationId: location.id,
                         locationName: location.name,
                         onTap: {
-                            selectedLocationId = location.id
-                            showingAdjustmentModal = true
+                            inventoryParams = InventoryModalParams(
+                                variationId: variationId,
+                                locationId: location.id
+                            )
                         }
                     )
                 }
             }
         }
-        .sheet(item: Binding<InventoryModalParams?>(
-            get: {
-                guard showingAdjustmentModal,
-                      let variationId = variationId,
-                      let locationId = selectedLocationId else {
-                    return nil
-                }
-                return InventoryModalParams(variationId: variationId, locationId: locationId)
-            },
-            set: { newValue, _ in
-                showingAdjustmentModal = (newValue != nil)
-            }
-        )) { (params: InventoryModalParams) in
+        .sheet(item: $inventoryParams) { params in
             InventoryAdjustmentModal(
                 viewModel: viewModel,
                 variationId: params.variationId,
                 locationId: params.locationId,
                 onDismiss: {
-                    showingAdjustmentModal = false
-                    selectedLocationId = nil
+                    inventoryParams = nil
                 }
             )
             .quantityModal()
