@@ -79,12 +79,12 @@ struct ItemDetailsCategoriesSection: View {
                                 .buttonStyle(PlainButtonStyle())
 
                                 // Recent categories multi-selector
-                                if !viewModel.recentCategories.isEmpty {
+                                if !viewModel.recentAdditionalCategories.isEmpty {
                                     RecentCategoriesMultiSelector(
-                                        recentCategories: viewModel.recentCategories,
+                                        recentCategories: viewModel.recentAdditionalCategories,
                                         selectedCategoryIds: $viewModel.categoryIds,
                                         onCategoryToggled: { categoryId in
-                                            viewModel.addToRecentCategories(categoryId)
+                                            viewModel.addToRecentAdditionalCategories(categoryId)
                                         }
                                     )
                                 }

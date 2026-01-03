@@ -449,7 +449,8 @@ class ItemDetailsViewModel: ObservableObject {
     @Published var availableCategories: [CategoryData] = []
     @Published var availableTaxes: [TaxData] = []
     @Published var availableModifierLists: [ModifierListData] = []
-    @Published var recentCategories: [CategoryData] = []
+    @Published var recentCategories: [CategoryData] = []  // For reporting category
+    @Published var recentAdditionalCategories: [CategoryData] = []  // For additional categories
 
     // Inventory management - Now using SwiftData @Query for automatic reactivity!
     // No manual loading needed - UI updates automatically when InventoryCountModel changes
@@ -1189,7 +1190,8 @@ class ItemDetailsViewModel: ObservableObject {
         
         // Load recent categories after categories are available
         await loadRecentCategories()
-        
+        await loadRecentAdditionalCategories()
+
         // Apply tax defaults after data is loaded
         if shouldApplyTaxDefaults {
             await MainActor.run {
@@ -1416,23 +1418,65 @@ class ItemDetailsViewModel: ObservableObject {
     
     func addToRecentCategories(_ categoryId: String?) {
         guard let categoryId = categoryId else { return }
-        
+
         var recentIds = UserDefaults.standard.stringArray(forKey: "recentCategoryIds") ?? []
-        
+
         // Remove if already exists
         recentIds.removeAll { $0 == categoryId }
-        
+
         // Add to beginning
         recentIds.insert(categoryId, at: 0)
-        
+
         // Keep only 15 most recent
         recentIds = Array(recentIds.prefix(15))
-        
+
         UserDefaults.standard.set(recentIds, forKey: "recentCategoryIds")
 
         // Update UI
         Task {
             await loadRecentCategories()
+        }
+    }
+
+    private func loadRecentAdditionalCategories() async {
+        let recentCategoryIds = UserDefaults.standard.stringArray(forKey: "recentAdditionalCategoryIds") ?? []
+        let recent = availableCategories.filter { category in
+            guard let id = category.id else { return false }
+            return recentCategoryIds.contains(id)
+        }
+
+        // Preserve order from UserDefaults
+        var orderedRecent: [CategoryData] = []
+        for categoryId in recentCategoryIds {
+            if let category = recent.first(where: { $0.id == categoryId }) {
+                orderedRecent.append(category)
+            }
+        }
+
+        await MainActor.run {
+            self.recentAdditionalCategories = Array(orderedRecent.prefix(15)) // Keep only 15 most recent
+        }
+    }
+
+    func addToRecentAdditionalCategories(_ categoryId: String?) {
+        guard let categoryId = categoryId else { return }
+
+        var recentIds = UserDefaults.standard.stringArray(forKey: "recentAdditionalCategoryIds") ?? []
+
+        // Remove if already exists
+        recentIds.removeAll { $0 == categoryId }
+
+        // Add to beginning
+        recentIds.insert(categoryId, at: 0)
+
+        // Keep only 15 most recent
+        recentIds = Array(recentIds.prefix(15))
+
+        UserDefaults.standard.set(recentIds, forKey: "recentAdditionalCategoryIds")
+
+        // Update UI
+        Task {
+            await loadRecentAdditionalCategories()
         }
     }
 
