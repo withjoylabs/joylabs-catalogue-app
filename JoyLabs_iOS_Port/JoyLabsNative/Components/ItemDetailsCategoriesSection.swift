@@ -58,23 +58,38 @@ struct ItemDetailsCategoriesSection: View {
                     if configManager.currentConfiguration.classificationFields.categoryEnabled {
                         ItemDetailsFieldRow {
                             VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
-                                ItemDetailsFieldLabel(title: "Additional Categories")
+                                // Header row: Label + selected category tags
+                                HStack(alignment: .top, spacing: 8) {
+                                    ItemDetailsFieldLabel(title: "Additional Categories")
 
+                                    // Wrapping flow of selected category tags
+                                    if !viewModel.categoryIds.isEmpty {
+                                        FlowLayout(spacing: 4) {
+                                            ForEach(viewModel.categoryIds, id: \.self) { categoryId in
+                                                if let category = viewModel.availableCategories.first(where: { $0.id == categoryId }) {
+                                                    CategoryTag(
+                                                        categoryName: category.name ?? "Unknown",
+                                                        onRemove: {
+                                                            viewModel.categoryIds.removeAll { $0 == categoryId }
+                                                        }
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Compact button to open full category selector
                                 Button(action: {
                                     showingCategoryMultiSelect = true
                                 }) {
-                                    HStack {
-                                        Text(categorySelectionText)
-                                            .foregroundColor(.itemDetailsPrimaryText)
-                                        Spacer()
+                                    HStack(spacing: 4) {
                                         Image(systemName: "square.grid.3x3")
-                                            .foregroundColor(.itemDetailsSecondaryText)
+                                            .font(.itemDetailsCaption)
+                                        Text("Manage Categories")
                                             .font(.itemDetailsCaption)
                                     }
-                                    .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
-                                    .padding(.vertical, ItemDetailsSpacing.compactSpacing)
-                                    .background(Color.itemDetailsFieldBackground)
-                                    .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
+                                    .foregroundColor(.itemDetailsAccent)
                                 }
                                 .buttonStyle(PlainButtonStyle())
 
@@ -410,6 +425,50 @@ struct RecentCategoriesMultiSelector: View {
             }
         }
         .padding(.top, ItemDetailsSpacing.minimalSpacing)
+    }
+}
+
+// MARK: - Flow Layout for Wrapping Tags
+/// Simple wrapping layout for category tags
+struct FlowLayout<Content: View>: View {
+    let spacing: CGFloat
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        // Simple wrapping using ScrollView for overflow handling
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: spacing) {
+                content
+            }
+        }
+    }
+}
+
+// MARK: - Category Tag with Remove Button
+/// Displays a selected category as a chip/tag with X button for removal
+/// Matches search results category styling
+struct CategoryTag: View {
+    let categoryName: String
+    let onRemove: () -> Void
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(categoryName)
+                .font(.system(size: 11, weight: .regular))
+                .foregroundColor(.secondary)
+                .lineLimit(1)
+
+            Button(action: onRemove) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 8, weight: .medium))
+                    .foregroundColor(.secondary)
+            }
+            .buttonStyle(PlainButtonStyle())
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(Color(.systemGray5))
+        .cornerRadius(4)
     }
 }
 
