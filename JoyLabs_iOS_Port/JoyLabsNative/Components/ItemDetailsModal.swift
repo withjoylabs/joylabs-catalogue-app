@@ -700,11 +700,14 @@ struct ItemDetailsContent: View {
                 }
             }
 
-            // Check if this is a new item with initial inventory fields
-            if context.isCreating && !viewModel.availableLocations.isEmpty {
-                // Move to first initial inventory field
-                focusedField = .initialInventory(variationIndex: index, locationIndex: 0)
-                return
+            // Check if this variation is new (no ID) and needs initial inventory fields
+            if index < viewModel.variations.count {
+                let variation = viewModel.variations[index]
+                if variation.id == nil && !viewModel.availableLocations.isEmpty {
+                    // Move to first initial inventory field
+                    focusedField = .initialInventory(variationIndex: index, locationIndex: 0)
+                    return
+                }
             }
 
             // Move to next variation or done
@@ -728,11 +731,14 @@ struct ItemDetailsContent: View {
                 }
             }
 
-            // Check if this is a new item with initial inventory fields
-            if context.isCreating && !viewModel.availableLocations.isEmpty {
-                // Move to first initial inventory field
-                focusedField = .initialInventory(variationIndex: variationIndex, locationIndex: 0)
-                return
+            // Check if this variation is new (no ID) and needs initial inventory fields
+            if variationIndex < viewModel.variations.count {
+                let variation = viewModel.variations[variationIndex]
+                if variation.id == nil && !viewModel.availableLocations.isEmpty {
+                    // Move to first initial inventory field
+                    focusedField = .initialInventory(variationIndex: variationIndex, locationIndex: 0)
+                    return
+                }
             }
 
             // Move to next variation or done
