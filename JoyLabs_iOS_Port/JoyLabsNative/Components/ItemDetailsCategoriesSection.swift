@@ -59,7 +59,7 @@ struct ItemDetailsCategoriesSection: View {
                         ItemDetailsFieldRow {
                             VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
                                 ItemDetailsFieldLabel(title: "Additional Categories")
-                                
+
                                 Button(action: {
                                     showingCategoryMultiSelect = true
                                 }) {
@@ -77,6 +77,17 @@ struct ItemDetailsCategoriesSection: View {
                                     .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
                                 }
                                 .buttonStyle(PlainButtonStyle())
+
+                                // Recent categories multi-selector
+                                if !viewModel.recentCategories.isEmpty {
+                                    RecentCategoriesMultiSelector(
+                                        recentCategories: viewModel.recentCategories,
+                                        selectedCategoryIds: $viewModel.categoryIds,
+                                        onCategoryToggled: { categoryId in
+                                            viewModel.addToRecentCategories(categoryId)
+                                        }
+                                    )
+                                }
                             }
                         }
                         
@@ -303,26 +314,78 @@ struct ModifierListSelector: View {
     }
 }
 
-// MARK: - Recent Categories Quick Selector
+// MARK: - Recent Categories Quick Selector (Single Select)
 struct RecentCategoriesQuickSelector: View {
     let recentCategories: [CategoryData]
     let selectedCategoryId: String?
     let onCategorySelected: (String?) -> Void
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
             Text("Recently Used")
                 .font(.itemDetailsCaption)
                 .foregroundColor(.itemDetailsSecondaryText)
-            
+
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: ItemDetailsSpacing.compactSpacing) {
                     ForEach(recentCategories, id: \.id) { category in
                         if let categoryId = category.id, let categoryName = category.name {
                             let isSelected = selectedCategoryId == categoryId
-                            
+
                             Button(action: {
                                 onCategorySelected(categoryId)
+                            }) {
+                                Text(categoryName)
+                                    .font(.itemDetailsCaption)
+                                    .lineLimit(1)
+                                    .foregroundColor(isSelected ? .itemDetailsAccent : .itemDetailsPrimaryText)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(
+                                        Color.itemDetailsFieldBackground
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: ItemDetailsSpacing.fieldCornerRadius)
+                                                    .stroke(isSelected ? Color.itemDetailsAccent : Color.clear, lineWidth: 1)
+                                            )
+                                    )
+                                    .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        }
+                    }
+                }
+                .padding(.horizontal, 1) // Small padding to prevent clipping of border
+            }
+        }
+        .padding(.top, ItemDetailsSpacing.minimalSpacing)
+    }
+}
+
+// MARK: - Recent Categories Multi Selector (Multi Select)
+struct RecentCategoriesMultiSelector: View {
+    let recentCategories: [CategoryData]
+    @Binding var selectedCategoryIds: [String]
+    let onCategoryToggled: (String) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
+            Text("Recently Used")
+                .font(.itemDetailsCaption)
+                .foregroundColor(.itemDetailsSecondaryText)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: ItemDetailsSpacing.compactSpacing) {
+                    ForEach(recentCategories, id: \.id) { category in
+                        if let categoryId = category.id, let categoryName = category.name {
+                            let isSelected = selectedCategoryIds.contains(categoryId)
+
+                            Button(action: {
+                                if isSelected {
+                                    selectedCategoryIds.removeAll { $0 == categoryId }
+                                } else {
+                                    selectedCategoryIds.append(categoryId)
+                                }
+                                onCategoryToggled(categoryId)
                             }) {
                                 Text(categoryName)
                                     .font(.itemDetailsCaption)
