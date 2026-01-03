@@ -581,7 +581,8 @@ struct ItemDetailsCategoryMultiSelectModal: View {
     @Binding var selectedCategoryIds: [String]
     let categories: [CategoryData]
     let title: String
-    
+    let onCategoriesSelected: (([String]) -> Void)?
+
     @State private var searchText = ""
     @State private var tempSelectedIds: [String] = []
     @FocusState private var isSearchFieldFocused: Bool
@@ -674,6 +675,7 @@ struct ItemDetailsCategoryMultiSelectModal: View {
                 },
                 trailing: Button("Done") {
                     selectedCategoryIds = tempSelectedIds
+                    onCategoriesSelected?(tempSelectedIds)
                     isPresented = false
                 }
                 .fontWeight(.semibold)

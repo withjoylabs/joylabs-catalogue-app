@@ -58,38 +58,41 @@ struct ItemDetailsCategoriesSection: View {
                     if configManager.currentConfiguration.classificationFields.categoryEnabled {
                         ItemDetailsFieldRow {
                             VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
-                                // Header row: Label + selected category tags
-                                HStack(alignment: .top, spacing: 8) {
-                                    ItemDetailsFieldLabel(title: "Additional Categories")
+                                // Label
+                                ItemDetailsFieldLabel(title: "Additional Categories")
 
-                                    // Wrapping flow of selected category tags
-                                    if !viewModel.categoryIds.isEmpty {
-                                        FlowLayout(spacing: 4) {
-                                            ForEach(viewModel.categoryIds, id: \.self) { categoryId in
-                                                if let category = viewModel.availableCategories.first(where: { $0.id == categoryId }) {
-                                                    CategoryTag(
-                                                        categoryName: category.name ?? "Unknown",
-                                                        onRemove: {
-                                                            viewModel.categoryIds.removeAll { $0 == categoryId }
-                                                        }
-                                                    )
-                                                }
+                                // Selected category tags
+                                if !viewModel.categoryIds.isEmpty {
+                                    FlowLayout(spacing: 4) {
+                                        ForEach(viewModel.categoryIds, id: \.self) { categoryId in
+                                            if let category = viewModel.availableCategories.first(where: { $0.id == categoryId }) {
+                                                CategoryTag(
+                                                    categoryName: category.name ?? "Unknown",
+                                                    onRemove: {
+                                                        viewModel.categoryIds.removeAll { $0 == categoryId }
+                                                    }
+                                                )
                                             }
                                         }
                                     }
                                 }
 
-                                // Compact button to open full category selector
+                                // Full-width button to open category selector
                                 Button(action: {
                                     showingCategoryMultiSelect = true
                                 }) {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "square.grid.3x3")
-                                            .font(.itemDetailsCaption)
-                                        Text("Manage Categories")
+                                    HStack {
+                                        Text("Manage Additional Categories")
+                                            .foregroundColor(.itemDetailsPrimaryText)
+                                        Spacer()
+                                        Image(systemName: "chevron.right")
+                                            .foregroundColor(.itemDetailsSecondaryText)
                                             .font(.itemDetailsCaption)
                                     }
-                                    .foregroundColor(.itemDetailsAccent)
+                                    .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
+                                    .padding(.vertical, ItemDetailsSpacing.compactSpacing)
+                                    .background(Color.itemDetailsFieldBackground)
+                                    .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
                                 }
                                 .buttonStyle(PlainButtonStyle())
 
@@ -118,7 +121,13 @@ struct ItemDetailsCategoriesSection: View {
                 isPresented: $showingCategoryMultiSelect,
                 selectedCategoryIds: $viewModel.categoryIds,
                 categories: viewModel.availableCategories,
-                title: "Additional Categories"
+                title: "Additional Categories",
+                onCategoriesSelected: { categoryIds in
+                    // Add each selected category to recents
+                    for categoryId in categoryIds {
+                        viewModel.addToRecentAdditionalCategories(categoryId)
+                    }
+                }
             )
             .nestedComponentModal()
         }
@@ -446,7 +455,6 @@ struct FlowLayout<Content: View>: View {
 
 // MARK: - Category Tag with Remove Button
 /// Displays a selected category as a chip/tag with X button for removal
-/// Matches search results category styling
 struct CategoryTag: View {
     let categoryName: String
     let onRemove: () -> Void
@@ -454,20 +462,20 @@ struct CategoryTag: View {
     var body: some View {
         HStack(spacing: 4) {
             Text(categoryName)
-                .font(.system(size: 11, weight: .regular))
-                .foregroundColor(.secondary)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.itemDetailsAccent)
                 .lineLimit(1)
 
             Button(action: onRemove) {
                 Image(systemName: "xmark")
                     .font(.system(size: 8, weight: .medium))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.itemDetailsAccent)
             }
             .buttonStyle(PlainButtonStyle())
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 2)
-        .background(Color(.systemGray5))
+        .background(Color.itemDetailsAccent.opacity(0.15))
         .cornerRadius(4)
     }
 }
