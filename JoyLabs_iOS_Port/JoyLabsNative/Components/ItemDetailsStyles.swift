@@ -617,24 +617,41 @@ struct ItemDetailsCategoryMultiSelectModal: View {
                 .cornerRadius(ItemDetailsSpacing.fieldCornerRadius)
                 .padding()
                 
-                // Selection summary
+                // Selected category chips
                 if !tempSelectedIds.isEmpty {
-                    HStack {
-                        Text("\(tempSelectedIds.count) selected")
-                            .font(.itemDetailsCaption)
-                            .foregroundColor(.itemDetailsSecondaryText)
-                        
-                        Spacer()
-                        
-                        Button("Clear All") {
-                            tempSelectedIds.removeAll()
+                    VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
+                        HStack {
+                            Text("Selected")
+                                .font(.itemDetailsSubheadline)
+                                .fontWeight(.medium)
+                                .foregroundColor(.itemDetailsPrimaryText)
+
+                            Spacer()
+
+                            Button("Clear All") {
+                                tempSelectedIds.removeAll()
+                            }
+                            .font(.itemDetailsSubheadline)
+                            .foregroundColor(.itemDetailsAccent)
                         }
-                        .font(.itemDetailsCaption)
-                        .foregroundColor(.itemDetailsAccent)
+
+                        FlowLayout(spacing: 4) {
+                            ForEach(tempSelectedIds, id: \.self) { categoryId in
+                                if let category = categories.first(where: { $0.id == categoryId }) {
+                                    CategoryTag(
+                                        categoryName: category.name ?? "Unknown",
+                                        onRemove: {
+                                            tempSelectedIds.removeAll { $0 == categoryId }
+                                        }
+                                    )
+                                }
+                            }
+                        }
                     }
-                    .padding(.horizontal)
+                    .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
+                    .padding(.vertical, ItemDetailsSpacing.compactSpacing)
                 }
-                
+
                 Divider()
                 
                 // Categories list
