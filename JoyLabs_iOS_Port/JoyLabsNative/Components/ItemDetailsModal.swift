@@ -556,7 +556,7 @@ struct ItemDetailsContent: View {
     private func sectionView(for sectionId: String) -> some View {
         switch sectionId {
         case "image":
-            ItemImageSection(viewModel: viewModel)
+            ItemImageSection(viewModel: viewModel, focusedField: $focusedField)
 
         case "basicInfo":
             ItemDetailsBasicSection(viewModel: viewModel, focusedField: $focusedField, moveToNextField: moveToNextField)
@@ -576,7 +576,7 @@ struct ItemDetailsContent: View {
 
         case "categories":
             if shouldShowCategoriesSection {
-                ItemDetailsCategoriesSection(viewModel: viewModel)
+                ItemDetailsCategoriesSection(viewModel: viewModel, focusedField: $focusedField)
             }
             
         case "taxes":

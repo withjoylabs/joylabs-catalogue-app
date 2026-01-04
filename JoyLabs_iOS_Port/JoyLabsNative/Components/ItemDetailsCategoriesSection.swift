@@ -3,6 +3,7 @@ import SwiftUI
 // MARK: - Item Details Categories Section
 struct ItemDetailsCategoriesSection: View {
     @ObservedObject var viewModel: ItemDetailsViewModel
+    @FocusState.Binding var focusedField: ItemField?
     @StateObject private var configManager = FieldConfigurationManager.shared
     @State private var showingCategoryMultiSelect = false
     @State private var showingReportingCategorySelect = false
@@ -18,6 +19,7 @@ struct ItemDetailsCategoriesSection: View {
                                 ItemDetailsFieldLabel(title: "Reporting Category", isRequired: true)
                                 
                                 Button(action: {
+                                    focusedField = nil
                                     showingReportingCategorySelect = true
                                 }) {
                                     HStack {
@@ -79,6 +81,7 @@ struct ItemDetailsCategoriesSection: View {
 
                                 // Full-width button to open category selector
                                 Button(action: {
+                                    focusedField = nil
                                     showingCategoryMultiSelect = true
                                 }) {
                                     HStack {
@@ -481,8 +484,16 @@ struct CategoryTag: View {
 }
 
 #Preview("Categories Section") {
-    ScrollView {
-        ItemDetailsCategoriesSection(viewModel: ItemDetailsViewModel())
-            .padding()
+    struct PreviewWrapper: View {
+        @FocusState private var focusedField: ItemField?
+
+        var body: some View {
+            ScrollView {
+                ItemDetailsCategoriesSection(viewModel: ItemDetailsViewModel(), focusedField: $focusedField)
+                    .padding()
+            }
+        }
     }
+
+    return PreviewWrapper()
 }

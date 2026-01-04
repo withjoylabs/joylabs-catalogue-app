@@ -4,6 +4,7 @@ import OSLog
 // MARK: - Item Image Section
 struct ItemImageSection: View {
     @ObservedObject var viewModel: ItemDetailsViewModel
+    @FocusState.Binding var focusedField: ItemField?
     @State private var showingImagePicker = false
     @State private var isRemoving = false
 
@@ -24,6 +25,7 @@ struct ItemImageSection: View {
 
                 // Image Display/Placeholder using native iOS image system
                 Button(action: {
+                    focusedField = nil
                     showingImagePicker = true
                 }) {
                     if let imageId = primaryImageId, !imageId.isEmpty {
@@ -61,6 +63,7 @@ struct ItemImageSection: View {
                         handleImageDeletion(imageId: imageId)
                     },
                     onUpload: {
+                        focusedField = nil
                         showingImagePicker = true
                     }
                 )
@@ -72,6 +75,7 @@ struct ItemImageSection: View {
                         set: { viewModel.staticData.pendingImages = $0 }
                     ),
                     onUpload: {
+                        focusedField = nil
                         showingImagePicker = true
                     },
                     onRemove: { imageId in
@@ -257,6 +261,14 @@ struct ImagePlaceholder: View {
 }
 
 #Preview {
-    ItemImageSection(viewModel: ItemDetailsViewModel())
-        .padding()
+    struct PreviewWrapper: View {
+        @FocusState private var focusedField: ItemField?
+
+        var body: some View {
+            ItemImageSection(viewModel: ItemDetailsViewModel(), focusedField: $focusedField)
+                .padding()
+        }
+    }
+
+    return PreviewWrapper()
 }

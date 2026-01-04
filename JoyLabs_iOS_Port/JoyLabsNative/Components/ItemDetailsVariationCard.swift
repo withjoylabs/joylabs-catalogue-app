@@ -60,6 +60,7 @@ struct ItemDetailsVariationCard: View {
                         handleImageDeletion(variationId: variationId, imageId: imageId)
                     },
                     onUpload: {
+                        focusedField = nil
                         showingImagePicker = true
                     },
                     viewModel: viewModel
@@ -72,6 +73,7 @@ struct ItemDetailsVariationCard: View {
                         set: { variation.pendingImages = $0 }
                     ),
                     onUpload: {
+                        focusedField = nil
                         showingImagePicker = true
                     },
                     onRemove: { imageId in
