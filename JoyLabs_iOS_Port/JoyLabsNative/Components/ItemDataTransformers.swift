@@ -402,6 +402,7 @@ class ItemDataTransformers {
                 priceMoney: transformMoney(override.priceMoney),
                 trackInventory: override.trackInventory ?? false,
                 trackingMode: trackingMode,
+                soldOut: override.soldOut,  // Read sold_out status from Square API
                 stockOnHand: 0 // stockOnHand not available in Square LocationOverride model
             )
         }
@@ -437,7 +438,7 @@ class ItemDataTransformers {
                 trackInventory: trackInventoryValue,
                 inventoryAlertType: override.inventoryAlertType?.rawValue,
                 inventoryAlertThreshold: override.inventoryAlertThreshold.map(Int64.init),
-                soldOut: nil, // Read-only field
+                soldOut: override.soldOut,  // Include sold_out for Track by Availability mode
                 soldOutValidUntil: nil // Read-only field
             )
         }

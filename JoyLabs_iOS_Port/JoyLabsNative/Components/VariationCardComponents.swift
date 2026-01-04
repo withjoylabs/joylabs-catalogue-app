@@ -394,9 +394,11 @@ struct VariationInventorySection: View {
 
                     VariationInventoryRow(
                         variation: $variation,
+                        variationIndex: variationIndex,
                         variationId: variationId,
                         locationId: location.id,
                         locationName: location.name,
+                        viewModel: viewModel,
                         onTap: {
                             inventoryParams = InventoryModalParams(
                                 variationId: variationId,
@@ -493,19 +495,23 @@ private struct NewItemInventoryRow: View {
 /// Now supports per-location tracking modes
 private struct VariationInventoryRow: View {
     @Binding var variation: ItemDetailsVariationData
+    let variationIndex: Int
     let variationId: String // Note: Already unwrapped in parent, guaranteed non-nil
     let locationId: String
     let locationName: String
+    @ObservedObject var viewModel: ItemDetailsViewModel
     let onTap: () -> Void
 
     // SwiftData query for automatic reactivity - UI updates when database changes!
     @Query private var inventoryCounts: [InventoryCountModel]
 
-    init(variation: Binding<ItemDetailsVariationData>, variationId: String, locationId: String, locationName: String, onTap: @escaping () -> Void) {
+    init(variation: Binding<ItemDetailsVariationData>, variationIndex: Int, variationId: String, locationId: String, locationName: String, viewModel: ItemDetailsViewModel, onTap: @escaping () -> Void) {
         self._variation = variation
+        self.variationIndex = variationIndex
         self.variationId = variationId
         self.locationId = locationId
         self.locationName = locationName
+        self.viewModel = viewModel
         self.onTap = onTap
 
         // Query for IN_STOCK count for this variation + location
@@ -614,29 +620,79 @@ private struct VariationInventoryRow: View {
                             .font(.itemDetailsCaption)
                             .foregroundColor(.itemDetailsSecondaryText)
 
+                        let isSoldOut = locationOverrideBinding.wrappedValue.soldOut ?? false
+
                         HStack(spacing: 12) {
+                            // Available button
                             Button(action: {
-                                // Set to available - implementation needed
+                                // Update local state immediately for UI feedback
+                                var override = locationOverrideBinding.wrappedValue
+                                override.soldOut = false
+                                locationOverrideBinding.wrappedValue = override
+
+                                // Save to Square API
+                                Task {
+                                    do {
+                                        try await viewModel.updateVariationAvailability(
+                                            variationIndex: variationIndex,
+                                            locationId: locationId,
+                                            soldOut: false
+                                        )
+                                    } catch {
+                                        // Error already handled in updateVariationAvailability
+                                    }
+                                }
                             }) {
-                                Text("Available")
-                                    .font(.itemDetailsBody)
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 20)
-                                    .padding(.vertical, 10)
-                                    .background(Color.green)
-                                    .cornerRadius(8)
+                                HStack {
+                                    if !isSoldOut {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .font(.system(size: 16))
+                                    }
+                                    Text("Available")
+                                        .font(.itemDetailsBody)
+                                        .fontWeight(!isSoldOut ? .bold : .regular)
+                                }
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 10)
+                                .background(isSoldOut ? Color.green.opacity(0.5) : Color.green)
+                                .cornerRadius(8)
                             }
 
+                            // Sold Out button
                             Button(action: {
-                                // Set to sold out - implementation needed
+                                // Update local state immediately for UI feedback
+                                var override = locationOverrideBinding.wrappedValue
+                                override.soldOut = true
+                                locationOverrideBinding.wrappedValue = override
+
+                                // Save to Square API
+                                Task {
+                                    do {
+                                        try await viewModel.updateVariationAvailability(
+                                            variationIndex: variationIndex,
+                                            locationId: locationId,
+                                            soldOut: true
+                                        )
+                                    } catch {
+                                        // Error already handled in updateVariationAvailability
+                                    }
+                                }
                             }) {
-                                Text("Sold Out")
-                                    .font(.itemDetailsBody)
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 20)
-                                    .padding(.vertical, 10)
-                                    .background(Color.red)
-                                    .cornerRadius(8)
+                                HStack {
+                                    if isSoldOut {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .font(.system(size: 16))
+                                    }
+                                    Text("Sold Out")
+                                        .font(.itemDetailsBody)
+                                        .fontWeight(isSoldOut ? .bold : .regular)
+                                }
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 10)
+                                .background(isSoldOut ? Color.red : Color.red.opacity(0.5))
+                                .cornerRadius(8)
                             }
                         }
                     }

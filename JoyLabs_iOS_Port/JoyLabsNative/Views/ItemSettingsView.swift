@@ -538,7 +538,7 @@ struct DefaultValuesDetailView: View {
     }
     
     private func resetVariationDefaults() {
-        configManager.updateFieldConfiguration(\.inventoryFields.defaultInventoryTrackingMode, value: .none)
+        configManager.updateFieldConfiguration(\.inventoryFields.defaultInventoryTrackingMode, value: .unavailable)
         configManager.updateFieldConfiguration(\.advancedFields.defaultSellable, value: true)
         configManager.updateFieldConfiguration(\.advancedFields.defaultStockable, value: true)
     }

@@ -283,13 +283,15 @@ struct LocationOverrideData: Identifiable {
     var trackingMode: InventoryTrackingMode = .unavailable
     var inventoryAlertType: InventoryAlertType?
     var inventoryAlertThreshold: Int?
+    var soldOut: Bool? = nil  // For Track by Availability mode - nil means available
     var stockOnHand: Int = 0
 
-    init(locationId: String, priceMoney: MoneyData? = nil, trackInventory: Bool = false, trackingMode: InventoryTrackingMode = .unavailable, stockOnHand: Int = 0) {
+    init(locationId: String, priceMoney: MoneyData? = nil, trackInventory: Bool = false, trackingMode: InventoryTrackingMode = .unavailable, soldOut: Bool? = nil, stockOnHand: Int = 0) {
         self.locationId = locationId
         self.priceMoney = priceMoney
         self.trackInventory = trackInventory
         self.trackingMode = trackingMode
+        self.soldOut = soldOut
         self.stockOnHand = stockOnHand
     }
 }
@@ -1602,6 +1604,60 @@ class ItemDetailsViewModel: ObservableObject {
             // Update capability flag on error
             await MainActor.run {
                 SquareCapabilitiesService.shared.markInventoryAsDisabled(error: error)
+            }
+            throw error
+        }
+    }
+
+    /// Update variation availability status (Track by Availability mode)
+    /// Called when user toggles Available/Sold Out for a location
+    func updateVariationAvailability(
+        variationIndex: Int,
+        locationId: String,
+        soldOut: Bool
+    ) async throws {
+        guard variationIndex < variations.count else { return }
+        guard let itemId = itemData.id, let variationId = variations[variationIndex].id else {
+            throw SquareCRUDError.invalidData("Item or variation ID missing")
+        }
+
+        logger.info("[InventoryViewModel] Updating availability: variation=\(variationId), location=\(locationId), soldOut=\(soldOut)")
+
+        // Update local state first for immediate UI feedback
+        if let overrideIndex = variations[variationIndex].locationOverrides.firstIndex(where: { $0.locationId == locationId }) {
+            variations[variationIndex].locationOverrides[overrideIndex].soldOut = soldOut
+        }
+
+        do {
+            // Update via CRUD service with current itemData
+            let crudService = SquareAPIServiceFactory.createCRUDService()
+            let updatedObject = try await crudService.updateItem(itemData)
+
+            // Update database
+            let db = databaseManager.getContext()
+            let catalogItem = try db.fetch(FetchDescriptor<CatalogItemModel>(
+                predicate: #Predicate { $0.id == itemId }
+            )).first
+
+            if let catalogItem = catalogItem {
+                catalogItem.updateFromCatalogObject(updatedObject)
+                try db.save()
+            }
+
+            await MainActor.run {
+                ToastNotificationService.shared.showSuccess(soldOut ? "Marked as sold out" : "Marked as available")
+            }
+
+        } catch {
+            logger.error("[InventoryViewModel] Failed to update availability: \(error)")
+
+            // Revert local state on error
+            if let overrideIndex = variations[variationIndex].locationOverrides.firstIndex(where: { $0.locationId == locationId }) {
+                variations[variationIndex].locationOverrides[overrideIndex].soldOut = !soldOut
+            }
+
+            await MainActor.run {
+                ToastNotificationService.shared.showError("Failed to update availability: \(error.localizedDescription)")
             }
             throw error
         }
