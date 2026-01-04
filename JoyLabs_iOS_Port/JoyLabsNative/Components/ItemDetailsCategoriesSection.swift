@@ -363,7 +363,7 @@ struct RecentCategoriesQuickSelector: View {
                                 onCategorySelected(categoryId)
                             }) {
                                 Text(categoryName)
-                                    .font(.itemDetailsCaption)
+                                    .font(.itemDetailsSubheadline)
                                     .lineLimit(1)
                                     .foregroundColor(isSelected ? .itemDetailsAccent : .itemDetailsPrimaryText)
                                     .padding(.horizontal, 12)
@@ -415,7 +415,7 @@ struct RecentCategoriesMultiSelector: View {
                                 onCategoryToggled(categoryId)
                             }) {
                                 Text(categoryName)
-                                    .font(.itemDetailsCaption)
+                                    .font(.itemDetailsSubheadline)
                                     .lineLimit(1)
                                     .foregroundColor(isSelected ? .itemDetailsAccent : .itemDetailsPrimaryText)
                                     .padding(.horizontal, 12)
@@ -465,19 +465,19 @@ struct CategoryTag: View {
     var body: some View {
         HStack(spacing: 4) {
             Text(categoryName)
-                .font(.system(size: 11, weight: .medium))
+                .font(.itemDetailsSubheadline)
                 .foregroundColor(.itemDetailsAccent)
                 .lineLimit(1)
 
             Button(action: onRemove) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 8, weight: .medium))
+                    .font(.system(size: 10, weight: .medium))
                     .foregroundColor(.itemDetailsAccent)
             }
             .buttonStyle(PlainButtonStyle())
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 2)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
         .background(Color.itemDetailsAccent.opacity(0.15))
         .cornerRadius(4)
     }
