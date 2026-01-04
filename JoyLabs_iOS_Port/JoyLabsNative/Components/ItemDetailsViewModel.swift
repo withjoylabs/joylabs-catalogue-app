@@ -148,14 +148,14 @@ enum InventoryAlertType: String, CaseIterable, Codable {
 }
 
 enum InventoryTrackingMode: String, CaseIterable, Codable {
-    case none = "NONE"
-    case availability = "AVAILABILITY"  // track_inventory=true, stockable=false
-    case stockCount = "STOCK_COUNT"     // track_inventory=true, stockable=true
+    case unavailable = "UNAVAILABLE"
+    case availability = "AVAILABILITY"  // track_inventory=false
+    case stockCount = "STOCK_COUNT"     // track_inventory=true
 
     var displayName: String {
         switch self {
-        case .none:
-            return "Don't Track"
+        case .unavailable:
+            return "Unavailable"
         case .availability:
             return "Track by Availability"
         case .stockCount:
@@ -202,15 +202,27 @@ struct ItemDetailsVariationData: Identifiable {
     // Pending images for new items (before variation ID is assigned)
     var pendingImages: [PendingImageData] = []
 
-    // Computed property for inventory tracking mode (derived from trackInventory + stockable)
+    // DEPRECATED: Variation-level tracking mode - now managed per-location via locationOverrides
+    // This property exists for backward compatibility and returns the first location's mode or unavailable
+    // For new items without overrides, it acts as a template for creating initial location overrides
     var inventoryTrackingMode: InventoryTrackingMode {
         get {
-            if !trackInventory { return .none }
+            // If we have location overrides, return the first one's mode
+            if let firstOverride = locationOverrides.first {
+                return firstOverride.trackingMode
+            }
+            // For new items without overrides, derive from variation-level flags
+            if !trackInventory { return .unavailable }
             return stockable ? .stockCount : .availability
         }
         set {
+            // Update all existing location overrides to use this mode
+            for index in locationOverrides.indices {
+                locationOverrides[index].trackingMode = newValue
+            }
+            // Also update variation-level flags for backward compatibility
             switch newValue {
-            case .none:
+            case .unavailable:
                 trackInventory = false
             case .availability:
                 trackInventory = true
@@ -268,14 +280,16 @@ struct LocationOverrideData: Identifiable {
     var locationName: String?
     var priceMoney: MoneyData?
     var trackInventory: Bool = false
+    var trackingMode: InventoryTrackingMode = .unavailable
     var inventoryAlertType: InventoryAlertType?
     var inventoryAlertThreshold: Int?
     var stockOnHand: Int = 0
 
-    init(locationId: String, priceMoney: MoneyData? = nil, trackInventory: Bool = false, stockOnHand: Int = 0) {
+    init(locationId: String, priceMoney: MoneyData? = nil, trackInventory: Bool = false, trackingMode: InventoryTrackingMode = .unavailable, stockOnHand: Int = 0) {
         self.locationId = locationId
         self.priceMoney = priceMoney
         self.trackInventory = trackInventory
+        self.trackingMode = trackingMode
         self.stockOnHand = stockOnHand
     }
 }

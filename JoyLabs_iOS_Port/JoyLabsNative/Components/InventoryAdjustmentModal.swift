@@ -438,7 +438,7 @@ struct InventoryAdjustmentModal: View {
 
                         // Auto-switch to stock count mode when initial stock is set
                         if let variationIndex = viewModel.variations.firstIndex(where: { $0.id == variationId }) {
-                            if viewModel.variations[variationIndex].inventoryTrackingMode == .none {
+                            if viewModel.variations[variationIndex].inventoryTrackingMode == .unavailable {
                                 viewModel.variations[variationIndex].inventoryTrackingMode = .stockCount
                             }
                         }

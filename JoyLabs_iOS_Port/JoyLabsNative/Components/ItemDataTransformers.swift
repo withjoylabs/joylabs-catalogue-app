@@ -385,14 +385,23 @@ class ItemDataTransformers {
     /// Transform location overrides from Square API model to UI model
     private static func transformLocationOverrides(_ locationOverrides: [LocationOverride]?) -> [LocationOverrideData] {
         guard let locationOverrides = locationOverrides else { return [] }
-        
+
         return locationOverrides.compactMap { override in
             guard let locationId = override.locationId else { return nil }
-            
+
+            // Map track_inventory boolean to InventoryTrackingMode enum
+            let trackingMode: InventoryTrackingMode
+            if let trackInventory = override.trackInventory {
+                trackingMode = trackInventory ? .stockCount : .availability
+            } else {
+                trackingMode = .unavailable
+            }
+
             return LocationOverrideData(
                 locationId: locationId,
                 priceMoney: transformMoney(override.priceMoney),
                 trackInventory: override.trackInventory ?? false,
+                trackingMode: trackingMode,
                 stockOnHand: 0 // stockOnHand not available in Square LocationOverride model
             )
         }
@@ -401,20 +410,31 @@ class ItemDataTransformers {
     /// Transform location overrides from UI model to Square API model
     private static func transformLocationOverridesToAPI(_ locationOverrides: [LocationOverrideData]) -> [LocationOverride]? {
         guard !locationOverrides.isEmpty else { return nil }
-        
-        // Only include overrides that have meaningful data (price or inventory tracking)
+
+        // Only include overrides that have meaningful data (price or inventory tracking mode)
         let validOverrides = locationOverrides.filter { override in
-            override.priceMoney != nil || override.trackInventory
+            override.priceMoney != nil || override.trackingMode != .unavailable
         }
-        
+
         guard !validOverrides.isEmpty else { return nil }
-        
+
         return validOverrides.map { override in
-            LocationOverride(
+            // Map InventoryTrackingMode enum to track_inventory boolean
+            let trackInventoryValue: Bool?
+            switch override.trackingMode {
+            case .stockCount:
+                trackInventoryValue = true
+            case .availability:
+                trackInventoryValue = false
+            case .unavailable:
+                trackInventoryValue = nil  // Don't include in overrides
+            }
+
+            return LocationOverride(
                 locationId: override.locationId,
                 priceMoney: transformMoneyToAPI(override.priceMoney),
                 pricingType: override.priceMoney != nil ? "FIXED_PRICING" : nil,
-                trackInventory: override.trackInventory ? override.trackInventory : nil,
+                trackInventory: trackInventoryValue,
                 inventoryAlertType: override.inventoryAlertType?.rawValue,
                 inventoryAlertThreshold: override.inventoryAlertThreshold.map(Int64.init),
                 soldOut: nil, // Read-only field

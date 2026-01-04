@@ -342,22 +342,6 @@ struct VariationInventorySection: View {
             .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
             .padding(.vertical, ItemDetailsSpacing.compactSpacing)
 
-            // Inventory Tracking Mode Picker
-            ItemDetailsFieldSeparator()
-
-            VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
-                ItemDetailsFieldLabel(title: "Tracking Mode")
-
-                Picker("Tracking Mode", selection: $variation.inventoryTrackingMode) {
-                    ForEach(InventoryTrackingMode.allCases, id: \.self) { mode in
-                        Text(mode.displayName).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-            }
-            .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
-            .padding(.vertical, ItemDetailsSpacing.compactSpacing)
-
             // New item: Show editable inventory input fields for each location
             if isNewItem {
                 ForEach(Array(viewModel.availableLocations.enumerated()), id: \.element.id) { locationIndex, location in
@@ -409,6 +393,7 @@ struct VariationInventorySection: View {
                     ItemDetailsFieldSeparator()
 
                     VariationInventoryRow(
+                        variation: $variation,
                         variationId: variationId,
                         locationId: location.id,
                         locationName: location.name,
@@ -479,7 +464,7 @@ private struct NewItemInventoryRow: View {
                     } else if let qty = Int(newValue), qty >= 0 {
                         variation.pendingInventoryQty[locationId] = qty
                         // Auto-switch to stock count mode when quantity is entered
-                        if qty > 0 && variation.inventoryTrackingMode == .none {
+                        if qty > 0 && variation.inventoryTrackingMode == .unavailable {
                             variation.inventoryTrackingMode = .stockCount
                         }
                     }
@@ -505,7 +490,9 @@ private struct NewItemInventoryRow: View {
 // MARK: - Variation Inventory Row
 /// Single row showing stock on hand, committed, and available to sell for one location
 /// Uses @Query for automatic SwiftData reactivity - UI updates automatically when inventory changes
+/// Now supports per-location tracking modes
 private struct VariationInventoryRow: View {
+    @Binding var variation: ItemDetailsVariationData
     let variationId: String // Note: Already unwrapped in parent, guaranteed non-nil
     let locationId: String
     let locationName: String
@@ -514,7 +501,8 @@ private struct VariationInventoryRow: View {
     // SwiftData query for automatic reactivity - UI updates when database changes!
     @Query private var inventoryCounts: [InventoryCountModel]
 
-    init(variationId: String, locationId: String, locationName: String, onTap: @escaping () -> Void) {
+    init(variation: Binding<ItemDetailsVariationData>, variationId: String, locationId: String, locationName: String, onTap: @escaping () -> Void) {
+        self._variation = variation
         self.variationId = variationId
         self.locationId = locationId
         self.locationName = locationName
@@ -536,6 +524,38 @@ private struct VariationInventoryRow: View {
         inventoryCount?.quantityInt
     }
 
+    // Get or create location override for this location
+    private var locationOverrideBinding: Binding<LocationOverrideData> {
+        Binding(
+            get: {
+                if let override = variation.locationOverrides.first(where: { $0.locationId == locationId }) {
+                    return override
+                } else {
+                    // Create default override with unavailable mode
+                    return LocationOverrideData(locationId: locationId, trackingMode: .unavailable)
+                }
+            },
+            set: { newValue in
+                if let index = variation.locationOverrides.firstIndex(where: { $0.locationId == locationId }) {
+                    variation.locationOverrides[index] = newValue
+                } else {
+                    variation.locationOverrides.append(newValue)
+                }
+            }
+        )
+    }
+
+    private var trackingMode: Binding<InventoryTrackingMode> {
+        Binding(
+            get: { locationOverrideBinding.wrappedValue.trackingMode },
+            set: { newValue in
+                var override = locationOverrideBinding.wrappedValue
+                override.trackingMode = newValue
+                locationOverrideBinding.wrappedValue = override
+            }
+        )
+    }
+
     // Responsive column widths
     private var numericColumnWidth: CGFloat {
         UIDevice.current.userInterfaceIdiom == .pad ? 90 : 50
@@ -546,71 +566,134 @@ private struct VariationInventoryRow: View {
     }
 
     var body: some View {
-        ItemDetailsFieldRow {
-            VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
-                // Line 1: Column headers
-                HStack(spacing: 8) {
-                    // Location column (flexible)
-                    Text("Location")
-                        .font(.itemDetailsCaption)
-                        .foregroundColor(.itemDetailsSecondaryText)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    // Numeric columns (responsive width)
-                    Text("Stock on hand")
-                        .font(.itemDetailsCaption)
-                        .foregroundColor(.itemDetailsSecondaryText)
-                        .frame(width: numericColumnWidth, alignment: .center)
-
-                    Text("Committed")
-                        .font(.itemDetailsCaption)
-                        .foregroundColor(.itemDetailsSecondaryText)
-                        .frame(width: numericColumnWidth, alignment: .center)
-
-                    Text("Available")
-                        .font(.itemDetailsCaption)
-                        .foregroundColor(.itemDetailsSecondaryText)
-                        .frame(width: numericColumnWidth, alignment: .center)
-
-                    // Button column spacer
-                    Spacer()
-                        .frame(width: buttonColumnWidth)
-                }
-
-                // Line 2: Values and button
-                HStack(spacing: 8) {
-                    // Location name (flexible, takes remaining space)
-                    Text(locationName)
-                        .font(.itemDetailsBody)
-                        .foregroundColor(.itemDetailsPrimaryText)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .lineLimit(1)
-
-                    // Stock on hand
-                    Text(stockOnHand != nil ? "\(stockOnHand!)" : "N/A")
-                        .font(.itemDetailsBody)
-                        .foregroundColor(stockOnHand == nil ? .itemDetailsSecondaryText : .itemDetailsPrimaryText)
-                        .frame(width: numericColumnWidth, alignment: .center)
-
-                    // Committed (always 0 for now)
-                    Text("0")
-                        .font(.itemDetailsBody)
-                        .foregroundColor(.itemDetailsPrimaryText)
-                        .frame(width: numericColumnWidth, alignment: .center)
-
-                    // Available to sell
-                    Text(stockOnHand != nil ? "\(stockOnHand!)" : "N/A")
-                        .font(.itemDetailsBody)
-                        .foregroundColor(stockOnHand == nil ? .itemDetailsSecondaryText : .itemDetailsPrimaryText)
-                        .frame(width: numericColumnWidth, alignment: .center)
-
-                    // Adjust button
-                    Button(action: onTap) {
-                        Text("Adjust")
+        VStack(spacing: 0) {
+            // Tracking mode picker
+            ItemDetailsFieldRow {
+                VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
+                    HStack {
+                        Text(locationName)
                             .font(.itemDetailsBody)
-                            .foregroundColor(.blue)
+                            .fontWeight(.medium)
+                            .foregroundColor(.itemDetailsPrimaryText)
+
+                        Spacer()
                     }
-                    .frame(width: buttonColumnWidth)
+
+                    Picker("Tracking Mode", selection: trackingMode) {
+                        ForEach(InventoryTrackingMode.allCases, id: \.self) { mode in
+                            Text(mode.displayName).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+            }
+
+            // Conditional UI based on tracking mode
+            ItemDetailsFieldSeparator()
+
+            ItemDetailsFieldRow {
+                switch trackingMode.wrappedValue {
+                case .unavailable:
+                    // Show grayed out UI
+                    VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
+                        Text("Inventory tracking is disabled for this location")
+                            .font(.itemDetailsCaption)
+                            .foregroundColor(.itemDetailsSecondaryText)
+
+                        if let stock = stockOnHand {
+                            Text("Stock on Hand: \(stock) (preserved)")
+                                .font(.itemDetailsBody)
+                                .foregroundColor(.itemDetailsSecondaryText)
+                        }
+                    }
+
+                case .availability:
+                    // Show Available/Sold Out toggle
+                    VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
+                        Text("Availability Status")
+                            .font(.itemDetailsCaption)
+                            .foregroundColor(.itemDetailsSecondaryText)
+
+                        HStack(spacing: 12) {
+                            Button(action: {
+                                // Set to available - implementation needed
+                            }) {
+                                Text("Available")
+                                    .font(.itemDetailsBody)
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 20)
+                                    .padding(.vertical, 10)
+                                    .background(Color.green)
+                                    .cornerRadius(8)
+                            }
+
+                            Button(action: {
+                                // Set to sold out - implementation needed
+                            }) {
+                                Text("Sold Out")
+                                    .font(.itemDetailsBody)
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 20)
+                                    .padding(.vertical, 10)
+                                    .background(Color.red)
+                                    .cornerRadius(8)
+                            }
+                        }
+                    }
+
+                case .stockCount:
+                    // Show stock count UI (original implementation)
+                    VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
+                        // Column headers
+                        HStack(spacing: 8) {
+                            Text("Stock on hand")
+                                .font(.itemDetailsCaption)
+                                .foregroundColor(.itemDetailsSecondaryText)
+                                .frame(width: numericColumnWidth, alignment: .center)
+
+                            Text("Committed")
+                                .font(.itemDetailsCaption)
+                                .foregroundColor(.itemDetailsSecondaryText)
+                                .frame(width: numericColumnWidth, alignment: .center)
+
+                            Text("Available")
+                                .font(.itemDetailsCaption)
+                                .foregroundColor(.itemDetailsSecondaryText)
+                                .frame(width: numericColumnWidth, alignment: .center)
+
+                            Spacer()
+                                .frame(width: buttonColumnWidth)
+                        }
+
+                        // Values and button
+                        HStack(spacing: 8) {
+                            // Stock on hand
+                            Text(stockOnHand != nil ? "\(stockOnHand!)" : "N/A")
+                                .font(.itemDetailsBody)
+                                .foregroundColor(stockOnHand == nil ? .itemDetailsSecondaryText : .itemDetailsPrimaryText)
+                                .frame(width: numericColumnWidth, alignment: .center)
+
+                            // Committed (always 0 for now)
+                            Text("0")
+                                .font(.itemDetailsBody)
+                                .foregroundColor(.itemDetailsPrimaryText)
+                                .frame(width: numericColumnWidth, alignment: .center)
+
+                            // Available to sell
+                            Text(stockOnHand != nil ? "\(stockOnHand!)" : "N/A")
+                                .font(.itemDetailsBody)
+                                .foregroundColor(stockOnHand == nil ? .itemDetailsSecondaryText : .itemDetailsPrimaryText)
+                                .frame(width: numericColumnWidth, alignment: .center)
+
+                            // Adjust button
+                            Button(action: onTap) {
+                                Text("Adjust")
+                                    .font(.itemDetailsBody)
+                                    .foregroundColor(.blue)
+                            }
+                            .frame(width: buttonColumnWidth)
+                        }
+                    }
                 }
             }
         }

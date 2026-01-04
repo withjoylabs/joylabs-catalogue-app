@@ -236,7 +236,7 @@ struct InventoryFieldsConfig: Codable {
 
     var inventoryTrackingModeEnabled: Bool = true
     var inventoryTrackingModeRequired: Bool = false
-    var defaultInventoryTrackingMode: InventoryTrackingMode = .none
+    var defaultInventoryTrackingMode: InventoryTrackingMode = .unavailable
 
     var inventoryAlertsEnabled: Bool = true
     var inventoryAlertsRequired: Bool = false
