@@ -468,14 +468,22 @@ struct DefaultValuesDetailView: View {
             .font(.caption)
             .foregroundColor(.blue)
         }) {
-            DefaultValueToggleRow(
-                title: "Track Inventory",
-                binding: Binding(
-                    get: { configManager.currentConfiguration.inventoryFields.defaultTrackInventory },
-                    set: { configManager.updateFieldConfiguration(\.inventoryFields.defaultTrackInventory, value: $0) }
-                ),
-                isEnabled: true
-            )
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Default Inventory Tracking Mode")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+
+                Picker("Tracking Mode", selection: Binding(
+                    get: { configManager.currentConfiguration.inventoryFields.defaultInventoryTrackingMode },
+                    set: { configManager.updateFieldConfiguration(\.inventoryFields.defaultInventoryTrackingMode, value: $0) }
+                )) {
+                    ForEach(InventoryTrackingMode.allCases, id: \.self) { mode in
+                        Text(mode.displayName).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+            .padding(.vertical, 8)
             
             DefaultValueToggleRow(
                 title: "Sellable",
@@ -530,7 +538,7 @@ struct DefaultValuesDetailView: View {
     }
     
     private func resetVariationDefaults() {
-        configManager.updateFieldConfiguration(\.inventoryFields.defaultTrackInventory, value: false)
+        configManager.updateFieldConfiguration(\.inventoryFields.defaultInventoryTrackingMode, value: .none)
         configManager.updateFieldConfiguration(\.advancedFields.defaultSellable, value: true)
         configManager.updateFieldConfiguration(\.advancedFields.defaultStockable, value: true)
     }

@@ -199,6 +199,8 @@ class FieldConfigurationManager: ObservableObject {
             return currentConfiguration.classificationFields.isAlcoholicEnabled
         case .inventoryTracking:
             return currentConfiguration.inventoryFields.trackInventoryEnabled
+        case .inventoryTrackingMode:
+            return currentConfiguration.inventoryFields.inventoryTrackingModeEnabled
         case .inventoryAlerts:
             return currentConfiguration.inventoryFields.inventoryAlertsEnabled
         case .servicesDuration:
@@ -241,6 +243,8 @@ class FieldConfigurationManager: ObservableObject {
             return currentConfiguration.classificationFields.isAlcoholicRequired
         case .inventoryTracking:
             return currentConfiguration.inventoryFields.trackInventoryRequired
+        case .inventoryTrackingMode:
+            return currentConfiguration.inventoryFields.inventoryTrackingModeRequired
         case .inventoryAlerts:
             return currentConfiguration.inventoryFields.inventoryAlertsRequired
         case .servicesDuration:
@@ -385,6 +389,7 @@ enum FieldPath: String, CaseIterable {
     case pricingSkipModifierScreen = "pricing.skipModifierScreen"
     case classificationIsAlcoholic = "classification.isAlcoholic"
     case inventoryTracking = "inventory.tracking"
+    case inventoryTrackingMode = "inventory.trackingMode"
     case inventoryAlerts = "inventory.alerts"
     case servicesDuration = "services.duration"
     case servicesTeamMembers = "services.teamMembers"
@@ -406,6 +411,7 @@ enum FieldPath: String, CaseIterable {
         case .pricingSkipModifierScreen: return "Skip Modifier Screen"
         case .classificationIsAlcoholic: return "Alcoholic Item"
         case .inventoryTracking: return "Inventory Tracking"
+        case .inventoryTrackingMode: return "Inventory Tracking Mode"
         case .inventoryAlerts: return "Inventory Alerts"
         case .servicesDuration: return "Service Duration"
         case .servicesTeamMembers: return "Team Members"

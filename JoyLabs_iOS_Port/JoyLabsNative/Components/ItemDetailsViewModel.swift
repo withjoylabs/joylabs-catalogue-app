@@ -136,13 +136,30 @@ enum ProductType: String, CaseIterable, Codable {
 enum InventoryAlertType: String, CaseIterable, Codable {
     case none = "NONE"
     case lowQuantity = "LOW_QUANTITY"
-    
+
     var displayName: String {
         switch self {
         case .none:
             return "No Alerts"
         case .lowQuantity:
             return "Low Quantity Alert"
+        }
+    }
+}
+
+enum InventoryTrackingMode: String, CaseIterable, Codable {
+    case none = "NONE"
+    case availability = "AVAILABILITY"  // track_inventory=true, stockable=false
+    case stockCount = "STOCK_COUNT"     // track_inventory=true, stockable=true
+
+    var displayName: String {
+        switch self {
+        case .none:
+            return "Don't Track"
+        case .availability:
+            return "Track by Availability"
+        case .stockCount:
+            return "Track by Stock Count"
         }
     }
 }
@@ -184,6 +201,28 @@ struct ItemDetailsVariationData: Identifiable {
 
     // Pending images for new items (before variation ID is assigned)
     var pendingImages: [PendingImageData] = []
+
+    // Computed property for inventory tracking mode (derived from trackInventory + stockable)
+    var inventoryTrackingMode: InventoryTrackingMode {
+        get {
+            if !trackInventory { return .none }
+            return stockable ? .stockCount : .availability
+        }
+        set {
+            switch newValue {
+            case .none:
+                trackInventory = false
+            case .availability:
+                trackInventory = true
+                stockable = false
+                sellable = true
+            case .stockCount:
+                trackInventory = true
+                stockable = true
+                sellable = true
+            }
+        }
+    }
 
     // Removed complex isEqual method - using simple flag-based change tracking instead
 }
@@ -1060,7 +1099,7 @@ class ItemDetailsViewModel: ObservableObject {
         // Create variation with configurable defaults
         var variation = ItemDetailsVariationData()
         variation.name = config.pricingFields.defaultVariationName
-        variation.trackInventory = config.inventoryFields.defaultTrackInventory
+        variation.inventoryTrackingMode = config.inventoryFields.defaultInventoryTrackingMode
         self.variations = [variation]
         
         // Apply tax defaults - auto-select all taxes if default is taxable

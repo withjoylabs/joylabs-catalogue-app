@@ -435,6 +435,13 @@ struct InventoryAdjustmentModal: View {
                     // Mark inventory as enabled on successful initial stock
                     await MainActor.run {
                         SquareCapabilitiesService.shared.markInventoryAsEnabled()
+
+                        // Auto-switch to stock count mode when initial stock is set
+                        if let variationIndex = viewModel.variations.firstIndex(where: { $0.id == variationId }) {
+                            if viewModel.variations[variationIndex].inventoryTrackingMode == .none {
+                                viewModel.variations[variationIndex].inventoryTrackingMode = .stockCount
+                            }
+                        }
                     }
                 } else {
                     // For existing inventory, use adjustment

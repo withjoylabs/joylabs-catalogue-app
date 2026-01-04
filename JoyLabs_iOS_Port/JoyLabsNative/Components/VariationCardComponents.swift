@@ -342,6 +342,22 @@ struct VariationInventorySection: View {
             .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
             .padding(.vertical, ItemDetailsSpacing.compactSpacing)
 
+            // Inventory Tracking Mode Picker
+            ItemDetailsFieldSeparator()
+
+            VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
+                ItemDetailsFieldLabel(title: "Tracking Mode")
+
+                Picker("Tracking Mode", selection: $variation.inventoryTrackingMode) {
+                    ForEach(InventoryTrackingMode.allCases, id: \.self) { mode in
+                        Text(mode.displayName).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+            .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
+            .padding(.vertical, ItemDetailsSpacing.compactSpacing)
+
             // New item: Show editable inventory input fields for each location
             if isNewItem {
                 ForEach(Array(viewModel.availableLocations.enumerated()), id: \.element.id) { locationIndex, location in
@@ -462,6 +478,10 @@ private struct NewItemInventoryRow: View {
                         variation.pendingInventoryQty[locationId] = nil
                     } else if let qty = Int(newValue), qty >= 0 {
                         variation.pendingInventoryQty[locationId] = qty
+                        // Auto-switch to stock count mode when quantity is entered
+                        if qty > 0 && variation.inventoryTrackingMode == .none {
+                            variation.inventoryTrackingMode = .stockCount
+                        }
                     }
                 }
             ))
