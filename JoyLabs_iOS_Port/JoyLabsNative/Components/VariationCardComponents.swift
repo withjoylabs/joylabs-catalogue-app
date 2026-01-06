@@ -559,9 +559,23 @@ private struct VariationInventoryRow: View {
         )
     }
 
-    // Get current soldOut status for this location
-    private var soldOut: Bool {
-        variation.locationOverrides.first(where: { $0.locationId == locationId })?.soldOut ?? false
+    // Binding to soldOut status in location overrides array
+    private var soldOutBinding: Binding<Bool> {
+        Binding(
+            get: {
+                variation.locationOverrides.first(where: { $0.locationId == locationId })?.soldOut ?? false
+            },
+            set: { newValue in
+                var updatedVariation = variation.wrappedValue
+                if let index = updatedVariation.locationOverrides.firstIndex(where: { $0.locationId == locationId }) {
+                    updatedVariation.locationOverrides[index].soldOut = newValue
+                } else {
+                    var newOverride = LocationOverrideData(locationId: locationId, trackingMode: .availability, soldOut: newValue)
+                    updatedVariation.locationOverrides.append(newOverride)
+                }
+                variation.wrappedValue = updatedVariation
+            }
+        )
     }
 
     // Responsive column widths
@@ -616,91 +630,17 @@ private struct VariationInventoryRow: View {
                     }
 
                 case .availability:
-                    // Show Available/Sold Out toggle
+                    // Show Available/Sold Out picker (consistent with app UX - saves when user clicks main Save button)
                     VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
                         Text("Availability Status")
                             .font(.itemDetailsCaption)
                             .foregroundColor(.itemDetailsSecondaryText)
 
-                        HStack(spacing: 12) {
-                            // Available button
-                            Button(action: {
-                                // Update local state immediately for UI feedback
-                                if let index = variation.locationOverrides.firstIndex(where: { $0.locationId == locationId }) {
-                                    variation.locationOverrides[index].soldOut = false
-                                } else {
-                                    var newOverride = LocationOverrideData(locationId: locationId, trackingMode: .availability, soldOut: false)
-                                    variation.locationOverrides.append(newOverride)
-                                }
-
-                                // Save to Square API
-                                Task {
-                                    do {
-                                        try await viewModel.updateVariationAvailability(
-                                            variationIndex: variationIndex,
-                                            locationId: locationId,
-                                            soldOut: false
-                                        )
-                                    } catch {
-                                        // Error already handled in updateVariationAvailability
-                                    }
-                                }
-                            }) {
-                                HStack {
-                                    if !soldOut {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .font(.system(size: 16))
-                                    }
-                                    Text("Available")
-                                        .font(.itemDetailsBody)
-                                        .fontWeight(!soldOut ? .bold : .regular)
-                                }
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 20)
-                                .padding(.vertical, 10)
-                                .background(soldOut ? Color.green.opacity(0.5) : Color.green)
-                                .cornerRadius(8)
-                            }
-
-                            // Sold Out button
-                            Button(action: {
-                                // Update local state immediately for UI feedback
-                                if let index = variation.locationOverrides.firstIndex(where: { $0.locationId == locationId }) {
-                                    variation.locationOverrides[index].soldOut = true
-                                } else {
-                                    var newOverride = LocationOverrideData(locationId: locationId, trackingMode: .availability, soldOut: true)
-                                    variation.locationOverrides.append(newOverride)
-                                }
-
-                                // Save to Square API
-                                Task {
-                                    do {
-                                        try await viewModel.updateVariationAvailability(
-                                            variationIndex: variationIndex,
-                                            locationId: locationId,
-                                            soldOut: true
-                                        )
-                                    } catch {
-                                        // Error already handled in updateVariationAvailability
-                                    }
-                                }
-                            }) {
-                                HStack {
-                                    if soldOut {
-                                        Image(systemName: "xmark.circle.fill")
-                                            .font(.system(size: 16))
-                                    }
-                                    Text("Sold Out")
-                                        .font(.itemDetailsBody)
-                                        .fontWeight(soldOut ? .bold : .regular)
-                                }
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 20)
-                                .padding(.vertical, 10)
-                                .background(soldOut ? Color.red : Color.red.opacity(0.5))
-                                .cornerRadius(8)
-                            }
+                        Picker("Status", selection: soldOutBinding) {
+                            Text("Available").tag(false)
+                            Text("Sold Out").tag(true)
                         }
+                        .pickerStyle(.segmented)
                     }
 
                 case .stockCount:
