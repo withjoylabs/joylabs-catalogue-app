@@ -383,7 +383,7 @@ class ItemDataTransformers {
     // MARK: - Location Override Transformations
     
     /// Transform location overrides from Square API model to UI model
-    private static func transformLocationOverrides(_ locationOverrides: [LocationOverride]?) -> [LocationOverrideData] {
+    static func transformLocationOverrides(_ locationOverrides: [LocationOverride]?) -> [LocationOverrideData] {
         guard let locationOverrides = locationOverrides else { return [] }
 
         return locationOverrides.compactMap { override in
@@ -472,7 +472,7 @@ class ItemDataTransformers {
         }
     }
     
-    private static func transformInventoryAlertType(_ alertType: String?) -> InventoryAlertType {
+    static func transformInventoryAlertType(_ alertType: String?) -> InventoryAlertType {
         switch alertType {
         case "LOW_QUANTITY": return .lowQuantity
         default: return .none

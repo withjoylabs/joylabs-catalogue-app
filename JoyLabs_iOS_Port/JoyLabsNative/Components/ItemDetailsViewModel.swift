@@ -1203,9 +1203,27 @@ class ItemDetailsViewModel: ObservableObject {
                 let versionStr = variationModel.version
                 variation.version = Int64(versionStr)
 
-                // Load imageIds from stored variation data
+                // Load ALL fields from stored variation data (dataJson contains complete CatalogObject)
                 if let variationData = variationModel.toItemVariationData() {
+                    // Images
                     variation.imageIds = variationData.imageIds ?? []
+
+                    // CRITICAL: Inventory tracking fields (previously missing - caused "Unavailable" bug)
+                    variation.trackInventory = variationData.trackInventory ?? false
+                    variation.stockable = variationData.stockable ?? true
+                    variation.sellable = variationData.sellable ?? true
+
+                    // Transform location overrides from Square API format to UI format
+                    // This is what makes per-location tracking modes work
+                    variation.locationOverrides = ItemDataTransformers.transformLocationOverrides(variationData.locationOverrides)
+
+                    // Inventory alerts
+                    variation.inventoryAlertType = ItemDataTransformers.transformInventoryAlertType(variationData.inventoryAlertType)
+                    variation.inventoryAlertThreshold = variationData.inventoryAlertThreshold.map(Int.init)
+
+                    // Service fields
+                    variation.serviceDuration = variationData.serviceDuration.map(Int.init)
+                    variation.availableForBooking = variationData.availableForBooking ?? false
                 }
 
                 loadedVariations.append(variation)
