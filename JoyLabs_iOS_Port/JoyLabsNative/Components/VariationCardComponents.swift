@@ -534,8 +534,16 @@ private struct VariationInventoryRow: View {
     private var trackingMode: Binding<InventoryTrackingMode> {
         Binding(
             get: {
-                // Find existing override or return default
-                variation.locationOverrides.first(where: { $0.locationId == locationId })?.trackingMode ?? .unavailable
+                // Find existing per-location override
+                if let override = variation.locationOverrides.first(where: { $0.locationId == locationId }) {
+                    return override.trackingMode
+                }
+
+                // No per-location override - derive from variation-level flags
+                if !variation.trackInventory {
+                    return .unavailable
+                }
+                return variation.stockable ? .stockCount : .availability
             },
             set: { newMode in
                 // Find index of existing override
