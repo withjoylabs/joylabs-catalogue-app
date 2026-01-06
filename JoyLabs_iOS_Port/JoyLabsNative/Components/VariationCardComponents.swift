@@ -563,17 +563,15 @@ private struct VariationInventoryRow: View {
     private var soldOutBinding: Binding<Bool> {
         Binding(
             get: {
-                variation.locationOverrides.first(where: { $0.locationId == locationId })?.soldOut ?? false
+                variation.wrappedValue.locationOverrides.first(where: { $0.locationId == locationId })?.soldOut ?? false
             },
             set: { newValue in
-                var updatedVariation = variation.wrappedValue
-                if let index = updatedVariation.locationOverrides.firstIndex(where: { $0.locationId == locationId }) {
-                    updatedVariation.locationOverrides[index].soldOut = newValue
+                if let index = variation.wrappedValue.locationOverrides.firstIndex(where: { $0.locationId == locationId }) {
+                    variation.wrappedValue.locationOverrides[index].soldOut = newValue
                 } else {
                     var newOverride = LocationOverrideData(locationId: locationId, trackingMode: .availability, soldOut: newValue)
-                    updatedVariation.locationOverrides.append(newOverride)
+                    variation.wrappedValue.locationOverrides.append(newOverride)
                 }
-                variation.wrappedValue = updatedVariation
             }
         )
     }
