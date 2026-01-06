@@ -530,36 +530,30 @@ private struct VariationInventoryRow: View {
         inventoryCount?.quantityInt
     }
 
-    // Get or create location override for this location
-    private var locationOverrideBinding: Binding<LocationOverrideData> {
+    // Direct binding to tracking mode in location overrides array
+    private var trackingMode: Binding<InventoryTrackingMode> {
         Binding(
             get: {
-                if let override = variation.locationOverrides.first(where: { $0.locationId == locationId }) {
-                    return override
-                } else {
-                    // Create default override with unavailable mode
-                    return LocationOverrideData(locationId: locationId, trackingMode: .unavailable)
-                }
+                // Find existing override or return default
+                variation.locationOverrides.first(where: { $0.locationId == locationId })?.trackingMode ?? .unavailable
             },
-            set: { newValue in
+            set: { newMode in
+                // Find index of existing override
                 if let index = variation.locationOverrides.firstIndex(where: { $0.locationId == locationId }) {
-                    variation.locationOverrides[index] = newValue
+                    // Update existing override
+                    variation.locationOverrides[index].trackingMode = newMode
                 } else {
-                    variation.locationOverrides.append(newValue)
+                    // Create new override
+                    var newOverride = LocationOverrideData(locationId: locationId, trackingMode: newMode)
+                    variation.locationOverrides.append(newOverride)
                 }
             }
         )
     }
 
-    private var trackingMode: Binding<InventoryTrackingMode> {
-        Binding(
-            get: { locationOverrideBinding.wrappedValue.trackingMode },
-            set: { newValue in
-                var override = locationOverrideBinding.wrappedValue
-                override.trackingMode = newValue
-                locationOverrideBinding.wrappedValue = override
-            }
-        )
+    // Get current soldOut status for this location
+    private var soldOut: Bool {
+        variation.locationOverrides.first(where: { $0.locationId == locationId })?.soldOut ?? false
     }
 
     // Responsive column widths
@@ -620,15 +614,16 @@ private struct VariationInventoryRow: View {
                             .font(.itemDetailsCaption)
                             .foregroundColor(.itemDetailsSecondaryText)
 
-                        let isSoldOut = locationOverrideBinding.wrappedValue.soldOut ?? false
-
                         HStack(spacing: 12) {
                             // Available button
                             Button(action: {
                                 // Update local state immediately for UI feedback
-                                var override = locationOverrideBinding.wrappedValue
-                                override.soldOut = false
-                                locationOverrideBinding.wrappedValue = override
+                                if let index = variation.locationOverrides.firstIndex(where: { $0.locationId == locationId }) {
+                                    variation.locationOverrides[index].soldOut = false
+                                } else {
+                                    var newOverride = LocationOverrideData(locationId: locationId, trackingMode: .availability, soldOut: false)
+                                    variation.locationOverrides.append(newOverride)
+                                }
 
                                 // Save to Square API
                                 Task {
@@ -644,27 +639,30 @@ private struct VariationInventoryRow: View {
                                 }
                             }) {
                                 HStack {
-                                    if !isSoldOut {
+                                    if !soldOut {
                                         Image(systemName: "checkmark.circle.fill")
                                             .font(.system(size: 16))
                                     }
                                     Text("Available")
                                         .font(.itemDetailsBody)
-                                        .fontWeight(!isSoldOut ? .bold : .regular)
+                                        .fontWeight(!soldOut ? .bold : .regular)
                                 }
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 20)
                                 .padding(.vertical, 10)
-                                .background(isSoldOut ? Color.green.opacity(0.5) : Color.green)
+                                .background(soldOut ? Color.green.opacity(0.5) : Color.green)
                                 .cornerRadius(8)
                             }
 
                             // Sold Out button
                             Button(action: {
                                 // Update local state immediately for UI feedback
-                                var override = locationOverrideBinding.wrappedValue
-                                override.soldOut = true
-                                locationOverrideBinding.wrappedValue = override
+                                if let index = variation.locationOverrides.firstIndex(where: { $0.locationId == locationId }) {
+                                    variation.locationOverrides[index].soldOut = true
+                                } else {
+                                    var newOverride = LocationOverrideData(locationId: locationId, trackingMode: .availability, soldOut: true)
+                                    variation.locationOverrides.append(newOverride)
+                                }
 
                                 // Save to Square API
                                 Task {
@@ -680,18 +678,18 @@ private struct VariationInventoryRow: View {
                                 }
                             }) {
                                 HStack {
-                                    if isSoldOut {
+                                    if soldOut {
                                         Image(systemName: "xmark.circle.fill")
                                             .font(.system(size: 16))
                                     }
                                     Text("Sold Out")
                                         .font(.itemDetailsBody)
-                                        .fontWeight(isSoldOut ? .bold : .regular)
+                                        .fontWeight(soldOut ? .bold : .regular)
                                 }
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 20)
                                 .padding(.vertical, 10)
-                                .background(isSoldOut ? Color.red : Color.red.opacity(0.5))
+                                .background(soldOut ? Color.red : Color.red.opacity(0.5))
                                 .cornerRadius(8)
                             }
                         }
