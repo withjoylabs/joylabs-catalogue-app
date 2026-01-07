@@ -344,6 +344,36 @@ struct VariationInventorySection: View {
 
             // New item: Show editable inventory input fields for each location
             if isNewItem {
+                // Column headers (show once)
+                ItemDetailsFieldSeparator()
+                ItemDetailsFieldRow {
+                    HStack(spacing: 12) {
+                        // Location column header - takes remaining space
+                        Text("Location")
+                            .font(.itemDetailsCaption)
+                            .foregroundColor(.itemDetailsSecondaryText)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        // Toggle headers - fixed width for alignment
+                        Text("For Sale")
+                            .font(.itemDetailsCaption)
+                            .foregroundColor(.itemDetailsSecondaryText)
+                            .frame(width: 80, alignment: .center)
+
+                        Text("Track Inventory")
+                            .font(.itemDetailsCaption)
+                            .foregroundColor(.itemDetailsSecondaryText)
+                            .frame(width: 120, alignment: .center)
+                            .padding(.trailing, 20)
+
+                        // Initial Stock column header
+                        Text("Initial Stock")
+                            .font(.itemDetailsCaption)
+                            .foregroundColor(.itemDetailsSecondaryText)
+                            .frame(width: 80, alignment: .center)
+                    }
+                }
+
                 ForEach(Array(viewModel.availableLocations.enumerated()), id: \.element.id) { locationIndex, location in
                     ItemDetailsFieldSeparator()
 
@@ -482,50 +512,91 @@ private struct NewItemInventoryRow: View {
         return ""
     }
 
-    var body: some View {
-        HStack(spacing: ItemDetailsSpacing.compactSpacing) {
-            // Location name (if multiple locations)
-            if locationName != "Default Location" {
-                Text(locationName)
-                    .font(.itemDetailsBody)
-                    .foregroundColor(.itemDetailsSecondaryText)
-                    .frame(minWidth: 80, alignment: .leading)
+    // Toggle binding for For Sale
+    private var forSaleToggle: Binding<Bool> {
+        Binding(
+            get: {
+                variation.isForSale(at: locationId)
+            },
+            set: { isForSale in
+                variation.setForSale(isForSale, at: locationId)
             }
+        )
+    }
 
-            Spacer()
+    // Toggle binding for Track Inventory
+    private var trackInventoryToggle: Binding<Bool> {
+        Binding(
+            get: {
+                variation.inventoryTrackingMode == .stockCount
+            },
+            set: { isOn in
+                variation.inventoryTrackingMode = isOn ? .stockCount : .untracked
+            }
+        )
+    }
 
-            // Editable quantity field
-            Text("Initial Stock")
-                .font(.itemDetailsCaption)
-                .foregroundColor(.itemDetailsSecondaryText)
+    // Computed property for tracking state
+    private var isTracking: Bool {
+        variation.inventoryTrackingMode == .stockCount
+    }
 
-            TextField("0", text: Binding(
-                get: { currentQty },
-                set: { newValue in
-                    if newValue.isEmpty {
-                        variation.pendingInventoryQty[locationId] = nil
-                    } else if let qty = Int(newValue), qty >= 0 {
-                        variation.pendingInventoryQty[locationId] = qty
-                        // Auto-switch to stock count mode when quantity is entered
-                        if qty > 0 && variation.inventoryTrackingMode == .untracked {
-                            variation.inventoryTrackingMode = .stockCount
+    // Computed property for for sale state
+    private var isForSale: Bool {
+        variation.isForSale(at: locationId)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ItemDetailsFieldRow {
+                HStack(spacing: 12) {
+                    // Location name - takes remaining space
+                    Text(locationName)
+                        .font(.itemDetailsFieldLabel)
+                        .foregroundColor(.itemDetailsPrimaryText)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    // For Sale toggle - fixed width to match header
+                    Toggle("", isOn: forSaleToggle)
+                        .labelsHidden()
+                        .frame(width: 80, alignment: .center)
+
+                    // Track Inventory toggle - fixed width to match header
+                    Toggle("", isOn: trackInventoryToggle)
+                        .labelsHidden()
+                        .frame(width: 120, alignment: .center)
+                        .padding(.trailing, 20)
+
+                    // Initial Stock text field - fixed width (80pt total to match header)
+                    TextField("0", text: Binding(
+                        get: { currentQty },
+                        set: { newValue in
+                            if newValue.isEmpty {
+                                variation.pendingInventoryQty[locationId] = nil
+                            } else if let qty = Int(newValue), qty >= 0 {
+                                variation.pendingInventoryQty[locationId] = qty
+                                // Auto-switch to stock count mode when quantity is entered
+                                if qty > 0 && variation.inventoryTrackingMode == .untracked {
+                                    variation.inventoryTrackingMode = .stockCount
+                                }
+                            }
                         }
-                    }
+                    ))
+                    .keyboardType(.numberPad)
+                    .multilineTextAlignment(.center)
+                    .font(.itemDetailsBody)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                    .frame(width: 80)
+                    .background(Color(.systemBackground))
+                    .cornerRadius(8)
+                    .focused($focusedField, equals: .initialInventory(variationIndex: variationIndex, locationIndex: locationIndex))
+                    .onSubmit(moveToNextField)
+                    .disabled(!isTracking || !isForSale)
+                    .opacity(isTracking && isForSale ? 1.0 : 0.5)
                 }
-            ))
-            .keyboardType(.numberPad)
-            .multilineTextAlignment(.trailing)
-            .font(.system(size: 16, weight: .semibold))
-            .frame(width: 80)
-            .padding(.vertical, 8)
-            .padding(.horizontal, 12)
-            .background(Color(.systemBackground))
-            .cornerRadius(8)
-            .focused($focusedField, equals: .initialInventory(variationIndex: variationIndex, locationIndex: locationIndex))
-            .onSubmit(moveToNextField)
+            }
         }
-        .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
-        .padding(.vertical, ItemDetailsSpacing.compactSpacing)
         .id(ItemField.initialInventory(variationIndex: variationIndex, locationIndex: locationIndex))
     }
 }
