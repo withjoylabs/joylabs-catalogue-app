@@ -742,16 +742,29 @@ class ItemDetailsViewModel: ObservableObject {
                 print("✅ Item updated successfully: \(savedObject.id) (version: \(savedObject.safeVersion))")
             }
 
-            // Update local data with Square API response
-            let updatedItemData = ItemDataTransformers.transformCatalogObjectToItemDetails(savedObject)
-            // Load the updated data back into our granular properties
-            await loadItemDataFromCatalogObject(savedObject)
+            // Update IDs and version from Square response (keep user's data in @Published properties)
             await MainActor.run {
-                self.hasChanges = false // Reset after successful save
-                self.error = nil // Clear any previous errors
+                // Update item ID and version
+                if wasNewItem {
+                    self.staticData.id = savedObject.id
+                }
+                self.staticData.version = savedObject.version
+
+                // Update variation IDs and versions from Square response
+                if let apiVariations = savedObject.itemData?.variations {
+                    for (index, apiVar) in apiVariations.enumerated() where index < self.variations.count {
+                        if wasNewItem {
+                            self.variations[index].id = apiVar.id  // New items get IDs from Square
+                        }
+                        self.variations[index].version = apiVar.version  // All items get version for optimistic locking
+                    }
+                }
+
+                self.hasChanges = false
+                self.error = nil
             }
-            print("✅ Local data synchronized with Square API response")
-            return updatedItemData
+            print("✅ Item saved successfully")
+            return itemData
 
         } catch {
             print("❌ Failed to save item: \(error.localizedDescription)")
