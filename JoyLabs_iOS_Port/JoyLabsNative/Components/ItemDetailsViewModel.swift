@@ -148,18 +148,15 @@ enum InventoryAlertType: String, CaseIterable, Codable {
 }
 
 enum InventoryTrackingMode: String, CaseIterable, Codable {
-    case unavailable = "UNAVAILABLE"
-    case availability = "AVAILABILITY"  // track_inventory=false
-    case stockCount = "STOCK_COUNT"     // track_inventory=true
+    case untracked = "UNTRACKED"    // track_inventory omitted/false - always available
+    case stockCount = "STOCK_COUNT"  // track_inventory=true - quantity-based tracking
 
     var displayName: String {
         switch self {
-        case .unavailable:
-            return "Unavailable"
-        case .availability:
-            return "Track by Availability"
+        case .untracked:
+            return "Don't Track Inventory"
         case .stockCount:
-            return "Track by Stock Count"
+            return "Track Stock Count"
         }
     }
 }
@@ -195,6 +192,11 @@ struct ItemDetailsVariationData: Identifiable {
     var sellable: Bool = true
     var imageIds: [String] = []  // Variation-specific images
 
+    // Location presence controls (per-variation location availability)
+    var presentAtAllLocations: Bool = true
+    var presentAtLocationIds: [String] = []
+    var absentAtLocationIds: [String] = []
+
     // Pending inventory quantity for new items (before variation ID is assigned)
     // Dictionary: locationId -> quantity
     var pendingInventoryQty: [String: Int] = [:]
@@ -212,8 +214,7 @@ struct ItemDetailsVariationData: Identifiable {
                 return firstOverride.trackingMode
             }
             // For new items without overrides, derive from variation-level flags
-            if !trackInventory { return .unavailable }
-            return stockable ? .stockCount : .availability
+            return trackInventory ? .stockCount : .untracked
         }
         set {
             // Update all existing location overrides to use this mode
@@ -222,12 +223,8 @@ struct ItemDetailsVariationData: Identifiable {
             }
             // Also update variation-level flags for backward compatibility
             switch newValue {
-            case .unavailable:
+            case .untracked:
                 trackInventory = false
-            case .availability:
-                trackInventory = true
-                stockable = false
-                sellable = true
             case .stockCount:
                 trackInventory = true
                 stockable = true
@@ -237,6 +234,44 @@ struct ItemDetailsVariationData: Identifiable {
     }
 
     // Removed complex isEqual method - using simple flag-based change tracking instead
+
+    /// Check if this variation is "for sale" at a specific location
+    func isForSale(at locationId: String) -> Bool {
+        if presentAtAllLocations {
+            // If present at all locations, check if this location is NOT in the absent list
+            return !absentAtLocationIds.contains(locationId)
+        } else {
+            // If not present at all locations, check if this location IS in the present list
+            return presentAtLocationIds.contains(locationId)
+        }
+    }
+
+    /// Set whether this variation is "for sale" at a specific location
+    mutating func setForSale(_ forSale: Bool, at locationId: String) {
+        if presentAtAllLocations {
+            // When present at all locations, manage the absent list
+            if forSale {
+                // Remove from absent list (make it available)
+                absentAtLocationIds.removeAll { $0 == locationId }
+            } else {
+                // Add to absent list (make it unavailable)
+                if !absentAtLocationIds.contains(locationId) {
+                    absentAtLocationIds.append(locationId)
+                }
+            }
+        } else {
+            // When not present at all locations, manage the present list
+            if forSale {
+                // Add to present list (make it available)
+                if !presentAtLocationIds.contains(locationId) {
+                    presentAtLocationIds.append(locationId)
+                }
+            } else {
+                // Remove from present list (make it unavailable)
+                presentAtLocationIds.removeAll { $0 == locationId }
+            }
+        }
+    }
 }
 
 enum PricingType: String, CaseIterable {
@@ -280,18 +315,16 @@ struct LocationOverrideData: Identifiable {
     var locationName: String?
     var priceMoney: MoneyData?
     var trackInventory: Bool = false
-    var trackingMode: InventoryTrackingMode = .unavailable
+    var trackingMode: InventoryTrackingMode = .untracked
     var inventoryAlertType: InventoryAlertType?
     var inventoryAlertThreshold: Int?
-    var soldOut: Bool? = nil  // For Track by Availability mode - nil means available
     var stockOnHand: Int = 0
 
-    init(locationId: String, priceMoney: MoneyData? = nil, trackInventory: Bool = false, trackingMode: InventoryTrackingMode = .unavailable, soldOut: Bool? = nil, stockOnHand: Int = 0) {
+    init(locationId: String, priceMoney: MoneyData? = nil, trackInventory: Bool = false, trackingMode: InventoryTrackingMode = .untracked, stockOnHand: Int = 0) {
         self.locationId = locationId
         self.priceMoney = priceMoney
         self.trackInventory = trackInventory
         self.trackingMode = trackingMode
-        self.soldOut = soldOut
         self.stockOnHand = stockOnHand
     }
 }

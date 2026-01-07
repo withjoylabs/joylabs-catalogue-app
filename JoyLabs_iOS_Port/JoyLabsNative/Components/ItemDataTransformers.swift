@@ -284,7 +284,11 @@ class ItemDataTransformers {
                 serviceDuration: variation.itemVariationData?.serviceDuration.map(Int.init),
                 availableForBooking: variation.itemVariationData?.availableForBooking ?? false,
                 stockable: variation.itemVariationData?.stockable ?? true,
-                sellable: variation.itemVariationData?.sellable ?? true
+                sellable: variation.itemVariationData?.sellable ?? true,
+                imageIds: [],
+                presentAtAllLocations: variation.presentAtAllLocations ?? true,
+                presentAtLocationIds: variation.presentAtLocationIds ?? [],
+                absentAtLocationIds: variation.absentAtLocationIds ?? []
             )
         }
     }
@@ -337,9 +341,9 @@ class ItemDataTransformers {
                 updatedAt: nil,
                 version: variation.version, // Preserve existing version for updates, nil for new variations
                 isDeleted: false,
-                presentAtAllLocations: presentAtAllLocations, // Inherit from parent item
-                presentAtLocationIds: presentAtAllLocations ? nil : (presentAtLocationIds.isEmpty ? nil : presentAtLocationIds), // Only use when presentAtAllLocations=false
-                absentAtLocationIds: absentAtLocationIds.isEmpty ? nil : absentAtLocationIds, // Inherit from parent item
+                presentAtAllLocations: variation.presentAtAllLocations, // Per-variation location presence
+                presentAtLocationIds: variation.presentAtAllLocations ? nil : (variation.presentAtLocationIds.isEmpty ? nil : variation.presentAtLocationIds),
+                absentAtLocationIds: variation.absentAtLocationIds.isEmpty ? nil : variation.absentAtLocationIds,
                 itemVariationData: ItemVariationData(
                     itemId: itemId, // Reference parent item ID (with # for new items)
                     name: variation.name?.isEmpty == false ? variation.name : nil,
@@ -391,10 +395,10 @@ class ItemDataTransformers {
 
             // Map track_inventory boolean to InventoryTrackingMode enum
             let trackingMode: InventoryTrackingMode
-            if let trackInventory = override.trackInventory {
-                trackingMode = trackInventory ? .stockCount : .availability
+            if let trackInventory = override.trackInventory, trackInventory {
+                trackingMode = .stockCount
             } else {
-                trackingMode = .unavailable
+                trackingMode = .untracked  // false or omitted = untracked
             }
 
             return LocationOverrideData(
@@ -402,7 +406,6 @@ class ItemDataTransformers {
                 priceMoney: transformMoney(override.priceMoney),
                 trackInventory: override.trackInventory ?? false,
                 trackingMode: trackingMode,
-                soldOut: override.soldOut,  // Read sold_out status from Square API
                 stockOnHand: 0 // stockOnHand not available in Square LocationOverride model
             )
         }
@@ -412,9 +415,9 @@ class ItemDataTransformers {
     private static func transformLocationOverridesToAPI(_ locationOverrides: [LocationOverrideData]) -> [LocationOverride]? {
         guard !locationOverrides.isEmpty else { return nil }
 
-        // Only include overrides that have meaningful data (price or inventory tracking mode)
+        // Only include overrides that have meaningful data (price or inventory tracking)
         let validOverrides = locationOverrides.filter { override in
-            override.priceMoney != nil || override.trackingMode != .unavailable
+            override.priceMoney != nil || override.trackingMode == .stockCount
         }
 
         guard !validOverrides.isEmpty else { return nil }
@@ -425,9 +428,7 @@ class ItemDataTransformers {
             switch override.trackingMode {
             case .stockCount:
                 trackInventoryValue = true
-            case .availability:
-                trackInventoryValue = false
-            case .unavailable:
+            case .untracked:
                 trackInventoryValue = nil  // Don't include in overrides
             }
 
@@ -438,7 +439,7 @@ class ItemDataTransformers {
                 trackInventory: trackInventoryValue,
                 inventoryAlertType: override.inventoryAlertType?.rawValue,
                 inventoryAlertThreshold: override.inventoryAlertThreshold.map(Int64.init),
-                soldOut: override.soldOut,  // Include sold_out for Track by Availability mode
+                soldOut: nil,  // Read-only field - cannot be set via API
                 soldOutValidUntil: nil // Read-only field
             )
         }

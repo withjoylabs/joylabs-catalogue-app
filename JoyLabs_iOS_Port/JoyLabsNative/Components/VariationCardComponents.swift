@@ -389,6 +389,47 @@ struct VariationInventorySection: View {
                 .padding(.vertical, ItemDetailsSpacing.compactSpacing)
             } else if let variationId = variationId {
                 // Show inventory for each location (only if variation has ID)
+
+                // Column headers (show once)
+                ItemDetailsFieldSeparator()
+                ItemDetailsFieldRow {
+                    HStack(spacing: 12) {
+                        // Location column header - takes remaining space
+                        Text("Location")
+                            .font(.itemDetailsCaption)
+                            .foregroundColor(.itemDetailsSecondaryText)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        // Toggle headers - fixed width for alignment
+                        Text("For Sale")
+                            .font(.itemDetailsCaption)
+                            .foregroundColor(.itemDetailsSecondaryText)
+                            .frame(width: 80, alignment: .center)
+
+                        Text("Track Inventory")
+                            .font(.itemDetailsCaption)
+                            .foregroundColor(.itemDetailsSecondaryText)
+                            .frame(width: 120, alignment: .center)
+                            .padding(.trailing, 20)
+
+                        // Number column headers - fixed width for alignment
+                        Text("Stock on Hand")
+                            .font(.itemDetailsCaption)
+                            .foregroundColor(.itemDetailsSecondaryText)
+                            .frame(width: 90, alignment: .center)
+
+                        Text("Committed")
+                            .font(.itemDetailsCaption)
+                            .foregroundColor(.itemDetailsSecondaryText)
+                            .frame(width: 90, alignment: .center)
+
+                        Text("Available")
+                            .font(.itemDetailsCaption)
+                            .foregroundColor(.itemDetailsSecondaryText)
+                            .frame(width: 90, alignment: .center)
+                    }
+                }
+
                 ForEach(viewModel.availableLocations, id: \.id) { location in
                     ItemDetailsFieldSeparator()
 
@@ -466,7 +507,7 @@ private struct NewItemInventoryRow: View {
                     } else if let qty = Int(newValue), qty >= 0 {
                         variation.pendingInventoryQty[locationId] = qty
                         // Auto-switch to stock count mode when quantity is entered
-                        if qty > 0 && variation.inventoryTrackingMode == .unavailable {
+                        if qty > 0 && variation.inventoryTrackingMode == .untracked {
                             variation.inventoryTrackingMode = .stockCount
                         }
                     }
@@ -540,10 +581,7 @@ private struct VariationInventoryRow: View {
                 }
 
                 // No per-location override - derive from variation-level flags
-                if !variation.trackInventory {
-                    return .unavailable
-                }
-                return variation.stockable ? .stockCount : .availability
+                return variation.trackInventory ? .stockCount : .untracked
             },
             set: { newMode in
                 // Find index of existing override
@@ -552,148 +590,97 @@ private struct VariationInventoryRow: View {
                     variation.locationOverrides[index].trackingMode = newMode
                 } else {
                     // Create new override
-                    var newOverride = LocationOverrideData(locationId: locationId, trackingMode: newMode)
+                    let newOverride = LocationOverrideData(locationId: locationId, trackingMode: newMode)
                     variation.locationOverrides.append(newOverride)
                 }
             }
         )
     }
 
-    // Binding to soldOut status in location overrides array
-    private var soldOutBinding: Binding<Bool> {
+
+    // Toggle binding for Track Inventory
+    private var trackInventoryToggle: Binding<Bool> {
         Binding(
             get: {
-                variation.locationOverrides.first(where: { $0.locationId == locationId })?.soldOut ?? false
+                trackingMode.wrappedValue == .stockCount
             },
-            set: { newValue in
-                if let index = variation.locationOverrides.firstIndex(where: { $0.locationId == locationId }) {
-                    variation.locationOverrides[index].soldOut = newValue
-                } else {
-                    var newOverride = LocationOverrideData(locationId: locationId, trackingMode: .availability, soldOut: newValue)
-                    variation.locationOverrides.append(newOverride)
-                }
+            set: { isOn in
+                trackingMode.wrappedValue = isOn ? .stockCount : .untracked
             }
         )
     }
 
-    // Responsive column widths
-    private var numericColumnWidth: CGFloat {
-        UIDevice.current.userInterfaceIdiom == .pad ? 90 : 50
+    // Computed property for tracking state
+    private var isTracking: Bool {
+        trackingMode.wrappedValue == .stockCount
     }
 
-    private var buttonColumnWidth: CGFloat {
-        UIDevice.current.userInterfaceIdiom == .pad ? 70 : 50
+    // Toggle binding for For Sale
+    private var forSaleToggle: Binding<Bool> {
+        Binding(
+            get: {
+                variation.isForSale(at: locationId)
+            },
+            set: { isForSale in
+                variation.setForSale(isForSale, at: locationId)
+            }
+        )
     }
+
+    // Computed property for for sale state
+    private var isForSale: Bool {
+        variation.isForSale(at: locationId)
+    }
+
 
     var body: some View {
         VStack(spacing: 0) {
-            // Tracking mode picker
+            // Single row: Location name + toggles + stock columns
             ItemDetailsFieldRow {
-                VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
-                    HStack {
-                        Text(locationName)
+                HStack(spacing: 12) {
+                    // Location name - takes remaining space
+                    Text(locationName)
+                        .font(.itemDetailsFieldLabel)
+                        .foregroundColor(.itemDetailsPrimaryText)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    // For Sale toggle - fixed width to match header
+                    Toggle("", isOn: forSaleToggle)
+                        .labelsHidden()
+                        .frame(width: 80, alignment: .center)
+
+                    // Track Inventory toggle - fixed width to match header
+                    Toggle("", isOn: trackInventoryToggle)
+                        .labelsHidden()
+                        .frame(width: 120, alignment: .center)
+                        .padding(.trailing, 20)
+
+                    // Stock on hand (tappable) - fixed width
+                    Button(action: onTap) {
+                        Text(stockOnHand != nil ? "\(stockOnHand!)" : "N/A")
                             .font(.itemDetailsBody)
-                            .fontWeight(.medium)
-                            .foregroundColor(.itemDetailsPrimaryText)
-
-                        Spacer()
+                            .foregroundColor(isTracking && isForSale ? .blue : .itemDetailsSecondaryText)
                     }
+                    .disabled(!isTracking || !isForSale)
+                    .frame(width: 90, alignment: .center)
 
-                    Picker("Tracking Mode", selection: trackingMode) {
-                        ForEach(InventoryTrackingMode.allCases, id: \.self) { mode in
-                            Text(mode.displayName).tag(mode)
-                        }
+                    // Committed (tappable) - fixed width
+                    Button(action: onTap) {
+                        Text("0")
+                            .font(.itemDetailsBody)
+                            .foregroundColor(isTracking && isForSale ? .blue : .itemDetailsSecondaryText)
                     }
-                    .pickerStyle(.segmented)
-                }
-            }
+                    .disabled(!isTracking || !isForSale)
+                    .frame(width: 90, alignment: .center)
 
-            // Conditional UI based on tracking mode
-            ItemDetailsFieldSeparator()
-
-            ItemDetailsFieldRow {
-                switch trackingMode.wrappedValue {
-                case .unavailable:
-                    // Show grayed out UI
-                    VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
-                        Text("Inventory tracking is disabled for this location")
-                            .font(.itemDetailsCaption)
-                            .foregroundColor(.itemDetailsSecondaryText)
-
-                        if let stock = stockOnHand {
-                            Text("Stock on Hand: \(stock) (preserved)")
-                                .font(.itemDetailsBody)
-                                .foregroundColor(.itemDetailsSecondaryText)
-                        }
+                    // Available (tappable) - fixed width
+                    Button(action: onTap) {
+                        Text(stockOnHand != nil ? "\(stockOnHand!)" : "N/A")
+                            .font(.itemDetailsBody)
+                            .foregroundColor(isTracking && isForSale ? .blue : .itemDetailsSecondaryText)
                     }
-
-                case .availability:
-                    // Show Available/Sold Out picker (consistent with app UX - saves when user clicks main Save button)
-                    VStack(alignment: .leading, spacing: ItemDetailsSpacing.compactSpacing) {
-                        Text("Availability Status")
-                            .font(.itemDetailsCaption)
-                            .foregroundColor(.itemDetailsSecondaryText)
-
-                        Picker("Status", selection: soldOutBinding) {
-                            Text("Available").tag(false)
-                            Text("Sold Out").tag(true)
-                        }
-                        .pickerStyle(.segmented)
-                    }
-
-                case .stockCount:
-                    // Show stock count UI (original implementation)
-                    VStack(alignment: .leading, spacing: ItemDetailsSpacing.minimalSpacing) {
-                        // Column headers
-                        HStack(spacing: 8) {
-                            Text("Stock on hand")
-                                .font(.itemDetailsCaption)
-                                .foregroundColor(.itemDetailsSecondaryText)
-                                .frame(width: numericColumnWidth, alignment: .center)
-
-                            Text("Committed")
-                                .font(.itemDetailsCaption)
-                                .foregroundColor(.itemDetailsSecondaryText)
-                                .frame(width: numericColumnWidth, alignment: .center)
-
-                            Text("Available")
-                                .font(.itemDetailsCaption)
-                                .foregroundColor(.itemDetailsSecondaryText)
-                                .frame(width: numericColumnWidth, alignment: .center)
-
-                            Spacer()
-                                .frame(width: buttonColumnWidth)
-                        }
-
-                        // Values and button
-                        HStack(spacing: 8) {
-                            // Stock on hand
-                            Text(stockOnHand != nil ? "\(stockOnHand!)" : "N/A")
-                                .font(.itemDetailsBody)
-                                .foregroundColor(stockOnHand == nil ? .itemDetailsSecondaryText : .itemDetailsPrimaryText)
-                                .frame(width: numericColumnWidth, alignment: .center)
-
-                            // Committed (always 0 for now)
-                            Text("0")
-                                .font(.itemDetailsBody)
-                                .foregroundColor(.itemDetailsPrimaryText)
-                                .frame(width: numericColumnWidth, alignment: .center)
-
-                            // Available to sell
-                            Text(stockOnHand != nil ? "\(stockOnHand!)" : "N/A")
-                                .font(.itemDetailsBody)
-                                .foregroundColor(stockOnHand == nil ? .itemDetailsSecondaryText : .itemDetailsPrimaryText)
-                                .frame(width: numericColumnWidth, alignment: .center)
-
-                            // Adjust button
-                            Button(action: onTap) {
-                                Text("Adjust")
-                                    .font(.itemDetailsBody)
-                                    .foregroundColor(.blue)
-                            }
-                            .frame(width: buttonColumnWidth)
-                        }
-                    }
+                    .disabled(!isTracking || !isForSale)
+                    .frame(width: 90, alignment: .center)
                 }
             }
         }
