@@ -119,4 +119,24 @@ extension View {
             return AnyView(self.presentationDetents([.large]))
         }
     }
+
+    /// Pattern 6: Square Camera Modal
+    /// Usage: AVCameraViewController with square viewport + buffer + button
+    /// Applied to: UnifiedImagePickerModal camera presentation
+    func squareCameraModal() -> some View {
+        // Portrait modal (taller than wide) to fit square viewport + buffer + button
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            if #available(iOS 18.0, *) {
+                return AnyView(
+                    self
+                        .frame(width: 700, height: 900)  // Portrait: square viewport (700) + buffer (80) + button (70) + spacing
+                        .presentationSizing(.fitted)
+                )
+            } else {
+                return AnyView(self.frame(width: 700, height: 900))
+            }
+        } else {
+            return AnyView(self.presentationDetents([.large]))
+        }
+    }
 }

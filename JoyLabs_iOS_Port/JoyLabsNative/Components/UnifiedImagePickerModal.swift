@@ -22,6 +22,10 @@ struct UnifiedImagePickerModal: View {
     @State private var hasMorePhotos = true
     @State private var isLoadingMorePhotos = false
 
+    // Multi-photo buffer (reuse existing PendingImageData model)
+    @State private var photoBuffer: [PendingImageData] = []
+    @State private var showingPhotoLibraryPicker = false
+
     // Persistent image manager for photo library - prevents request cancellation
     @State private var imageManager = PHCachingImageManager()
 
@@ -94,17 +98,27 @@ struct UnifiedImagePickerModal: View {
         } message: {
             Text(uploadError ?? "Unknown error occurred")
         }
-        .sheet(isPresented: $showingCamera) {
-            CameraView(
-                onImageCaptured: { image in
-                    // Set the captured image in preview
-                    selectedImage = image
-                    // Close camera view
+        .fullScreenCover(isPresented: $showingCamera) {
+            AVCameraViewControllerWrapper(
+                onPhotosCaptured: { images in
+                    addImagesToBuffer(images)
                     showingCamera = false
                 },
                 onCancel: {
-                    // Close camera view
                     showingCamera = false
+                }
+            )
+        }
+        .sheet(isPresented: $showingPhotoLibraryPicker) {
+            PhotoLibraryPicker(
+                selectionLimit: 15,
+                onImagesSelected: { images in
+                    // Add selected library photos to buffer
+                    addImagesToBuffer(images)
+                    showingPhotoLibraryPicker = false
+                },
+                onCancel: {
+                    showingPhotoLibraryPicker = false
                 }
             )
             .nestedComponentModal()
@@ -894,6 +908,60 @@ struct UnifiedImagePickerModal: View {
         }
     }
 
+    // MARK: - Multi-Photo Buffer Management
+
+    private func addImagesToBuffer(_ images: [UIImage]) {
+        logger.info("[ImagePicker] Adding \(images.count) images to buffer")
+
+        for image in images {
+            // Process image to Data
+            Task {
+                do {
+                    let processedResult = try await imageProcessor.processImage(image)
+
+                    await MainActor.run {
+                        let fileName = "joylabs_buffered_\(UUID().uuidString).\(processedResult.format.fileExtension)"
+                        let pendingImage = PendingImageData(
+                            imageData: processedResult.data,
+                            fileName: fileName,
+                            isPrimary: photoBuffer.isEmpty
+                        )
+                        photoBuffer.append(pendingImage)
+                        logger.info("[ImagePicker] Added image to buffer (total: \(photoBuffer.count))")
+                    }
+                } catch {
+                    logger.error("[ImagePicker] Failed to process image for buffer: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    private func handleBatchUpload() async {
+        guard !photoBuffer.isEmpty else {
+            logger.warning("[ImagePicker] No photos in buffer to upload")
+            return
+        }
+
+        logger.info("[ImagePicker] Starting batch upload for \(photoBuffer.count) images")
+
+        for pendingImage in photoBuffer {
+            // Recreate UIImage from Data for upload
+            guard let image = UIImage(data: pendingImage.imageData) else {
+                logger.error("[ImagePicker] Failed to recreate UIImage from buffer data")
+                continue
+            }
+
+            // Use existing handleUpload logic
+            await handleUpload(image: image)
+        }
+
+        // Clear buffer after successful batch upload
+        await MainActor.run {
+            photoBuffer.removeAll()
+            logger.info("[ImagePicker] Buffer cleared after batch upload")
+        }
+    }
+
     private func openSettings() {
         if let settingsUrl = URL(string: UIApplication.openSettingsURLString) {
             UIApplication.shared.open(settingsUrl)
@@ -1176,5 +1244,23 @@ struct RoundedCorner: Shape {
             cornerRadii: CGSize(width: radius, height: radius)
         )
         return Path(path.cgPath)
+    }
+}
+
+// MARK: - AVCameraViewController SwiftUI Wrapper
+
+struct AVCameraViewControllerWrapper: UIViewControllerRepresentable {
+    let onPhotosCaptured: ([UIImage]) -> Void
+    let onCancel: () -> Void
+
+    func makeUIViewController(context: Context) -> AVCameraViewController {
+        let vc = AVCameraViewController()
+        vc.onPhotosCaptured = onPhotosCaptured
+        vc.onCancel = onCancel
+        return vc
+    }
+
+    func updateUIViewController(_ uiViewController: AVCameraViewController, context: Context) {
+        // No updates needed
     }
 }

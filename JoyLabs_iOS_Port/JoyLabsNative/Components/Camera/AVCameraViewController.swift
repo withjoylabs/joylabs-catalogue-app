@@ -1,0 +1,523 @@
+import UIKit
+import AVFoundation
+import os.log
+
+/// Custom AVFoundation camera with manual exposure control and multi-photo capture buffer
+/// Exposure bias persists across app sessions via UserDefaults
+class AVCameraViewController: UIViewController {
+
+    // MARK: - Properties
+
+    private let captureSession = AVCaptureSession()
+    private var previewLayer: AVCaptureVideoPreviewLayer?
+    private var photoOutput = AVCapturePhotoOutput()
+    private var currentDevice: AVCaptureDevice?
+
+    // Photo buffer for multi-capture
+    private var capturedPhotos: [UIImage] = []
+
+    // Callbacks
+    var onPhotosCaptured: (([UIImage]) -> Void)?
+    var onCancel: (() -> Void)?
+
+    // Preview constraint references for dynamic sizing
+    private var previewWidthConstraint: NSLayoutConstraint?
+    private var previewHeightConstraint: NSLayoutConstraint?
+
+    // Exposure persistence
+    private let exposureBiasKey = "com.joylabs.camera.exposureBias"
+    private var savedExposureBias: Float {
+        get { UserDefaults.standard.float(forKey: exposureBiasKey) }
+        set { UserDefaults.standard.set(newValue, forKey: exposureBiasKey) }
+    }
+
+    // UI Components
+    private lazy var previewView: UIView = {
+        let view = UIView()
+        view.backgroundColor = .black
+        view.translatesAutoresizingMaskIntoConstraints = false
+        return view
+    }()
+
+    private lazy var exposureSlider: UISlider = {
+        let slider = UISlider()
+        slider.minimumValue = -2.0
+        slider.maximumValue = 2.0
+        slider.value = savedExposureBias
+        slider.translatesAutoresizingMaskIntoConstraints = false
+        slider.addTarget(self, action: #selector(exposureSliderChanged(_:)), for: .valueChanged)
+        return slider
+    }()
+
+    private lazy var exposureIcon: UIImageView = {
+        let imageView = UIImageView(image: UIImage(systemName: "sun.max.fill"))
+        imageView.tintColor = .white
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        return imageView
+    }()
+
+    private lazy var exposureValueLabel: UILabel = {
+        let label = UILabel()
+        label.textColor = .white
+        label.font = .systemFont(ofSize: 15, weight: .medium)
+        label.textAlignment = .center
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.text = String(format: "%+.1f", savedExposureBias)
+        return label
+    }()
+
+    private lazy var captureButton: UIButton = {
+        let button = UIButton(type: .system)
+        button.setImage(UIImage(systemName: "circle.fill"), for: .normal)
+        button.tintColor = .white
+        button.contentVerticalAlignment = .fill
+        button.contentHorizontalAlignment = .fill
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.addTarget(self, action: #selector(capturePhoto), for: .touchUpInside)
+        return button
+    }()
+
+    private lazy var doneButton: UIButton = {
+        let button = UIButton(type: .system)
+        button.setTitle("Done", for: .normal)
+        button.setTitleColor(.white, for: .normal)
+        button.titleLabel?.font = .systemFont(ofSize: 17, weight: .semibold)
+
+        // Add background styling
+        button.backgroundColor = UIColor.systemBlue
+        button.layer.cornerRadius = 8
+        button.contentEdgeInsets = UIEdgeInsets(top: 8, left: 16, bottom: 8, right: 16)
+
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.addTarget(self, action: #selector(doneButtonTapped), for: .touchUpInside)
+        return button
+    }()
+
+    private lazy var cancelButton: UIButton = {
+        let button = UIButton(type: .system)
+        button.setTitle("Cancel", for: .normal)
+        button.setTitleColor(.white, for: .normal)
+        button.titleLabel?.font = .systemFont(ofSize: 17)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.addTarget(self, action: #selector(cancelButtonTapped), for: .touchUpInside)
+        return button
+    }()
+
+    private lazy var bufferCountLabel: UILabel = {
+        let label = UILabel()
+        label.textColor = .white
+        label.font = .systemFont(ofSize: 17, weight: .semibold)
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.text = "0"
+        return label
+    }()
+
+    private lazy var thumbnailScrollView: UIScrollView = {
+        let scrollView = UIScrollView()
+        scrollView.showsHorizontalScrollIndicator = false
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.backgroundColor = UIColor.systemGray6.withAlphaComponent(0.5)
+        scrollView.layer.cornerRadius = 8
+        return scrollView
+    }()
+
+    private lazy var thumbnailStackView: UIStackView = {
+        let stackView = UIStackView()
+        stackView.axis = .horizontal
+        stackView.spacing = 8
+        stackView.translatesAutoresizingMaskIntoConstraints = false
+        return stackView
+    }()
+
+    private let logger = Logger(subsystem: "com.joylabs.native", category: "AVCameraViewController")
+
+    // MARK: - Lifecycle
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .secondarySystemGroupedBackground
+
+        setupUI()
+        setupCamera()
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            self?.captureSession.startRunning()
+        }
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            self?.captureSession.stopRunning()
+        }
+    }
+
+    // MARK: - Setup
+
+    private func setupUI() {
+        // Preview (square aspect ratio)
+        view.addSubview(previewView)
+        previewView.layer.cornerRadius = 12
+        previewView.clipsToBounds = true
+
+        // Exposure slider with icon and value label
+        view.addSubview(exposureIcon)
+        view.addSubview(exposureValueLabel)
+        view.addSubview(exposureSlider)
+
+        // Capture button
+        view.addSubview(captureButton)
+
+        // Top bar with cancel, count, done
+        view.addSubview(cancelButton)
+        view.addSubview(bufferCountLabel)
+        view.addSubview(doneButton)
+
+        // Thumbnail buffer
+        view.addSubview(thumbnailScrollView)
+        thumbnailScrollView.addSubview(thumbnailStackView)
+
+        // Store preview constraints for dynamic updates
+        previewWidthConstraint = previewView.widthAnchor.constraint(equalToConstant: 100)
+        previewWidthConstraint?.priority = .defaultHigh  // Allow breaking if needed
+
+        previewHeightConstraint = previewView.heightAnchor.constraint(equalToConstant: 100)
+        previewHeightConstraint?.priority = .defaultHigh  // Allow breaking if needed
+
+        NSLayoutConstraint.activate([
+            // Preview - square (size updated in viewDidLayoutSubviews)
+            previewView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            previewView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 60),
+            previewWidthConstraint!,
+            previewHeightConstraint!,
+
+            // Top bar
+            cancelButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 16),
+            cancelButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+
+            bufferCountLabel.centerYAnchor.constraint(equalTo: cancelButton.centerYAnchor),
+            bufferCountLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+
+            doneButton.centerYAnchor.constraint(equalTo: cancelButton.centerYAnchor),
+            doneButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+
+            // Capture button - anchored to bottom
+            captureButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20),
+            captureButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            captureButton.widthAnchor.constraint(equalToConstant: 70),
+            captureButton.heightAnchor.constraint(equalToConstant: 70),
+
+            // Thumbnail buffer - between preview and capture button, edge-to-edge
+            thumbnailScrollView.topAnchor.constraint(equalTo: previewView.bottomAnchor, constant: 16),
+            thumbnailScrollView.bottomAnchor.constraint(equalTo: captureButton.topAnchor, constant: -16),
+            thumbnailScrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            thumbnailScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            thumbnailScrollView.heightAnchor.constraint(equalToConstant: 80),
+
+            thumbnailStackView.topAnchor.constraint(equalTo: thumbnailScrollView.topAnchor),
+            thumbnailStackView.leadingAnchor.constraint(equalTo: thumbnailScrollView.leadingAnchor),
+            thumbnailStackView.trailingAnchor.constraint(equalTo: thumbnailScrollView.trailingAnchor),
+            thumbnailStackView.bottomAnchor.constraint(equalTo: thumbnailScrollView.bottomAnchor),
+            thumbnailStackView.heightAnchor.constraint(equalTo: thumbnailScrollView.heightAnchor),
+
+            // Exposure controls - grouped near slider on left edge
+            // Icon positioned above slider (rotated slider extends ±100pt from center)
+            exposureIcon.bottomAnchor.constraint(equalTo: exposureSlider.centerYAnchor, constant: -110),
+            exposureIcon.leadingAnchor.constraint(equalTo: previewView.leadingAnchor, constant: 16),
+            exposureIcon.widthAnchor.constraint(equalToConstant: 24),
+            exposureIcon.heightAnchor.constraint(equalToConstant: 24),
+
+            exposureValueLabel.topAnchor.constraint(equalTo: exposureIcon.bottomAnchor, constant: 4),
+            exposureValueLabel.centerXAnchor.constraint(equalTo: exposureIcon.centerXAnchor),
+            exposureValueLabel.widthAnchor.constraint(equalToConstant: 50),
+
+            // Slider vertically centered on preview
+            exposureSlider.centerYAnchor.constraint(equalTo: previewView.centerYAnchor),
+            exposureSlider.centerXAnchor.constraint(equalTo: exposureIcon.centerXAnchor),
+            exposureSlider.widthAnchor.constraint(equalToConstant: 200)
+        ])
+
+        // Rotate exposure slider vertically
+        exposureSlider.transform = CGAffineTransform(rotationAngle: -CGFloat.pi / 2)
+
+        // Bring UI elements to front (proper Z-order)
+        view.bringSubviewToFront(thumbnailScrollView)
+        view.bringSubviewToFront(captureButton)
+        view.bringSubviewToFront(cancelButton)
+        view.bringSubviewToFront(bufferCountLabel)
+        view.bringSubviewToFront(doneButton)
+
+        updateBufferCount()
+    }
+
+    private func setupCamera() {
+        // Check camera authorization
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            configureCamera()
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+                if granted {
+                    DispatchQueue.main.async {
+                        self?.configureCamera()
+                    }
+                } else {
+                    self?.logger.error("Camera access denied")
+                }
+            }
+        default:
+            logger.error("Camera access denied or restricted")
+        }
+    }
+
+    private func configureCamera() {
+        captureSession.beginConfiguration()
+
+        // Set session preset
+        captureSession.sessionPreset = .photo
+
+        // Add camera input
+        guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
+            logger.error("Failed to get camera device")
+            return
+        }
+
+        currentDevice = camera
+
+        do {
+            let input = try AVCaptureDeviceInput(device: camera)
+            if captureSession.canAddInput(input) {
+                captureSession.addInput(input)
+            }
+        } catch {
+            logger.error("Failed to create camera input: \(error.localizedDescription)")
+            return
+        }
+
+        // Add photo output
+        if captureSession.canAddOutput(photoOutput) {
+            captureSession.addOutput(photoOutput)
+        }
+
+        captureSession.commitConfiguration()
+
+        // Setup preview layer
+        let previewLayer = AVCaptureVideoPreviewLayer(session: captureSession)
+        previewLayer.videoGravity = .resizeAspectFill
+        previewLayer.frame = previewView.bounds
+        previewView.layer.addSublayer(previewLayer)
+        self.previewLayer = previewLayer
+
+        // Apply saved exposure bias
+        applyExposureBias(savedExposureBias)
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+
+        // Only update if bounds are valid
+        guard view.bounds.width > 0, view.bounds.height > 0 else { return }
+
+        // Calculate square viewport size based on available space
+        let headerHeight: CGFloat = 60
+        let bufferHeight: CGFloat = 80
+        let buttonHeight: CGFloat = 90
+        let spacing: CGFloat = 60
+
+        let availableHeight = view.bounds.height - headerHeight - bufferHeight - buttonHeight - spacing
+        let availableWidth = view.bounds.width
+        let squareSize = min(availableWidth, availableHeight)
+
+        // Only update constraints if size actually changed
+        if previewWidthConstraint?.constant != squareSize {
+            previewWidthConstraint?.constant = squareSize
+            previewHeightConstraint?.constant = squareSize
+            view.layoutIfNeeded()
+        }
+
+        // Update preview layer to fill preview view
+        previewLayer?.frame = previewView.bounds
+        previewLayer?.videoGravity = .resizeAspectFill
+    }
+
+    // MARK: - Exposure Control
+
+    @objc private func exposureSliderChanged(_ slider: UISlider) {
+        // Snap to 0.1 increments
+        let roundedBias = round(slider.value * 10) / 10
+        slider.value = roundedBias // Update slider to snapped value
+
+        // Update exposure value label
+        exposureValueLabel.text = String(format: "%+.1f", roundedBias)
+
+        applyExposureBias(roundedBias)
+        savedExposureBias = roundedBias // Persist immediately
+    }
+
+    private func applyExposureBias(_ bias: Float) {
+        guard let device = currentDevice else { return }
+
+        do {
+            try device.lockForConfiguration()
+
+            if device.isExposureModeSupported(.continuousAutoExposure) {
+                device.setExposureTargetBias(bias) { _ in }
+            }
+
+            device.unlockForConfiguration()
+            logger.info("Applied exposure bias: \(bias)")
+        } catch {
+            logger.error("Failed to set exposure: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - Photo Capture
+
+    @objc private func capturePhoto() {
+        let settings = AVCapturePhotoSettings()
+        photoOutput.capturePhoto(with: settings, delegate: self)
+    }
+
+    private func addPhotoToBuffer(_ image: UIImage) {
+        capturedPhotos.append(image)
+        updateBufferCount()
+        addThumbnail(image)
+    }
+
+    private func addThumbnail(_ image: UIImage) {
+        let thumbnailContainer = UIView()
+        thumbnailContainer.translatesAutoresizingMaskIntoConstraints = false
+        thumbnailContainer.widthAnchor.constraint(equalToConstant: 80).isActive = true
+        thumbnailContainer.heightAnchor.constraint(equalToConstant: 80).isActive = true
+
+        let imageView = UIImageView(image: image)
+        imageView.contentMode = .scaleAspectFill
+        imageView.clipsToBounds = true
+        imageView.layer.cornerRadius = 8
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        thumbnailContainer.addSubview(imageView)
+
+        let deleteButton = UIButton(type: .system)
+        deleteButton.setImage(UIImage(systemName: "xmark.circle.fill"), for: .normal)
+        deleteButton.tintColor = .white
+        deleteButton.backgroundColor = UIColor.black.withAlphaComponent(0.5)
+        deleteButton.layer.cornerRadius = 12
+        deleteButton.translatesAutoresizingMaskIntoConstraints = false
+        deleteButton.tag = capturedPhotos.count - 1 // Track index
+        deleteButton.addTarget(self, action: #selector(deleteThumbnail(_:)), for: .touchUpInside)
+        thumbnailContainer.addSubview(deleteButton)
+
+        NSLayoutConstraint.activate([
+            imageView.topAnchor.constraint(equalTo: thumbnailContainer.topAnchor),
+            imageView.leadingAnchor.constraint(equalTo: thumbnailContainer.leadingAnchor),
+            imageView.trailingAnchor.constraint(equalTo: thumbnailContainer.trailingAnchor),
+            imageView.bottomAnchor.constraint(equalTo: thumbnailContainer.bottomAnchor),
+
+            deleteButton.topAnchor.constraint(equalTo: thumbnailContainer.topAnchor, constant: 4),
+            deleteButton.trailingAnchor.constraint(equalTo: thumbnailContainer.trailingAnchor, constant: -4),
+            deleteButton.widthAnchor.constraint(equalToConstant: 24),
+            deleteButton.heightAnchor.constraint(equalToConstant: 24)
+        ])
+
+        thumbnailStackView.addArrangedSubview(thumbnailContainer)
+
+        // Scroll to show new thumbnail
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            let rightEdge = self.thumbnailScrollView.contentSize.width - self.thumbnailScrollView.bounds.width
+            self.thumbnailScrollView.setContentOffset(CGPoint(x: max(0, rightEdge), y: 0), animated: true)
+        }
+    }
+
+    @objc private func deleteThumbnail(_ button: UIButton) {
+        let index = button.tag
+        guard index < capturedPhotos.count else { return }
+
+        // Remove from data
+        capturedPhotos.remove(at: index)
+
+        // Remove thumbnail view
+        if index < thumbnailStackView.arrangedSubviews.count {
+            let thumbnailView = thumbnailStackView.arrangedSubviews[index]
+            thumbnailStackView.removeArrangedSubview(thumbnailView)
+            thumbnailView.removeFromSuperview()
+
+            // Update tags for remaining thumbnails
+            for (newIndex, view) in thumbnailStackView.arrangedSubviews.enumerated() {
+                if let deleteBtn = view.subviews.compactMap({ $0 as? UIButton }).first {
+                    deleteBtn.tag = newIndex
+                }
+            }
+        }
+
+        updateBufferCount()
+    }
+
+    private func updateBufferCount() {
+        bufferCountLabel.text = "\(capturedPhotos.count)"
+        doneButton.isEnabled = !capturedPhotos.isEmpty
+        doneButton.alpha = capturedPhotos.isEmpty ? 0.5 : 1.0
+        doneButton.backgroundColor = capturedPhotos.isEmpty ? UIColor.systemGray : UIColor.systemBlue
+    }
+
+    // MARK: - Actions
+
+    @objc private func doneButtonTapped() {
+        guard !capturedPhotos.isEmpty else { return }
+        onPhotosCaptured?(capturedPhotos)
+    }
+
+    @objc private func cancelButtonTapped() {
+        onCancel?()
+    }
+}
+
+// MARK: - AVCapturePhotoCaptureDelegate
+
+extension AVCameraViewController: AVCapturePhotoCaptureDelegate {
+    func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
+        if let error = error {
+            logger.error("Photo capture error: \(error.localizedDescription)")
+            return
+        }
+
+        guard let imageData = photo.fileDataRepresentation(),
+              let image = UIImage(data: imageData) else {
+            logger.error("Failed to create image from photo data")
+            return
+        }
+
+        // Crop to square using shorter dimension
+        let croppedImage = cropToSquare(image)
+
+        DispatchQueue.main.async {
+            self.addPhotoToBuffer(croppedImage)
+            self.logger.info("Photo captured, cropped to square, and added to buffer (total: \(self.capturedPhotos.count))")
+        }
+    }
+
+    /// Crop image to square aspect ratio using shorter dimension (no data loss)
+    private func cropToSquare(_ image: UIImage) -> UIImage {
+        guard let cgImage = image.cgImage else { return image }
+
+        let size = image.size
+        let squareSize = min(size.width, size.height)
+
+        // Calculate center crop rect in image coordinates
+        let x = (size.width - squareSize) / 2
+        let y = (size.height - squareSize) / 2
+        let cropRect = CGRect(x: x * image.scale, y: y * image.scale, width: squareSize * image.scale, height: squareSize * image.scale)
+
+        // Crop using CGImage
+        guard let croppedCGImage = cgImage.cropping(to: cropRect) else {
+            logger.warning("Failed to crop image, returning original")
+            return image
+        }
+
+        return UIImage(cgImage: croppedCGImage, scale: image.scale, orientation: image.imageOrientation)
+    }
+}
