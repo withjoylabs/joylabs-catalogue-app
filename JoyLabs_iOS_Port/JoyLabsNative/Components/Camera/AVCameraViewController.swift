@@ -12,6 +12,8 @@ class AVCameraViewController: UIViewController {
     private var previewLayer: AVCaptureVideoPreviewLayer?
     private var photoOutput = AVCapturePhotoOutput()
     private var currentDevice: AVCaptureDevice?
+    private var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
+    private var rotationObservation: NSKeyValueObservation?
 
     // Photo buffer for multi-capture
     private var capturedPhotos: [UIImage] = []
@@ -78,16 +80,14 @@ class AVCameraViewController: UIViewController {
     }()
 
     private lazy var doneButton: UIButton = {
-        let button = UIButton(type: .system)
-        button.setTitle("Done", for: .normal)
-        button.setTitleColor(.white, for: .normal)
-        button.titleLabel?.font = .systemFont(ofSize: 17, weight: .semibold)
+        var config = UIButton.Configuration.filled()
+        config.title = "Done"
+        config.baseBackgroundColor = .systemBlue
+        config.baseForegroundColor = .white
+        config.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16)
+        config.cornerStyle = .medium
 
-        // Add background styling
-        button.backgroundColor = UIColor.systemBlue
-        button.layer.cornerRadius = 8
-        button.contentEdgeInsets = UIEdgeInsets(top: 8, left: 16, bottom: 8, right: 16)
-
+        let button = UIButton(configuration: config)
         button.translatesAutoresizingMaskIntoConstraints = false
         button.addTarget(self, action: #selector(doneButtonTapped), for: .touchUpInside)
         return button
@@ -139,6 +139,28 @@ class AVCameraViewController: UIViewController {
 
         setupUI()
         setupCamera()
+    }
+
+    deinit {
+        rotationObservation?.invalidate()
+    }
+
+    private func updatePreviewRotation() {
+        guard let connection = previewLayer?.connection,
+              let coordinator = rotationCoordinator else { return }
+
+        let rotationAngle = coordinator.videoRotationAngleForHorizonLevelPreview
+        connection.videoRotationAngle = rotationAngle
+    }
+
+    private func setupRotationObservation() {
+        guard let coordinator = rotationCoordinator else { return }
+
+        rotationObservation = coordinator.observe(\.videoRotationAngleForHorizonLevelPreview, options: [.new]) { [weak self] _, _ in
+            DispatchQueue.main.async {
+                self?.updatePreviewRotation()
+            }
+        }
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -306,12 +328,19 @@ class AVCameraViewController: UIViewController {
 
         captureSession.commitConfiguration()
 
-        // Setup preview layer
+        // Setup preview layer first
         let previewLayer = AVCaptureVideoPreviewLayer(session: captureSession)
         previewLayer.videoGravity = .resizeAspectFill
         previewLayer.frame = previewView.bounds
         previewView.layer.addSublayer(previewLayer)
         self.previewLayer = previewLayer
+
+        // Create rotation coordinator with preview layer reference
+        rotationCoordinator = AVCaptureDevice.RotationCoordinator(device: camera, previewLayer: previewLayer)
+
+        // Set initial rotation and observe changes
+        updatePreviewRotation()
+        setupRotationObservation()
 
         // Apply saved exposure bias
         applyExposureBias(savedExposureBias)
