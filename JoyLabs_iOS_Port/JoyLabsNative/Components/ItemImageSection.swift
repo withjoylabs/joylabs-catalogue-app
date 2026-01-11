@@ -142,7 +142,8 @@ struct ItemImageSection: View {
                 },
                 onCancel: {
                     showingCamera = false
-                }
+                },
+                contextTitle: "Photos for \(viewModel.name.isEmpty ? "New Item" : viewModel.name)"
             )
         }
 

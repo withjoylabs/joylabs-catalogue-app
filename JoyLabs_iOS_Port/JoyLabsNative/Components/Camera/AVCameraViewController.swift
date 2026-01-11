@@ -21,10 +21,27 @@ class AVCameraViewController: UIViewController {
     // Callbacks
     var onPhotosCaptured: (([UIImage]) -> Void)?
     var onCancel: (() -> Void)?
+    var contextTitle: String?
 
     // Preview constraint references for dynamic sizing
     private var previewWidthConstraint: NSLayoutConstraint?
     private var previewHeightConstraint: NSLayoutConstraint?
+
+    // Capture button constraint references for orientation-based layout
+    private var captureButtonBottomConstraint: NSLayoutConstraint?
+    private var captureButtonCenterXConstraint: NSLayoutConstraint?
+    private var captureButtonTrailingConstraint: NSLayoutConstraint?
+    private var captureButtonCenterYConstraint: NSLayoutConstraint?
+
+    // Badge constraint references for orientation-based layout
+    private var badgeTrailingConstraint: NSLayoutConstraint?
+    private var badgeCenterYConstraint: NSLayoutConstraint?
+    private var badgeBottomConstraint: NSLayoutConstraint?
+    private var badgeCenterXConstraint: NSLayoutConstraint?
+
+    // Buffer constraint references for orientation-based layout
+    private var bufferBottomToButtonConstraint: NSLayoutConstraint?
+    private var bufferBottomToViewConstraint: NSLayoutConstraint?
 
     // Exposure persistence
     private let exposureBiasKey = "com.joylabs.camera.exposureBias"
@@ -69,19 +86,36 @@ class AVCameraViewController: UIViewController {
     }()
 
     private lazy var captureButton: UIButton = {
-        let button = UIButton(type: .system)
-        button.setImage(UIImage(systemName: "circle.fill"), for: .normal)
-        button.tintColor = .white
-        button.contentVerticalAlignment = .fill
-        button.contentHorizontalAlignment = .fill
+        let button = UIButton(type: .custom)
         button.translatesAutoresizingMaskIntoConstraints = false
+
+        // Outer ring (white stroke)
+        let outerRing = CAShapeLayer()
+        outerRing.path = UIBezierPath(ovalIn: CGRect(x: 0, y: 0, width: 70, height: 70)).cgPath
+        outerRing.strokeColor = UIColor.white.cgColor
+        outerRing.fillColor = UIColor.clear.cgColor
+        outerRing.lineWidth = 3
+        button.layer.addSublayer(outerRing)
+
+        // Inner circle (white fill)
+        let innerCircle = CAShapeLayer()
+        innerCircle.path = UIBezierPath(ovalIn: CGRect(x: 5, y: 5, width: 60, height: 60)).cgPath
+        innerCircle.fillColor = UIColor.white.cgColor
+        button.layer.addSublayer(innerCircle)
+
+        // Shadow for depth
+        button.layer.shadowColor = UIColor.black.cgColor
+        button.layer.shadowOpacity = 0.3
+        button.layer.shadowOffset = CGSize(width: 0, height: 2)
+        button.layer.shadowRadius = 4
+
         button.addTarget(self, action: #selector(capturePhoto), for: .touchUpInside)
         return button
     }()
 
     private lazy var doneButton: UIButton = {
         var config = UIButton.Configuration.filled()
-        config.title = "Done"
+        config.title = "Upload"
         config.baseBackgroundColor = .systemBlue
         config.baseForegroundColor = .white
         config.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16)
@@ -103,21 +137,49 @@ class AVCameraViewController: UIViewController {
         return button
     }()
 
-    private lazy var bufferCountLabel: UILabel = {
+    private lazy var contextTitleLabel: UILabel = {
         let label = UILabel()
         label.textColor = .white
         label.font = .systemFont(ofSize: 17, weight: .semibold)
         label.translatesAutoresizingMaskIntoConstraints = false
-        label.text = "0"
+        label.textAlignment = .center
+        label.text = contextTitle ?? "Camera"
         return label
+    }()
+
+    private lazy var photoCountBadge: UIView = {
+        let container = UIView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+        container.backgroundColor = .systemRed
+        container.layer.cornerRadius = 12
+        container.isHidden = true  // Hidden when count is 0
+
+        let label = UILabel()
+        label.textColor = .white
+        label.font = .systemFont(ofSize: 14, weight: .bold)
+        label.textAlignment = .center
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.tag = 999  // Tag to find label later
+        container.addSubview(label)
+
+        NSLayoutConstraint.activate([
+            label.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            label.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            container.widthAnchor.constraint(greaterThanOrEqualToConstant: 24),
+            container.heightAnchor.constraint(equalToConstant: 24)
+        ])
+
+        return container
     }()
 
     private lazy var thumbnailScrollView: UIScrollView = {
         let scrollView = UIScrollView()
         scrollView.showsHorizontalScrollIndicator = false
         scrollView.translatesAutoresizingMaskIntoConstraints = false
-        scrollView.backgroundColor = UIColor.systemGray6.withAlphaComponent(0.5)
+        scrollView.backgroundColor = UIColor.systemGray6.withAlphaComponent(0.8)
         scrollView.layer.cornerRadius = 8
+        scrollView.layer.borderWidth = 1
+        scrollView.layer.borderColor = UIColor.systemGray4.cgColor
         return scrollView
     }()
 
@@ -127,6 +189,58 @@ class AVCameraViewController: UIViewController {
         stackView.spacing = 8
         stackView.translatesAutoresizingMaskIntoConstraints = false
         return stackView
+    }()
+
+    private lazy var bufferEmptyPlaceholder: UIView = {
+        let container = UIView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+
+        let icon = UIImageView(image: UIImage(systemName: "photo.stack"))
+        icon.tintColor = .secondaryLabel
+        icon.translatesAutoresizingMaskIntoConstraints = false
+        icon.contentMode = .scaleAspectFit
+
+        let label = UILabel()
+        label.text = "Photos appear here"
+        label.textColor = .secondaryLabel
+        label.font = .systemFont(ofSize: 16)
+        label.translatesAutoresizingMaskIntoConstraints = false
+
+        let stack = UIStackView(arrangedSubviews: [icon, label])
+        stack.axis = .horizontal
+        stack.spacing = 8
+        stack.alignment = .center
+        stack.distribution = .fill
+        stack.translatesAutoresizingMaskIntoConstraints = false
+
+        container.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            stack.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            icon.widthAnchor.constraint(equalToConstant: 24),
+            icon.heightAnchor.constraint(equalToConstant: 24)
+        ])
+
+        return container
+    }()
+
+    private lazy var headerBackgroundView: UIVisualEffectView = {
+        let blurEffect = UIBlurEffect(style: .systemUltraThinMaterial)
+        let effectView = UIVisualEffectView(effect: blurEffect)
+        effectView.translatesAutoresizingMaskIntoConstraints = false
+        effectView.layer.cornerRadius = 12
+        effectView.clipsToBounds = true
+        return effectView
+    }()
+
+    private lazy var exposureControlsContainer: UIView = {
+        let container = UIView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+        container.backgroundColor = UIColor.systemGray6.withAlphaComponent(0.6)
+        container.layer.cornerRadius = 8
+        // Size: icon(24) + spacing(4) + label(20) + spacing(8) + sliderHeight(200) + spacing(8) = 264pt height
+        // Width: slider thumb width + padding = 60pt
+        return container
     }()
 
     private let logger = Logger(subsystem: "com.joylabs.native", category: "AVCameraViewController")
@@ -179,6 +293,44 @@ class AVCameraViewController: UIViewController {
         }
     }
 
+    private func updateLayoutForOrientation() {
+        let isPortrait = view.bounds.height > view.bounds.width
+
+        // Deactivate all orientation-specific constraints
+        NSLayoutConstraint.deactivate([
+            captureButtonBottomConstraint,
+            captureButtonCenterXConstraint,
+            captureButtonTrailingConstraint,
+            captureButtonCenterYConstraint,
+            badgeTrailingConstraint,
+            badgeCenterYConstraint,
+            badgeBottomConstraint,
+            badgeCenterXConstraint,
+            bufferBottomToButtonConstraint,
+            bufferBottomToViewConstraint
+        ].compactMap { $0 })
+
+        if isPortrait {
+            // Portrait mode: Button at bottom center, badge to left, buffer above button
+            NSLayoutConstraint.activate([
+                captureButtonBottomConstraint!,
+                captureButtonCenterXConstraint!,
+                badgeTrailingConstraint!,
+                badgeCenterYConstraint!,
+                bufferBottomToButtonConstraint!
+            ])
+        } else {
+            // Landscape mode: Button on right side vertical center, badge above, buffer at bottom
+            NSLayoutConstraint.activate([
+                captureButtonTrailingConstraint!,
+                captureButtonCenterYConstraint!,
+                badgeBottomConstraint!,
+                badgeCenterXConstraint!,
+                bufferBottomToViewConstraint!
+            ])
+        }
+    }
+
     // MARK: - Setup
 
     private func setupUI() {
@@ -186,6 +338,9 @@ class AVCameraViewController: UIViewController {
         view.addSubview(previewView)
         previewView.layer.cornerRadius = 12
         previewView.clipsToBounds = true
+
+        // Exposure controls container (background)
+        view.addSubview(exposureControlsContainer)
 
         // Exposure slider with icon and value label
         view.addSubview(exposureIcon)
@@ -195,14 +350,21 @@ class AVCameraViewController: UIViewController {
         // Capture button
         view.addSubview(captureButton)
 
-        // Top bar with cancel, count, done
+        // Header background
+        view.addSubview(headerBackgroundView)
+
+        // Top bar with cancel, title, done
         view.addSubview(cancelButton)
-        view.addSubview(bufferCountLabel)
+        view.addSubview(contextTitleLabel)
         view.addSubview(doneButton)
+
+        // Photo count badge on capture button
+        view.addSubview(photoCountBadge)
 
         // Thumbnail buffer
         view.addSubview(thumbnailScrollView)
         thumbnailScrollView.addSubview(thumbnailStackView)
+        thumbnailScrollView.addSubview(bufferEmptyPlaceholder)
 
         // Store preview constraints for dynamic updates
         previewWidthConstraint = previewView.widthAnchor.constraint(equalToConstant: 100)
@@ -218,25 +380,30 @@ class AVCameraViewController: UIViewController {
             previewWidthConstraint!,
             previewHeightConstraint!,
 
+            // Header background
+            headerBackgroundView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
+            headerBackgroundView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
+            headerBackgroundView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
+            headerBackgroundView.heightAnchor.constraint(equalToConstant: 50),
+
             // Top bar
             cancelButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 16),
             cancelButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
 
-            bufferCountLabel.centerYAnchor.constraint(equalTo: cancelButton.centerYAnchor),
-            bufferCountLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            contextTitleLabel.centerYAnchor.constraint(equalTo: cancelButton.centerYAnchor),
+            contextTitleLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            contextTitleLabel.leadingAnchor.constraint(greaterThanOrEqualTo: cancelButton.trailingAnchor, constant: 16),
+            contextTitleLabel.trailingAnchor.constraint(lessThanOrEqualTo: doneButton.leadingAnchor, constant: -16),
 
             doneButton.centerYAnchor.constraint(equalTo: cancelButton.centerYAnchor),
             doneButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
 
-            // Capture button - anchored to bottom
-            captureButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20),
-            captureButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            // Capture button - size only (position set dynamically based on orientation)
             captureButton.widthAnchor.constraint(equalToConstant: 70),
             captureButton.heightAnchor.constraint(equalToConstant: 70),
 
-            // Thumbnail buffer - between preview and capture button, edge-to-edge
+            // Thumbnail buffer - edge-to-edge (bottom constraint set dynamically based on orientation)
             thumbnailScrollView.topAnchor.constraint(equalTo: previewView.bottomAnchor, constant: 16),
-            thumbnailScrollView.bottomAnchor.constraint(equalTo: captureButton.topAnchor, constant: -16),
             thumbnailScrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             thumbnailScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             thumbnailScrollView.heightAnchor.constraint(equalToConstant: 80),
@@ -246,6 +413,18 @@ class AVCameraViewController: UIViewController {
             thumbnailStackView.trailingAnchor.constraint(equalTo: thumbnailScrollView.trailingAnchor),
             thumbnailStackView.bottomAnchor.constraint(equalTo: thumbnailScrollView.bottomAnchor),
             thumbnailStackView.heightAnchor.constraint(equalTo: thumbnailScrollView.heightAnchor),
+
+            // Buffer empty placeholder - centered in scrollview
+            bufferEmptyPlaceholder.topAnchor.constraint(equalTo: thumbnailScrollView.topAnchor),
+            bufferEmptyPlaceholder.leadingAnchor.constraint(equalTo: thumbnailScrollView.leadingAnchor),
+            bufferEmptyPlaceholder.trailingAnchor.constraint(equalTo: thumbnailScrollView.trailingAnchor),
+            bufferEmptyPlaceholder.bottomAnchor.constraint(equalTo: thumbnailScrollView.bottomAnchor),
+
+            // Exposure controls container - background for all exposure controls
+            exposureControlsContainer.leadingAnchor.constraint(equalTo: previewView.leadingAnchor, constant: 8),
+            exposureControlsContainer.centerYAnchor.constraint(equalTo: previewView.centerYAnchor),
+            exposureControlsContainer.widthAnchor.constraint(equalToConstant: 60),
+            exposureControlsContainer.heightAnchor.constraint(equalToConstant: 264),
 
             // Exposure controls - grouped near slider on left edge
             // Icon positioned above slider (rotated slider extends ±100pt from center)
@@ -264,16 +443,38 @@ class AVCameraViewController: UIViewController {
             exposureSlider.widthAnchor.constraint(equalToConstant: 200)
         ])
 
+        // Setup orientation-based constraints (updated dynamically in updateLayoutForOrientation)
+        captureButtonBottomConstraint = captureButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20)
+        captureButtonCenterXConstraint = captureButton.centerXAnchor.constraint(equalTo: view.centerXAnchor)
+        captureButtonTrailingConstraint = captureButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20)
+        captureButtonCenterYConstraint = captureButton.centerYAnchor.constraint(equalTo: view.centerYAnchor)
+
+        badgeTrailingConstraint = photoCountBadge.trailingAnchor.constraint(equalTo: captureButton.leadingAnchor, constant: -12)
+        badgeCenterYConstraint = photoCountBadge.centerYAnchor.constraint(equalTo: captureButton.centerYAnchor)
+        badgeBottomConstraint = photoCountBadge.bottomAnchor.constraint(equalTo: captureButton.topAnchor, constant: -8)
+        badgeCenterXConstraint = photoCountBadge.centerXAnchor.constraint(equalTo: captureButton.centerXAnchor)
+
+        bufferBottomToButtonConstraint = thumbnailScrollView.bottomAnchor.constraint(equalTo: captureButton.topAnchor, constant: -16)
+        bufferBottomToViewConstraint = thumbnailScrollView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20)
+
         // Rotate exposure slider vertically
         exposureSlider.transform = CGAffineTransform(rotationAngle: -CGFloat.pi / 2)
 
         // Bring UI elements to front (proper Z-order)
         view.bringSubviewToFront(thumbnailScrollView)
         view.bringSubviewToFront(captureButton)
+        view.bringSubviewToFront(photoCountBadge)
+        view.bringSubviewToFront(headerBackgroundView)
         view.bringSubviewToFront(cancelButton)
-        view.bringSubviewToFront(bufferCountLabel)
+        view.bringSubviewToFront(contextTitleLabel)
         view.bringSubviewToFront(doneButton)
+        view.bringSubviewToFront(exposureControlsContainer)
+        view.bringSubviewToFront(exposureIcon)
+        view.bringSubviewToFront(exposureValueLabel)
+        view.bringSubviewToFront(exposureSlider)
 
+        // Set initial orientation layout
+        updateLayoutForOrientation()
         updateBufferCount()
     }
 
@@ -352,15 +553,25 @@ class AVCameraViewController: UIViewController {
         // Only update if bounds are valid
         guard view.bounds.width > 0, view.bounds.height > 0 else { return }
 
-        // Calculate square viewport size based on available space
+        // Calculate square viewport size based on available space (orientation-aware)
+        let isPortrait = view.bounds.height > view.bounds.width
         let headerHeight: CGFloat = 60
         let bufferHeight: CGFloat = 80
-        let buttonHeight: CGFloat = 90
+        let buttonSize: CGFloat = 90  // Button + spacing
         let spacing: CGFloat = 60
 
-        let availableHeight = view.bounds.height - headerHeight - bufferHeight - buttonHeight - spacing
-        let availableWidth = view.bounds.width
-        let squareSize = min(availableWidth, availableHeight)
+        let squareSize: CGFloat
+        if isPortrait {
+            // Portrait: Button at bottom (uses vertical space)
+            let availableHeight = view.bounds.height - headerHeight - bufferHeight - buttonSize - spacing
+            let availableWidth = view.bounds.width
+            squareSize = min(availableWidth, availableHeight)
+        } else {
+            // Landscape: Button on right side (uses horizontal space)
+            let availableHeight = view.bounds.height - headerHeight - bufferHeight - spacing
+            let availableWidth = view.bounds.width - buttonSize - spacing
+            squareSize = min(availableWidth, availableHeight)
+        }
 
         // Only update constraints if size actually changed
         if previewWidthConstraint?.constant != squareSize {
@@ -372,6 +583,9 @@ class AVCameraViewController: UIViewController {
         // Update preview layer to fill preview view
         previewLayer?.frame = previewView.bounds
         previewLayer?.videoGravity = .resizeAspectFill
+
+        // Update button/badge layout for orientation
+        updateLayoutForOrientation()
     }
 
     // MARK: - Exposure Control
@@ -409,6 +623,15 @@ class AVCameraViewController: UIViewController {
 
     @objc private func capturePhoto() {
         let settings = AVCapturePhotoSettings()
+
+        // iOS 17+ standard: Set rotation angle on photo output connection for correct orientation
+        if let photoConnection = photoOutput.connection(with: .video),
+           let coordinator = rotationCoordinator {
+            let captureAngle = coordinator.videoRotationAngleForHorizonLevelCapture
+            photoConnection.videoRotationAngle = captureAngle
+            logger.info("[Camera] Set capture rotation angle: \(captureAngle)°")
+        }
+
         photoOutput.capturePhoto(with: settings, delegate: self)
     }
 
@@ -487,10 +710,25 @@ class AVCameraViewController: UIViewController {
     }
 
     private func updateBufferCount() {
-        bufferCountLabel.text = "\(capturedPhotos.count)"
+        let count = capturedPhotos.count
+
+        // Update badge
+        if let badgeLabel = photoCountBadge.viewWithTag(999) as? UILabel {
+            badgeLabel.text = "\(count)"
+        }
+        photoCountBadge.isHidden = count == 0
+
+        // Update done button
         doneButton.isEnabled = !capturedPhotos.isEmpty
         doneButton.alpha = capturedPhotos.isEmpty ? 0.5 : 1.0
-        doneButton.backgroundColor = capturedPhotos.isEmpty ? UIColor.systemGray : UIColor.systemBlue
+
+        // Update configuration for color change
+        var config = doneButton.configuration ?? UIButton.Configuration.filled()
+        config.baseBackgroundColor = capturedPhotos.isEmpty ? .systemGray : .systemBlue
+        doneButton.configuration = config
+
+        // Show/hide empty state placeholder
+        bufferEmptyPlaceholder.isHidden = !capturedPhotos.isEmpty
     }
 
     // MARK: - Actions

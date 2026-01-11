@@ -1244,11 +1244,13 @@ struct RoundedCorner: Shape {
 struct AVCameraViewControllerWrapper: UIViewControllerRepresentable {
     let onPhotosCaptured: ([UIImage]) -> Void
     let onCancel: () -> Void
+    var contextTitle: String? = nil
 
     func makeUIViewController(context: Context) -> AVCameraViewController {
         let vc = AVCameraViewController()
         vc.onPhotosCaptured = onPhotosCaptured
         vc.onCancel = onCancel
+        vc.contextTitle = contextTitle
         return vc
     }
 
