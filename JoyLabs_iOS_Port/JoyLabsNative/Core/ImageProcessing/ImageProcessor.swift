@@ -52,16 +52,16 @@ class ImageProcessor {
     private func generateImageData(from image: UIImage, format: SimpleImageService.ImageFormat) throws -> Data {
         switch format {
         case .jpeg:
-            guard let data = image.jpegData(compressionQuality: 0.9) else {
+            guard let data = image.jpegData(compressionQuality: 1.0) else {
                 throw ImageProcessingError.jpegCompressionFailed
             }
-            logger.info("[ImageProcessor] Generated JPEG: \(data.count) bytes at 90% quality")
+            logger.info("[ImageProcessor] Generated JPEG: \(data.count) bytes at 100% quality (no compression)")
             return data
         case .png:
-            // Use compressed PNG generation to reduce file size while preserving transparency
+            // Use PNG generation preserving original resolution and transparency
             let renderFormat = UIGraphicsImageRendererFormat()
             renderFormat.opaque = !image.hasAlphaChannel
-            renderFormat.scale = 1.0
+            renderFormat.scale = image.scale  // Preserve original Retina resolution (2x/3x)
             renderFormat.preferredRange = .standard
 
             let renderer = UIGraphicsImageRenderer(size: image.size, format: renderFormat)
@@ -69,7 +69,7 @@ class ImageProcessor {
                 image.draw(at: .zero)
             }
 
-            logger.info("[ImageProcessor] Generated compressed PNG: \(data.count) bytes")
+            logger.info("[ImageProcessor] Generated PNG: \(data.count) bytes at \(image.scale)x scale")
             return data
         }
     }
