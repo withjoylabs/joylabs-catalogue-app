@@ -11,6 +11,7 @@ struct ImageThumbnailGallery: View {
     let onReorder: ([String]) -> Void
     let onDelete: (String) -> Void
     let onUpload: () -> Void
+    let onCameraCapture: () -> Void
 
     @State private var selectedImageId: String?
     @State private var showingPreview = false
@@ -36,13 +37,24 @@ struct ImageThumbnailGallery: View {
 
                 Spacer()
 
-                Button(action: onUpload) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "plus.circle.fill")
-                        Text("Add Image")
+                HStack(spacing: 12) {
+                    Button(action: onCameraCapture) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "camera.fill")
+                            Text("Take Photo")
+                        }
+                        .font(.subheadline)
+                        .foregroundColor(.blue)
                     }
-                    .font(.subheadline)
-                    .foregroundColor(.blue)
+
+                    Button(action: onUpload) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "square.grid.2x2.fill")
+                            Text("Select Images")
+                        }
+                        .font(.subheadline)
+                        .foregroundColor(.blue)
+                    }
                 }
             }
 

@@ -14,6 +14,7 @@ struct ItemDetailsVariationCard: View {
     let modelContext: ModelContext
 
     @State private var showingImagePicker = false
+    @State private var showingCamera = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -63,6 +64,10 @@ struct ItemDetailsVariationCard: View {
                         focusedField = nil
                         showingImagePicker = true
                     },
+                    onCameraCapture: {
+                        focusedField = nil
+                        showingCamera = true
+                    },
                     viewModel: viewModel
                 )
             } else {
@@ -75,6 +80,10 @@ struct ItemDetailsVariationCard: View {
                     onUpload: {
                         focusedField = nil
                         showingImagePicker = true
+                    },
+                    onCameraCapture: {
+                        focusedField = nil
+                        showingCamera = true
                     },
                     onRemove: { imageId in
                         variation.pendingImages.removeAll { $0.id.uuidString == imageId }
@@ -111,6 +120,17 @@ struct ItemDetailsVariationCard: View {
                 }
             )
             .imagePickerFormSheet()
+        }
+        .fullScreenCover(isPresented: $showingCamera) {
+            AVCameraViewControllerWrapper(
+                onPhotosCaptured: { images in
+                    handleCameraPhotos(images)
+                    showingCamera = false
+                },
+                onCancel: {
+                    showingCamera = false
+                }
+            )
         }
     }
 
@@ -156,6 +176,56 @@ struct ItemDetailsVariationCard: View {
                     // Refresh from Square on error
                     Task {
                         await viewModel.refreshFromSquare()
+                    }
+                }
+            }
+        }
+    }
+
+    /// Handle camera photos captured from AVCameraViewController
+    private func handleCameraPhotos(_ images: [UIImage]) {
+        print("[VariationCard] Processing \(images.count) camera photos")
+
+        let imageProcessor = ImageProcessor()
+        let imageService = SimpleImageService.shared
+
+        for image in images {
+            Task {
+                do {
+                    // Process image (format conversion and size validation)
+                    let processedResult = try await imageProcessor.processImage(image)
+
+                    if variation.id == nil || variation.id!.isEmpty {
+                        // NEW VARIATION: Buffer image for upload after variation creation
+                        await MainActor.run {
+                            let fileName = "joylabs_camera_\(UUID().uuidString).\(processedResult.format.fileExtension)"
+                            let pendingImage = PendingImageData(
+                                imageData: processedResult.data,
+                                fileName: fileName,
+                                isPrimary: variation.pendingImages.isEmpty
+                            )
+                            variation.pendingImages.append(pendingImage)
+                            print("[VariationCard] Buffered camera image (total: \(variation.pendingImages.count))")
+                        }
+                    } else {
+                        // EXISTING VARIATION: Upload directly to Square
+                        print("[VariationCard] Uploading camera image to Square")
+                        let (imageId, _) = try await imageService.uploadImageWithId(
+                            imageData: processedResult.data,
+                            fileName: "joylabs_camera_\(UUID().uuidString).\(processedResult.format.fileExtension)",
+                            itemId: variation.id!
+                        )
+
+                        await MainActor.run {
+                            // Add to imageIds array
+                            variation.imageIds.append(imageId)
+                            print("[VariationCard] Camera image uploaded: \(imageId)")
+                        }
+                    }
+                } catch {
+                    print("[VariationCard] Failed to process camera image: \(error)")
+                    await MainActor.run {
+                        ToastNotificationService.shared.showError("Failed to process camera photo")
                     }
                 }
             }

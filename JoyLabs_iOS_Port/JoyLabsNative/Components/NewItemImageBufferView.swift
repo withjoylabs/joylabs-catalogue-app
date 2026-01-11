@@ -6,6 +6,7 @@ import SwiftUI
 struct NewItemImageBufferView: View {
     @Binding var pendingImages: [PendingImageData]
     let onUpload: () -> Void
+    let onCameraCapture: () -> Void
     let onRemove: (String) -> Void
 
     private let thumbnailSize: CGFloat = 80
@@ -24,13 +25,24 @@ struct NewItemImageBufferView: View {
 
                 Spacer()
 
-                Button(action: onUpload) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "plus")
-                        Text("Add Image")
+                HStack(spacing: 12) {
+                    Button(action: onCameraCapture) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "camera.fill")
+                            Text("Take Photo")
+                        }
+                        .font(.subheadline)
+                        .foregroundColor(.blue)
                     }
-                    .font(.subheadline)
-                    .foregroundColor(.blue)
+
+                    Button(action: onUpload) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "square.grid.2x2.fill")
+                            Text("Select Images")
+                        }
+                        .font(.subheadline)
+                        .foregroundColor(.blue)
+                    }
                 }
             }
 
@@ -284,6 +296,7 @@ private struct DropGapView: View {
     NewItemImageBufferView(
         pendingImages: $pendingImages,
         onUpload: { print("Upload tapped") },
+        onCameraCapture: { print("Camera tapped") },
         onRemove: { id in print("Remove: \(id)") }
     )
     .padding()

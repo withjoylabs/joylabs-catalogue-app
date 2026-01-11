@@ -6,6 +6,7 @@ struct ItemImageSection: View {
     @ObservedObject var viewModel: ItemDetailsViewModel
     @FocusState.Binding var focusedField: ItemField?
     @State private var showingImagePicker = false
+    @State private var showingCamera = false
     @State private var isRemoving = false
 
     private let logger = Logger(subsystem: "com.joylabs.native", category: "ItemImageSection")
@@ -65,6 +66,10 @@ struct ItemImageSection: View {
                     onUpload: {
                         focusedField = nil
                         showingImagePicker = true
+                    },
+                    onCameraCapture: {
+                        focusedField = nil
+                        showingCamera = true
                     }
                 )
             } else {
@@ -77,6 +82,10 @@ struct ItemImageSection: View {
                     onUpload: {
                         focusedField = nil
                         showingImagePicker = true
+                    },
+                    onCameraCapture: {
+                        focusedField = nil
+                        showingCamera = true
                     },
                     onRemove: { imageId in
                         viewModel.staticData.pendingImages.removeAll { $0.id.uuidString == imageId }
@@ -124,6 +133,17 @@ struct ItemImageSection: View {
                 }
             )
             .imagePickerFormSheet()
+        }
+        .fullScreenCover(isPresented: $showingCamera) {
+            AVCameraViewControllerWrapper(
+                onPhotosCaptured: { images in
+                    handleCameraPhotos(images)
+                    showingCamera = false
+                },
+                onCancel: {
+                    showingCamera = false
+                }
+            )
         }
 
     }
@@ -232,6 +252,61 @@ struct ItemImageSection: View {
                 isRemoving = false
             }
             logger.error("Failed to remove image: \(error.localizedDescription)")
+        }
+    }
+
+    /// Handle camera photos captured from AVCameraViewController
+    private func handleCameraPhotos(_ images: [UIImage]) {
+        logger.info("[ItemImageSection] Processing \(images.count) camera photos")
+
+        let imageProcessor = ImageProcessor()
+        let imageService = SimpleImageService.shared
+
+        for image in images {
+            Task {
+                do {
+                    // Process image (format conversion and size validation)
+                    let processedResult = try await imageProcessor.processImage(image)
+
+                    if viewModel.staticData.id == nil || viewModel.staticData.id!.isEmpty {
+                        // NEW ITEM: Buffer image for upload after item creation
+                        await MainActor.run {
+                            let fileName = "joylabs_camera_\(UUID().uuidString).\(processedResult.format.fileExtension)"
+                            let pendingImage = PendingImageData(
+                                imageData: processedResult.data,
+                                fileName: fileName,
+                                isPrimary: viewModel.staticData.pendingImages.isEmpty
+                            )
+                            viewModel.staticData.pendingImages.append(pendingImage)
+                            logger.info("[ItemImageSection] Buffered camera image (total: \(viewModel.staticData.pendingImages.count))")
+                        }
+                    } else {
+                        // EXISTING ITEM: Upload directly to Square
+                        logger.info("[ItemImageSection] Uploading camera image to Square")
+                        let (imageId, awsURL) = try await imageService.uploadImageWithId(
+                            imageData: processedResult.data,
+                            fileName: "joylabs_camera_\(UUID().uuidString).\(processedResult.format.fileExtension)",
+                            itemId: viewModel.staticData.id!
+                        )
+
+                        await MainActor.run {
+                            // Add to imageIds array
+                            viewModel.staticData.imageIds.append(imageId)
+
+                            // Update legacy fields for compatibility
+                            viewModel.imageURL = awsURL
+                            viewModel.imageId = imageId
+
+                            logger.info("[ItemImageSection] Camera image uploaded: \(imageId)")
+                        }
+                    }
+                } catch {
+                    logger.error("[ItemImageSection] Failed to process camera image: \(error)")
+                    await MainActor.run {
+                        ToastNotificationService.shared.showError("Failed to process camera photo")
+                    }
+                }
+            }
         }
     }
 }

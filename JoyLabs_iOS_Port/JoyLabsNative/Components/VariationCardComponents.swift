@@ -1041,6 +1041,7 @@ struct VariationImageGallery: View {
     let onReorder: ([String]) -> Void
     let onDelete: (String) -> Void
     let onUpload: () -> Void
+    let onCameraCapture: () -> Void
     let viewModel: ItemDetailsViewModel
 
     @State private var selectedImageId: String?
@@ -1063,13 +1064,24 @@ struct VariationImageGallery: View {
 
                 Spacer()
 
-                Button(action: onUpload) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "plus.circle.fill")
-                        Text("Add Image")
+                HStack(spacing: 8) {
+                    Button(action: onCameraCapture) {
+                        HStack(spacing: 3) {
+                            Image(systemName: "camera.fill")
+                            Text("Take Photo")
+                        }
+                        .font(.caption)
+                        .foregroundColor(.blue)
                     }
-                    .font(.caption)
-                    .foregroundColor(.blue)
+
+                    Button(action: onUpload) {
+                        HStack(spacing: 3) {
+                            Image(systemName: "square.grid.2x2.fill")
+                            Text("Select Images")
+                        }
+                        .font(.caption)
+                        .foregroundColor(.blue)
+                    }
                 }
             }
             .padding(.horizontal, 12)

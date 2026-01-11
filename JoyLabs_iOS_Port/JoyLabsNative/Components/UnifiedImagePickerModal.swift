@@ -387,14 +387,6 @@ struct UnifiedImagePickerModal: View {
                 
                 ScrollView {
                     LazyVGrid(columns: columns(thumbnailSize: currentThumbnailSize), spacing: 1) {
-                        // Camera button as first item
-                        CameraButtonView(thumbnailSize: currentThumbnailSize) {
-                            // Check camera availability before showing
-                            if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                                showingCamera = true
-                            }
-                        }
-
                         // Photo library items
                         ForEach(photoAssets) { photoAsset in
                             PhotoThumbnailView(
