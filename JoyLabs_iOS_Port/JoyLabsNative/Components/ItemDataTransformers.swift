@@ -335,15 +335,32 @@ class ItemDataTransformers {
                 priceMoney = nil // CRITICAL: Must be nil for variable pricing
             }
 
+            // CRITICAL: Variation inherits item's presentAtAllLocations (no UI for variation-level future locations)
+            // For per-location control: use variation's lists if set, otherwise fall back to item's
+            let effectiveLocationIds: [String]?
+            let effectiveAbsentIds: [String]?
+
+            if presentAtAllLocations {
+                // Item at all future locations - use absent list for exclusions
+                effectiveLocationIds = nil
+                // Variation can exclude specific locations via its own absent list
+                effectiveAbsentIds = variation.absentAtLocationIds.isEmpty ? (absentAtLocationIds.isEmpty ? nil : absentAtLocationIds) : variation.absentAtLocationIds
+            } else {
+                // Item at specific locations only
+                // Use variation's locations if explicitly set, otherwise inherit item's
+                effectiveLocationIds = variation.presentAtLocationIds.isEmpty ? (presentAtLocationIds.isEmpty ? nil : presentAtLocationIds) : variation.presentAtLocationIds
+                effectiveAbsentIds = variation.absentAtLocationIds.isEmpty ? nil : variation.absentAtLocationIds
+            }
+
             return ItemVariation(
                 id: (variation.id?.isEmpty == false) ? variation.id! : "#\(UUID().uuidString)", // # prefix for new variations
                 type: "ITEM_VARIATION",
                 updatedAt: nil,
                 version: variation.version, // Preserve existing version for updates, nil for new variations
                 isDeleted: false,
-                presentAtAllLocations: variation.presentAtAllLocations, // Per-variation location presence
-                presentAtLocationIds: variation.presentAtAllLocations ? nil : (variation.presentAtLocationIds.isEmpty ? nil : variation.presentAtLocationIds),
-                absentAtLocationIds: variation.absentAtLocationIds.isEmpty ? nil : variation.absentAtLocationIds,
+                presentAtAllLocations: presentAtAllLocations, // Inherit from item (no variation-level UI for future locations)
+                presentAtLocationIds: effectiveLocationIds,
+                absentAtLocationIds: effectiveAbsentIds,
                 itemVariationData: ItemVariationData(
                     itemId: itemId, // Reference parent item ID (with # for new items)
                     name: variation.name?.isEmpty == false ? variation.name : nil,
