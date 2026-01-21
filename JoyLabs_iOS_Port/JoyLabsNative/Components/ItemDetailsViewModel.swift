@@ -272,6 +272,27 @@ struct ItemDetailsVariationData: Identifiable {
             }
         }
     }
+
+    /// Check if inventory tracking is enabled at a specific location
+    func isTracking(at locationId: String) -> Bool {
+        if let override = locationOverrides.first(where: { $0.locationId == locationId }) {
+            return override.trackingMode == .stockCount
+        }
+        return trackInventory
+    }
+
+    /// Set inventory tracking for a specific location
+    mutating func setTracking(_ tracking: Bool, at locationId: String) {
+        if let index = locationOverrides.firstIndex(where: { $0.locationId == locationId }) {
+            locationOverrides[index].trackingMode = tracking ? .stockCount : .untracked
+            locationOverrides[index].trackInventory = tracking
+        } else {
+            var override = LocationOverrideData(locationId: locationId)
+            override.trackingMode = tracking ? .stockCount : .untracked
+            override.trackInventory = tracking
+            locationOverrides.append(override)
+        }
+    }
 }
 
 enum PricingType: String, CaseIterable {

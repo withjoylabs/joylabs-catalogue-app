@@ -471,6 +471,7 @@ struct VariationInventorySection: View {
                         locationName: location.name,
                         viewModel: viewModel,
                         onTap: {
+                            focusedField = nil  // Clear focus before opening modal
                             inventoryParams = InventoryModalParams(
                                 variationId: variationId,
                                 locationId: location.id
@@ -524,21 +525,21 @@ private struct NewItemInventoryRow: View {
         )
     }
 
-    // Toggle binding for Track Inventory
+    // Toggle binding for Track Inventory (per-location)
     private var trackInventoryToggle: Binding<Bool> {
         Binding(
             get: {
-                variation.inventoryTrackingMode == .stockCount
+                variation.isTracking(at: locationId)
             },
             set: { isOn in
-                variation.inventoryTrackingMode = isOn ? .stockCount : .untracked
+                variation.setTracking(isOn, at: locationId)
             }
         )
     }
 
-    // Computed property for tracking state
+    // Computed property for tracking state (per-location)
     private var isTracking: Bool {
-        variation.inventoryTrackingMode == .stockCount
+        variation.isTracking(at: locationId)
     }
 
     // Computed property for for sale state
@@ -575,9 +576,9 @@ private struct NewItemInventoryRow: View {
                                 variation.pendingInventoryQty[locationId] = nil
                             } else if let qty = Int(newValue), qty >= 0 {
                                 variation.pendingInventoryQty[locationId] = qty
-                                // Auto-switch to stock count mode when quantity is entered
-                                if qty > 0 && variation.inventoryTrackingMode == .untracked {
-                                    variation.inventoryTrackingMode = .stockCount
+                                // Auto-switch to stock count mode when quantity is entered (per-location)
+                                if qty > 0 && !variation.isTracking(at: locationId) {
+                                    variation.setTracking(true, at: locationId)
                                 }
                             }
                         }
@@ -592,8 +593,8 @@ private struct NewItemInventoryRow: View {
                     .cornerRadius(8)
                     .focused($focusedField, equals: .initialInventory(variationIndex: variationIndex, locationIndex: locationIndex))
                     .onSubmit(moveToNextField)
-                    .disabled(!isTracking || !isForSale)
-                    .opacity(isTracking && isForSale ? 1.0 : 0.5)
+                    .disabled(!isForSale)
+                    .opacity(isForSale ? 1.0 : 0.5)
                 }
             }
         }
@@ -703,6 +704,10 @@ private struct VariationInventoryRow: View {
         variation.isForSale(at: locationId)
     }
 
+    // Check if existing inventory data exists (user explicitly set inventory before)
+    private var hasExistingInventory: Bool {
+        stockOnHand != nil && stockOnHand! > 0
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -727,30 +732,32 @@ private struct VariationInventoryRow: View {
                         .padding(.trailing, 20)
 
                     // Stock on hand (tappable) - fixed width
+                    // Enabled when: for sale AND (tracking OR no existing inventory)
+                    // This allows setting initial inventory even when tracking is OFF
                     Button(action: onTap) {
                         Text(stockOnHand != nil ? "\(stockOnHand!)" : "N/A")
                             .font(.itemDetailsBody)
-                            .foregroundColor(isTracking && isForSale ? .blue : .itemDetailsSecondaryText)
+                            .foregroundColor(isForSale && (isTracking || !hasExistingInventory) ? .blue : .itemDetailsSecondaryText)
                     }
-                    .disabled(!isTracking || !isForSale)
+                    .disabled(!isForSale || (!isTracking && hasExistingInventory))
                     .frame(width: 90, alignment: .center)
 
                     // Committed (tappable) - fixed width
                     Button(action: onTap) {
                         Text("0")
                             .font(.itemDetailsBody)
-                            .foregroundColor(isTracking && isForSale ? .blue : .itemDetailsSecondaryText)
+                            .foregroundColor(isForSale && (isTracking || !hasExistingInventory) ? .blue : .itemDetailsSecondaryText)
                     }
-                    .disabled(!isTracking || !isForSale)
+                    .disabled(!isForSale || (!isTracking && hasExistingInventory))
                     .frame(width: 90, alignment: .center)
 
                     // Available (tappable) - fixed width
                     Button(action: onTap) {
                         Text(stockOnHand != nil ? "\(stockOnHand!)" : "N/A")
                             .font(.itemDetailsBody)
-                            .foregroundColor(isTracking && isForSale ? .blue : .itemDetailsSecondaryText)
+                            .foregroundColor(isForSale && (isTracking || !hasExistingInventory) ? .blue : .itemDetailsSecondaryText)
                     }
-                    .disabled(!isTracking || !isForSale)
+                    .disabled(!isForSale || (!isTracking && hasExistingInventory))
                     .frame(width: 90, alignment: .center)
                 }
             }
