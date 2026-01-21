@@ -206,8 +206,9 @@ class AVCameraViewController: UIViewController {
         label.font = .systemFont(ofSize: 16)
         label.translatesAutoresizingMaskIntoConstraints = false
 
+        // Vertical stack for better centering
         let stack = UIStackView(arrangedSubviews: [icon, label])
-        stack.axis = .horizontal
+        stack.axis = .vertical
         stack.spacing = 8
         stack.alignment = .center
         stack.distribution = .fill
@@ -217,8 +218,8 @@ class AVCameraViewController: UIViewController {
         NSLayoutConstraint.activate([
             stack.centerXAnchor.constraint(equalTo: container.centerXAnchor),
             stack.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            icon.widthAnchor.constraint(equalToConstant: 24),
-            icon.heightAnchor.constraint(equalToConstant: 24)
+            icon.widthAnchor.constraint(equalToConstant: 32),
+            icon.heightAnchor.constraint(equalToConstant: 32)
         ])
 
         return container
@@ -239,7 +240,7 @@ class AVCameraViewController: UIViewController {
         container.backgroundColor = UIColor.systemGray6.withAlphaComponent(0.6)
         container.layer.cornerRadius = 8
         // Size: icon(24) + spacing(4) + label(20) + spacing(8) + sliderHeight(200) + spacing(8) = 264pt height
-        // Width: slider thumb width + padding = 60pt
+        // Width: 64pt to encompass label (50pt centered at +28, spans +3 to +53) with padding
         return container
     }()
 
@@ -421,9 +422,9 @@ class AVCameraViewController: UIViewController {
             bufferEmptyPlaceholder.bottomAnchor.constraint(equalTo: thumbnailScrollView.bottomAnchor),
 
             // Exposure controls container - background for all exposure controls
-            exposureControlsContainer.leadingAnchor.constraint(equalTo: previewView.leadingAnchor, constant: 8),
+            exposureControlsContainer.leadingAnchor.constraint(equalTo: previewView.leadingAnchor),
             exposureControlsContainer.centerYAnchor.constraint(equalTo: previewView.centerYAnchor),
-            exposureControlsContainer.widthAnchor.constraint(equalToConstant: 60),
+            exposureControlsContainer.widthAnchor.constraint(equalToConstant: 64),
             exposureControlsContainer.heightAnchor.constraint(equalToConstant: 264),
 
             // Exposure controls - grouped near slider on left edge

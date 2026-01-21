@@ -184,8 +184,14 @@ private struct ThumbnailView: View {
                 if let url = imageURL, !url.isEmpty, let validURL = URL(string: url) {
                     KFImage(validURL)
                         .placeholder {
-                            ProgressView()
+                            // Thumbnail outline with loading indicator
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.gray.opacity(0.3), lineWidth: 2)
+                                .background(Color(.systemGray6))
                                 .frame(width: size, height: size)
+                                .overlay(
+                                    ProgressView()
+                                )
                         }
                         .onFailure { error in
                             // Silently handle image load failures
