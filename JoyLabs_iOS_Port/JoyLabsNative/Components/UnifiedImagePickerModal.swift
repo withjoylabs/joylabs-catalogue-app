@@ -806,6 +806,33 @@ struct UnifiedImagePickerModal: View {
         }
     }
 
+    /// Crop image to center square (matches camera capture behavior)
+    /// CRITICAL: Normalizes orientation FIRST because CGImage.cropping operates on raw pixels
+    private func cropToSquare(_ image: UIImage) -> UIImage {
+        // Normalize orientation first - CGImage.cropping ignores orientation metadata
+        let normalizedImage = image.fixedOrientation()
+
+        guard let cgImage = normalizedImage.cgImage else { return image }
+
+        // Use CGImage dimensions (raw pixels) not UIImage.size (logical)
+        let width = CGFloat(cgImage.width)
+        let height = CGFloat(cgImage.height)
+        let squareSize = min(width, height)
+
+        // Calculate center crop rect in pixel coordinates
+        let x = (width - squareSize) / 2
+        let y = (height - squareSize) / 2
+        let cropRect = CGRect(x: x, y: y, width: squareSize, height: squareSize)
+
+        guard let croppedCGImage = cgImage.cropping(to: cropRect) else {
+            logger.warning("[ImagePicker] Failed to crop image to square, returning original")
+            return image
+        }
+
+        // Return with .up orientation (already normalized)
+        return UIImage(cgImage: croppedCGImage, scale: normalizedImage.scale, orientation: .up)
+    }
+
     private func handleUpload(image: UIImage) async {
         do {
                 await MainActor.run {
@@ -813,8 +840,12 @@ struct UnifiedImagePickerModal: View {
                 }
                 logger.info("[ImagePicker] Starting image processing and upload")
 
+                // Center-crop to square before processing (matches camera behavior)
+                let croppedImage = cropToSquare(image)
+                logger.info("[ImagePicker] Cropped to square: \(String(format: "%.0fx%.0f", croppedImage.size.width, croppedImage.size.height))")
+
                 // Process image (format conversion and size validation only)
-                let processedResult = try await imageProcessor.processImage(image)
+                let processedResult = try await imageProcessor.processImage(croppedImage)
                 logger.info("[ImagePicker] Image processed - Size: \(String(format: "%.0fx%.0f", processedResult.finalSize.width, processedResult.finalSize.height)), Format: \(String(describing: processedResult.format))")
 
                 // Save to camera roll if enabled
@@ -1093,96 +1124,26 @@ struct CameraView: UIViewControllerRepresentable {
 // MARK: - Image Orientation Normalization
 
 extension UIImage {
-    /// Fix image orientation by redrawing the image in the correct orientation
-    /// This prevents the 4000x6000 → 10404x10404 scaling bug from Photos framework
+    /// Fix image orientation using Apple's UIGraphicsImageRenderer
+    /// This correctly handles all 8 orientations and preserves scale/resolution
+    /// UIKit's draw(in:) automatically applies orientation transforms
     func fixedOrientation() -> UIImage {
-        print("[UIImage+Orientation] ========== ORIENTATION FIX START ==========")
-        print("[UIImage+Orientation] Input orientation: \(imageOrientation.rawValue) (0=up, 1=down, 2=left, 3=right, 4=upMirrored, 5=downMirrored, 6=leftMirrored, 7=rightMirrored)")
-        print("[UIImage+Orientation] Input size: \(size)")
-        print("[UIImage+Orientation] Input scale: \(scale)")
-        
         // If orientation is already correct, return self
-        if imageOrientation == .up {
-            print("[UIImage+Orientation] Orientation already correct (.up), returning original")
-            print("[UIImage+Orientation] ========== ORIENTATION FIX END ==========")
-            return self
+        guard imageOrientation != .up else { return self }
+
+        // UIGraphicsImageRenderer handles pixel density correctly
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = scale  // Preserve original scale (1x, 2x, 3x)
+        format.preferredRange = .standard
+
+        // Create renderer at display size (points)
+        // The format.scale ensures pixel resolution is preserved
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+
+        return renderer.image { _ in
+            // UIKit's draw(in:) automatically applies orientation transform
+            draw(in: CGRect(origin: .zero, size: size))
         }
-        
-        // Calculate the appropriate transform for the orientation
-        var transform = CGAffineTransform.identity
-        
-        switch imageOrientation {
-        case .down, .downMirrored:
-            transform = transform.translatedBy(x: size.width, y: size.height)
-            transform = transform.rotated(by: .pi)
-        case .left, .leftMirrored:
-            transform = transform.translatedBy(x: size.width, y: 0)
-            transform = transform.rotated(by: .pi / 2)
-        case .right, .rightMirrored:
-            transform = transform.translatedBy(x: 0, y: size.height)
-            transform = transform.rotated(by: -.pi / 2)
-        default:
-            break
-        }
-        
-        switch imageOrientation {
-        case .upMirrored, .downMirrored:
-            transform = transform.translatedBy(x: size.width, y: 0)
-            transform = transform.scaledBy(x: -1, y: 1)
-        case .leftMirrored, .rightMirrored:
-            transform = transform.translatedBy(x: size.height, y: 0)
-            transform = transform.scaledBy(x: -1, y: 1)
-        default:
-            break
-        }
-        
-        // Create a new image context and apply the transform
-        guard let cgImage = cgImage else { return self }
-        
-        let contextWidth: Int
-        let contextHeight: Int
-        
-        switch imageOrientation {
-        case .left, .leftMirrored, .right, .rightMirrored:
-            contextWidth = Int(size.height)
-            contextHeight = Int(size.width)
-        default:
-            contextWidth = Int(size.width)
-            contextHeight = Int(size.height)
-        }
-        
-        guard let context = CGContext(
-            data: nil,
-            width: contextWidth,
-            height: contextHeight,
-            bitsPerComponent: cgImage.bitsPerComponent,
-            bytesPerRow: 0,
-            space: cgImage.colorSpace ?? CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: cgImage.bitmapInfo.rawValue
-        ) else {
-            return self
-        }
-        
-        context.concatenate(transform)
-        
-        switch imageOrientation {
-        case .left, .leftMirrored, .right, .rightMirrored:
-            context.draw(cgImage, in: CGRect(origin: .zero, size: CGSize(width: size.height, height: size.width)))
-        default:
-            context.draw(cgImage, in: CGRect(origin: .zero, size: size))
-        }
-        
-        guard let newCGImage = context.makeImage() else { 
-            print("[UIImage+Orientation] ERROR: Failed to create new CGImage, returning original")
-            return self 
-        }
-        
-        let fixedImage = UIImage(cgImage: newCGImage, scale: scale, orientation: .up)
-        print("[UIImage+Orientation] Fixed image size: \(fixedImage.size)")
-        print("[UIImage+Orientation] Fixed image orientation: \(fixedImage.imageOrientation.rawValue)")
-        print("[UIImage+Orientation] ========== ORIENTATION FIX END ==========")
-        
-        return fixedImage
     }
 }
 

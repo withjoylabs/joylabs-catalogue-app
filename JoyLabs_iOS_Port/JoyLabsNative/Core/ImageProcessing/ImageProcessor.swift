@@ -22,8 +22,9 @@ class ImageProcessor {
     }
 
     private func processImageOnBackground(_ image: UIImage) async throws -> ProcessedImageResult {
-        // Determine optimal format based on image characteristics
-        let format: SimpleImageService.ImageFormat = image.hasAlphaChannel ? .png : .jpeg
+        // Always use JPEG for product photos - better compression, reasonable file sizes
+        // PNG only used when user explicitly uploads a PNG file (handled elsewhere)
+        let format: SimpleImageService.ImageFormat = .jpeg
         logger.info("[ImageProcessor] Selected format: \(String(describing: format))")
 
         // Generate image data
