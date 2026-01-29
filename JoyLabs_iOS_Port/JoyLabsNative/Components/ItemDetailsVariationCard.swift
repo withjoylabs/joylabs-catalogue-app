@@ -130,7 +130,7 @@ struct ItemDetailsVariationCard: View {
                 onCancel: {
                     showingCamera = false
                 },
-                contextTitle: "Photos for \(viewModel.name.isEmpty ? "Item" : viewModel.name) - \(variation.name ?? "Variation")"
+                contextTitle: "\(viewModel.name.isEmpty ? "Item" : viewModel.name) - \(variation.name ?? "Variation")"
             )
         }
     }

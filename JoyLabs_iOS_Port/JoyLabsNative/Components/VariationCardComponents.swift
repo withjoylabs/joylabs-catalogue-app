@@ -1201,34 +1201,31 @@ struct VariationImageGallery: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("Variation Images")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.secondary)
+                    .font(.itemDetailsFieldLabel)
+                    .foregroundColor(.itemDetailsPrimaryText)
 
                 Spacer()
 
-                HStack(spacing: 8) {
+                HStack(spacing: 12) {
                     Button(action: onCameraCapture) {
-                        HStack(spacing: 3) {
+                        HStack(spacing: 4) {
                             Image(systemName: "camera.fill")
-                            if UIDevice.current.userInterfaceIdiom == .pad {
-                                Text("Take Photo")
-                            }
+                            Text("Camera")
                         }
-                        .font(.caption)
+                        .font(.subheadline)
                         .foregroundColor(.blue)
                     }
+                    .frame(minWidth: 44, minHeight: 44)
 
                     Button(action: onUpload) {
-                        HStack(spacing: 3) {
-                            Image(systemName: "square.grid.2x2.fill")
-                            if UIDevice.current.userInterfaceIdiom == .pad {
-                                Text("Select Images")
-                            }
+                        HStack(spacing: 4) {
+                            Image(systemName: "photo.on.rectangle")
+                            Text("Select")
                         }
-                        .font(.caption)
+                        .font(.subheadline)
                         .foregroundColor(.blue)
                     }
+                    .frame(minWidth: 44, minHeight: 44)
                 }
             }
             .padding(.horizontal, 12)
