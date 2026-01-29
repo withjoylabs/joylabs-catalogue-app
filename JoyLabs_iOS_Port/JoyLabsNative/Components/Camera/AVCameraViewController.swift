@@ -23,10 +23,6 @@ class AVCameraViewController: UIViewController {
     var onCancel: (() -> Void)?
     var contextTitle: String?
 
-    // Preview constraint references for dynamic sizing
-    private var previewWidthConstraint: NSLayoutConstraint?
-    private var previewHeightConstraint: NSLayoutConstraint?
-
     // Capture button constraint references for orientation-based layout
     private var captureButtonBottomConstraint: NSLayoutConstraint?
     private var captureButtonCenterXConstraint: NSLayoutConstraint?
@@ -118,7 +114,7 @@ class AVCameraViewController: UIViewController {
         config.title = "Upload"
         config.baseBackgroundColor = .systemBlue
         config.baseForegroundColor = .white
-        config.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16)
+        config.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 10, bottom: 6, trailing: 10)
         config.cornerStyle = .medium
 
         let button = UIButton(configuration: config)
@@ -144,6 +140,9 @@ class AVCameraViewController: UIViewController {
         label.translatesAutoresizingMaskIntoConstraints = false
         label.textAlignment = .center
         label.text = contextTitle ?? "Camera"
+        label.lineBreakMode = .byTruncatingTail
+        label.adjustsFontSizeToFitWidth = true
+        label.minimumScaleFactor = 0.8
         return label
     }()
 
@@ -312,13 +311,13 @@ class AVCameraViewController: UIViewController {
         ].compactMap { $0 })
 
         if isPortrait {
-            // Portrait mode: Button at bottom center, badge to left, buffer above button
+            // Portrait mode: Button at bottom center, badge to left
+            // Buffer position already set by top + height constraints (no bottom constraint needed)
             NSLayoutConstraint.activate([
                 captureButtonBottomConstraint!,
                 captureButtonCenterXConstraint!,
                 badgeTrailingConstraint!,
-                badgeCenterYConstraint!,
-                bufferBottomToButtonConstraint!
+                badgeCenterYConstraint!
             ])
         } else {
             // Landscape mode: Button on right side vertical center, badge above, buffer at bottom
@@ -365,21 +364,32 @@ class AVCameraViewController: UIViewController {
         // Thumbnail buffer
         view.addSubview(thumbnailScrollView)
         thumbnailScrollView.addSubview(thumbnailStackView)
-        thumbnailScrollView.addSubview(bufferEmptyPlaceholder)
+        view.addSubview(bufferEmptyPlaceholder)  // Add to view for proper centering
 
-        // Store preview constraints for dynamic updates
-        previewWidthConstraint = previewView.widthAnchor.constraint(equalToConstant: 100)
-        previewWidthConstraint?.priority = .defaultHigh  // Allow breaking if needed
+        // Calculate FIXED viewport size that fits BOTH iPad orientations
+        let isPhone = UIDevice.current.userInterfaceIdiom == .phone
+        let shortDimension = min(UIScreen.main.bounds.width, UIScreen.main.bounds.height)
+        let viewportSize: CGFloat
 
-        previewHeightConstraint = previewView.heightAnchor.constraint(equalToConstant: 100)
-        previewHeightConstraint?.priority = .defaultHigh  // Allow breaking if needed
+        if isPhone {
+            // iPhone: Always portrait, use screen width
+            viewportSize = shortDimension - 32
+        } else {
+            // iPad: Must fit in BOTH portrait AND landscape
+            // Portrait: limited by width
+            let portraitLimit = shortDimension - 32
+            // Landscape: limited by height (short dimension minus UI elements)
+            // UI = header(60) + bufferSpacing(16) + buffer(80) + bottom(20) + safeArea(~40) = 216
+            let landscapeLimit = shortDimension - 216
+            viewportSize = min(portraitLimit, landscapeLimit)
+        }
 
         NSLayoutConstraint.activate([
-            // Preview - square (size updated in viewDidLayoutSubviews)
+            // Preview - FIXED square viewport (never changes on rotation)
             previewView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             previewView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 60),
-            previewWidthConstraint!,
-            previewHeightConstraint!,
+            previewView.widthAnchor.constraint(equalToConstant: viewportSize),
+            previewView.heightAnchor.constraint(equalToConstant: viewportSize),
 
             // Header background
             headerBackgroundView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
@@ -393,8 +403,8 @@ class AVCameraViewController: UIViewController {
 
             contextTitleLabel.centerYAnchor.constraint(equalTo: cancelButton.centerYAnchor),
             contextTitleLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            contextTitleLabel.leadingAnchor.constraint(greaterThanOrEqualTo: cancelButton.trailingAnchor, constant: 16),
-            contextTitleLabel.trailingAnchor.constraint(lessThanOrEqualTo: doneButton.leadingAnchor, constant: -16),
+            contextTitleLabel.leadingAnchor.constraint(greaterThanOrEqualTo: cancelButton.trailingAnchor, constant: 8),
+            contextTitleLabel.trailingAnchor.constraint(lessThanOrEqualTo: doneButton.leadingAnchor, constant: -4),
 
             doneButton.centerYAnchor.constraint(equalTo: cancelButton.centerYAnchor),
             doneButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
@@ -415,32 +425,31 @@ class AVCameraViewController: UIViewController {
             thumbnailStackView.bottomAnchor.constraint(equalTo: thumbnailScrollView.bottomAnchor),
             thumbnailStackView.heightAnchor.constraint(equalTo: thumbnailScrollView.heightAnchor),
 
-            // Buffer empty placeholder - centered in scrollview
-            bufferEmptyPlaceholder.topAnchor.constraint(equalTo: thumbnailScrollView.topAnchor),
-            bufferEmptyPlaceholder.leadingAnchor.constraint(equalTo: thumbnailScrollView.leadingAnchor),
-            bufferEmptyPlaceholder.trailingAnchor.constraint(equalTo: thumbnailScrollView.trailingAnchor),
-            bufferEmptyPlaceholder.bottomAnchor.constraint(equalTo: thumbnailScrollView.bottomAnchor),
+            // Buffer empty placeholder - centered using view anchors (not scrollview content)
+            bufferEmptyPlaceholder.widthAnchor.constraint(equalTo: view.widthAnchor),
+            bufferEmptyPlaceholder.heightAnchor.constraint(equalToConstant: 80),
+            bufferEmptyPlaceholder.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            bufferEmptyPlaceholder.centerYAnchor.constraint(equalTo: thumbnailScrollView.centerYAnchor),
 
-            // Exposure controls container - background for all exposure controls
+            // Exposure controls container - overlaid on LEFT side of viewport
             exposureControlsContainer.leadingAnchor.constraint(equalTo: previewView.leadingAnchor),
             exposureControlsContainer.centerYAnchor.constraint(equalTo: previewView.centerYAnchor),
             exposureControlsContainer.widthAnchor.constraint(equalToConstant: 64),
-            exposureControlsContainer.heightAnchor.constraint(equalToConstant: 264),
+            exposureControlsContainer.heightAnchor.constraint(equalToConstant: 300),
 
-            // Exposure controls - grouped near slider on left edge
-            // Icon positioned above slider (rotated slider extends ±100pt from center)
-            exposureIcon.bottomAnchor.constraint(equalTo: exposureSlider.centerYAnchor, constant: -110),
-            exposureIcon.leadingAnchor.constraint(equalTo: previewView.leadingAnchor, constant: 16),
+            // Exposure controls - all positioned relative to container (self-contained)
+            exposureIcon.bottomAnchor.constraint(equalTo: exposureSlider.centerYAnchor, constant: -120),
+            exposureIcon.centerXAnchor.constraint(equalTo: exposureControlsContainer.centerXAnchor),
             exposureIcon.widthAnchor.constraint(equalToConstant: 24),
             exposureIcon.heightAnchor.constraint(equalToConstant: 24),
 
             exposureValueLabel.topAnchor.constraint(equalTo: exposureIcon.bottomAnchor, constant: 4),
-            exposureValueLabel.centerXAnchor.constraint(equalTo: exposureIcon.centerXAnchor),
+            exposureValueLabel.centerXAnchor.constraint(equalTo: exposureControlsContainer.centerXAnchor),
             exposureValueLabel.widthAnchor.constraint(equalToConstant: 50),
 
-            // Slider vertically centered on preview
-            exposureSlider.centerYAnchor.constraint(equalTo: previewView.centerYAnchor),
-            exposureSlider.centerXAnchor.constraint(equalTo: exposureIcon.centerXAnchor),
+            // Slider centered in container (offset down slightly for icon/value above)
+            exposureSlider.centerYAnchor.constraint(equalTo: exposureControlsContainer.centerYAnchor, constant: 20),
+            exposureSlider.centerXAnchor.constraint(equalTo: exposureControlsContainer.centerXAnchor),
             exposureSlider.widthAnchor.constraint(equalToConstant: 200)
         ])
 
@@ -530,10 +539,10 @@ class AVCameraViewController: UIViewController {
 
         captureSession.commitConfiguration()
 
-        // Setup preview layer first
+        // Setup preview layer - frame will be set in viewDidLayoutSubviews
         let previewLayer = AVCaptureVideoPreviewLayer(session: captureSession)
         previewLayer.videoGravity = .resizeAspectFill
-        previewLayer.frame = previewView.bounds
+        // Don't set frame here - previewView.bounds not yet valid
         previewView.layer.addSublayer(previewLayer)
         self.previewLayer = previewLayer
 
@@ -551,41 +560,10 @@ class AVCameraViewController: UIViewController {
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
 
-        // Only update if bounds are valid
-        guard view.bounds.width > 0, view.bounds.height > 0 else { return }
-
-        // Calculate square viewport size based on available space (orientation-aware)
-        let isPortrait = view.bounds.height > view.bounds.width
-        let headerHeight: CGFloat = 60
-        let bufferHeight: CGFloat = 80
-        let buttonSize: CGFloat = 90  // Button + spacing
-        let spacing: CGFloat = 60
-
-        let squareSize: CGFloat
-        if isPortrait {
-            // Portrait: Button at bottom (uses vertical space)
-            let availableHeight = view.bounds.height - headerHeight - bufferHeight - buttonSize - spacing
-            let availableWidth = view.bounds.width
-            squareSize = min(availableWidth, availableHeight)
-        } else {
-            // Landscape: Button on right side (uses horizontal space)
-            let availableHeight = view.bounds.height - headerHeight - bufferHeight - spacing
-            let availableWidth = view.bounds.width - buttonSize - spacing
-            squareSize = min(availableWidth, availableHeight)
-        }
-
-        // Only update constraints if size actually changed
-        if previewWidthConstraint?.constant != squareSize {
-            previewWidthConstraint?.constant = squareSize
-            previewHeightConstraint?.constant = squareSize
-            view.layoutIfNeeded()
-        }
-
-        // Update preview layer to fill preview view
+        // Update preview layer frame
         previewLayer?.frame = previewView.bounds
-        previewLayer?.videoGravity = .resizeAspectFill
 
-        // Update button/badge layout for orientation
+        // Update button/badge layout for orientation (iPad only uses this)
         updateLayoutForOrientation()
     }
 
@@ -768,24 +746,30 @@ extension AVCameraViewController: AVCapturePhotoCaptureDelegate {
         }
     }
 
-    /// Crop image to square aspect ratio using shorter dimension (no data loss)
+    /// Crop image to square aspect ratio using shorter dimension (center crop)
+    /// CRITICAL: Normalizes orientation FIRST because CGImage.cropping operates on raw pixels
     private func cropToSquare(_ image: UIImage) -> UIImage {
-        guard let cgImage = image.cgImage else { return image }
+        // Normalize orientation first - CGImage.cropping ignores orientation metadata
+        let normalizedImage = image.fixedOrientation()
 
-        let size = image.size
-        let squareSize = min(size.width, size.height)
+        guard let cgImage = normalizedImage.cgImage else { return image }
 
-        // Calculate center crop rect in image coordinates
-        let x = (size.width - squareSize) / 2
-        let y = (size.height - squareSize) / 2
-        let cropRect = CGRect(x: x * image.scale, y: y * image.scale, width: squareSize * image.scale, height: squareSize * image.scale)
+        // Use CGImage dimensions (raw pixels) not UIImage.size (logical)
+        let width = CGFloat(cgImage.width)
+        let height = CGFloat(cgImage.height)
+        let squareSize = min(width, height)
 
-        // Crop using CGImage
+        // Calculate center crop rect in pixel coordinates
+        let x = (width - squareSize) / 2
+        let y = (height - squareSize) / 2
+        let cropRect = CGRect(x: x, y: y, width: squareSize, height: squareSize)
+
         guard let croppedCGImage = cgImage.cropping(to: cropRect) else {
             logger.warning("Failed to crop image, returning original")
             return image
         }
 
-        return UIImage(cgImage: croppedCGImage, scale: image.scale, orientation: image.imageOrientation)
+        // Return with .up orientation (already normalized)
+        return UIImage(cgImage: croppedCGImage, scale: normalizedImage.scale, orientation: .up)
     }
 }
