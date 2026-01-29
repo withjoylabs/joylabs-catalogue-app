@@ -347,30 +347,48 @@ struct VariationInventorySection: View {
                 // Column headers (show once)
                 ItemDetailsFieldSeparator()
                 ItemDetailsFieldRow {
-                    HStack(spacing: 12) {
-                        // Location column header - takes remaining space
-                        Text("Location")
-                            .font(.itemDetailsCaption)
-                            .foregroundColor(.itemDetailsSecondaryText)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                    if UIDevice.current.userInterfaceIdiom == .pad {
+                        // iPad: Single row with Location column
+                        HStack(spacing: 12) {
+                            Text("Location")
+                                .font(.itemDetailsCaption)
+                                .foregroundColor(.itemDetailsSecondaryText)
+                                .frame(maxWidth: .infinity, alignment: .leading)
 
-                        // Toggle headers - fixed width for alignment
-                        Text("For Sale")
-                            .font(.itemDetailsCaption)
-                            .foregroundColor(.itemDetailsSecondaryText)
-                            .frame(width: 80, alignment: .center)
+                            Text("For Sale")
+                                .font(.itemDetailsCaption)
+                                .foregroundColor(.itemDetailsSecondaryText)
+                                .frame(width: 80, alignment: .center)
 
-                        Text("Track Inventory")
-                            .font(.itemDetailsCaption)
-                            .foregroundColor(.itemDetailsSecondaryText)
-                            .frame(width: 120, alignment: .center)
-                            .padding(.trailing, 20)
+                            Text("Track Inventory")
+                                .font(.itemDetailsCaption)
+                                .foregroundColor(.itemDetailsSecondaryText)
+                                .frame(width: 120, alignment: .center)
+                                .padding(.trailing, 20)
 
-                        // Initial Stock column header
-                        Text("Initial Stock")
-                            .font(.itemDetailsCaption)
-                            .foregroundColor(.itemDetailsSecondaryText)
-                            .frame(width: 80, alignment: .center)
+                            Text("Initial Stock")
+                                .font(.itemDetailsCaption)
+                                .foregroundColor(.itemDetailsSecondaryText)
+                                .frame(width: 80, alignment: .center)
+                        }
+                    } else {
+                        // iPhone: No Location column (location shown per-row above controls)
+                        HStack(spacing: 8) {
+                            Text("On/Off")
+                                .font(.itemDetailsCaption)
+                                .foregroundColor(.itemDetailsSecondaryText)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                            Text("Track")
+                                .font(.itemDetailsCaption)
+                                .foregroundColor(.itemDetailsSecondaryText)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                            Text("Qty")
+                                .font(.itemDetailsCaption)
+                                .foregroundColor(.itemDetailsSecondaryText)
+                                .frame(width: 60, alignment: .center)
+                        }
                     }
                 }
 
@@ -420,43 +438,71 @@ struct VariationInventorySection: View {
             } else if let variationId = variationId {
                 // Show inventory for each location (only if variation has ID)
 
-                // Column headers (show once)
+                // Column headers (show once) - responsive for iPhone/iPad
                 ItemDetailsFieldSeparator()
                 ItemDetailsFieldRow {
-                    HStack(spacing: 12) {
-                        // Location column header - takes remaining space
-                        Text("Location")
-                            .font(.itemDetailsCaption)
-                            .foregroundColor(.itemDetailsSecondaryText)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                    if UIDevice.current.userInterfaceIdiom == .pad {
+                        // iPad: Single row with Location column
+                        HStack(spacing: 12) {
+                            Text("Location")
+                                .font(.itemDetailsCaption)
+                                .foregroundColor(.itemDetailsSecondaryText)
+                                .frame(maxWidth: .infinity, alignment: .leading)
 
-                        // Toggle headers - fixed width for alignment
-                        Text("For Sale")
-                            .font(.itemDetailsCaption)
-                            .foregroundColor(.itemDetailsSecondaryText)
-                            .frame(width: 80, alignment: .center)
+                            Text("For Sale")
+                                .font(.itemDetailsCaption)
+                                .foregroundColor(.itemDetailsSecondaryText)
+                                .frame(width: 80, alignment: .center)
 
-                        Text("Track Inventory")
-                            .font(.itemDetailsCaption)
-                            .foregroundColor(.itemDetailsSecondaryText)
-                            .frame(width: 120, alignment: .center)
-                            .padding(.trailing, 20)
+                            Text("Track Inventory")
+                                .font(.itemDetailsCaption)
+                                .foregroundColor(.itemDetailsSecondaryText)
+                                .frame(width: 120, alignment: .center)
+                                .padding(.trailing, 20)
 
-                        // Number column headers - fixed width for alignment
-                        Text("Stock on Hand")
-                            .font(.itemDetailsCaption)
-                            .foregroundColor(.itemDetailsSecondaryText)
-                            .frame(width: 90, alignment: .center)
+                            Text("Stock on Hand")
+                                .font(.itemDetailsCaption)
+                                .foregroundColor(.itemDetailsSecondaryText)
+                                .frame(width: 90, alignment: .center)
 
-                        Text("Committed")
-                            .font(.itemDetailsCaption)
-                            .foregroundColor(.itemDetailsSecondaryText)
-                            .frame(width: 90, alignment: .center)
+                            Text("Committed")
+                                .font(.itemDetailsCaption)
+                                .foregroundColor(.itemDetailsSecondaryText)
+                                .frame(width: 90, alignment: .center)
 
-                        Text("Available")
-                            .font(.itemDetailsCaption)
-                            .foregroundColor(.itemDetailsSecondaryText)
-                            .frame(width: 90, alignment: .center)
+                            Text("Available")
+                                .font(.itemDetailsCaption)
+                                .foregroundColor(.itemDetailsSecondaryText)
+                                .frame(width: 90, alignment: .center)
+                        }
+                    } else {
+                        // iPhone: No Location column (location shown per-row above controls)
+                        HStack(spacing: 6) {
+                            Text("On/Off")
+                                .font(.itemDetailsCaption)
+                                .foregroundColor(.itemDetailsSecondaryText)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                            Text("Track")
+                                .font(.itemDetailsCaption)
+                                .foregroundColor(.itemDetailsSecondaryText)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                            Text("In Stock")
+                                .font(.itemDetailsCaption)
+                                .foregroundColor(.itemDetailsSecondaryText)
+                                .frame(width: 55, alignment: .center)
+
+                            Text("Committed")
+                                .font(.itemDetailsCaption)
+                                .foregroundColor(.itemDetailsSecondaryText)
+                                .frame(width: 65, alignment: .center)
+
+                            Text("Available")
+                                .font(.itemDetailsCaption)
+                                .foregroundColor(.itemDetailsSecondaryText)
+                                .frame(width: 55, alignment: .center)
+                        }
                     }
                 }
 
@@ -547,54 +593,102 @@ private struct NewItemInventoryRow: View {
         variation.isForSale(at: locationId)
     }
 
+    private var isIPad: Bool {
+        UIDevice.current.userInterfaceIdiom == .pad
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             ItemDetailsFieldRow {
-                HStack(spacing: 12) {
-                    // Location name - takes remaining space
-                    Text(locationName)
-                        .font(.itemDetailsFieldLabel)
-                        .foregroundColor(.itemDetailsPrimaryText)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                if isIPad {
+                    // iPad: Single row layout
+                    HStack(spacing: 12) {
+                        Text(locationName)
+                            .font(.itemDetailsFieldLabel)
+                            .foregroundColor(.itemDetailsPrimaryText)
+                            .frame(maxWidth: .infinity, alignment: .leading)
 
-                    // For Sale toggle - fixed width to match header
-                    Toggle("", isOn: forSaleToggle)
-                        .labelsHidden()
-                        .frame(width: 80, alignment: .center)
+                        Toggle("", isOn: forSaleToggle)
+                            .labelsHidden()
+                            .frame(width: 80, alignment: .center)
 
-                    // Track Inventory toggle - fixed width to match header
-                    Toggle("", isOn: trackInventoryToggle)
-                        .labelsHidden()
-                        .frame(width: 120, alignment: .center)
-                        .padding(.trailing, 20)
+                        Toggle("", isOn: trackInventoryToggle)
+                            .labelsHidden()
+                            .frame(width: 120, alignment: .center)
+                            .padding(.trailing, 20)
 
-                    // Initial Stock text field - fixed width (80pt total to match header)
-                    TextField("0", text: Binding(
-                        get: { currentQty },
-                        set: { newValue in
-                            if newValue.isEmpty {
-                                variation.pendingInventoryQty[locationId] = nil
-                            } else if let qty = Int(newValue), qty >= 0 {
-                                variation.pendingInventoryQty[locationId] = qty
-                                // Auto-switch to stock count mode when quantity is entered (per-location)
-                                if qty > 0 && !variation.isTracking(at: locationId) {
-                                    variation.setTracking(true, at: locationId)
+                        TextField("0", text: Binding(
+                            get: { currentQty },
+                            set: { newValue in
+                                if newValue.isEmpty {
+                                    variation.pendingInventoryQty[locationId] = nil
+                                } else if let qty = Int(newValue), qty >= 0 {
+                                    variation.pendingInventoryQty[locationId] = qty
+                                    if qty > 0 && !variation.isTracking(at: locationId) {
+                                        variation.setTracking(true, at: locationId)
+                                    }
                                 }
                             }
+                        ))
+                        .keyboardType(.numberPad)
+                        .multilineTextAlignment(.center)
+                        .font(.itemDetailsBody)
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
+                        .frame(width: 80)
+                        .background(Color(.systemBackground))
+                        .cornerRadius(8)
+                        .focused($focusedField, equals: .initialInventory(variationIndex: variationIndex, locationIndex: locationIndex))
+                        .onSubmit(moveToNextField)
+                        .disabled(!isForSale)
+                        .opacity(isForSale ? 1.0 : 0.5)
+                    }
+                } else {
+                    // iPhone: Two-row layout - location name above controls
+                    VStack(alignment: .leading, spacing: 6) {
+                        // Row 1: Location name
+                        Text(locationName)
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(.itemDetailsPrimaryText)
+
+                        // Row 2: Controls (left-justified)
+                        HStack(spacing: 8) {
+                            Toggle("", isOn: forSaleToggle)
+                                .labelsHidden()
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                            Toggle("", isOn: trackInventoryToggle)
+                                .labelsHidden()
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                            TextField("0", text: Binding(
+                                get: { currentQty },
+                                set: { newValue in
+                                    if newValue.isEmpty {
+                                        variation.pendingInventoryQty[locationId] = nil
+                                    } else if let qty = Int(newValue), qty >= 0 {
+                                        variation.pendingInventoryQty[locationId] = qty
+                                        if qty > 0 && !variation.isTracking(at: locationId) {
+                                            variation.setTracking(true, at: locationId)
+                                        }
+                                    }
+                                }
+                            ))
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.center)
+                            .font(.itemDetailsBody)
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 6)
+                            .frame(width: 60)
+                            .background(Color(.systemBackground))
+                            .cornerRadius(8)
+                            .focused($focusedField, equals: .initialInventory(variationIndex: variationIndex, locationIndex: locationIndex))
+                            .onSubmit(moveToNextField)
+                            .disabled(!isForSale)
+                            .opacity(isForSale ? 1.0 : 0.5)
                         }
-                    ))
-                    .keyboardType(.numberPad)
-                    .multilineTextAlignment(.center)
-                    .font(.itemDetailsBody)
-                    .padding(.vertical, 8)
-                    .padding(.horizontal, 12)
-                    .frame(width: 80)
-                    .background(Color(.systemBackground))
-                    .cornerRadius(8)
-                    .focused($focusedField, equals: .initialInventory(variationIndex: variationIndex, locationIndex: locationIndex))
-                    .onSubmit(moveToNextField)
-                    .disabled(!isForSale)
-                    .opacity(isForSale ? 1.0 : 0.5)
+                    }
                 }
             }
         }
@@ -709,56 +803,98 @@ private struct VariationInventoryRow: View {
         stockOnHand != nil && stockOnHand! > 0
     }
 
+    private var isIPad: Bool {
+        UIDevice.current.userInterfaceIdiom == .pad
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            // Single row: Location name + toggles + stock columns
             ItemDetailsFieldRow {
-                HStack(spacing: 12) {
-                    // Location name - takes remaining space
-                    Text(locationName)
-                        .font(.itemDetailsFieldLabel)
-                        .foregroundColor(.itemDetailsPrimaryText)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                if isIPad {
+                    // iPad: Single row layout
+                    HStack(spacing: 12) {
+                        Text(locationName)
+                            .font(.itemDetailsFieldLabel)
+                            .foregroundColor(.itemDetailsPrimaryText)
+                            .frame(maxWidth: .infinity, alignment: .leading)
 
-                    // For Sale toggle - fixed width to match header
-                    Toggle("", isOn: forSaleToggle)
-                        .labelsHidden()
-                        .frame(width: 80, alignment: .center)
+                        Toggle("", isOn: forSaleToggle)
+                            .labelsHidden()
+                            .frame(width: 80, alignment: .center)
 
-                    // Track Inventory toggle - fixed width to match header
-                    Toggle("", isOn: trackInventoryToggle)
-                        .labelsHidden()
-                        .frame(width: 120, alignment: .center)
-                        .padding(.trailing, 20)
+                        Toggle("", isOn: trackInventoryToggle)
+                            .labelsHidden()
+                            .frame(width: 120, alignment: .center)
+                            .padding(.trailing, 20)
 
-                    // Stock on hand (tappable) - fixed width
-                    // Enabled when: for sale AND (tracking OR no existing inventory)
-                    // This allows setting initial inventory even when tracking is OFF
-                    Button(action: onTap) {
-                        Text(stockOnHand != nil ? "\(stockOnHand!)" : "N/A")
-                            .font(.itemDetailsBody)
-                            .foregroundColor(isForSale && (isTracking || !hasExistingInventory) ? .blue : .itemDetailsSecondaryText)
+                        Button(action: onTap) {
+                            Text(stockOnHand != nil ? "\(stockOnHand!)" : "N/A")
+                                .font(.itemDetailsBody)
+                                .foregroundColor(isForSale && (isTracking || !hasExistingInventory) ? .blue : .itemDetailsSecondaryText)
+                        }
+                        .disabled(!isForSale || (!isTracking && hasExistingInventory))
+                        .frame(width: 90, alignment: .center)
+
+                        Button(action: onTap) {
+                            Text("0")
+                                .font(.itemDetailsBody)
+                                .foregroundColor(isForSale && (isTracking || !hasExistingInventory) ? .blue : .itemDetailsSecondaryText)
+                        }
+                        .disabled(!isForSale || (!isTracking && hasExistingInventory))
+                        .frame(width: 90, alignment: .center)
+
+                        Button(action: onTap) {
+                            Text(stockOnHand != nil ? "\(stockOnHand!)" : "N/A")
+                                .font(.itemDetailsBody)
+                                .foregroundColor(isForSale && (isTracking || !hasExistingInventory) ? .blue : .itemDetailsSecondaryText)
+                        }
+                        .disabled(!isForSale || (!isTracking && hasExistingInventory))
+                        .frame(width: 90, alignment: .center)
                     }
-                    .disabled(!isForSale || (!isTracking && hasExistingInventory))
-                    .frame(width: 90, alignment: .center)
+                } else {
+                    // iPhone: Two-row layout - location name above controls
+                    VStack(alignment: .leading, spacing: 6) {
+                        // Row 1: Location name
+                        Text(locationName)
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(.itemDetailsPrimaryText)
 
-                    // Committed (tappable) - fixed width
-                    Button(action: onTap) {
-                        Text("0")
-                            .font(.itemDetailsBody)
-                            .foregroundColor(isForSale && (isTracking || !hasExistingInventory) ? .blue : .itemDetailsSecondaryText)
-                    }
-                    .disabled(!isForSale || (!isTracking && hasExistingInventory))
-                    .frame(width: 90, alignment: .center)
+                        // Row 2: Controls (left-justified)
+                        HStack(spacing: 6) {
+                            Toggle("", isOn: forSaleToggle)
+                                .labelsHidden()
+                                .frame(maxWidth: .infinity, alignment: .leading)
 
-                    // Available (tappable) - fixed width
-                    Button(action: onTap) {
-                        Text(stockOnHand != nil ? "\(stockOnHand!)" : "N/A")
-                            .font(.itemDetailsBody)
-                            .foregroundColor(isForSale && (isTracking || !hasExistingInventory) ? .blue : .itemDetailsSecondaryText)
+                            Toggle("", isOn: trackInventoryToggle)
+                                .labelsHidden()
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                            Button(action: onTap) {
+                                Text(stockOnHand != nil ? "\(stockOnHand!)" : "N/A")
+                                    .font(.itemDetailsBody)
+                                    .foregroundColor(isForSale && (isTracking || !hasExistingInventory) ? .blue : .itemDetailsSecondaryText)
+                            }
+                            .disabled(!isForSale || (!isTracking && hasExistingInventory))
+                            .frame(width: 55, alignment: .center)
+
+                            Button(action: onTap) {
+                                Text("0")
+                                    .font(.itemDetailsBody)
+                                    .foregroundColor(isForSale && (isTracking || !hasExistingInventory) ? .blue : .itemDetailsSecondaryText)
+                            }
+                            .disabled(!isForSale || (!isTracking && hasExistingInventory))
+                            .frame(width: 65, alignment: .center)
+
+                            Button(action: onTap) {
+                                Text(stockOnHand != nil ? "\(stockOnHand!)" : "N/A")
+                                    .font(.itemDetailsBody)
+                                    .foregroundColor(isForSale && (isTracking || !hasExistingInventory) ? .blue : .itemDetailsSecondaryText)
+                            }
+                            .disabled(!isForSale || (!isTracking && hasExistingInventory))
+                            .frame(width: 55, alignment: .center)
+                        }
                     }
-                    .disabled(!isForSale || (!isTracking && hasExistingInventory))
-                    .frame(width: 90, alignment: .center)
                 }
             }
         }
@@ -1075,7 +1211,9 @@ struct VariationImageGallery: View {
                     Button(action: onCameraCapture) {
                         HStack(spacing: 3) {
                             Image(systemName: "camera.fill")
-                            Text("Take Photo")
+                            if UIDevice.current.userInterfaceIdiom == .pad {
+                                Text("Take Photo")
+                            }
                         }
                         .font(.caption)
                         .foregroundColor(.blue)
@@ -1084,7 +1222,9 @@ struct VariationImageGallery: View {
                     Button(action: onUpload) {
                         HStack(spacing: 3) {
                             Image(systemName: "square.grid.2x2.fill")
-                            Text("Select Images")
+                            if UIDevice.current.userInterfaceIdiom == .pad {
+                                Text("Select Images")
+                            }
                         }
                         .font(.caption)
                         .foregroundColor(.blue)

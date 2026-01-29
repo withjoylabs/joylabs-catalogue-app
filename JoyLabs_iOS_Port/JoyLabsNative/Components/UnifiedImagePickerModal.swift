@@ -343,7 +343,7 @@ struct UnifiedImagePickerModal: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
-        .frame(width: 400)
+        .frame(width: UIDevice.current.userInterfaceIdiom == .pad ? 400 : nil)
         .background(Color(.systemBackground).opacity(0.95))
         .overlay(
             Divider()
