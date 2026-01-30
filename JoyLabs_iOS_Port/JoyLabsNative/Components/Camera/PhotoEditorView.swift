@@ -50,7 +50,8 @@ struct PhotoEditorView: View {
                 Spacer()
 
                 Text("Edit Photo")
-                    .font(.headline)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
                     .foregroundColor(.white)
 
                 Spacer()

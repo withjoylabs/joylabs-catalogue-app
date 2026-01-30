@@ -3,6 +3,15 @@ import AVFoundation
 import SwiftUI
 import os.log
 
+// MARK: - Zoom Preset Model
+
+/// Zoom preset for virtual camera device (like native Camera app)
+/// Uses single virtual device with zoom factor changes instead of switching physical cameras
+struct ZoomPreset {
+    let displayName: String
+    let zoomFactor: CGFloat
+}
+
 /// Custom AVFoundation camera with manual exposure control and multi-photo capture buffer
 /// Exposure bias persists across app sessions via UserDefaults
 class AVCameraViewController: UIViewController {
@@ -53,6 +62,26 @@ class AVCameraViewController: UIViewController {
     // Camera configuration state
     private var isCameraConfigured = false
 
+    // Zoom presets (virtual device with zoom factor changes)
+    private var zoomPresets: [ZoomPreset] = []
+    private var currentPresetIndex: Int = 0
+    private var zoomButtons: [UIButton] = []
+    private var zoomSelectorStackView: UIStackView?
+    private var zoomSelectorBackground: UIView?
+    private var pinchStartZoom: CGFloat = 1.0
+
+    // Zoom selector constraint references for orientation-based layout
+    private var zoomSelectorCenterXConstraint: NSLayoutConstraint?
+    private var zoomSelectorBottomConstraint: NSLayoutConstraint?
+    private var zoomSelectorCenterYConstraint: NSLayoutConstraint?
+    private var zoomSelectorTrailingConstraint: NSLayoutConstraint?
+
+    // Exposure bar constraint references for orientation-based layout
+    private var exposureBarCenterXConstraint: NSLayoutConstraint?
+    private var exposureBarBottomConstraint: NSLayoutConstraint?
+    private var exposureBarCenterYConstraint: NSLayoutConstraint?
+    private var exposureBarTrailingConstraint: NSLayoutConstraint?
+
     // Loading indicator
     private lazy var loadingIndicator: UIActivityIndicatorView = {
         let indicator = UIActivityIndicatorView(style: .large)
@@ -77,30 +106,53 @@ class AVCameraViewController: UIViewController {
         return view
     }()
 
-    private lazy var exposureSlider: UISlider = {
-        let slider = UISlider()
-        slider.minimumValue = -2.0
-        slider.maximumValue = 2.0
-        slider.value = savedExposureBias
-        slider.translatesAutoresizingMaskIntoConstraints = false
-        slider.addTarget(self, action: #selector(exposureSliderChanged(_:)), for: .valueChanged)
-        return slider
+    // Horizontal exposure bar (positioned above zoom selector)
+    private lazy var exposureBarBackground: UIView = {
+        let view = UIView()
+        view.backgroundColor = UIColor.black.withAlphaComponent(0.4)
+        view.layer.cornerRadius = 18
+        view.translatesAutoresizingMaskIntoConstraints = false
+        return view
+    }()
+
+    private lazy var exposureBarStack: UIStackView = {
+        let stack = UIStackView()
+        stack.axis = .horizontal
+        stack.spacing = 8
+        stack.alignment = .center
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        return stack
     }()
 
     private lazy var exposureIcon: UIImageView = {
         let imageView = UIImageView(image: UIImage(systemName: "sun.max.fill"))
         imageView.tintColor = .white
         imageView.translatesAutoresizingMaskIntoConstraints = false
+        imageView.widthAnchor.constraint(equalToConstant: 20).isActive = true
+        imageView.heightAnchor.constraint(equalToConstant: 20).isActive = true
         return imageView
+    }()
+
+    private lazy var exposureSlider: UISlider = {
+        let slider = UISlider()
+        slider.minimumValue = -2.0
+        slider.maximumValue = 2.0
+        slider.value = savedExposureBias
+        slider.translatesAutoresizingMaskIntoConstraints = false
+        slider.minimumTrackTintColor = .white
+        slider.maximumTrackTintColor = .gray
+        slider.addTarget(self, action: #selector(exposureSliderChanged(_:)), for: .valueChanged)
+        return slider
     }()
 
     private lazy var exposureValueLabel: UILabel = {
         let label = UILabel()
-        label.textColor = .white
-        label.font = .systemFont(ofSize: 15, weight: .medium)
+        label.textColor = savedExposureBias != 0 ? .systemYellow : .white
+        label.font = .systemFont(ofSize: 14, weight: .medium)
         label.textAlignment = .center
         label.translatesAutoresizingMaskIntoConstraints = false
         label.text = String(format: "%+.1f", savedExposureBias)
+        label.widthAnchor.constraint(equalToConstant: 40).isActive = true
         return label
     }()
 
@@ -159,13 +211,15 @@ class AVCameraViewController: UIViewController {
     private lazy var contextTitleLabel: UILabel = {
         let label = UILabel()
         label.textColor = .white
-        label.font = .systemFont(ofSize: 17, weight: .semibold)
+        label.font = .systemFont(ofSize: 15, weight: .semibold)
         label.translatesAutoresizingMaskIntoConstraints = false
         label.textAlignment = .center
         label.text = contextTitle ?? "Camera"
+        label.numberOfLines = 2
         label.lineBreakMode = .byTruncatingTail
         label.adjustsFontSizeToFitWidth = true
         label.minimumScaleFactor = 0.8
+        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         return label
     }()
 
@@ -274,15 +328,6 @@ class AVCameraViewController: UIViewController {
         return effectView
     }()
 
-    private lazy var exposureControlsContainer: UIView = {
-        let container = UIView()
-        container.translatesAutoresizingMaskIntoConstraints = false
-        container.backgroundColor = UIColor.systemGray6.withAlphaComponent(0.6)
-        container.layer.cornerRadius = 8
-        // Size: icon(24) + spacing(4) + label(20) + spacing(8) + sliderHeight(200) + spacing(8) = 264pt height
-        // Width: 64pt to encompass label (50pt centered at +28, spans +3 to +53) with padding
-        return container
-    }()
 
     private let logger = Logger(subsystem: "com.joylabs.native", category: "AVCameraViewController")
 
@@ -428,13 +473,12 @@ class AVCameraViewController: UIViewController {
         previewView.layer.cornerRadius = 12
         previewView.clipsToBounds = true
 
-        // Exposure controls container (background)
-        view.addSubview(exposureControlsContainer)
-
-        // Exposure slider with icon and value label
-        view.addSubview(exposureIcon)
-        view.addSubview(exposureValueLabel)
-        view.addSubview(exposureSlider)
+        // Horizontal exposure bar (positioned above zoom selector later)
+        exposureBarStack.addArrangedSubview(exposureIcon)
+        exposureBarStack.addArrangedSubview(exposureSlider)
+        exposureBarStack.addArrangedSubview(exposureValueLabel)
+        view.addSubview(exposureBarBackground)
+        view.addSubview(exposureBarStack)
 
         // Capture button
         view.addSubview(captureButton)
@@ -527,26 +571,8 @@ class AVCameraViewController: UIViewController {
             bufferEmptyPlaceholder.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             bufferEmptyPlaceholder.centerYAnchor.constraint(equalTo: thumbnailScrollView.centerYAnchor),
 
-            // Exposure controls container - overlaid on LEFT side of viewport
-            exposureControlsContainer.leadingAnchor.constraint(equalTo: previewView.leadingAnchor),
-            exposureControlsContainer.centerYAnchor.constraint(equalTo: previewView.centerYAnchor),
-            exposureControlsContainer.widthAnchor.constraint(equalToConstant: 64),
-            exposureControlsContainer.heightAnchor.constraint(equalToConstant: 300),
-
-            // Exposure controls - all positioned relative to container (self-contained)
-            exposureIcon.bottomAnchor.constraint(equalTo: exposureSlider.centerYAnchor, constant: -120),
-            exposureIcon.centerXAnchor.constraint(equalTo: exposureControlsContainer.centerXAnchor),
-            exposureIcon.widthAnchor.constraint(equalToConstant: 24),
-            exposureIcon.heightAnchor.constraint(equalToConstant: 24),
-
-            exposureValueLabel.topAnchor.constraint(equalTo: exposureIcon.bottomAnchor, constant: 4),
-            exposureValueLabel.centerXAnchor.constraint(equalTo: exposureControlsContainer.centerXAnchor),
-            exposureValueLabel.widthAnchor.constraint(equalToConstant: 50),
-
-            // Slider centered in container (offset down slightly for icon/value above)
-            exposureSlider.centerYAnchor.constraint(equalTo: exposureControlsContainer.centerYAnchor, constant: 20),
-            exposureSlider.centerXAnchor.constraint(equalTo: exposureControlsContainer.centerXAnchor),
-            exposureSlider.widthAnchor.constraint(equalToConstant: 200),
+            // Horizontal exposure slider - fixed width
+            exposureSlider.widthAnchor.constraint(equalToConstant: 120),
 
             // Preset indicator - height only, width determined by content (position set dynamically)
             presetIndicatorButton.heightAnchor.constraint(equalToConstant: 44)
@@ -576,9 +602,6 @@ class AVCameraViewController: UIViewController {
         presetTopConstraint = presetIndicatorButton.topAnchor.constraint(equalTo: captureButton.bottomAnchor, constant: 8)
         presetCenterXConstraint = presetIndicatorButton.centerXAnchor.constraint(equalTo: captureButton.centerXAnchor)
 
-        // Rotate exposure slider vertically
-        exposureSlider.transform = CGAffineTransform(rotationAngle: -CGFloat.pi / 2)
-
         // Bring UI elements to front (proper Z-order)
         view.bringSubviewToFront(thumbnailScrollView)
         view.bringSubviewToFront(captureButton)
@@ -587,10 +610,8 @@ class AVCameraViewController: UIViewController {
         view.bringSubviewToFront(cancelButton)
         view.bringSubviewToFront(contextTitleLabel)
         view.bringSubviewToFront(doneButton)
-        view.bringSubviewToFront(exposureControlsContainer)
-        view.bringSubviewToFront(exposureIcon)
-        view.bringSubviewToFront(exposureValueLabel)
-        view.bringSubviewToFront(exposureSlider)
+        view.bringSubviewToFront(exposureBarBackground)
+        view.bringSubviewToFront(exposureBarStack)
         view.bringSubviewToFront(presetIndicatorButton)
 
         // Set initial orientation layout
@@ -632,14 +653,29 @@ class AVCameraViewController: UIViewController {
         // Set session preset
         captureSession.sessionPreset = .photo
 
-        // Add camera input (guard against re-adding)
-        guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
+        // Try virtual devices first (triple > dual wide > dual > wide angle)
+        // Virtual devices handle automatic lens switching based on zoom factor
+        let deviceTypes: [AVCaptureDevice.DeviceType] = [
+            .builtInTripleCamera,
+            .builtInDualWideCamera,
+            .builtInDualCamera,
+            .builtInWideAngleCamera
+        ]
+
+        let discoverySession = AVCaptureDevice.DiscoverySession(
+            deviceTypes: deviceTypes,
+            mediaType: .video,
+            position: .back
+        )
+
+        guard let camera = discoverySession.devices.first else {
             logger.error("Failed to get camera device")
             captureSession.commitConfiguration()
             showCameraLoading(false)
             return
         }
 
+        logger.info("[Camera] Using device: \(camera.localizedName) (\(camera.deviceType.rawValue))")
         currentDevice = camera
 
         // Only add input if not already added
@@ -690,6 +726,14 @@ class AVCameraViewController: UIViewController {
         // Mark as configured and start session
         isCameraConfigured = true
 
+        // Discover zoom presets and setup UI (must be on main thread)
+        DispatchQueue.main.async { [weak self] in
+            self?.discoverZoomPresets()
+            self?.setupZoomSelectorUI()
+            self?.setupExposureBarConstraints()
+            self?.setupPinchZoom()
+        }
+
         // Start running immediately after configuration
         if !captureSession.isRunning {
             captureSession.startRunning()
@@ -697,6 +741,328 @@ class AVCameraViewController: UIViewController {
 
         // Hide loading indicator
         showCameraLoading(false)
+    }
+
+    // MARK: - Zoom Preset Discovery (Virtual Device)
+
+    private func discoverZoomPresets() {
+        guard let device = currentDevice else { return }
+
+        // Get switch-over points from virtual device (where it switches physical cameras)
+        let switchPoints = device.virtualDeviceSwitchOverVideoZoomFactors.map { $0.doubleValue }
+        let minZoom = device.minAvailableVideoZoomFactor
+        let maxZoom = device.maxAvailableVideoZoomFactor
+
+        logger.info("[Camera] Device zoom range: \(minZoom) - \(maxZoom), switch points: \(switchPoints)")
+
+        // Build zoom presets based on device capabilities
+        zoomPresets = buildZoomPresets(minZoom: minZoom, maxZoom: maxZoom, switchPoints: switchPoints)
+
+        // Find 1x preset as default (the wide angle camera)
+        if let oneXIndex = zoomPresets.firstIndex(where: { $0.displayName == "1" }) {
+            currentPresetIndex = oneXIndex
+            // Set initial zoom to 1x (wide angle)
+            let preset = zoomPresets[oneXIndex]
+            do {
+                try device.lockForConfiguration()
+                device.videoZoomFactor = preset.zoomFactor
+                device.unlockForConfiguration()
+            } catch {
+                logger.error("[Camera] Failed to set initial zoom: \(error)")
+            }
+        }
+
+        logger.info("[Camera] Zoom presets: \(self.zoomPresets.map { $0.displayName })")
+    }
+
+    private func buildZoomPresets(minZoom: CGFloat, maxZoom: CGFloat, switchPoints: [Double]) -> [ZoomPreset] {
+        var presets: [ZoomPreset] = []
+
+        // The first switch point is the "1x" wide angle camera
+        // If no switch points, device is single camera - use 1.0 as baseline
+        let wideAngleZoom = switchPoints.first.map { CGFloat($0) } ?? 1.0
+
+        // 0.5x (ultra-wide) - only if minZoom < wideAngleZoom
+        if minZoom < wideAngleZoom {
+            presets.append(ZoomPreset(displayName: "0.5", zoomFactor: minZoom))
+        }
+
+        // 1x (wide angle) - the first switch point
+        presets.append(ZoomPreset(displayName: "1", zoomFactor: wideAngleZoom))
+
+        // 2x = wideAngleZoom * 2
+        let twoX = wideAngleZoom * 2
+        if twoX <= maxZoom {
+            presets.append(ZoomPreset(displayName: "2", zoomFactor: twoX))
+        }
+
+        // 4x = wideAngleZoom * 4
+        let fourX = wideAngleZoom * 4
+        if fourX <= maxZoom {
+            presets.append(ZoomPreset(displayName: "4", zoomFactor: fourX))
+        }
+
+        // 8x = wideAngleZoom * 8
+        let eightX = wideAngleZoom * 8
+        if eightX <= maxZoom {
+            presets.append(ZoomPreset(displayName: "8", zoomFactor: eightX))
+        }
+
+        return presets
+    }
+
+    // MARK: - Zoom Selector UI
+
+    private func setupZoomSelectorUI() {
+        // Only show selector if more than one preset
+        guard zoomPresets.count > 1 else {
+            logger.info("[Camera] Single zoom level, skipping zoom selector")
+            return
+        }
+
+        let stackView = UIStackView()
+        stackView.axis = .horizontal
+        stackView.spacing = 4
+        stackView.alignment = .center
+        stackView.translatesAutoresizingMaskIntoConstraints = false
+
+        // Semi-transparent background pill
+        let backgroundView = UIView()
+        backgroundView.backgroundColor = UIColor.black.withAlphaComponent(0.4)
+        backgroundView.layer.cornerRadius = 18
+        backgroundView.translatesAutoresizingMaskIntoConstraints = false
+
+        // Create button for each zoom preset
+        zoomButtons.removeAll()
+        for (index, preset) in zoomPresets.enumerated() {
+            let button = createZoomButton(
+                title: preset.displayName,
+                tag: index,
+                isSelected: index == currentPresetIndex
+            )
+            stackView.addArrangedSubview(button)
+            zoomButtons.append(button)
+        }
+
+        view.addSubview(backgroundView)
+        view.addSubview(stackView)
+        zoomSelectorStackView = stackView
+        zoomSelectorBackground = backgroundView
+
+        // Setup constraints
+        setupZoomSelectorConstraints(backgroundView, stackView)
+
+        // Bring to front
+        view.bringSubviewToFront(backgroundView)
+        view.bringSubviewToFront(stackView)
+    }
+
+    private func createZoomButton(title: String, tag: Int, isSelected: Bool) -> UIButton {
+        var config = UIButton.Configuration.plain()
+        config.title = title
+        config.baseForegroundColor = isSelected ? .systemYellow : .white
+        config.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
+            var outgoing = incoming
+            outgoing.font = UIFont.systemFont(ofSize: 15, weight: isSelected ? .bold : .regular)
+            return outgoing
+        }
+        config.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 8, bottom: 6, trailing: 8)
+
+        let button = UIButton(configuration: config)
+        button.tag = tag
+        button.addTarget(self, action: #selector(zoomButtonTapped(_:)), for: .touchUpInside)
+
+        // Fixed width for consistent layout (prevents resizing when "0.5" is selected)
+        button.widthAnchor.constraint(equalToConstant: 44).isActive = true
+        button.heightAnchor.constraint(equalToConstant: 36).isActive = true
+
+        return button
+    }
+
+    private func setupZoomSelectorConstraints(_ background: UIView, _ stack: UIStackView) {
+        // Portrait: zoom selector between buffer and capture button, centered
+        zoomSelectorCenterXConstraint = stack.centerXAnchor.constraint(equalTo: view.centerXAnchor)
+        zoomSelectorBottomConstraint = stack.bottomAnchor.constraint(equalTo: captureButton.topAnchor, constant: -12)
+
+        // Landscape: zoom selector to left of capture button
+        zoomSelectorCenterYConstraint = stack.centerYAnchor.constraint(equalTo: captureButton.centerYAnchor)
+        zoomSelectorTrailingConstraint = stack.trailingAnchor.constraint(equalTo: captureButton.leadingAnchor, constant: -16)
+
+        // Background hugs the stack view
+        NSLayoutConstraint.activate([
+            background.leadingAnchor.constraint(equalTo: stack.leadingAnchor, constant: -8),
+            background.trailingAnchor.constraint(equalTo: stack.trailingAnchor, constant: 8),
+            background.topAnchor.constraint(equalTo: stack.topAnchor, constant: -2),
+            background.bottomAnchor.constraint(equalTo: stack.bottomAnchor, constant: 2)
+        ])
+
+        // Apply initial layout
+        updateZoomSelectorLayout()
+    }
+
+    private func updateZoomSelectorLayout() {
+        guard zoomSelectorStackView != nil else { return }
+
+        let isPortrait = view.bounds.height > view.bounds.width
+
+        // Deactivate all zoom selector constraints
+        NSLayoutConstraint.deactivate([
+            zoomSelectorCenterXConstraint,
+            zoomSelectorBottomConstraint,
+            zoomSelectorCenterYConstraint,
+            zoomSelectorTrailingConstraint
+        ].compactMap { $0 })
+
+        if isPortrait {
+            // Portrait: centered above capture button
+            NSLayoutConstraint.activate([
+                zoomSelectorCenterXConstraint!,
+                zoomSelectorBottomConstraint!
+            ])
+        } else {
+            // Landscape: to the left of capture button
+            NSLayoutConstraint.activate([
+                zoomSelectorCenterYConstraint!,
+                zoomSelectorTrailingConstraint!
+            ])
+        }
+    }
+
+    // MARK: - Exposure Bar Constraints
+
+    private func setupExposureBarConstraints() {
+        // Background hugs the stack view (same pattern as zoom selector)
+        NSLayoutConstraint.activate([
+            exposureBarBackground.leadingAnchor.constraint(equalTo: exposureBarStack.leadingAnchor, constant: -12),
+            exposureBarBackground.trailingAnchor.constraint(equalTo: exposureBarStack.trailingAnchor, constant: 12),
+            exposureBarBackground.topAnchor.constraint(equalTo: exposureBarStack.topAnchor, constant: -4),
+            exposureBarBackground.bottomAnchor.constraint(equalTo: exposureBarStack.bottomAnchor, constant: 4)
+        ])
+
+        // Portrait: exposure bar above zoom selector (or capture button if no zoom selector), centered
+        exposureBarCenterXConstraint = exposureBarStack.centerXAnchor.constraint(equalTo: view.centerXAnchor)
+        if let zoomBg = zoomSelectorBackground {
+            exposureBarBottomConstraint = exposureBarStack.bottomAnchor.constraint(equalTo: zoomBg.topAnchor, constant: -8)
+        } else {
+            exposureBarBottomConstraint = exposureBarStack.bottomAnchor.constraint(equalTo: captureButton.topAnchor, constant: -20)
+        }
+
+        // Landscape: exposure bar to left of capture button, offset up from center
+        exposureBarCenterYConstraint = exposureBarStack.centerYAnchor.constraint(equalTo: captureButton.centerYAnchor, constant: -50)
+        exposureBarTrailingConstraint = exposureBarStack.trailingAnchor.constraint(equalTo: captureButton.leadingAnchor, constant: -16)
+
+        // Apply initial layout
+        updateExposureBarLayout()
+    }
+
+    private func updateExposureBarLayout() {
+        // Guard: constraints not yet set up (called before setupExposureBarConstraints)
+        guard exposureBarCenterXConstraint != nil else { return }
+
+        let isPortrait = view.bounds.height > view.bounds.width
+
+        // Deactivate all exposure bar constraints
+        NSLayoutConstraint.deactivate([
+            exposureBarCenterXConstraint,
+            exposureBarBottomConstraint,
+            exposureBarCenterYConstraint,
+            exposureBarTrailingConstraint
+        ].compactMap { $0 })
+
+        if isPortrait {
+            // Portrait: centered above zoom selector
+            NSLayoutConstraint.activate([
+                exposureBarCenterXConstraint!,
+                exposureBarBottomConstraint!
+            ])
+        } else {
+            // Landscape: to the left of capture button, above zoom selector
+            NSLayoutConstraint.activate([
+                exposureBarCenterYConstraint!,
+                exposureBarTrailingConstraint!
+            ])
+        }
+    }
+
+    // MARK: - Zoom Preset Selection
+
+    @objc private func zoomButtonTapped(_ sender: UIButton) {
+        let index = sender.tag
+        guard index < zoomPresets.count, index != currentPresetIndex else { return }
+
+        let preset = zoomPresets[index]
+        applyZoomPreset(preset, index: index)
+    }
+
+    private func applyZoomPreset(_ preset: ZoomPreset, index: Int) {
+        guard let device = currentDevice else { return }
+
+        // Haptic feedback
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+
+        do {
+            try device.lockForConfiguration()
+            device.videoZoomFactor = preset.zoomFactor
+            device.unlockForConfiguration()
+        } catch {
+            logger.error("[Camera] Zoom preset failed: \(error)")
+            return
+        }
+
+        currentPresetIndex = index
+        updateZoomButtonSelection(index)
+
+        logger.info("[Camera] Applied \(preset.displayName)x zoom")
+    }
+
+    private func updateZoomButtonSelection(_ selectedIndex: Int) {
+        for (index, button) in zoomButtons.enumerated() {
+            let isSelected = index == selectedIndex
+            var config = button.configuration
+            config?.baseForegroundColor = isSelected ? .systemYellow : .white
+            config?.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
+                var outgoing = incoming
+                outgoing.font = UIFont.systemFont(ofSize: 15, weight: isSelected ? .bold : .regular)
+                return outgoing
+            }
+            button.configuration = config
+        }
+    }
+
+    // MARK: - Pinch-to-Zoom
+
+    private func setupPinchZoom() {
+        let pinchGesture = UIPinchGestureRecognizer(target: self, action: #selector(handlePinchZoom(_:)))
+        previewView.addGestureRecognizer(pinchGesture)
+    }
+
+    @objc private func handlePinchZoom(_ gesture: UIPinchGestureRecognizer) {
+        guard let device = currentDevice else { return }
+
+        switch gesture.state {
+        case .began:
+            pinchStartZoom = device.videoZoomFactor
+        case .changed:
+            let newZoom = pinchStartZoom * gesture.scale
+            applyZoom(newZoom)
+        default:
+            break
+        }
+    }
+
+    private func applyZoom(_ targetZoom: CGFloat) {
+        guard let device = currentDevice else { return }
+
+        // Clamp to device limits
+        let clampedZoom = min(max(device.minAvailableVideoZoomFactor, targetZoom), device.maxAvailableVideoZoomFactor)
+
+        do {
+            try device.lockForConfiguration()
+            device.videoZoomFactor = clampedZoom
+            device.unlockForConfiguration()
+        } catch {
+            logger.error("[Camera] Zoom failed: \(error)")
+        }
     }
 
     override func viewDidLayoutSubviews() {
@@ -707,6 +1073,12 @@ class AVCameraViewController: UIViewController {
 
         // Update button/badge layout for orientation (iPad only uses this)
         updateLayoutForOrientation()
+
+        // Update zoom selector layout for orientation
+        updateZoomSelectorLayout()
+
+        // Update exposure bar layout for orientation
+        updateExposureBarLayout()
     }
 
     // MARK: - Exposure Control
@@ -716,8 +1088,9 @@ class AVCameraViewController: UIViewController {
         let roundedBias = round(slider.value * 10) / 10
         slider.value = roundedBias // Update slider to snapped value
 
-        // Update exposure value label
+        // Update exposure value label and color (yellow when non-zero)
         exposureValueLabel.text = String(format: "%+.1f", roundedBias)
+        exposureValueLabel.textColor = roundedBias != 0 ? .systemYellow : .white
 
         applyExposureBias(roundedBias)
         savedExposureBias = roundedBias // Persist immediately
