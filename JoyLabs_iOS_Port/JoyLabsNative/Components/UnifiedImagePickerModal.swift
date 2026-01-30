@@ -144,13 +144,15 @@ struct UnifiedImagePickerModal: View {
 
     @ViewBuilder
     private func iPhoneLayout() -> some View {
-        ZStack(alignment: .bottom) {
-            // Main content (full screen)
-            contentArea(cropWidth: UIScreen.main.bounds.width - 16)
+        GeometryReader { geometry in
+            ZStack(alignment: .bottom) {
+                // Main content (full screen)
+                contentArea(cropWidth: geometry.size.width - 16)
 
-            // Translucent bottom navigation bar (iOS 26 style)
-            bottomNavigationBar()
-                .zIndex(100)
+                // Translucent bottom navigation bar (iOS 26 style)
+                bottomNavigationBar()
+                    .zIndex(100)
+            }
         }
     }
 

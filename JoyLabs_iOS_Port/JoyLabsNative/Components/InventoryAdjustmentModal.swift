@@ -275,23 +275,26 @@ struct InventoryAdjustmentModal: View {
 
     // MARK: - Image Section
     private var imageSection: some View {
-        VStack(spacing: 12) {
-            // Use screen-based sizing instead of GeometryReader for proper intrinsic size
+        GeometryReader { geometry in
             let isIPad = UIDevice.current.userInterfaceIdiom == .pad
             let padding: CGFloat = 32
-            let screenWidth = UIScreen.main.bounds.width
-            let imageSize = isIPad ? min(280, screenWidth * 0.7) : screenWidth - padding
+            let containerWidth = geometry.size.width
+            let imageSize = isIPad ? min(280, containerWidth * 0.7) : containerWidth - padding
 
-            ZoomableImageView(
-                imageId: imageId,
-                size: imageSize
-            )
-            .frame(width: imageSize, height: imageSize)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+            VStack(spacing: 12) {
+                ZoomableImageView(
+                    imageId: imageId,
+                    size: imageSize
+                )
+                .frame(width: imageSize, height: imageSize)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 16)
+        .frame(height: UIDevice.current.userInterfaceIdiom == .pad ? 312 : 360)
     }
 
     // MARK: - Details Section
