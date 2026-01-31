@@ -836,13 +836,21 @@ class AVCameraViewController: UIViewController {
         // Configure exposure manager with device capabilities
         exposureManager.configure(with: camera)
 
-        // Mark as configured and start session
+        // Mark as configured
         isCameraConfigured = true
 
-        // Discover zoom presets and setup UI (must be on main thread)
+        // OPTIMIZATION: Discover zoom presets and restore saved zoom BEFORE starting session
+        // This prevents the visible "jump" from default zoom to saved zoom
+        discoverAndRestoreZoomPresets(for: camera)
+
+        // Start running with correct zoom already set
+        if !captureSession.isRunning {
+            captureSession.startRunning()
+        }
+
+        // Setup UI on main thread (after session starts with correct zoom)
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            self.discoverZoomPresets()
             self.setupZoomSelectorUI()
             self.setupExposureControlConstraints()
             self.setupPinchZoom()
@@ -853,20 +861,15 @@ class AVCameraViewController: UIViewController {
             }
         }
 
-        // Start running immediately after configuration
-        if !captureSession.isRunning {
-            captureSession.startRunning()
-        }
-
         // Hide loading indicator
         showCameraLoading(false)
     }
 
     // MARK: - Zoom Preset Discovery (Virtual Device)
 
-    private func discoverZoomPresets() {
-        guard let device = currentDevice else { return }
-
+    /// Discover zoom presets and restore saved zoom BEFORE session starts (background thread)
+    /// This prevents visible "jump" from default zoom to saved zoom
+    private func discoverAndRestoreZoomPresets(for device: AVCaptureDevice) {
         // Get switch-over points from virtual device (where it switches physical cameras)
         let switchPoints = device.virtualDeviceSwitchOverVideoZoomFactors.map { $0.doubleValue }
         let minZoom = device.minAvailableVideoZoomFactor
@@ -877,31 +880,36 @@ class AVCameraViewController: UIViewController {
         // Build zoom presets based on device capabilities
         zoomPresets = buildZoomPresets(minZoom: minZoom, maxZoom: maxZoom, switchPoints: switchPoints)
 
-        // Check for saved zoom preference first
+        // Determine which preset to use
         let savedIndex = UserDefaults.standard.integer(forKey: zoomPresetKey)
+        let targetIndex: Int
+        let targetPreset: ZoomPreset
+
         if savedIndex >= 0 && savedIndex < zoomPresets.count {
             // Use saved preference
-            currentPresetIndex = savedIndex
-            let preset = zoomPresets[savedIndex]
-            do {
-                try device.lockForConfiguration()
-                device.videoZoomFactor = preset.zoomFactor
-                device.unlockForConfiguration()
-            } catch {
-                logger.error("[Camera] Failed to set saved zoom: \(error)")
-            }
-            logger.info("[Camera] Restored saved zoom preset: \(preset.displayName)x")
+            targetIndex = savedIndex
+            targetPreset = zoomPresets[savedIndex]
+            logger.info("[Camera] Restoring saved zoom preset: \(targetPreset.displayName)x")
         } else if let oneXIndex = zoomPresets.firstIndex(where: { $0.displayName == "1" }) {
             // Default to 1x (wide angle camera)
-            currentPresetIndex = oneXIndex
-            let preset = zoomPresets[oneXIndex]
-            do {
-                try device.lockForConfiguration()
-                device.videoZoomFactor = preset.zoomFactor
-                device.unlockForConfiguration()
-            } catch {
-                logger.error("[Camera] Failed to set initial zoom: \(error)")
-            }
+            targetIndex = oneXIndex
+            targetPreset = zoomPresets[oneXIndex]
+            logger.info("[Camera] Using default 1x zoom")
+        } else {
+            // Fallback to first preset
+            targetIndex = 0
+            targetPreset = zoomPresets[0]
+            logger.info("[Camera] Using first available zoom preset")
+        }
+
+        // Set zoom BEFORE session starts (still on background thread - no UI blocking)
+        currentPresetIndex = targetIndex
+        do {
+            try device.lockForConfiguration()
+            device.videoZoomFactor = targetPreset.zoomFactor
+            device.unlockForConfiguration()
+        } catch {
+            logger.error("[Camera] Failed to set initial zoom: \(error)")
         }
 
         logger.info("[Camera] Zoom presets: \(self.zoomPresets.map { $0.displayName })")
