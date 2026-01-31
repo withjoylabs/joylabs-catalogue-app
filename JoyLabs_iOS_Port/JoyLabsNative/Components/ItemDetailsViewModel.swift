@@ -1090,9 +1090,16 @@ class ItemDetailsViewModel: ObservableObject {
             // PERFORMANCE OPTIMIZATION: Load pre-resolved tax and modifier names from database
             await loadPreResolvedNamesForCurrentItem()
 
-            // Images - load both legacy fields and imageIds array
-            self.staticData.imageIds = itemData.imageIds ?? []
-            logger.info("Loaded \(self.staticData.imageIds.count) image IDs for item")
+            // Images - use SwiftData property (updated by both sync AND local uploads)
+            // Don't use itemData.imageIds which comes from stale dataJson blob
+            if let itemId = self.staticData.id,
+               let swiftDataItem = CatalogLookupService.shared.getItem(id: itemId) {
+                self.staticData.imageIds = swiftDataItem.imageIds ?? []
+                logger.info("Loaded \(self.staticData.imageIds.count) image IDs from SwiftData property")
+            } else {
+                self.staticData.imageIds = itemData.imageIds ?? []
+                logger.info("Fallback: Loaded \(self.staticData.imageIds.count) image IDs from JSON")
+            }
 
             if let itemId = self.staticData.id {
                 let imageURL = getPrimaryImageURL(for: itemId)
