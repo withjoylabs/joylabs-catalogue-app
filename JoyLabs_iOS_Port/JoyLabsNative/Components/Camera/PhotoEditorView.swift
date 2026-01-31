@@ -8,6 +8,9 @@ struct PhotoEditorView: View {
     let onConfirm: (UIImage) -> Void
     let onCancel: () -> Void
 
+    /// iPad viewport size from camera (nil for iPhone)
+    let iPadViewportSize: CGFloat?
+
     // Cached images (created once on appear)
     @State private var thumbnailCIImage: CIImage?
     @State private var processedPreview: UIImage?
@@ -26,6 +29,8 @@ struct PhotoEditorView: View {
     private let filterService = PhotoFilterService.shared
     private let thumbnailSize: CGFloat = 1200  // Retina-quality preview
 
+    private var isIPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
+
     // iPad slider width: 75% of portrait (shorter) dimension
     private static let iPadSliderMaxWidth: CGFloat = {
         let scenes = UIApplication.shared.connectedScenes
@@ -34,111 +39,51 @@ struct PhotoEditorView: View {
         return min(bounds.width, bounds.height) * 0.75
     }()
 
+    init(originalImage: UIImage, iPadViewportSize: CGFloat? = nil, onConfirm: @escaping (UIImage) -> Void, onCancel: @escaping () -> Void) {
+        self.originalImage = originalImage
+        self.iPadViewportSize = iPadViewportSize
+        self.onConfirm = onConfirm
+        self.onCancel = onCancel
+    }
+
     var body: some View {
-        VStack(spacing: 0) {
-            // Header (compact)
-            HStack {
-                Button("Cancel") {
-                    onCancel()
-                }
-                .foregroundColor(.white)
+        GeometryReader { geometry in
+            let isLandscape = geometry.size.width > geometry.size.height
 
-                Spacer()
+            VStack(spacing: 0) {
+                // Header (compact)
+                headerView
 
-                Text("Edit Photo")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.white)
-
-                Spacer()
-
-                Button("Done") {
-                    confirmEdits()
-                }
-                .fontWeight(.semibold)
-                .foregroundColor(isProcessingFinal ? .gray : .white)
-                .disabled(isProcessingFinal)
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-            .background(Color.black)
-
-            // Preview image - flexible, fills available space
-            ZStack {
-                if let preview = processedPreview {
-                    Image(uiImage: preview)
-                        .resizable()
-                        .aspectRatio(1, contentMode: .fit)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                if isIPad && isLandscape {
+                    // iPad Landscape: Preview LEFT, Sliders RIGHT
+                    iPadLandscapeContent
                 } else {
-                    Image(uiImage: originalImage)
-                        .resizable()
-                        .aspectRatio(1, contentMode: .fit)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    // iPhone or iPad Portrait: Vertical stack
+                    portraitContent
                 }
 
-                if isProcessingFinal {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.black.opacity(0.5))
-                    VStack(spacing: 8) {
-                        ProgressView()
-                            .tint(.white)
-                        Text("Processing...")
-                            .font(.caption)
-                            .foregroundColor(.white)
+                Divider()
+                    .background(Color.gray.opacity(0.5))
+
+                // Preset Row (always at bottom, full width)
+                presetRow
+                    .frame(height: 76)
+
+                Divider()
+                    .background(Color.gray.opacity(0.5))
+
+                // Reset button (compact)
+                Button(action: resetAdjustments) {
+                    HStack {
+                        Image(systemName: "arrow.counterclockwise")
+                        Text("Reset All")
                     }
+                    .foregroundColor(.red)
                 }
+                .padding(.vertical, 8)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-
-            // Adjustment sliders (scrollable)
-            ScrollView {
-                VStack(spacing: 10) {
-                    // Light adjustments
-                    AdjustmentSlider(label: "Exposure", icon: "sun.max", value: $adjustments.exposure, range: -1...1, defaultValue: 0)
-                    AdjustmentSlider(label: "Brightness", icon: "sun.min", value: $adjustments.brightness, range: -1...1, defaultValue: 0)
-                    AdjustmentSlider(label: "Highlights", icon: "sun.max.trianglebadge.exclamationmark", value: $adjustments.highlights, range: -1...1, defaultValue: 0)
-                    AdjustmentSlider(label: "Shadows", icon: "moon.fill", value: $adjustments.shadows, range: -1...1, defaultValue: 0)
-
-                    // Color adjustments
-                    AdjustmentSlider(label: "Contrast", icon: "circle.lefthalf.filled", value: $adjustments.contrast, range: -1...1, defaultValue: 0)
-                    AdjustmentSlider(label: "Saturation", icon: "paintbrush.fill", value: $adjustments.saturation, range: -1...1, defaultValue: 0)
-                    AdjustmentSlider(label: "Vibrance", icon: "drop.fill", value: $adjustments.vibrance, range: -1...1, defaultValue: 0)
-                    AdjustmentSlider(label: "Warmth", icon: "thermometer.sun", value: $adjustments.warmth, range: -1...1, defaultValue: 0)
-                    AdjustmentSlider(label: "Tint", icon: "paintpalette", value: $adjustments.tint, range: -1...1, defaultValue: 0)
-
-                    // Detail adjustments
-                    AdjustmentSlider(label: "Sharpness", icon: "triangle", value: $adjustments.sharpness, range: -1...1, defaultValue: 0)
-                    AdjustmentSlider(label: "Clarity", icon: "sparkles", value: $adjustments.clarity, range: -1...1, defaultValue: 0)
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 4)
-                .frame(maxWidth: UIDevice.current.userInterfaceIdiom == .pad ? Self.iPadSliderMaxWidth : .infinity)
-            }
-            .frame(height: 260)
-
-            Divider()
-                .background(Color.gray.opacity(0.5))
-
-            // Preset Row
-            presetRow
-                .frame(height: 76)
-
-            Divider()
-                .background(Color.gray.opacity(0.5))
-
-            // Reset button (compact)
-            Button(action: resetAdjustments) {
-                HStack {
-                    Image(systemName: "arrow.counterclockwise")
-                    Text("Reset All")
-                }
-                .foregroundColor(.red)
-            }
-            .padding(.vertical, 8)
+            .background(Color.black)
         }
-        .background(Color.black)
         .onAppear { setupImages() }
         .onChange(of: adjustments) { _, _ in debouncedApplyFilters() }
         .alert("Save Preset", isPresented: $showingNameDialog) {
@@ -151,6 +96,129 @@ struct PhotoEditorView: View {
             }
         } message: {
             Text("Enter a name for this preset")
+        }
+    }
+
+    // MARK: - Header
+
+    private var headerView: some View {
+        HStack {
+            Button("Cancel") {
+                onCancel()
+            }
+            .foregroundColor(.white)
+
+            Spacer()
+
+            Text("Edit Photo")
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundColor(.white)
+
+            Spacer()
+
+            Button("Done") {
+                confirmEdits()
+            }
+            .fontWeight(.semibold)
+            .foregroundColor(isProcessingFinal ? .gray : .white)
+            .disabled(isProcessingFinal)
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(Color.black)
+    }
+
+    // MARK: - Portrait Content (iPhone or iPad Portrait)
+
+    private var portraitContent: some View {
+        VStack(spacing: 0) {
+            // Preview image
+            previewImageView
+                .frame(width: iPadViewportSize, height: iPadViewportSize)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+
+            // Adjustment sliders (scrollable)
+            adjustmentSlidersView
+                .frame(height: 260)
+        }
+    }
+
+    // MARK: - iPad Landscape Content
+
+    private var iPadLandscapeContent: some View {
+        HStack(spacing: 16) {
+            // LEFT: Preview image (fixed size from camera)
+            previewImageView
+                .frame(width: iPadViewportSize, height: iPadViewportSize)
+                .padding(.leading, 16)
+                .padding(.vertical, 8)
+
+            // RIGHT: Adjustment sliders (scrollable, vertically centered)
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
+                adjustmentSlidersView
+                Spacer(minLength: 0)
+            }
+            .padding(.trailing, 16)
+        }
+    }
+
+    // MARK: - Preview Image View
+
+    private var previewImageView: some View {
+        ZStack {
+            if let preview = processedPreview {
+                Image(uiImage: preview)
+                    .resizable()
+                    .aspectRatio(1, contentMode: .fit)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            } else {
+                Image(uiImage: originalImage)
+                    .resizable()
+                    .aspectRatio(1, contentMode: .fit)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+
+            if isProcessingFinal {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.black.opacity(0.5))
+                VStack(spacing: 8) {
+                    ProgressView()
+                        .tint(.white)
+                    Text("Processing...")
+                        .font(.caption)
+                        .foregroundColor(.white)
+                }
+            }
+        }
+    }
+
+    // MARK: - Adjustment Sliders View
+
+    private var adjustmentSlidersView: some View {
+        ScrollView {
+            VStack(spacing: 10) {
+                // Light adjustments
+                AdjustmentSlider(label: "Exposure", icon: "sun.max", value: $adjustments.exposure, range: -1...1, defaultValue: 0)
+                AdjustmentSlider(label: "Brightness", icon: "sun.min", value: $adjustments.brightness, range: -1...1, defaultValue: 0)
+                AdjustmentSlider(label: "Highlights", icon: "sun.max.trianglebadge.exclamationmark", value: $adjustments.highlights, range: -1...1, defaultValue: 0)
+                AdjustmentSlider(label: "Shadows", icon: "moon.fill", value: $adjustments.shadows, range: -1...1, defaultValue: 0)
+
+                // Color adjustments
+                AdjustmentSlider(label: "Contrast", icon: "circle.lefthalf.filled", value: $adjustments.contrast, range: -1...1, defaultValue: 0)
+                AdjustmentSlider(label: "Saturation", icon: "paintbrush.fill", value: $adjustments.saturation, range: -1...1, defaultValue: 0)
+                AdjustmentSlider(label: "Vibrance", icon: "drop.fill", value: $adjustments.vibrance, range: -1...1, defaultValue: 0)
+                AdjustmentSlider(label: "Warmth", icon: "thermometer.sun", value: $adjustments.warmth, range: -1...1, defaultValue: 0)
+                AdjustmentSlider(label: "Tint", icon: "paintpalette", value: $adjustments.tint, range: -1...1, defaultValue: 0)
+
+                // Detail adjustments
+                AdjustmentSlider(label: "Sharpness", icon: "triangle", value: $adjustments.sharpness, range: -1...1, defaultValue: 0)
+                AdjustmentSlider(label: "Clarity", icon: "sparkles", value: $adjustments.clarity, range: -1...1, defaultValue: 0)
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 4)
         }
     }
 
@@ -376,6 +444,7 @@ struct AdjustmentSlider: View {
 #Preview {
     PhotoEditorView(
         originalImage: UIImage(systemName: "photo")!,
+        iPadViewportSize: 500,
         onConfirm: { _ in },
         onCancel: { }
     )

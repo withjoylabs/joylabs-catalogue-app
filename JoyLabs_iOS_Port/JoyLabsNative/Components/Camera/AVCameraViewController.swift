@@ -1546,8 +1546,12 @@ class AVCameraViewController: UIViewController {
 
     /// Handle captured photo - show editor
     private func handleCapturedPhoto(_ image: UIImage) {
+        // Pass viewport size to editor for iPad (nil for iPhone)
+        let viewportSize: CGFloat? = isIPadLayout ? iPadViewportSize : nil
+
         let editorView = PhotoEditorView(
             originalImage: image,
+            iPadViewportSize: viewportSize,
             onConfirm: { [weak self] editedImage in
                 self?.dismiss(animated: true)
                 self?.addPhotoToBuffer(editedImage)
