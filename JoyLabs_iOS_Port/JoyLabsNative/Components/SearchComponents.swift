@@ -121,6 +121,7 @@ struct SwipeableScanResultCard: View {
     @State private var showingCamera = false
     @State private var offset: CGFloat = 0
     @State private var isDragging = false
+    @State private var currentImageId: String?  // Local state for dynamic image updates
 
     @ObservedObject private var imageSaveService = ImageSaveService.shared
 
@@ -265,10 +266,19 @@ struct SwipeableScanResultCard: View {
                     .frame(height: 0.5)
             }
         )
-    }
-
-    private var imageId: String? {
-        return result.images?.first?.id
+        .onAppear {
+            // Initialize currentImageId from result
+            currentImageId = result.images?.first?.id
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .imageUpdated)) { notification in
+            // Update local imageId when this item's image changes
+            if let userInfo = notification.userInfo,
+               let itemId = userInfo["itemId"] as? String,
+               itemId == result.id,
+               let newImageId = userInfo["imageId"] as? String {
+                currentImageId = newImageId
+            }
+        }
     }
 
     private var scanResultContent: some View {
@@ -276,7 +286,7 @@ struct SwipeableScanResultCard: View {
             // Thumbnail image (left side) - using native iOS image system
             // Long press to update image
             NativeImageView.thumbnail(
-                imageId: imageId,
+                imageId: currentImageId,
                 size: 50
             )
             .onLongPressGesture {
@@ -434,7 +444,11 @@ struct SwipeableScanResultCard: View {
             let imageService = SimpleImageService.shared
             let fileName = "camera_\(UUID().uuidString).jpg"
             _ = try? await imageService.uploadImage(imageData: imageData, fileName: fileName, itemId: result.id)
-            // SimpleImageService handles all notifications automatically
+
+            // Trigger search refresh to show updated thumbnail
+            await MainActor.run {
+                onItemUpdated?()
+            }
         }
     }
 

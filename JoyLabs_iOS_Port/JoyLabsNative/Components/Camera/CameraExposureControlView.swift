@@ -2,6 +2,7 @@ import UIKit
 import AVFoundation
 
 /// Simple exposure compensation bar with EV slider and reset button
+/// Reset button positioned outside the main slider element for proper centering
 class CameraExposureControlView: UIView {
 
     private var manager: CameraExposureManager?
@@ -89,24 +90,32 @@ class CameraExposureControlView: UIView {
 
         addSubview(backgroundView)
         addSubview(contentStack)
+        addSubview(resetButton)  // Outside backgroundView
 
+        // Content stack: [icon] [slider] [label] - centered
         contentStack.addArrangedSubview(exposureIcon)
         contentStack.addArrangedSubview(exposureSlider)
         contentStack.addArrangedSubview(exposureLabel)
-        contentStack.addArrangedSubview(resetButton)
 
         NSLayoutConstraint.activate([
+            // Background wraps just the content stack
             backgroundView.leadingAnchor.constraint(equalTo: contentStack.leadingAnchor, constant: -8),
             backgroundView.trailingAnchor.constraint(equalTo: contentStack.trailingAnchor, constant: 8),
             backgroundView.topAnchor.constraint(equalTo: contentStack.topAnchor, constant: -4),
             backgroundView.bottomAnchor.constraint(equalTo: contentStack.bottomAnchor, constant: 4),
 
-            contentStack.leadingAnchor.constraint(equalTo: leadingAnchor),
-            contentStack.trailingAnchor.constraint(equalTo: trailingAnchor),
+            // Content stack centered in view
+            contentStack.centerXAnchor.constraint(equalTo: centerXAnchor),
             contentStack.centerYAnchor.constraint(equalTo: centerYAnchor),
 
+            // Slider fixed width
             exposureSlider.widthAnchor.constraint(equalToConstant: 140),
 
+            // Reset button outside to the right of background
+            resetButton.leadingAnchor.constraint(equalTo: backgroundView.trailingAnchor, constant: 4),
+            resetButton.centerYAnchor.constraint(equalTo: centerYAnchor),
+
+            // View height
             heightAnchor.constraint(equalToConstant: 44)
         ])
     }

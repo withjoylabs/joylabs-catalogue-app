@@ -103,6 +103,7 @@ struct PhotoEditorView: View {
 
                     // Color adjustments
                     AdjustmentSlider(label: "Contrast", icon: "circle.lefthalf.filled", value: $adjustments.contrast, range: -1...1, defaultValue: 0)
+                    AdjustmentSlider(label: "Saturation", icon: "paintbrush.fill", value: $adjustments.saturation, range: -1...1, defaultValue: 0)
                     AdjustmentSlider(label: "Vibrance", icon: "drop.fill", value: $adjustments.vibrance, range: -1...1, defaultValue: 0)
                     AdjustmentSlider(label: "Warmth", icon: "thermometer.sun", value: $adjustments.warmth, range: -1...1, defaultValue: 0)
                     AdjustmentSlider(label: "Tint", icon: "paintpalette", value: $adjustments.tint, range: -1...1, defaultValue: 0)

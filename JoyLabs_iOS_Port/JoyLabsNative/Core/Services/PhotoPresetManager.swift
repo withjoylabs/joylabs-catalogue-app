@@ -57,7 +57,7 @@ class PhotoPresetManager: ObservableObject {
         }
 
         let preset = PhotoPreset(name: name, adjustments: adjustments, thumbnail: thumbnail)
-        presets.append(preset)
+        presets.insert(preset, at: 0)
         persistPresets()
         return true
     }

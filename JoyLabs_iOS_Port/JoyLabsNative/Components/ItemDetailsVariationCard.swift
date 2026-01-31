@@ -49,6 +49,7 @@ struct ItemDetailsVariationCard: View {
             // Image gallery
             Divider()
                 .padding(.horizontal, ItemDetailsSpacing.compactSpacing)
+                .padding(.top, ItemDetailsSpacing.compactSpacing)
 
             if let variationId = variation.id, !variationId.isEmpty {
                 // EXISTING VARIATION: Full image gallery with reorder/delete

@@ -10,7 +10,8 @@ struct PhotoAdjustments: Codable, Equatable {
     var shadows: Float = 0.0      // -1 to +1 (CIHighlightShadowAdjust)
 
     // Color adjustments
-    var contrast: Float = 0.0     // -1 to +1 → maps to 0.5 to 1.5 (CIColorControls)
+    var contrast: Float = 0.0     // -1 to +1 → maps to 0.75 to 1.25 (CIColorControls)
+    var saturation: Float = 0.0   // -1 to +1 → maps to 0.5 to 1.5 (CIColorControls)
     var vibrance: Float = 0.0     // -1 to +1 (CIVibrance - intelligent color boost)
     var warmth: Float = 0.0       // -1 to +1 (CITemperatureAndTint.neutral)
     var tint: Float = 0.0         // -1 to +1 (CITemperatureAndTint.tint - green to magenta)

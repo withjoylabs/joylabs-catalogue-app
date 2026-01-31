@@ -18,8 +18,9 @@ class PhotoFilterService {
     private let tempAndTint = CIFilter.temperatureAndTint()
     private let highlightShadow = CIFilter.highlightShadowAdjust()
     private let unsharpMask = CIFilter.unsharpMask()
-    private let clarityFilter = CIFilter.unsharpMask()  // Separate instance for clarity
+    private let clarityFilter = CIFilter.unsharpMask()  // Separate instance for positive clarity
     private let gaussianBlur = CIFilter.gaussianBlur()  // For negative sharpness
+    private let clarityBlur = CIFilter.gaussianBlur()   // For negative clarity (separate instance)
 
     private init() {
         // Use Metal for GPU-accelerated rendering
@@ -40,22 +41,23 @@ class PhotoFilterService {
         var output = ciImage
 
         // MARK: - Light Adjustments
+        // All ranges halved for finer control with same -100 to +100 UI
 
-        // Exposure: -1...1 → -3...+3 EV
+        // Exposure: -1...1 → -1.5...+1.5 EV (halved from ±3)
         if adjustments.exposure != 0 {
             exposureFilter.inputImage = output
-            exposureFilter.ev = adjustments.exposure * 3.0
+            exposureFilter.ev = adjustments.exposure * 1.5
             if let result = exposureFilter.outputImage {
                 output = result
             }
         }
 
-        // Brightness + Contrast (CIColorControls)
-        if adjustments.brightness != 0 || adjustments.contrast != 0 {
+        // Brightness + Contrast + Saturation (CIColorControls)
+        if adjustments.brightness != 0 || adjustments.contrast != 0 || adjustments.saturation != 0 {
             colorControls.inputImage = output
-            colorControls.brightness = adjustments.brightness * 0.5  // Scale for natural look
-            colorControls.contrast = 1.0 + (adjustments.contrast * 0.5)  // -1...1 → 0.5...1.5
-            colorControls.saturation = 1.0  // Don't affect saturation here
+            colorControls.brightness = adjustments.brightness * 0.25  // Halved from 0.5
+            colorControls.contrast = 1.0 + (adjustments.contrast * 0.25)  // -1...1 → 0.75...1.25 (halved)
+            colorControls.saturation = 1.0 + (adjustments.saturation * 0.5)  // -1...1 → 0.5...1.5
             if let result = colorControls.outputImage {
                 output = result
             }
@@ -64,10 +66,12 @@ class PhotoFilterService {
         // Highlights & Shadows
         if adjustments.highlights != 0 || adjustments.shadows != 0 {
             highlightShadow.inputImage = output
-            // CIHighlightShadowAdjust: highlightAmount 0-1 (1 = no change, 0 = reduce)
-            // shadowAmount 0-2 (0 = no change, positive = brighten shadows)
-            highlightShadow.highlightAmount = 1.0 - (adjustments.highlights * 0.5)  // Reduce highlights when positive
-            highlightShadow.shadowAmount = adjustments.shadows + 1.0  // Brighten shadows when positive
+            // CIHighlightShadowAdjust:
+            // - highlightAmount: 0-1 (1 = no change, 0 = reduce highlights completely)
+            // - shadowAmount: default 0 (0 = no change, positive = brighten shadows, negative = darken)
+            let highlightValue = 1.0 - (adjustments.highlights * 0.25)
+            highlightShadow.highlightAmount = max(0, min(1, highlightValue))  // Clamp to valid 0-1 range
+            highlightShadow.shadowAmount = adjustments.shadows * 0.5  // -0.5...+0.5, 0 = no change
             if let result = highlightShadow.outputImage {
                 output = result
             }
@@ -78,7 +82,7 @@ class PhotoFilterService {
         // Vibrance (CIVibrance - intelligent color boost, protects skin tones)
         if adjustments.vibrance != 0 {
             vibranceFilter.inputImage = output
-            vibranceFilter.amount = adjustments.vibrance
+            vibranceFilter.amount = adjustments.vibrance * 0.5  // Halved
             if let result = vibranceFilter.outputImage {
                 output = result
             }
@@ -87,10 +91,10 @@ class PhotoFilterService {
         // Warmth + Tint (CITemperatureAndTint)
         if adjustments.warmth != 0 || adjustments.tint != 0 {
             tempAndTint.inputImage = output
-            // Warmth: -1...1 → 4000K...9000K (neutral = 6500K)
-            let temp = 6500 + (adjustments.warmth * 2500)
-            // Tint: -1...1 → -100...+100 (green to magenta)
-            let tintValue = adjustments.tint * 100
+            // Warmth: -1...1 → 5250K...7750K (halved from 4000K-9000K, neutral = 6500K)
+            let temp = 6500 + (adjustments.warmth * 1250)
+            // Tint: -1...1 → -50...+50 (halved from ±100)
+            let tintValue = adjustments.tint * 50
             tempAndTint.neutral = CIVector(x: CGFloat(temp), y: CGFloat(tintValue))
             if let result = tempAndTint.outputImage {
                 output = result
@@ -104,26 +108,33 @@ class PhotoFilterService {
             if adjustments.sharpness > 0 {
                 unsharpMask.inputImage = output
                 unsharpMask.radius = 2.5
-                unsharpMask.intensity = adjustments.sharpness * 2.0
+                unsharpMask.intensity = adjustments.sharpness * 1.0  // Halved from 2.0
                 if let result = unsharpMask.outputImage {
                     output = result
                 }
             } else {
                 // Negative sharpness = blur
                 gaussianBlur.inputImage = output
-                gaussianBlur.radius = abs(adjustments.sharpness) * 5.0  // Max 5px blur
+                gaussianBlur.radius = abs(adjustments.sharpness) * 2.5  // Halved from 5.0
                 if let result = gaussianBlur.outputImage {
                     output = result
                 }
             }
         }
 
-        // Clarity: large-radius unsharp mask for micro-contrast
-        if adjustments.clarity != 0 {
+        // Clarity: positive = local contrast boost (unsharp mask), negative = soften (blur)
+        if adjustments.clarity > 0 {
             clarityFilter.inputImage = output
             clarityFilter.radius = 20  // Large radius for local contrast
-            clarityFilter.intensity = adjustments.clarity * 1.5  // Subtle effect
+            clarityFilter.intensity = adjustments.clarity * 0.75  // Max 0.75 intensity
             if let result = clarityFilter.outputImage {
+                output = result
+            }
+        } else if adjustments.clarity < 0 {
+            // Negative clarity = softening effect via blur
+            clarityBlur.inputImage = output
+            clarityBlur.radius = abs(adjustments.clarity) * 5  // Max 5px blur at -100%
+            if let result = clarityBlur.outputImage {
                 output = result
             }
         }

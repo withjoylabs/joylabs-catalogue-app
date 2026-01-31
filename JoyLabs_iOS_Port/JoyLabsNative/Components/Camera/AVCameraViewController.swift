@@ -3,6 +3,20 @@ import AVFoundation
 import SwiftUI
 import os.log
 
+// MARK: - Framing Guide Mode
+
+enum FramingGuideMode: Int, CaseIterable {
+    case none
+    case ruleOfThirds
+    case crosshair
+
+    var next: FramingGuideMode {
+        let allCases = FramingGuideMode.allCases
+        let nextIndex = (rawValue + 1) % allCases.count
+        return allCases[nextIndex]
+    }
+}
+
 // MARK: - Zoom Preset Model
 
 /// Zoom preset for virtual camera device (like native Camera app)
@@ -76,6 +90,21 @@ class AVCameraViewController: UIViewController {
     private var exposureBarBottomConstraint: NSLayoutConstraint?
     private var exposureBarCenterYConstraint: NSLayoutConstraint?
     private var exposureBarTrailingConstraint: NSLayoutConstraint?
+
+    // Framing guide state and UI
+    private var framingGuideMode: FramingGuideMode = .none
+    private var framingGuideLayer: CAShapeLayer?
+    private var guideToggleButton: UIButton?
+
+    // Guide toggle button constraint references for orientation-based layout
+    private var guideButtonLeadingConstraint: NSLayoutConstraint?
+    private var guideButtonCenterYConstraint: NSLayoutConstraint?
+    private var guideButtonTopConstraint: NSLayoutConstraint?
+    private var guideButtonCenterXConstraint: NSLayoutConstraint?
+
+    // Persistence keys for camera settings
+    private let framingGuideKey = "com.joylabs.camera.framingGuideMode"
+    private let zoomPresetKey = "com.joylabs.camera.zoomPresetIndex"
 
     // Loading indicator
     private lazy var loadingIndicator: UIActivityIndicatorView = {
@@ -241,6 +270,16 @@ class AVCameraViewController: UIViewController {
         return container
     }()
 
+    private lazy var framingGuideToggleButton: UIButton = {
+        let button = UIButton(type: .system)
+        button.setImage(UIImage(systemName: "viewfinder"), for: .normal)
+        button.tintColor = .white
+        button.backgroundColor = UIColor.black.withAlphaComponent(0.4)
+        button.layer.cornerRadius = 20
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.addTarget(self, action: #selector(guideToggleTapped), for: .touchUpInside)
+        return button
+    }()
 
     private let logger = Logger(subsystem: "com.joylabs.native", category: "AVCameraViewController")
 
@@ -250,8 +289,18 @@ class AVCameraViewController: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = .secondarySystemGroupedBackground
 
+        // Load persisted framing guide mode
+        if let savedMode = UserDefaults.standard.object(forKey: framingGuideKey) as? Int,
+           let mode = FramingGuideMode(rawValue: savedMode) {
+            framingGuideMode = mode
+        }
+
         setupUI()
         setupLoadingIndicator()
+
+        // Update framing guide button appearance based on loaded mode
+        let isGuideActive = framingGuideMode != .none
+        framingGuideToggleButton.tintColor = isGuideActive ? .systemYellow : .white
 
         // Configure camera asynchronously to avoid blocking UI presentation
         showCameraLoading(true)
@@ -342,25 +391,33 @@ class AVCameraViewController: UIViewController {
             badgeBottomConstraint,
             badgeCenterXConstraint,
             bufferBottomToButtonConstraint,
-            bufferBottomToViewConstraint
+            bufferBottomToViewConstraint,
+            guideButtonLeadingConstraint,
+            guideButtonCenterYConstraint,
+            guideButtonTopConstraint,
+            guideButtonCenterXConstraint
         ].compactMap { $0 })
 
         if isPortrait {
-            // Portrait mode: Button at bottom center, badge to left
+            // Portrait mode: Button at bottom center, badge to left, guide button to right
             NSLayoutConstraint.activate([
                 captureButtonBottomConstraint!,
                 captureButtonCenterXConstraint!,
                 badgeTrailingConstraint!,
-                badgeCenterYConstraint!
+                badgeCenterYConstraint!,
+                guideButtonLeadingConstraint!,
+                guideButtonCenterYConstraint!
             ])
         } else {
-            // Landscape mode: Button on right side vertical center, badge above
+            // Landscape mode: Button on right side vertical center, badge above, guide button below
             NSLayoutConstraint.activate([
                 captureButtonTrailingConstraint!,
                 captureButtonCenterYConstraint!,
                 badgeBottomConstraint!,
                 badgeCenterXConstraint!,
-                bufferBottomToViewConstraint!
+                bufferBottomToViewConstraint!,
+                guideButtonTopConstraint!,
+                guideButtonCenterXConstraint!
             ])
         }
     }
@@ -394,6 +451,10 @@ class AVCameraViewController: UIViewController {
         view.addSubview(thumbnailScrollView)
         thumbnailScrollView.addSubview(thumbnailStackView)
         view.addSubview(bufferEmptyPlaceholder)  // Add to view for proper centering
+
+        // Framing guide toggle button
+        view.addSubview(framingGuideToggleButton)
+        guideToggleButton = framingGuideToggleButton
 
         NSLayoutConstraint.activate([
             // Preview - matches header width (8px margins), square aspect ratio
@@ -453,10 +514,25 @@ class AVCameraViewController: UIViewController {
         // Lower priority to avoid conflicts during rotation (viewport height is fixed)
         bufferBottomToViewConstraint?.priority = .defaultHigh
 
+        // Guide toggle button constraints (mirrors badge position on opposite side)
+        NSLayoutConstraint.activate([
+            framingGuideToggleButton.widthAnchor.constraint(equalToConstant: 40),
+            framingGuideToggleButton.heightAnchor.constraint(equalToConstant: 40)
+        ])
+
+        // Portrait: button to the right of capture button
+        guideButtonLeadingConstraint = framingGuideToggleButton.leadingAnchor.constraint(equalTo: captureButton.trailingAnchor, constant: 12)
+        guideButtonCenterYConstraint = framingGuideToggleButton.centerYAnchor.constraint(equalTo: captureButton.centerYAnchor)
+
+        // Landscape: button below capture button
+        guideButtonTopConstraint = framingGuideToggleButton.topAnchor.constraint(equalTo: captureButton.bottomAnchor, constant: 8)
+        guideButtonCenterXConstraint = framingGuideToggleButton.centerXAnchor.constraint(equalTo: captureButton.centerXAnchor)
+
         // Bring UI elements to front (proper Z-order)
         view.bringSubviewToFront(thumbnailScrollView)
         view.bringSubviewToFront(captureButton)
         view.bringSubviewToFront(photoCountBadge)
+        view.bringSubviewToFront(framingGuideToggleButton)
         view.bringSubviewToFront(cancelButton)
         view.bringSubviewToFront(contextTitleLabel)
         view.bringSubviewToFront(doneButton)
@@ -561,6 +637,12 @@ class AVCameraViewController: UIViewController {
             self.previewView.layer.addSublayer(previewLayer)
             self.previewLayer = previewLayer
 
+            // Setup framing guide layer (on top of preview)
+            self.setupFramingGuideLayer()
+
+            // Apply persisted framing guide mode
+            self.updateFramingGuide()
+
             // Create rotation coordinator with preview layer reference
             self.rotationCoordinator = AVCaptureDevice.RotationCoordinator(device: camera, previewLayer: previewLayer)
 
@@ -613,10 +695,23 @@ class AVCameraViewController: UIViewController {
         // Build zoom presets based on device capabilities
         zoomPresets = buildZoomPresets(minZoom: minZoom, maxZoom: maxZoom, switchPoints: switchPoints)
 
-        // Find 1x preset as default (the wide angle camera)
-        if let oneXIndex = zoomPresets.firstIndex(where: { $0.displayName == "1" }) {
+        // Check for saved zoom preference first
+        let savedIndex = UserDefaults.standard.integer(forKey: zoomPresetKey)
+        if savedIndex >= 0 && savedIndex < zoomPresets.count {
+            // Use saved preference
+            currentPresetIndex = savedIndex
+            let preset = zoomPresets[savedIndex]
+            do {
+                try device.lockForConfiguration()
+                device.videoZoomFactor = preset.zoomFactor
+                device.unlockForConfiguration()
+            } catch {
+                logger.error("[Camera] Failed to set saved zoom: \(error)")
+            }
+            logger.info("[Camera] Restored saved zoom preset: \(preset.displayName)x")
+        } else if let oneXIndex = zoomPresets.firstIndex(where: { $0.displayName == "1" }) {
+            // Default to 1x (wide angle camera)
             currentPresetIndex = oneXIndex
-            // Set initial zoom to 1x (wide angle)
             let preset = zoomPresets[oneXIndex]
             do {
                 try device.lockForConfiguration()
@@ -836,6 +931,104 @@ class AVCameraViewController: UIViewController {
         }
     }
 
+    // MARK: - Framing Guides
+
+    private func setupFramingGuideLayer() {
+        let guideLayer = CAShapeLayer()
+        guideLayer.strokeColor = UIColor.systemYellow.withAlphaComponent(0.7).cgColor
+        guideLayer.fillColor = UIColor.clear.cgColor
+        guideLayer.lineWidth = 1.0
+        guideLayer.frame = previewView.bounds
+        guideLayer.isHidden = true  // Hidden by default (mode = .none)
+        previewView.layer.addSublayer(guideLayer)
+        framingGuideLayer = guideLayer
+    }
+
+    @objc private func guideToggleTapped() {
+        // Cycle to next mode
+        framingGuideMode = framingGuideMode.next
+
+        // Persist selection
+        UserDefaults.standard.set(framingGuideMode.rawValue, forKey: framingGuideKey)
+
+        // Haptic feedback
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+
+        // Update button appearance
+        let isActive = framingGuideMode != .none
+        framingGuideToggleButton.tintColor = isActive ? .systemYellow : .white
+
+        // Update guide drawing
+        updateFramingGuide()
+
+        logger.info("[Camera] Framing guide mode: \(String(describing: self.framingGuideMode))")
+    }
+
+    private func updateFramingGuide() {
+        guard let guideLayer = framingGuideLayer else { return }
+
+        let bounds = previewView.bounds
+
+        switch framingGuideMode {
+        case .none:
+            guideLayer.isHidden = true
+            guideLayer.path = nil
+
+        case .ruleOfThirds:
+            guideLayer.isHidden = false
+            let path = UIBezierPath()
+
+            // Vertical lines at 1/3 and 2/3
+            let oneThirdX = bounds.width / 3
+            let twoThirdsX = bounds.width * 2 / 3
+
+            path.move(to: CGPoint(x: oneThirdX, y: 0))
+            path.addLine(to: CGPoint(x: oneThirdX, y: bounds.height))
+
+            path.move(to: CGPoint(x: twoThirdsX, y: 0))
+            path.addLine(to: CGPoint(x: twoThirdsX, y: bounds.height))
+
+            // Horizontal lines at 1/3 and 2/3
+            let oneThirdY = bounds.height / 3
+            let twoThirdsY = bounds.height * 2 / 3
+
+            path.move(to: CGPoint(x: 0, y: oneThirdY))
+            path.addLine(to: CGPoint(x: bounds.width, y: oneThirdY))
+
+            path.move(to: CGPoint(x: 0, y: twoThirdsY))
+            path.addLine(to: CGPoint(x: bounds.width, y: twoThirdsY))
+
+            guideLayer.path = path.cgPath
+
+        case .crosshair:
+            guideLayer.isHidden = false
+            let path = UIBezierPath()
+
+            let centerX = bounds.width / 2
+            let centerY = bounds.height / 2
+
+            // Vertical center line
+            path.move(to: CGPoint(x: centerX, y: 0))
+            path.addLine(to: CGPoint(x: centerX, y: bounds.height))
+
+            // Horizontal center line
+            path.move(to: CGPoint(x: 0, y: centerY))
+            path.addLine(to: CGPoint(x: bounds.width, y: centerY))
+
+            // Small center circle
+            let circleRadius: CGFloat = 8
+            path.addArc(
+                withCenter: CGPoint(x: centerX, y: centerY),
+                radius: circleRadius,
+                startAngle: 0,
+                endAngle: .pi * 2,
+                clockwise: true
+            )
+
+            guideLayer.path = path.cgPath
+        }
+    }
+
     // MARK: - Zoom Preset Selection
 
     @objc private func zoomButtonTapped(_ sender: UIButton) {
@@ -862,6 +1055,7 @@ class AVCameraViewController: UIViewController {
         }
 
         currentPresetIndex = index
+        UserDefaults.standard.set(index, forKey: zoomPresetKey)
         updateZoomButtonSelection(index)
 
         logger.info("[Camera] Applied \(preset.displayName)x zoom")
@@ -922,6 +1116,12 @@ class AVCameraViewController: UIViewController {
 
         // Update preview layer frame
         previewLayer?.frame = previewView.bounds
+
+        // Update framing guide layer frame and redraw
+        framingGuideLayer?.frame = previewView.bounds
+        if framingGuideMode != .none {
+            updateFramingGuide()
+        }
 
         // Update button/badge layout for orientation (iPad only uses this)
         updateLayoutForOrientation()
