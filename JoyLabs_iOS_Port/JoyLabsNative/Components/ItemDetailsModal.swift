@@ -513,6 +513,7 @@ struct ItemDetailsContent: View {
     let onDismiss: () -> Void
     let onVariationPrint: (ItemDetailsVariationData, @escaping (Bool) -> Void) -> Void
     @StateObject private var configManager = FieldConfigurationManager.shared
+    @State private var hasInitialFocused = false
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -541,8 +542,15 @@ struct ItemDetailsContent: View {
                 .padding()
             }
             .onChange(of: focusedField) { _, newValue in
-                // Auto-scroll to focused field at 20% from top
                 if let field = newValue {
+                    // Skip scroll for initial itemName focus to keep image visible
+                    if field == .itemName && !hasInitialFocused {
+                        hasInitialFocused = true
+                        return
+                    }
+                    hasInitialFocused = true
+
+                    // Auto-scroll to focused field at 20% from top
                     withAnimation(.easeInOut(duration: 0.3)) {
                         proxy.scrollTo(field, anchor: UnitPoint(x: 0.5, y: 0.2))
                     }
