@@ -75,6 +75,8 @@ class AVCameraViewController: UIViewController {
     private var zoomPresets: [ZoomPreset] = []
     private var currentPresetIndex: Int = 0
     private var zoomButtons: [UIButton] = []
+    private var zoomButtonWidthConstraints: [NSLayoutConstraint] = []
+    private var zoomButtonHeightConstraints: [NSLayoutConstraint] = []
     private var zoomSelectorStackView: UIStackView?
     private var zoomSelectorBackground: UIView?
     private var pinchStartZoom: CGFloat = 1.0
@@ -101,6 +103,52 @@ class AVCameraViewController: UIViewController {
     private var guideButtonCenterYConstraint: NSLayoutConstraint?
     private var guideButtonTopConstraint: NSLayoutConstraint?
     private var guideButtonCenterXConstraint: NSLayoutConstraint?
+
+    // iPad-specific layout (fixed viewport size, different layouts for portrait/landscape)
+    private var iPadViewportSize: CGFloat = 0
+    private var isIPadLayout: Bool { UIDevice.current.userInterfaceIdiom == .pad }
+
+    // iPad constraint references - viewport and buffer (always same size)
+    private var iPadPreviewWidthConstraint: NSLayoutConstraint?
+    private var iPadPreviewHeightConstraint: NSLayoutConstraint?
+    private var iPadBufferWidthConstraint: NSLayoutConstraint?
+
+    // iPad Portrait constraints (vertical stack centered)
+    private var iPadPortraitPreviewCenterXConstraint: NSLayoutConstraint?
+    private var iPadPortraitBufferCenterXConstraint: NSLayoutConstraint?
+    private var iPadPortraitCaptureBottomConstraint: NSLayoutConstraint?
+    private var iPadPortraitCaptureCenterXConstraint: NSLayoutConstraint?
+    private var iPadPortraitBadgeBottomConstraint: NSLayoutConstraint?
+    private var iPadPortraitBadgeCenterXConstraint: NSLayoutConstraint?
+    private var iPadPortraitGuideLeadingConstraint: NSLayoutConstraint?
+    private var iPadPortraitGuideCenterYConstraint: NSLayoutConstraint?
+
+    // iPad Landscape constraints (side-by-side: viewport+buffer left, controls right)
+    private var iPadLandscapePreviewLeadingConstraint: NSLayoutConstraint?
+    private var iPadLandscapeBufferLeadingConstraint: NSLayoutConstraint?
+    // Capture button: VERTICALLY CENTERED (anchor point)
+    private var iPadLandscapeCaptureTrailingConstraint: NSLayoutConstraint?
+    private var iPadLandscapeCaptureCenterYConstraint: NSLayoutConstraint?
+    // Badge: above capture
+    private var iPadLandscapeBadgeBottomConstraint: NSLayoutConstraint?
+    private var iPadLandscapeBadgeCenterXConstraint: NSLayoutConstraint?
+    // Guide: below capture
+    private var iPadLandscapeGuideTopConstraint: NSLayoutConstraint?
+    private var iPadLandscapeGuideCenterXConstraint: NSLayoutConstraint?
+
+    // iPad exposure control constraints (orientation-based)
+    private var iPadExposurePortraitCenterXConstraint: NSLayoutConstraint?
+    private var iPadExposurePortraitBottomConstraint: NSLayoutConstraint?
+    // Landscape: centerY aligned with zoom, to the left of zoom
+    private var iPadExposureLandscapeCenterYConstraint: NSLayoutConstraint?
+    private var iPadExposureLandscapeTrailingConstraint: NSLayoutConstraint?
+
+    // iPad zoom selector constraints (orientation-based)
+    private var iPadZoomPortraitCenterXConstraint: NSLayoutConstraint?
+    private var iPadZoomPortraitBottomConstraint: NSLayoutConstraint?
+    // Landscape: above badge, offset right from center
+    private var iPadZoomLandscapeBottomConstraint: NSLayoutConstraint?
+    private var iPadZoomLandscapeCenterXConstraint: NSLayoutConstraint?
 
     // Persistence keys for camera settings
     private let framingGuideKey = "com.joylabs.camera.framingGuideMode"
@@ -380,45 +428,97 @@ class AVCameraViewController: UIViewController {
     private func updateLayoutForOrientation() {
         let isPortrait = view.bounds.height > view.bounds.width
 
-        // Deactivate all orientation-specific constraints
-        NSLayoutConstraint.deactivate([
-            captureButtonBottomConstraint,
-            captureButtonCenterXConstraint,
-            captureButtonTrailingConstraint,
-            captureButtonCenterYConstraint,
-            badgeTrailingConstraint,
-            badgeCenterYConstraint,
-            badgeBottomConstraint,
-            badgeCenterXConstraint,
-            bufferBottomToButtonConstraint,
-            bufferBottomToViewConstraint,
-            guideButtonLeadingConstraint,
-            guideButtonCenterYConstraint,
-            guideButtonTopConstraint,
-            guideButtonCenterXConstraint
-        ].compactMap { $0 })
+        if isIPadLayout {
+            // iPad orientation switching
+            // Deactivate all iPad orientation-specific constraints
+            NSLayoutConstraint.deactivate([
+                // Portrait constraints
+                iPadPortraitPreviewCenterXConstraint,
+                iPadPortraitBufferCenterXConstraint,
+                iPadPortraitCaptureBottomConstraint,
+                iPadPortraitCaptureCenterXConstraint,
+                iPadPortraitBadgeBottomConstraint,
+                iPadPortraitBadgeCenterXConstraint,
+                iPadPortraitGuideLeadingConstraint,
+                iPadPortraitGuideCenterYConstraint,
+                // Landscape constraints
+                iPadLandscapePreviewLeadingConstraint,
+                iPadLandscapeBufferLeadingConstraint,
+                iPadLandscapeCaptureTrailingConstraint,
+                iPadLandscapeCaptureCenterYConstraint,
+                iPadLandscapeBadgeBottomConstraint,
+                iPadLandscapeBadgeCenterXConstraint,
+                iPadLandscapeGuideTopConstraint,
+                iPadLandscapeGuideCenterXConstraint
+            ].compactMap { $0 })
 
-        if isPortrait {
-            // Portrait mode: Button at bottom center, badge to left, guide button to right
-            NSLayoutConstraint.activate([
-                captureButtonBottomConstraint!,
-                captureButtonCenterXConstraint!,
-                badgeTrailingConstraint!,
-                badgeCenterYConstraint!,
-                guideButtonLeadingConstraint!,
-                guideButtonCenterYConstraint!
-            ])
+            if isPortrait {
+                // iPad Portrait: Everything stacked vertically, centered
+                NSLayoutConstraint.activate([
+                    iPadPortraitPreviewCenterXConstraint!,
+                    iPadPortraitBufferCenterXConstraint!,
+                    iPadPortraitCaptureBottomConstraint!,
+                    iPadPortraitCaptureCenterXConstraint!,
+                    iPadPortraitBadgeBottomConstraint!,
+                    iPadPortraitBadgeCenterXConstraint!,
+                    iPadPortraitGuideLeadingConstraint!,
+                    iPadPortraitGuideCenterYConstraint!
+                ])
+            } else {
+                // iPad Landscape: Viewport+buffer on left, controls vertically centered on right
+                NSLayoutConstraint.activate([
+                    iPadLandscapePreviewLeadingConstraint!,
+                    iPadLandscapeBufferLeadingConstraint!,
+                    iPadLandscapeCaptureTrailingConstraint!,
+                    iPadLandscapeCaptureCenterYConstraint!,
+                    iPadLandscapeBadgeBottomConstraint!,
+                    iPadLandscapeBadgeCenterXConstraint!,
+                    iPadLandscapeGuideTopConstraint!,
+                    iPadLandscapeGuideCenterXConstraint!
+                ])
+            }
         } else {
-            // Landscape mode: Button on right side vertical center, badge above, guide button below
-            NSLayoutConstraint.activate([
-                captureButtonTrailingConstraint!,
-                captureButtonCenterYConstraint!,
-                badgeBottomConstraint!,
-                badgeCenterXConstraint!,
-                bufferBottomToViewConstraint!,
-                guideButtonTopConstraint!,
-                guideButtonCenterXConstraint!
-            ])
+            // iPhone orientation switching
+            // Deactivate all iPhone orientation-specific constraints
+            NSLayoutConstraint.deactivate([
+                captureButtonBottomConstraint,
+                captureButtonCenterXConstraint,
+                captureButtonTrailingConstraint,
+                captureButtonCenterYConstraint,
+                badgeTrailingConstraint,
+                badgeCenterYConstraint,
+                badgeBottomConstraint,
+                badgeCenterXConstraint,
+                bufferBottomToButtonConstraint,
+                bufferBottomToViewConstraint,
+                guideButtonLeadingConstraint,
+                guideButtonCenterYConstraint,
+                guideButtonTopConstraint,
+                guideButtonCenterXConstraint
+            ].compactMap { $0 })
+
+            if isPortrait {
+                // iPhone Portrait: Button at bottom center, badge to left, guide button to right
+                NSLayoutConstraint.activate([
+                    captureButtonBottomConstraint!,
+                    captureButtonCenterXConstraint!,
+                    badgeTrailingConstraint!,
+                    badgeCenterYConstraint!,
+                    guideButtonLeadingConstraint!,
+                    guideButtonCenterYConstraint!
+                ])
+            } else {
+                // iPhone Landscape: Button on right side vertical center, badge above, guide button below
+                NSLayoutConstraint.activate([
+                    captureButtonTrailingConstraint!,
+                    captureButtonCenterYConstraint!,
+                    badgeBottomConstraint!,
+                    badgeCenterXConstraint!,
+                    bufferBottomToViewConstraint!,
+                    guideButtonTopConstraint!,
+                    guideButtonCenterXConstraint!
+                ])
+            }
         }
     }
 
@@ -456,14 +556,8 @@ class AVCameraViewController: UIViewController {
         view.addSubview(framingGuideToggleButton)
         guideToggleButton = framingGuideToggleButton
 
+        // Common constraints for top bar (same for iPad and iPhone)
         NSLayoutConstraint.activate([
-            // Preview - matches header width (8px margins), square aspect ratio
-            previewView.topAnchor.constraint(equalTo: cancelButton.bottomAnchor, constant: 16),
-            previewView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
-            previewView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
-            previewView.heightAnchor.constraint(equalTo: previewView.widthAnchor),
-
-            // Top bar
             cancelButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 16),
             cancelButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
 
@@ -475,58 +569,146 @@ class AVCameraViewController: UIViewController {
             doneButton.centerYAnchor.constraint(equalTo: cancelButton.centerYAnchor),
             doneButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
 
-            // Capture button - size only (position set dynamically based on orientation)
+            // Capture button size (position set per-device)
             captureButton.widthAnchor.constraint(equalToConstant: 70),
             captureButton.heightAnchor.constraint(equalToConstant: 70),
 
-            // Thumbnail buffer - edge-to-edge (bottom constraint set dynamically based on orientation)
-            thumbnailScrollView.topAnchor.constraint(equalTo: previewView.bottomAnchor, constant: 16),
-            thumbnailScrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
-            thumbnailScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
-            thumbnailScrollView.heightAnchor.constraint(equalToConstant: 80),
+            // Guide toggle button size
+            framingGuideToggleButton.widthAnchor.constraint(equalToConstant: 40),
+            framingGuideToggleButton.heightAnchor.constraint(equalToConstant: 40),
 
+            // Buffer empty placeholder
+            bufferEmptyPlaceholder.widthAnchor.constraint(equalTo: thumbnailScrollView.widthAnchor),
+            bufferEmptyPlaceholder.heightAnchor.constraint(equalToConstant: 80),
+            bufferEmptyPlaceholder.centerXAnchor.constraint(equalTo: thumbnailScrollView.centerXAnchor),
+            bufferEmptyPlaceholder.centerYAnchor.constraint(equalTo: thumbnailScrollView.centerYAnchor),
+
+            // Thumbnail stack inside scroll view
             thumbnailStackView.topAnchor.constraint(equalTo: thumbnailScrollView.topAnchor),
             thumbnailStackView.leadingAnchor.constraint(equalTo: thumbnailScrollView.leadingAnchor),
             thumbnailStackView.trailingAnchor.constraint(equalTo: thumbnailScrollView.trailingAnchor),
             thumbnailStackView.bottomAnchor.constraint(equalTo: thumbnailScrollView.bottomAnchor),
-            thumbnailStackView.heightAnchor.constraint(equalTo: thumbnailScrollView.heightAnchor),
-
-            // Buffer empty placeholder - centered using view anchors (not scrollview content)
-            bufferEmptyPlaceholder.widthAnchor.constraint(equalTo: view.widthAnchor),
-            bufferEmptyPlaceholder.heightAnchor.constraint(equalToConstant: 80),
-            bufferEmptyPlaceholder.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            bufferEmptyPlaceholder.centerYAnchor.constraint(equalTo: thumbnailScrollView.centerYAnchor)
+            thumbnailStackView.heightAnchor.constraint(equalTo: thumbnailScrollView.heightAnchor)
         ])
 
-        // Setup orientation-based constraints (updated dynamically in updateLayoutForOrientation)
-        captureButtonBottomConstraint = captureButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20)
-        captureButtonCenterXConstraint = captureButton.centerXAnchor.constraint(equalTo: view.centerXAnchor)
-        captureButtonTrailingConstraint = captureButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20)
-        captureButtonCenterYConstraint = captureButton.centerYAnchor.constraint(equalTo: view.centerYAnchor)
+        let isIPad = UIDevice.current.userInterfaceIdiom == .pad
 
-        badgeTrailingConstraint = photoCountBadge.trailingAnchor.constraint(equalTo: captureButton.leadingAnchor, constant: -12)
-        badgeCenterYConstraint = photoCountBadge.centerYAnchor.constraint(equalTo: captureButton.centerYAnchor)
-        badgeBottomConstraint = photoCountBadge.bottomAnchor.constraint(equalTo: captureButton.topAnchor, constant: -8)
-        badgeCenterXConstraint = photoCountBadge.centerXAnchor.constraint(equalTo: captureButton.centerXAnchor)
+        if isIPad {
+            // ===========================================
+            // iPad: Two different layouts for orientations
+            // - Landscape: viewport+buffer LEFT, controls RIGHT
+            // - Portrait: everything stacked vertically centered
+            // ===========================================
 
-        bufferBottomToButtonConstraint = thumbnailScrollView.bottomAnchor.constraint(equalTo: captureButton.topAnchor, constant: -16)
-        bufferBottomToViewConstraint = thumbnailScrollView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20)
-        // Lower priority to avoid conflicts during rotation (viewport height is fixed)
-        bufferBottomToViewConstraint?.priority = .defaultHigh
+            // Calculate viewport size based on LANDSCAPE left-side layout
+            // In landscape, LEFT side has: header → viewport → buffer (vertically stacked)
+            // Controls go on the RIGHT side, so don't include them in height calculation
+            let viewBounds = view.bounds
+            let landscapeHeight = min(viewBounds.width, viewBounds.height)
 
-        // Guide toggle button constraints (mirrors badge position on opposite side)
-        NSLayoutConstraint.activate([
-            framingGuideToggleButton.widthAnchor.constraint(equalToConstant: 40),
-            framingGuideToggleButton.heightAnchor.constraint(equalToConstant: 40)
-        ])
+            // Estimated safe area for landscape
+            let estimatedSafeTop: CGFloat = 24
+            let estimatedSafeBottom: CGFloat = 20
 
-        // Portrait: button to the right of capture button
-        guideButtonLeadingConstraint = framingGuideToggleButton.leadingAnchor.constraint(equalTo: captureButton.trailingAnchor, constant: 12)
-        guideButtonCenterYConstraint = framingGuideToggleButton.centerYAnchor.constraint(equalTo: captureButton.centerYAnchor)
+            // Left-side vertical stack in landscape (NOT including right-side controls)
+            let leftSideControlsHeight: CGFloat = 50 +   // header
+                                                  16 +   // header to viewport gap
+                                                  16 +   // viewport to buffer gap
+                                                  80 +   // buffer
+                                                  20     // buffer to bottom gap
+            // = 182pt (NOT 368pt!)
 
-        // Landscape: button below capture button
-        guideButtonTopConstraint = framingGuideToggleButton.topAnchor.constraint(equalTo: captureButton.bottomAnchor, constant: 8)
-        guideButtonCenterXConstraint = framingGuideToggleButton.centerXAnchor.constraint(equalTo: captureButton.centerXAnchor)
+            let availableHeight = landscapeHeight - estimatedSafeTop - estimatedSafeBottom - leftSideControlsHeight
+            iPadViewportSize = max(300, availableHeight)
+
+            logger.info("[Camera] iPad viewport size: \(self.iPadViewportSize)pt (landscape height: \(landscapeHeight)pt)")
+
+            // Create iPad constraints - viewport and buffer size (same for both orientations)
+            iPadPreviewWidthConstraint = previewView.widthAnchor.constraint(equalToConstant: iPadViewportSize)
+            iPadPreviewHeightConstraint = previewView.heightAnchor.constraint(equalToConstant: iPadViewportSize)
+            iPadBufferWidthConstraint = thumbnailScrollView.widthAnchor.constraint(equalToConstant: iPadViewportSize)
+
+            // Activate size constraints (always active)
+            // Note: capture button size is already in common constraints
+            NSLayoutConstraint.activate([
+                previewView.topAnchor.constraint(equalTo: cancelButton.bottomAnchor, constant: 16),
+                iPadPreviewWidthConstraint!,
+                iPadPreviewHeightConstraint!,
+                thumbnailScrollView.topAnchor.constraint(equalTo: previewView.bottomAnchor, constant: 16),
+                iPadBufferWidthConstraint!,
+                thumbnailScrollView.heightAnchor.constraint(equalToConstant: 80)
+            ])
+
+            // iPad PORTRAIT constraints (vertical stack, centered)
+            iPadPortraitPreviewCenterXConstraint = previewView.centerXAnchor.constraint(equalTo: view.centerXAnchor)
+            iPadPortraitBufferCenterXConstraint = thumbnailScrollView.centerXAnchor.constraint(equalTo: view.centerXAnchor)
+            iPadPortraitCaptureBottomConstraint = captureButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20)
+            iPadPortraitCaptureCenterXConstraint = captureButton.centerXAnchor.constraint(equalTo: view.centerXAnchor)
+            iPadPortraitBadgeBottomConstraint = photoCountBadge.bottomAnchor.constraint(equalTo: captureButton.topAnchor, constant: -8)
+            iPadPortraitBadgeCenterXConstraint = photoCountBadge.centerXAnchor.constraint(equalTo: captureButton.centerXAnchor)
+            iPadPortraitGuideLeadingConstraint = framingGuideToggleButton.leadingAnchor.constraint(equalTo: captureButton.trailingAnchor, constant: 12)
+            iPadPortraitGuideCenterYConstraint = framingGuideToggleButton.centerYAnchor.constraint(equalTo: captureButton.centerYAnchor)
+
+            // iPad LANDSCAPE constraints (side-by-side: viewport+buffer left, controls right)
+            // ANCHOR: Capture button is VERTICALLY CENTERED on screen
+            iPadLandscapePreviewLeadingConstraint = previewView.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 16)
+            iPadLandscapeBufferLeadingConstraint = thumbnailScrollView.leadingAnchor.constraint(equalTo: previewView.leadingAnchor)
+
+            // 1. Capture button: VERTICALLY CENTERED (this is the anchor point!)
+            iPadLandscapeCaptureTrailingConstraint = captureButton.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -40)
+            iPadLandscapeCaptureCenterYConstraint = captureButton.centerYAnchor.constraint(equalTo: view.centerYAnchor)
+
+            // 2. Guide: below capture button
+            iPadLandscapeGuideTopConstraint = framingGuideToggleButton.topAnchor.constraint(equalTo: captureButton.bottomAnchor, constant: 12)
+            iPadLandscapeGuideCenterXConstraint = framingGuideToggleButton.centerXAnchor.constraint(equalTo: captureButton.centerXAnchor)
+
+            // 3. Badge: above capture button
+            iPadLandscapeBadgeBottomConstraint = photoCountBadge.bottomAnchor.constraint(equalTo: captureButton.topAnchor, constant: -12)
+            iPadLandscapeBadgeCenterXConstraint = photoCountBadge.centerXAnchor.constraint(equalTo: captureButton.centerXAnchor)
+
+            // Note: Sliders (exposure + zoom) positioned above badge in their setup methods
+
+        } else {
+            // ===========================================
+            // iPhone: Existing dynamic layout
+            // Changes based on orientation
+            // ===========================================
+
+            NSLayoutConstraint.activate([
+                // Preview: full width, square aspect ratio
+                previewView.topAnchor.constraint(equalTo: cancelButton.bottomAnchor, constant: 16),
+                previewView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
+                previewView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
+                previewView.heightAnchor.constraint(equalTo: previewView.widthAnchor),
+
+                // Buffer: below preview, edge-to-edge
+                thumbnailScrollView.topAnchor.constraint(equalTo: previewView.bottomAnchor, constant: 16),
+                thumbnailScrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
+                thumbnailScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
+                thumbnailScrollView.heightAnchor.constraint(equalToConstant: 80)
+            ])
+
+            // iPhone orientation-based constraints (updated in updateLayoutForOrientation)
+            captureButtonBottomConstraint = captureButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20)
+            captureButtonCenterXConstraint = captureButton.centerXAnchor.constraint(equalTo: view.centerXAnchor)
+            captureButtonTrailingConstraint = captureButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20)
+            captureButtonCenterYConstraint = captureButton.centerYAnchor.constraint(equalTo: view.centerYAnchor)
+
+            badgeTrailingConstraint = photoCountBadge.trailingAnchor.constraint(equalTo: captureButton.leadingAnchor, constant: -12)
+            badgeCenterYConstraint = photoCountBadge.centerYAnchor.constraint(equalTo: captureButton.centerYAnchor)
+            badgeBottomConstraint = photoCountBadge.bottomAnchor.constraint(equalTo: captureButton.topAnchor, constant: -8)
+            badgeCenterXConstraint = photoCountBadge.centerXAnchor.constraint(equalTo: captureButton.centerXAnchor)
+
+            bufferBottomToButtonConstraint = thumbnailScrollView.bottomAnchor.constraint(equalTo: captureButton.topAnchor, constant: -16)
+            bufferBottomToViewConstraint = thumbnailScrollView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20)
+            bufferBottomToViewConstraint?.priority = .defaultHigh
+
+            // iPhone guide button constraints
+            guideButtonLeadingConstraint = framingGuideToggleButton.leadingAnchor.constraint(equalTo: captureButton.trailingAnchor, constant: 12)
+            guideButtonCenterYConstraint = framingGuideToggleButton.centerYAnchor.constraint(equalTo: captureButton.centerYAnchor)
+            guideButtonTopConstraint = framingGuideToggleButton.topAnchor.constraint(equalTo: captureButton.bottomAnchor, constant: 8)
+            guideButtonCenterXConstraint = framingGuideToggleButton.centerXAnchor.constraint(equalTo: captureButton.centerXAnchor)
+        }
 
         // Bring UI elements to front (proper Z-order)
         view.bringSubviewToFront(thumbnailScrollView)
@@ -784,6 +966,8 @@ class AVCameraViewController: UIViewController {
 
         // Create button for each zoom preset
         zoomButtons.removeAll()
+        zoomButtonWidthConstraints.removeAll()
+        zoomButtonHeightConstraints.removeAll()
         for (index, preset) in zoomPresets.enumerated() {
             let button = createZoomButton(
                 title: preset.displayName,
@@ -822,22 +1006,20 @@ class AVCameraViewController: UIViewController {
         button.tag = tag
         button.addTarget(self, action: #selector(zoomButtonTapped(_:)), for: .touchUpInside)
 
-        // Fixed width for consistent layout (prevents resizing when "0.5" is selected)
-        button.widthAnchor.constraint(equalToConstant: 44).isActive = true
-        button.heightAnchor.constraint(equalToConstant: 36).isActive = true
+        // Create size constraints (portrait: 44×36, will swap for landscape)
+        let widthConstraint = button.widthAnchor.constraint(equalToConstant: 44)
+        let heightConstraint = button.heightAnchor.constraint(equalToConstant: 36)
+        widthConstraint.isActive = true
+        heightConstraint.isActive = true
+
+        // Store constraints for orientation switching
+        zoomButtonWidthConstraints.append(widthConstraint)
+        zoomButtonHeightConstraints.append(heightConstraint)
 
         return button
     }
 
     private func setupZoomSelectorConstraints(_ background: UIView, _ stack: UIStackView) {
-        // Portrait: zoom selector between buffer and capture button, centered
-        zoomSelectorCenterXConstraint = stack.centerXAnchor.constraint(equalTo: view.centerXAnchor)
-        zoomSelectorBottomConstraint = stack.bottomAnchor.constraint(equalTo: captureButton.topAnchor, constant: -12)
-
-        // Landscape: zoom selector to left of capture button
-        zoomSelectorCenterYConstraint = stack.centerYAnchor.constraint(equalTo: captureButton.centerYAnchor)
-        zoomSelectorTrailingConstraint = stack.trailingAnchor.constraint(equalTo: captureButton.leadingAnchor, constant: -16)
-
         // Background hugs the stack view
         NSLayoutConstraint.activate([
             background.leadingAnchor.constraint(equalTo: stack.leadingAnchor, constant: -8),
@@ -846,35 +1028,87 @@ class AVCameraViewController: UIViewController {
             background.bottomAnchor.constraint(equalTo: stack.bottomAnchor, constant: 2)
         ])
 
-        // Apply initial layout
-        updateZoomSelectorLayout()
+        if isIPadLayout {
+            // iPad: Dynamic constraints for orientation changes
+            // Portrait: horizontal stack, centered, above capture button
+            iPadZoomPortraitCenterXConstraint = stack.centerXAnchor.constraint(equalTo: view.centerXAnchor)
+            iPadZoomPortraitBottomConstraint = stack.bottomAnchor.constraint(equalTo: captureButton.topAnchor, constant: -12)
+
+            // Landscape: vertical stack, above badge, offset right from center (exposure goes to the left)
+            iPadZoomLandscapeBottomConstraint = stack.bottomAnchor.constraint(equalTo: photoCountBadge.topAnchor, constant: -16)
+            iPadZoomLandscapeCenterXConstraint = stack.centerXAnchor.constraint(equalTo: captureButton.centerXAnchor, constant: 30)
+
+            // Apply initial layout for iPad
+            updateZoomSelectorLayout()
+        } else {
+            // iPhone: Dynamic constraints for orientation changes
+            zoomSelectorCenterXConstraint = stack.centerXAnchor.constraint(equalTo: view.centerXAnchor)
+            zoomSelectorBottomConstraint = stack.bottomAnchor.constraint(equalTo: captureButton.topAnchor, constant: -12)
+            zoomSelectorCenterYConstraint = stack.centerYAnchor.constraint(equalTo: captureButton.centerYAnchor)
+            zoomSelectorTrailingConstraint = stack.trailingAnchor.constraint(equalTo: captureButton.leadingAnchor, constant: -16)
+
+            // Apply initial layout for iPhone
+            updateZoomSelectorLayout()
+        }
     }
 
     private func updateZoomSelectorLayout() {
-        guard zoomSelectorStackView != nil else { return }
-
         let isPortrait = view.bounds.height > view.bounds.width
 
-        // Deactivate all zoom selector constraints
-        NSLayoutConstraint.deactivate([
-            zoomSelectorCenterXConstraint,
-            zoomSelectorBottomConstraint,
-            zoomSelectorCenterYConstraint,
-            zoomSelectorTrailingConstraint
-        ].compactMap { $0 })
+        if isIPadLayout {
+            // iPad orientation switching
+            guard let stack = zoomSelectorStackView, iPadZoomPortraitCenterXConstraint != nil else { return }
 
-        if isPortrait {
-            // Portrait: centered above capture button
-            NSLayoutConstraint.activate([
-                zoomSelectorCenterXConstraint!,
-                zoomSelectorBottomConstraint!
-            ])
+            NSLayoutConstraint.deactivate([
+                iPadZoomPortraitCenterXConstraint,
+                iPadZoomPortraitBottomConstraint,
+                iPadZoomLandscapeBottomConstraint,
+                iPadZoomLandscapeCenterXConstraint
+            ].compactMap { $0 })
+
+            if isPortrait {
+                // Horizontal stack for portrait
+                stack.axis = .horizontal
+                // Button dimensions: 44 wide × 36 tall
+                for constraint in zoomButtonWidthConstraints { constraint.constant = 44 }
+                for constraint in zoomButtonHeightConstraints { constraint.constant = 36 }
+                NSLayoutConstraint.activate([
+                    iPadZoomPortraitCenterXConstraint!,
+                    iPadZoomPortraitBottomConstraint!
+                ])
+            } else {
+                // Vertical stack for landscape, above badge, offset right
+                stack.axis = .vertical
+                // Button dimensions SWAP: 36 wide × 44 tall
+                for constraint in zoomButtonWidthConstraints { constraint.constant = 36 }
+                for constraint in zoomButtonHeightConstraints { constraint.constant = 44 }
+                NSLayoutConstraint.activate([
+                    iPadZoomLandscapeBottomConstraint!,
+                    iPadZoomLandscapeCenterXConstraint!
+                ])
+            }
         } else {
-            // Landscape: to the left of capture button
-            NSLayoutConstraint.activate([
-                zoomSelectorCenterYConstraint!,
-                zoomSelectorTrailingConstraint!
-            ])
+            // iPhone orientation switching
+            guard zoomSelectorStackView != nil, zoomSelectorCenterXConstraint != nil else { return }
+
+            NSLayoutConstraint.deactivate([
+                zoomSelectorCenterXConstraint,
+                zoomSelectorBottomConstraint,
+                zoomSelectorCenterYConstraint,
+                zoomSelectorTrailingConstraint
+            ].compactMap { $0 })
+
+            if isPortrait {
+                NSLayoutConstraint.activate([
+                    zoomSelectorCenterXConstraint!,
+                    zoomSelectorBottomConstraint!
+                ])
+            } else {
+                NSLayoutConstraint.activate([
+                    zoomSelectorCenterYConstraint!,
+                    zoomSelectorTrailingConstraint!
+                ])
+            }
         }
     }
 
@@ -883,51 +1117,100 @@ class AVCameraViewController: UIViewController {
     private func setupExposureControlConstraints() {
         guard let exposureControl = exposureControlView else { return }
 
-        // Portrait: exposure control above zoom selector (or capture button if no zoom selector), centered
-        exposureBarCenterXConstraint = exposureControl.centerXAnchor.constraint(equalTo: view.centerXAnchor)
-        if let zoomBg = zoomSelectorBackground {
-            exposureBarBottomConstraint = exposureControl.bottomAnchor.constraint(equalTo: zoomBg.topAnchor, constant: -8)
+        if isIPadLayout {
+            // iPad: Dynamic constraints for orientation changes
+            // Portrait: horizontal, centered, above zoom selector
+            iPadExposurePortraitCenterXConstraint = exposureControl.centerXAnchor.constraint(equalTo: view.centerXAnchor)
+            if let zoomBg = zoomSelectorBackground {
+                iPadExposurePortraitBottomConstraint = exposureControl.bottomAnchor.constraint(equalTo: zoomBg.topAnchor, constant: -8)
+            } else {
+                iPadExposurePortraitBottomConstraint = exposureControl.bottomAnchor.constraint(equalTo: captureButton.topAnchor, constant: -60)
+            }
+
+            // Landscape: vertical, centerY aligned with zoom selector (side by side)
+            // CenterY aligns with zoom stack's centerY, trailing to zoom's leading
+            if let zoomStack = zoomSelectorStackView {
+                iPadExposureLandscapeCenterYConstraint = exposureControl.centerYAnchor.constraint(equalTo: zoomStack.centerYAnchor)
+            } else {
+                iPadExposureLandscapeCenterYConstraint = exposureControl.centerYAnchor.constraint(equalTo: captureButton.centerYAnchor)
+            }
+            if let zoomBg = zoomSelectorBackground {
+                iPadExposureLandscapeTrailingConstraint = exposureControl.trailingAnchor.constraint(equalTo: zoomBg.leadingAnchor, constant: -12)
+            } else {
+                // Fallback: offset left from capture center
+                iPadExposureLandscapeTrailingConstraint = exposureControl.trailingAnchor.constraint(equalTo: captureButton.centerXAnchor, constant: -10)
+            }
+
+            // Apply initial layout for iPad
+            updateExposureControlLayout()
         } else {
-            exposureBarBottomConstraint = exposureControl.bottomAnchor.constraint(equalTo: captureButton.topAnchor, constant: -20)
+            // iPhone: Dynamic constraints for orientation changes
+            exposureBarCenterXConstraint = exposureControl.centerXAnchor.constraint(equalTo: view.centerXAnchor)
+            if let zoomBg = zoomSelectorBackground {
+                exposureBarBottomConstraint = exposureControl.bottomAnchor.constraint(equalTo: zoomBg.topAnchor, constant: -8)
+            } else {
+                exposureBarBottomConstraint = exposureControl.bottomAnchor.constraint(equalTo: captureButton.topAnchor, constant: -20)
+            }
+            exposureBarCenterYConstraint = exposureControl.centerYAnchor.constraint(equalTo: captureButton.centerYAnchor, constant: -50)
+            exposureBarTrailingConstraint = exposureControl.trailingAnchor.constraint(equalTo: captureButton.leadingAnchor, constant: -16)
+
+            // Apply initial layout for iPhone
+            updateExposureControlLayout()
         }
-
-        // Landscape: exposure control to left of capture button, offset up from center
-        exposureBarCenterYConstraint = exposureControl.centerYAnchor.constraint(equalTo: captureButton.centerYAnchor, constant: -50)
-        exposureBarTrailingConstraint = exposureControl.trailingAnchor.constraint(equalTo: captureButton.leadingAnchor, constant: -16)
-
-        // Apply initial layout
-        updateExposureControlLayout()
 
         // Reveal now that constraints are set
         exposureControlView?.alpha = 1
     }
 
     private func updateExposureControlLayout() {
-        // Guard: constraints not yet set up
-        guard exposureBarCenterXConstraint != nil else { return }
-
         let isPortrait = view.bounds.height > view.bounds.width
 
-        // Deactivate all exposure control constraints
-        NSLayoutConstraint.deactivate([
-            exposureBarCenterXConstraint,
-            exposureBarBottomConstraint,
-            exposureBarCenterYConstraint,
-            exposureBarTrailingConstraint
-        ].compactMap { $0 })
+        if isIPadLayout {
+            // iPad orientation switching
+            guard iPadExposurePortraitCenterXConstraint != nil else { return }
 
-        if isPortrait {
-            // Portrait: centered above zoom selector
-            NSLayoutConstraint.activate([
-                exposureBarCenterXConstraint!,
-                exposureBarBottomConstraint!
-            ])
+            NSLayoutConstraint.deactivate([
+                iPadExposurePortraitCenterXConstraint,
+                iPadExposurePortraitBottomConstraint,
+                iPadExposureLandscapeCenterYConstraint,
+                iPadExposureLandscapeTrailingConstraint
+            ].compactMap { $0 })
+
+            if isPortrait {
+                exposureControlView?.isVertical = false
+                NSLayoutConstraint.activate([
+                    iPadExposurePortraitCenterXConstraint!,
+                    iPadExposurePortraitBottomConstraint!
+                ])
+            } else {
+                exposureControlView?.isVertical = true
+                NSLayoutConstraint.activate([
+                    iPadExposureLandscapeCenterYConstraint!,
+                    iPadExposureLandscapeTrailingConstraint!
+                ])
+            }
         } else {
-            // Landscape: to the left of capture button
-            NSLayoutConstraint.activate([
-                exposureBarCenterYConstraint!,
-                exposureBarTrailingConstraint!
-            ])
+            // iPhone orientation switching
+            guard exposureBarCenterXConstraint != nil else { return }
+
+            NSLayoutConstraint.deactivate([
+                exposureBarCenterXConstraint,
+                exposureBarBottomConstraint,
+                exposureBarCenterYConstraint,
+                exposureBarTrailingConstraint
+            ].compactMap { $0 })
+
+            if isPortrait {
+                NSLayoutConstraint.activate([
+                    exposureBarCenterXConstraint!,
+                    exposureBarBottomConstraint!
+                ])
+            } else {
+                NSLayoutConstraint.activate([
+                    exposureBarCenterYConstraint!,
+                    exposureBarTrailingConstraint!
+                ])
+            }
         }
     }
 
@@ -1114,7 +1397,7 @@ class AVCameraViewController: UIViewController {
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
 
-        // Update preview layer frame
+        // Update preview layer frame to match view bounds
         previewLayer?.frame = previewView.bounds
 
         // Update framing guide layer frame and redraw
@@ -1123,13 +1406,9 @@ class AVCameraViewController: UIViewController {
             updateFramingGuide()
         }
 
-        // Update button/badge layout for orientation (iPad only uses this)
+        // Update layouts for orientation (both iPad and iPhone now have orientation-based layouts)
         updateLayoutForOrientation()
-
-        // Update zoom selector layout for orientation
         updateZoomSelectorLayout()
-
-        // Update exposure control layout for orientation
         updateExposureControlLayout()
     }
 

@@ -8,6 +8,26 @@ class CameraExposureControlView: UIView {
     private var manager: CameraExposureManager?
     private var device: AVCaptureDevice?
 
+    // MARK: - Orientation Support
+
+    /// Set to true for vertical layout (iPad landscape)
+    var isVertical: Bool = false {
+        didSet {
+            guard oldValue != isVertical else { return }
+            updateLayoutForOrientation()
+        }
+    }
+
+    // Constraint references for orientation switching
+    private var viewWidthConstraint: NSLayoutConstraint?
+    private var viewHeightConstraint: NSLayoutConstraint?
+    private var sliderContainerWidthConstraint: NSLayoutConstraint?
+    private var sliderContainerHeightConstraint: NSLayoutConstraint?
+    private var resetButtonLeadingConstraint: NSLayoutConstraint?
+    private var resetButtonCenterYConstraint: NSLayoutConstraint?
+    private var resetButtonTopConstraint: NSLayoutConstraint?
+    private var resetButtonCenterXConstraint: NSLayoutConstraint?
+
     // MARK: - UI Components
 
     private lazy var backgroundView: UIView = {
@@ -46,6 +66,14 @@ class CameraExposureControlView: UIView {
         slider.translatesAutoresizingMaskIntoConstraints = false
         slider.addTarget(self, action: #selector(exposureSliderChanged(_:)), for: .valueChanged)
         return slider
+    }()
+
+    /// Container for slider - swaps dimensions for orientation while slider stays fixed size
+    private lazy var sliderContainer: UIView = {
+        let container = UIView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+        container.clipsToBounds = false  // Allow rotated slider to be visible
+        return container
     }()
 
     private lazy var exposureLabel: UILabel = {
@@ -92,10 +120,31 @@ class CameraExposureControlView: UIView {
         addSubview(contentStack)
         addSubview(resetButton)  // Outside backgroundView
 
-        // Content stack: [icon] [slider] [label] - centered
+        // Slider goes inside container, container goes in stack
+        sliderContainer.addSubview(exposureSlider)
+
+        // Content stack: [icon] [sliderContainer] [label] - order changes with orientation
         contentStack.addArrangedSubview(exposureIcon)
-        contentStack.addArrangedSubview(exposureSlider)
+        contentStack.addArrangedSubview(sliderContainer)
         contentStack.addArrangedSubview(exposureLabel)
+
+        // Create dimension constraints (will update values in updateLayoutForOrientation)
+        viewWidthConstraint = widthAnchor.constraint(equalToConstant: 260)
+        viewHeightConstraint = heightAnchor.constraint(equalToConstant: 44)
+
+        // Slider container constraints - swaps dimensions for orientation
+        // Portrait: 140 wide × 30 tall (holds horizontal slider)
+        // Landscape: 30 wide × 140 tall (holds rotated slider)
+        sliderContainerWidthConstraint = sliderContainer.widthAnchor.constraint(equalToConstant: 140)
+        sliderContainerHeightConstraint = sliderContainer.heightAnchor.constraint(equalToConstant: 30)
+
+        // Reset button constraints for horizontal (portrait) - right of background
+        resetButtonLeadingConstraint = resetButton.leadingAnchor.constraint(equalTo: backgroundView.trailingAnchor, constant: 4)
+        resetButtonCenterYConstraint = resetButton.centerYAnchor.constraint(equalTo: centerYAnchor)
+
+        // Reset button constraints for vertical (landscape) - below background
+        resetButtonTopConstraint = resetButton.topAnchor.constraint(equalTo: backgroundView.bottomAnchor, constant: 4)
+        resetButtonCenterXConstraint = resetButton.centerXAnchor.constraint(equalTo: centerXAnchor)
 
         NSLayoutConstraint.activate([
             // Background wraps just the content stack
@@ -108,16 +157,87 @@ class CameraExposureControlView: UIView {
             contentStack.centerXAnchor.constraint(equalTo: centerXAnchor),
             contentStack.centerYAnchor.constraint(equalTo: centerYAnchor),
 
-            // Slider fixed width
+            // View dimensions
+            viewWidthConstraint!,
+            viewHeightConstraint!,
+
+            // Slider container initial dimensions
+            sliderContainerWidthConstraint!,
+            sliderContainerHeightConstraint!,
+
+            // Slider always 140pt wide (track length), centered in container
             exposureSlider.widthAnchor.constraint(equalToConstant: 140),
-
-            // Reset button outside to the right of background
-            resetButton.leadingAnchor.constraint(equalTo: backgroundView.trailingAnchor, constant: 4),
-            resetButton.centerYAnchor.constraint(equalTo: centerYAnchor),
-
-            // View height
-            heightAnchor.constraint(equalToConstant: 44)
+            exposureSlider.centerXAnchor.constraint(equalTo: sliderContainer.centerXAnchor),
+            exposureSlider.centerYAnchor.constraint(equalTo: sliderContainer.centerYAnchor)
         ])
+
+        // Apply initial layout
+        updateLayoutForOrientation()
+    }
+
+    private func updateLayoutForOrientation() {
+        // Deactivate orientation-specific reset button constraints
+        resetButtonLeadingConstraint?.isActive = false
+        resetButtonCenterYConstraint?.isActive = false
+        resetButtonTopConstraint?.isActive = false
+        resetButtonCenterXConstraint?.isActive = false
+
+        if isVertical {
+            // Landscape: 44 wide × 260 tall, vertical stack
+            viewWidthConstraint?.constant = 44
+            viewHeightConstraint?.constant = 260
+
+            // Container: 30 wide × 140 tall (holds rotated slider)
+            sliderContainerWidthConstraint?.constant = 30
+            sliderContainerHeightConstraint?.constant = 140
+
+            contentStack.axis = .vertical
+            contentStack.spacing = 8
+
+            // Reorder: icon (top), sliderContainer, label (bottom)
+            contentStack.removeArrangedSubview(exposureIcon)
+            contentStack.removeArrangedSubview(sliderContainer)
+            contentStack.removeArrangedSubview(exposureLabel)
+            contentStack.addArrangedSubview(exposureIcon)
+            contentStack.addArrangedSubview(sliderContainer)
+            contentStack.addArrangedSubview(exposureLabel)
+
+            // Rotate slider for vertical drag (up = increase)
+            exposureSlider.transform = CGAffineTransform(rotationAngle: -.pi / 2)
+
+            // Reset button below, centered
+            resetButtonTopConstraint?.isActive = true
+            resetButtonCenterXConstraint?.isActive = true
+        } else {
+            // Portrait: 260 wide × 44 tall, horizontal stack
+            viewWidthConstraint?.constant = 260
+            viewHeightConstraint?.constant = 44
+
+            // Container: 140 wide × 30 tall (holds horizontal slider)
+            sliderContainerWidthConstraint?.constant = 140
+            sliderContainerHeightConstraint?.constant = 30
+
+            contentStack.axis = .horizontal
+            contentStack.spacing = 8
+
+            // Order: icon, sliderContainer, label
+            contentStack.removeArrangedSubview(exposureIcon)
+            contentStack.removeArrangedSubview(sliderContainer)
+            contentStack.removeArrangedSubview(exposureLabel)
+            contentStack.addArrangedSubview(exposureIcon)
+            contentStack.addArrangedSubview(sliderContainer)
+            contentStack.addArrangedSubview(exposureLabel)
+
+            // No rotation
+            exposureSlider.transform = .identity
+
+            // Reset button to the right
+            resetButtonLeadingConstraint?.isActive = true
+            resetButtonCenterYConstraint?.isActive = true
+        }
+
+        setNeedsLayout()
+        layoutIfNeeded()
     }
 
     // MARK: - Configuration
