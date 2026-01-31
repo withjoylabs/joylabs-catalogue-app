@@ -7,6 +7,7 @@ struct ItemImageSection: View {
     @FocusState.Binding var focusedField: ItemField?
     @State private var showingImagePicker = false
     @State private var showingCamera = false
+    @State private var showingHeroPreview = false
     @State private var isRemoving = false
 
     private let logger = Logger(subsystem: "com.joylabs.native", category: "ItemImageSection")
@@ -27,7 +28,13 @@ struct ItemImageSection: View {
                 // Image Display/Placeholder using native iOS image system
                 Button(action: {
                     focusedField = nil
-                    showingImagePicker = true
+                    if primaryImageId != nil {
+                        // Image exists - show fullscreen preview
+                        showingHeroPreview = true
+                    } else {
+                        // No image - show picker
+                        showingImagePicker = true
+                    }
                 }) {
                     if let imageId = primaryImageId, !imageId.isEmpty {
                         // Use native iOS image system
@@ -145,6 +152,18 @@ struct ItemImageSection: View {
                 },
                 contextTitle: viewModel.name.isEmpty ? "New Item" : viewModel.name
             )
+        }
+        .sheet(isPresented: $showingHeroPreview) {
+            if let imageId = primaryImageId {
+                ImagePreviewModal(
+                    imageId: imageId,
+                    isPrimary: true,
+                    onDelete: nil,
+                    onDismiss: {
+                        showingHeroPreview = false
+                    }
+                )
+            }
         }
 
     }

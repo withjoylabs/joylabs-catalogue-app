@@ -4,6 +4,26 @@ import UIKit
 import Photos
 import OSLog
 
+/// Options for long press image behavior
+public enum LongPressImageAction: String, CaseIterable {
+    case camera = "camera"
+    case imagePicker = "image_picker"
+
+    var displayName: String {
+        switch self {
+        case .camera: return "Camera"
+        case .imagePicker: return "Image Picker"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .camera: return "camera.fill"
+        case .imagePicker: return "photo.on.rectangle"
+        }
+    }
+}
+
 /// Service for managing processed image saving to camera roll
 @MainActor
 public class ImageSaveService: ObservableObject {
@@ -13,6 +33,7 @@ public class ImageSaveService: ObservableObject {
 
     // MARK: - Published Properties
     @Published var saveProcessedImages = false
+    @Published var longPressImageAction: LongPressImageAction = .imagePicker
 
     // MARK: - Private Properties
     private let userDefaults = UserDefaults.standard
@@ -21,6 +42,7 @@ public class ImageSaveService: ObservableObject {
     // MARK: - UserDefaults Keys
     private enum Keys {
         static let saveProcessedImages = "save_processed_images"
+        static let longPressImageAction = "long_press_image_action"
     }
 
     // MARK: - Initialization
@@ -34,13 +56,18 @@ public class ImageSaveService: ObservableObject {
     /// Load settings from UserDefaults
     func loadSettings() {
         saveProcessedImages = userDefaults.bool(forKey: Keys.saveProcessedImages)
-        logger.info("[ImageSave] Loaded settings - saveProcessedImages: \(self.saveProcessedImages)")
+        if let actionString = userDefaults.string(forKey: Keys.longPressImageAction),
+           let action = LongPressImageAction(rawValue: actionString) {
+            longPressImageAction = action
+        }
+        logger.info("[ImageSave] Loaded settings - saveProcessedImages: \(self.saveProcessedImages), longPressAction: \(self.longPressImageAction.rawValue)")
     }
 
     /// Save settings to UserDefaults
     func saveSettings() {
         userDefaults.set(saveProcessedImages, forKey: Keys.saveProcessedImages)
-        logger.info("[ImageSave] Saved settings - saveProcessedImages: \(self.saveProcessedImages)")
+        userDefaults.set(longPressImageAction.rawValue, forKey: Keys.longPressImageAction)
+        logger.info("[ImageSave] Saved settings - saveProcessedImages: \(self.saveProcessedImages), longPressAction: \(self.longPressImageAction.rawValue)")
     }
 
     /// Save processed image to camera roll with metadata

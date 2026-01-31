@@ -118,9 +118,12 @@ struct SwipeableScanResultCard: View {
     let onItemUpdated: (() -> Void)?
     @State private var activeSheet: SearchSheet?
     @State private var showingImagePicker = false
+    @State private var showingCamera = false
     @State private var offset: CGFloat = 0
     @State private var isDragging = false
-    
+
+    @ObservedObject private var imageSaveService = ImageSaveService.shared
+
     // Standard card height to ensure buttons match exactly
     private let cardHeight: CGFloat = 76
 
@@ -277,7 +280,12 @@ struct SwipeableScanResultCard: View {
                 size: 50
             )
             .onLongPressGesture {
-                showingImagePicker = true
+                switch imageSaveService.longPressImageAction {
+                case .camera:
+                    showingCamera = true
+                case .imagePicker:
+                    showingImagePicker = true
+                }
             }
 
             // Main content section
@@ -405,9 +413,31 @@ struct SwipeableScanResultCard: View {
             )
             .imagePickerFormSheet()
         }
+        .fullScreenCover(isPresented: $showingCamera) {
+            AVCameraViewControllerWrapper(
+                onPhotosCaptured: { images in
+                    handleCameraPhotos(images)
+                    showingCamera = false
+                },
+                onCancel: {
+                    showingCamera = false
+                },
+                contextTitle: result.name ?? "Item"
+            )
+        }
     }
 
-    
+    private func handleCameraPhotos(_ images: [UIImage]) {
+        guard let firstImage = images.first,
+              let imageData = firstImage.jpegData(compressionQuality: 0.9) else { return }
+        Task {
+            let imageService = SimpleImageService.shared
+            let fileName = "camera_\(UUID().uuidString).jpg"
+            _ = try? await imageService.uploadImage(imageData: imageData, fileName: fileName, itemId: result.id)
+            // SimpleImageService handles all notifications automatically
+        }
+    }
+
     private func handleItemSelection() {
         print("Selected item: \(result.name ?? result.id)")
         activeSheet = .itemDetails(result)

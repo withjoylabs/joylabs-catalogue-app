@@ -350,13 +350,22 @@ struct ImageDropDelegate: DropDelegate {
 struct ImagePreviewModal: View {
     let imageId: String
     let isPrimary: Bool
-    let onDelete: () -> Void
+    let onDelete: (() -> Void)?
     let onDismiss: () -> Void
 
     @Query private var images: [ImageModel]
     @State private var showingDeleteConfirmation = false
 
-    init(imageId: String, isPrimary: Bool, onDelete: @escaping () -> Void, onDismiss: @escaping () -> Void) {
+    // Zoom state
+    @State private var scale: CGFloat = 1.0
+    @State private var lastScale: CGFloat = 1.0
+    @State private var offset: CGSize = .zero
+    @State private var lastOffset: CGSize = .zero
+
+    private let minScale: CGFloat = 1.0
+    private let maxScale: CGFloat = 4.0
+
+    init(imageId: String, isPrimary: Bool, onDelete: (() -> Void)?, onDismiss: @escaping () -> Void) {
         self.imageId = imageId
         self.isPrimary = isPrimary
         self.onDelete = onDelete
@@ -388,6 +397,53 @@ struct ImagePreviewModal: View {
                         }
                         .resizable()
                         .aspectRatio(contentMode: SwiftUI.ContentMode.fit)
+                        .scaleEffect(scale)
+                        .offset(offset)
+                        .gesture(
+                            MagnificationGesture()
+                                .onChanged { value in
+                                    let newScale = lastScale * value
+                                    scale = max(minScale, min(maxScale, newScale))
+                                }
+                                .onEnded { _ in
+                                    lastScale = scale
+                                    if scale <= minScale {
+                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                            scale = minScale
+                                            offset = .zero
+                                        }
+                                        lastScale = minScale
+                                        lastOffset = .zero
+                                    }
+                                }
+                        )
+                        .simultaneousGesture(
+                            DragGesture()
+                                .onChanged { value in
+                                    if scale > 1 {
+                                        offset = CGSize(
+                                            width: lastOffset.width + value.translation.width,
+                                            height: lastOffset.height + value.translation.height
+                                        )
+                                    }
+                                }
+                                .onEnded { _ in
+                                    lastOffset = offset
+                                }
+                        )
+                        .onTapGesture(count: 2) {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                if scale > 1.0 {
+                                    scale = 1.0
+                                    offset = .zero
+                                    lastScale = 1.0
+                                    lastOffset = .zero
+                                } else {
+                                    scale = 2.5
+                                    lastScale = 2.5
+                                }
+                            }
+                        }
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -399,20 +455,22 @@ struct ImagePreviewModal: View {
                     .foregroundColor(.white)
                 }
 
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: {
-                        showingDeleteConfirmation = true
-                    }) {
-                        Image(systemName: "trash")
-                            .foregroundColor(.red)
+                if onDelete != nil {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button(action: {
+                            showingDeleteConfirmation = true
+                        }) {
+                            Image(systemName: "trash")
+                                .foregroundColor(.red)
+                        }
+                        .disabled(isPrimary && images.count > 1)
                     }
-                    .disabled(isPrimary && images.count > 1)
                 }
             }
             .alert("Delete Image?", isPresented: $showingDeleteConfirmation) {
                 Button("Cancel", role: .cancel) { }
                 Button("Delete", role: .destructive) {
-                    onDelete()
+                    onDelete?()
                 }
             } message: {
                 if isPrimary {

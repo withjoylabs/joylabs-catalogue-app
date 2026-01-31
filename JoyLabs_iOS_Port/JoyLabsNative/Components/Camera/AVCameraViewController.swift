@@ -28,9 +28,9 @@ class AVCameraViewController: UIViewController {
     // Photo buffer for multi-capture
     private var capturedPhotos: [UIImage] = []
 
-    // Photo editor state
-    private var pendingEditImage: UIImage?
-    private let presetManager = PhotoAdjustmentsPresetManager.shared
+    // Exposure control (extracted component)
+    private let exposureManager = CameraExposureManager()
+    private var exposureControlView: CameraExposureControlView?
 
     // Callbacks
     var onPhotosCaptured: (([UIImage]) -> Void)?
@@ -53,11 +53,6 @@ class AVCameraViewController: UIViewController {
     private var bufferBottomToButtonConstraint: NSLayoutConstraint?
     private var bufferBottomToViewConstraint: NSLayoutConstraint?
 
-    // Preset button constraint references for orientation-based layout
-    private var presetLeadingConstraint: NSLayoutConstraint?
-    private var presetCenterYConstraint: NSLayoutConstraint?
-    private var presetTopConstraint: NSLayoutConstraint?
-    private var presetCenterXConstraint: NSLayoutConstraint?
 
     // Camera configuration state
     private var isCameraConfigured = false
@@ -91,12 +86,6 @@ class AVCameraViewController: UIViewController {
         return indicator
     }()
 
-    // Exposure persistence
-    private let exposureBiasKey = "com.joylabs.camera.exposureBias"
-    private var savedExposureBias: Float {
-        get { UserDefaults.standard.float(forKey: exposureBiasKey) }
-        set { UserDefaults.standard.set(newValue, forKey: exposureBiasKey) }
-    }
 
     // UI Components
     private lazy var previewView: UIView = {
@@ -106,55 +95,6 @@ class AVCameraViewController: UIViewController {
         return view
     }()
 
-    // Horizontal exposure bar (positioned above zoom selector)
-    private lazy var exposureBarBackground: UIView = {
-        let view = UIView()
-        view.backgroundColor = UIColor.black.withAlphaComponent(0.4)
-        view.layer.cornerRadius = 18
-        view.translatesAutoresizingMaskIntoConstraints = false
-        return view
-    }()
-
-    private lazy var exposureBarStack: UIStackView = {
-        let stack = UIStackView()
-        stack.axis = .horizontal
-        stack.spacing = 8
-        stack.alignment = .center
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        return stack
-    }()
-
-    private lazy var exposureIcon: UIImageView = {
-        let imageView = UIImageView(image: UIImage(systemName: "sun.max.fill"))
-        imageView.tintColor = .white
-        imageView.translatesAutoresizingMaskIntoConstraints = false
-        imageView.widthAnchor.constraint(equalToConstant: 20).isActive = true
-        imageView.heightAnchor.constraint(equalToConstant: 20).isActive = true
-        return imageView
-    }()
-
-    private lazy var exposureSlider: UISlider = {
-        let slider = UISlider()
-        slider.minimumValue = -2.0
-        slider.maximumValue = 2.0
-        slider.value = savedExposureBias
-        slider.translatesAutoresizingMaskIntoConstraints = false
-        slider.minimumTrackTintColor = .white
-        slider.maximumTrackTintColor = .gray
-        slider.addTarget(self, action: #selector(exposureSliderChanged(_:)), for: .valueChanged)
-        return slider
-    }()
-
-    private lazy var exposureValueLabel: UILabel = {
-        let label = UILabel()
-        label.textColor = savedExposureBias != 0 ? .systemYellow : .white
-        label.font = .systemFont(ofSize: 14, weight: .medium)
-        label.textAlignment = .center
-        label.translatesAutoresizingMaskIntoConstraints = false
-        label.text = String(format: "%+.1f", savedExposureBias)
-        label.widthAnchor.constraint(equalToConstant: 40).isActive = true
-        return label
-    }()
 
     private lazy var captureButton: UIButton = {
         let button = UIButton(type: .custom)
@@ -301,33 +241,6 @@ class AVCameraViewController: UIViewController {
         return container
     }()
 
-    private lazy var presetIndicatorButton: UIButton = {
-        var config = UIButton.Configuration.plain()
-        config.image = UIImage(systemName: "wand.and.stars")
-        config.title = "Preset"
-        config.imagePadding = 4
-        config.baseForegroundColor = .white
-        config.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
-            var outgoing = incoming
-            outgoing.font = UIFont.systemFont(ofSize: 14, weight: .medium)
-            return outgoing
-        }
-
-        let button = UIButton(configuration: config)
-        button.translatesAutoresizingMaskIntoConstraints = false
-        button.addTarget(self, action: #selector(presetIndicatorTapped), for: .touchUpInside)
-        return button
-    }()
-
-    private lazy var headerBackgroundView: UIVisualEffectView = {
-        let blurEffect = UIBlurEffect(style: .systemUltraThinMaterial)
-        let effectView = UIVisualEffectView(effect: blurEffect)
-        effectView.translatesAutoresizingMaskIntoConstraints = false
-        effectView.layer.cornerRadius = 12
-        effectView.clipsToBounds = true
-        return effectView
-    }()
-
 
     private let logger = Logger(subsystem: "com.joylabs.native", category: "AVCameraViewController")
 
@@ -412,12 +325,7 @@ class AVCameraViewController: UIViewController {
 
     override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
         super.viewWillTransition(to: size, with: coordinator)
-
-        // Disable slider during rotation to prevent tracking warnings
-        exposureSlider.isUserInteractionEnabled = false
-        coordinator.animate(alongsideTransition: nil) { [weak self] _ in
-            self?.exposureSlider.isUserInteractionEnabled = true
-        }
+        // Layout updates handled by viewDidLayoutSubviews
     }
 
     private func updateLayoutForOrientation() {
@@ -434,33 +342,25 @@ class AVCameraViewController: UIViewController {
             badgeBottomConstraint,
             badgeCenterXConstraint,
             bufferBottomToButtonConstraint,
-            bufferBottomToViewConstraint,
-            presetLeadingConstraint,
-            presetCenterYConstraint,
-            presetTopConstraint,
-            presetCenterXConstraint
+            bufferBottomToViewConstraint
         ].compactMap { $0 })
 
         if isPortrait {
-            // Portrait mode: Button at bottom center, badge to left, preset to right
+            // Portrait mode: Button at bottom center, badge to left
             NSLayoutConstraint.activate([
                 captureButtonBottomConstraint!,
                 captureButtonCenterXConstraint!,
                 badgeTrailingConstraint!,
-                badgeCenterYConstraint!,
-                presetLeadingConstraint!,
-                presetCenterYConstraint!
+                badgeCenterYConstraint!
             ])
         } else {
-            // Landscape mode: Button on right side vertical center, badge above, preset below
+            // Landscape mode: Button on right side vertical center, badge above
             NSLayoutConstraint.activate([
                 captureButtonTrailingConstraint!,
                 captureButtonCenterYConstraint!,
                 badgeBottomConstraint!,
                 badgeCenterXConstraint!,
-                bufferBottomToViewConstraint!,
-                presetTopConstraint!,
-                presetCenterXConstraint!
+                bufferBottomToViewConstraint!
             ])
         }
     }
@@ -473,18 +373,14 @@ class AVCameraViewController: UIViewController {
         previewView.layer.cornerRadius = 12
         previewView.clipsToBounds = true
 
-        // Horizontal exposure bar (positioned above zoom selector later)
-        exposureBarStack.addArrangedSubview(exposureIcon)
-        exposureBarStack.addArrangedSubview(exposureSlider)
-        exposureBarStack.addArrangedSubview(exposureValueLabel)
-        view.addSubview(exposureBarBackground)
-        view.addSubview(exposureBarStack)
+        // Exposure control view (Auto/Manual mode)
+        let exposureControl = CameraExposureControlView()
+        exposureControl.alpha = 0  // Hidden until constraints are set up
+        view.addSubview(exposureControl)
+        exposureControlView = exposureControl
 
         // Capture button
         view.addSubview(captureButton)
-
-        // Header background
-        view.addSubview(headerBackgroundView)
 
         // Top bar with cancel, title, done
         view.addSubview(cancelButton)
@@ -499,43 +395,12 @@ class AVCameraViewController: UIViewController {
         thumbnailScrollView.addSubview(thumbnailStackView)
         view.addSubview(bufferEmptyPlaceholder)  // Add to view for proper centering
 
-        // Preset indicator
-        view.addSubview(presetIndicatorButton)
-
-        // Calculate FIXED viewport size that fits BOTH iPad orientations
-        // Use connected scenes to get screen bounds (iOS 26+ compatible)
-        let isPhone = UIDevice.current.userInterfaceIdiom == .phone
-        let scenes = UIApplication.shared.connectedScenes
-        let windowScene = scenes.first { $0.activationState == .foregroundActive } as? UIWindowScene
-        let screenBounds = windowScene?.screen.bounds ?? CGRect(x: 0, y: 0, width: 768, height: 1024)
-        let shortDimension = min(screenBounds.width, screenBounds.height)
-        let viewportSize: CGFloat
-
-        if isPhone {
-            // iPhone: Always portrait, use screen width
-            viewportSize = shortDimension - 32
-        } else {
-            // iPad: Must fit in BOTH portrait AND landscape
-            // Portrait: limited by width
-            let portraitLimit = shortDimension - 32
-            // Landscape: limited by height (short dimension minus UI elements)
-            // UI = header(60) + bufferSpacing(16) + buffer(80) + bottom(20) + safeArea(~40) = 216
-            let landscapeLimit = shortDimension - 216
-            viewportSize = min(portraitLimit, landscapeLimit)
-        }
-
         NSLayoutConstraint.activate([
-            // Preview - FIXED square viewport (never changes on rotation)
-            previewView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            previewView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 60),
-            previewView.widthAnchor.constraint(equalToConstant: viewportSize),
-            previewView.heightAnchor.constraint(equalToConstant: viewportSize),
-
-            // Header background
-            headerBackgroundView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
-            headerBackgroundView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
-            headerBackgroundView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
-            headerBackgroundView.heightAnchor.constraint(equalToConstant: 50),
+            // Preview - matches header width (8px margins), square aspect ratio
+            previewView.topAnchor.constraint(equalTo: cancelButton.bottomAnchor, constant: 16),
+            previewView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
+            previewView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
+            previewView.heightAnchor.constraint(equalTo: previewView.widthAnchor),
 
             // Top bar
             cancelButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 16),
@@ -555,8 +420,8 @@ class AVCameraViewController: UIViewController {
 
             // Thumbnail buffer - edge-to-edge (bottom constraint set dynamically based on orientation)
             thumbnailScrollView.topAnchor.constraint(equalTo: previewView.bottomAnchor, constant: 16),
-            thumbnailScrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            thumbnailScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            thumbnailScrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
+            thumbnailScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
             thumbnailScrollView.heightAnchor.constraint(equalToConstant: 80),
 
             thumbnailStackView.topAnchor.constraint(equalTo: thumbnailScrollView.topAnchor),
@@ -569,13 +434,7 @@ class AVCameraViewController: UIViewController {
             bufferEmptyPlaceholder.widthAnchor.constraint(equalTo: view.widthAnchor),
             bufferEmptyPlaceholder.heightAnchor.constraint(equalToConstant: 80),
             bufferEmptyPlaceholder.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            bufferEmptyPlaceholder.centerYAnchor.constraint(equalTo: thumbnailScrollView.centerYAnchor),
-
-            // Horizontal exposure slider - fixed width
-            exposureSlider.widthAnchor.constraint(equalToConstant: 120),
-
-            // Preset indicator - height only, width determined by content (position set dynamically)
-            presetIndicatorButton.heightAnchor.constraint(equalToConstant: 44)
+            bufferEmptyPlaceholder.centerYAnchor.constraint(equalTo: thumbnailScrollView.centerYAnchor)
         ])
 
         // Setup orientation-based constraints (updated dynamically in updateLayoutForOrientation)
@@ -594,30 +453,20 @@ class AVCameraViewController: UIViewController {
         // Lower priority to avoid conflicts during rotation (viewport height is fixed)
         bufferBottomToViewConstraint?.priority = .defaultHigh
 
-        // Preset button constraints - next to capture button
-        // Portrait: to the right of capture button
-        presetLeadingConstraint = presetIndicatorButton.leadingAnchor.constraint(equalTo: captureButton.trailingAnchor, constant: 12)
-        presetCenterYConstraint = presetIndicatorButton.centerYAnchor.constraint(equalTo: captureButton.centerYAnchor)
-        // Landscape: below capture button
-        presetTopConstraint = presetIndicatorButton.topAnchor.constraint(equalTo: captureButton.bottomAnchor, constant: 8)
-        presetCenterXConstraint = presetIndicatorButton.centerXAnchor.constraint(equalTo: captureButton.centerXAnchor)
-
         // Bring UI elements to front (proper Z-order)
         view.bringSubviewToFront(thumbnailScrollView)
         view.bringSubviewToFront(captureButton)
         view.bringSubviewToFront(photoCountBadge)
-        view.bringSubviewToFront(headerBackgroundView)
         view.bringSubviewToFront(cancelButton)
         view.bringSubviewToFront(contextTitleLabel)
         view.bringSubviewToFront(doneButton)
-        view.bringSubviewToFront(exposureBarBackground)
-        view.bringSubviewToFront(exposureBarStack)
-        view.bringSubviewToFront(presetIndicatorButton)
+        if let exposureControl = exposureControlView {
+            view.bringSubviewToFront(exposureControl)
+        }
 
         // Set initial orientation layout
         updateLayoutForOrientation()
         updateBufferCount()
-        updatePresetIndicator()
     }
 
     private func setupCamera() {
@@ -720,18 +569,24 @@ class AVCameraViewController: UIViewController {
             self.setupRotationObservation()
         }
 
-        // Apply saved exposure bias
-        applyExposureBias(savedExposureBias)
+        // Configure exposure manager with device capabilities
+        exposureManager.configure(with: camera)
 
         // Mark as configured and start session
         isCameraConfigured = true
 
         // Discover zoom presets and setup UI (must be on main thread)
         DispatchQueue.main.async { [weak self] in
-            self?.discoverZoomPresets()
-            self?.setupZoomSelectorUI()
-            self?.setupExposureBarConstraints()
-            self?.setupPinchZoom()
+            guard let self = self else { return }
+            self.discoverZoomPresets()
+            self.setupZoomSelectorUI()
+            self.setupExposureControlConstraints()
+            self.setupPinchZoom()
+
+            // Configure exposure control view with manager and device
+            if let device = self.currentDevice {
+                self.exposureControlView?.configure(manager: self.exposureManager, device: device)
+            }
         }
 
         // Start running immediately after configuration
@@ -928,40 +783,37 @@ class AVCameraViewController: UIViewController {
         }
     }
 
-    // MARK: - Exposure Bar Constraints
+    // MARK: - Exposure Control Constraints
 
-    private func setupExposureBarConstraints() {
-        // Background hugs the stack view (same pattern as zoom selector)
-        NSLayoutConstraint.activate([
-            exposureBarBackground.leadingAnchor.constraint(equalTo: exposureBarStack.leadingAnchor, constant: -12),
-            exposureBarBackground.trailingAnchor.constraint(equalTo: exposureBarStack.trailingAnchor, constant: 12),
-            exposureBarBackground.topAnchor.constraint(equalTo: exposureBarStack.topAnchor, constant: -4),
-            exposureBarBackground.bottomAnchor.constraint(equalTo: exposureBarStack.bottomAnchor, constant: 4)
-        ])
+    private func setupExposureControlConstraints() {
+        guard let exposureControl = exposureControlView else { return }
 
-        // Portrait: exposure bar above zoom selector (or capture button if no zoom selector), centered
-        exposureBarCenterXConstraint = exposureBarStack.centerXAnchor.constraint(equalTo: view.centerXAnchor)
+        // Portrait: exposure control above zoom selector (or capture button if no zoom selector), centered
+        exposureBarCenterXConstraint = exposureControl.centerXAnchor.constraint(equalTo: view.centerXAnchor)
         if let zoomBg = zoomSelectorBackground {
-            exposureBarBottomConstraint = exposureBarStack.bottomAnchor.constraint(equalTo: zoomBg.topAnchor, constant: -8)
+            exposureBarBottomConstraint = exposureControl.bottomAnchor.constraint(equalTo: zoomBg.topAnchor, constant: -8)
         } else {
-            exposureBarBottomConstraint = exposureBarStack.bottomAnchor.constraint(equalTo: captureButton.topAnchor, constant: -20)
+            exposureBarBottomConstraint = exposureControl.bottomAnchor.constraint(equalTo: captureButton.topAnchor, constant: -20)
         }
 
-        // Landscape: exposure bar to left of capture button, offset up from center
-        exposureBarCenterYConstraint = exposureBarStack.centerYAnchor.constraint(equalTo: captureButton.centerYAnchor, constant: -50)
-        exposureBarTrailingConstraint = exposureBarStack.trailingAnchor.constraint(equalTo: captureButton.leadingAnchor, constant: -16)
+        // Landscape: exposure control to left of capture button, offset up from center
+        exposureBarCenterYConstraint = exposureControl.centerYAnchor.constraint(equalTo: captureButton.centerYAnchor, constant: -50)
+        exposureBarTrailingConstraint = exposureControl.trailingAnchor.constraint(equalTo: captureButton.leadingAnchor, constant: -16)
 
         // Apply initial layout
-        updateExposureBarLayout()
+        updateExposureControlLayout()
+
+        // Reveal now that constraints are set
+        exposureControlView?.alpha = 1
     }
 
-    private func updateExposureBarLayout() {
-        // Guard: constraints not yet set up (called before setupExposureBarConstraints)
+    private func updateExposureControlLayout() {
+        // Guard: constraints not yet set up
         guard exposureBarCenterXConstraint != nil else { return }
 
         let isPortrait = view.bounds.height > view.bounds.width
 
-        // Deactivate all exposure bar constraints
+        // Deactivate all exposure control constraints
         NSLayoutConstraint.deactivate([
             exposureBarCenterXConstraint,
             exposureBarBottomConstraint,
@@ -976,7 +828,7 @@ class AVCameraViewController: UIViewController {
                 exposureBarBottomConstraint!
             ])
         } else {
-            // Landscape: to the left of capture button, above zoom selector
+            // Landscape: to the left of capture button
             NSLayoutConstraint.activate([
                 exposureBarCenterYConstraint!,
                 exposureBarTrailingConstraint!
@@ -1077,45 +929,16 @@ class AVCameraViewController: UIViewController {
         // Update zoom selector layout for orientation
         updateZoomSelectorLayout()
 
-        // Update exposure bar layout for orientation
-        updateExposureBarLayout()
-    }
-
-    // MARK: - Exposure Control
-
-    @objc private func exposureSliderChanged(_ slider: UISlider) {
-        // Snap to 0.1 increments
-        let roundedBias = round(slider.value * 10) / 10
-        slider.value = roundedBias // Update slider to snapped value
-
-        // Update exposure value label and color (yellow when non-zero)
-        exposureValueLabel.text = String(format: "%+.1f", roundedBias)
-        exposureValueLabel.textColor = roundedBias != 0 ? .systemYellow : .white
-
-        applyExposureBias(roundedBias)
-        savedExposureBias = roundedBias // Persist immediately
-    }
-
-    private func applyExposureBias(_ bias: Float) {
-        guard let device = currentDevice else { return }
-
-        do {
-            try device.lockForConfiguration()
-
-            if device.isExposureModeSupported(.continuousAutoExposure) {
-                device.setExposureTargetBias(bias) { _ in }
-            }
-
-            device.unlockForConfiguration()
-            logger.info("Applied exposure bias: \(bias)")
-        } catch {
-            logger.error("Failed to set exposure: \(error.localizedDescription)")
-        }
+        // Update exposure control layout for orientation
+        updateExposureControlLayout()
     }
 
     // MARK: - Photo Capture
 
     @objc private func capturePhoto() {
+        // Flash immediately on tap (non-blocking)
+        flashCaptureIndicator()
+
         let settings = AVCapturePhotoSettings()
 
         // iOS 17+ standard: Set rotation angle on photo output connection for correct orientation
@@ -1242,123 +1065,48 @@ class AVCameraViewController: UIViewController {
         bufferEmptyPlaceholder.isHidden = !capturedPhotos.isEmpty
     }
 
-    // MARK: - Preset Management
-
-    private func updatePresetIndicator() {
-        let hasPreset = presetManager.hasPreset
-        var config = presetIndicatorButton.configuration
-        config?.baseForegroundColor = hasPreset ? .systemYellow : .white
-        presetIndicatorButton.configuration = config
-    }
-
-    @objc private func presetIndicatorTapped() {
-        if presetManager.hasPreset {
-            // Show action sheet to manage preset
-            let alert = UIAlertController(title: "Photo Preset", message: "A filter preset is saved and will be applied to photos automatically.", preferredStyle: .actionSheet)
-
-            alert.addAction(UIAlertAction(title: "Edit Preset", style: .default) { [weak self] _ in
-                self?.showPresetEditor()
-            })
-
-            alert.addAction(UIAlertAction(title: "Clear Preset", style: .destructive) { [weak self] _ in
-                self?.presetManager.clearPreset()
-                self?.updatePresetIndicator()
-            })
-
-            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-
-            // For iPad, set the popover source
-            if let popover = alert.popoverPresentationController {
-                popover.sourceView = presetIndicatorButton
-                popover.sourceRect = presetIndicatorButton.bounds
-            }
-
-            present(alert, animated: true)
-        } else {
-            // No preset - show info
-            let alert = UIAlertController(title: "No Preset Saved", message: "Take a photo and enable 'Apply to future photos' in the editor to save a preset.", preferredStyle: .alert)
-            alert.addAction(UIAlertAction(title: "OK", style: .default))
-            present(alert, animated: true)
-        }
-    }
-
-    private func showPresetEditor() {
-        // Create a sample image to show in editor (use last captured or a placeholder)
-        let sampleImage = capturedPhotos.last ?? createPlaceholderImage()
-
-        let editorView = PhotoEditorView(
-            originalImage: sampleImage,
-            onConfirm: { [weak self] _ in
-                // Preset is saved inside the editor when "Apply to future" is enabled
-                self?.dismiss(animated: true)
-                self?.updatePresetIndicator()
-            },
-            onCancel: { [weak self] in
-                self?.dismiss(animated: true)
-            }
-        )
-
-        let hostingController = UIHostingController(rootView: editorView)
-        hostingController.modalPresentationStyle = .fullScreen
-        present(hostingController, animated: true)
-    }
-
-    private func createPlaceholderImage() -> UIImage {
-        let size = CGSize(width: 400, height: 400)
-        let renderer = UIGraphicsImageRenderer(size: size)
-        return renderer.image { context in
-            UIColor.darkGray.setFill()
-            context.fill(CGRect(origin: .zero, size: size))
-
-            let text = "Preview"
-            let attributes: [NSAttributedString.Key: Any] = [
-                .font: UIFont.systemFont(ofSize: 32, weight: .medium),
-                .foregroundColor: UIColor.lightGray
-            ]
-            let textSize = text.size(withAttributes: attributes)
-            let textRect = CGRect(
-                x: (size.width - textSize.width) / 2,
-                y: (size.height - textSize.height) / 2,
-                width: textSize.width,
-                height: textSize.height
-            )
-            text.draw(in: textRect, withAttributes: attributes)
-        }
-    }
-
-    /// Handle captured photo - either auto-apply preset or show editor
+    /// Handle captured photo - show editor
     private func handleCapturedPhoto(_ image: UIImage) {
-        if let preset = presetManager.savedPreset, !preset.isDefault {
-            // Auto-apply saved preset (synchronous - Metal GPU makes this fast)
-            logger.info("[Camera] Auto-applying saved preset to photo")
-            let processed = PhotoFilterService.shared.apply(preset, to: image)
-            addPhotoToBuffer(processed)
-            logger.info("[Camera] Photo processed with preset and added to buffer")
-        } else {
-            // Show editor for manual adjustment
-            showPhotoEditor(for: image)
-        }
-    }
-
-    private func showPhotoEditor(for image: UIImage) {
         let editorView = PhotoEditorView(
             originalImage: image,
             onConfirm: { [weak self] editedImage in
                 self?.dismiss(animated: true)
                 self?.addPhotoToBuffer(editedImage)
-                self?.updatePresetIndicator()
-                self?.logger.info("[Camera] Photo edited and added to buffer")
             },
             onCancel: { [weak self] in
                 self?.dismiss(animated: true)
-                // Discard the photo if user cancels editing
-                self?.logger.info("[Camera] Photo editing cancelled, photo discarded")
             }
         )
 
         let hostingController = UIHostingController(rootView: editorView)
         hostingController.modalPresentationStyle = .fullScreen
         present(hostingController, animated: true)
+    }
+
+    /// Flash white border around preview as capture feedback (non-blocking)
+    private func flashCaptureIndicator() {
+        let flashBorder = CAShapeLayer()
+        flashBorder.path = UIBezierPath(roundedRect: previewView.bounds, cornerRadius: 12).cgPath
+        flashBorder.strokeColor = UIColor.white.cgColor
+        flashBorder.fillColor = UIColor.clear.cgColor
+        flashBorder.lineWidth = 6
+        flashBorder.opacity = 0
+        previewView.layer.addSublayer(flashBorder)
+
+        // Animate flash
+        CATransaction.begin()
+        CATransaction.setCompletionBlock {
+            flashBorder.removeFromSuperlayer()
+        }
+
+        let flashAnimation = CAKeyframeAnimation(keyPath: "opacity")
+        flashAnimation.values = [0, 1, 1, 0]
+        flashAnimation.keyTimes = [0, 0.1, 0.5, 1.0]
+        flashAnimation.duration = 0.3
+        flashAnimation.isRemovedOnCompletion = true
+        flashBorder.add(flashAnimation, forKey: "flash")
+
+        CATransaction.commit()
     }
 
     // MARK: - Actions

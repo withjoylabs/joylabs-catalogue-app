@@ -193,16 +193,45 @@ struct ItemSettingsView: View {
                     Image(systemName: "info.circle")
                         .foregroundColor(.blue)
                         .font(.caption)
-                    
+
                     Text("Processed images will be saved to your camera roll with crop details and processing metadata.")
                         .font(.caption)
                         .foregroundColor(Color.secondary)
                 }
                 .padding(.top, 4)
             }
+
+            // Long press image action picker
+            HStack {
+                Image(systemName: "hand.tap")
+                    .foregroundColor(.blue)
+                    .frame(width: 24)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Long Press Opens")
+                        .font(.headline)
+                    Text("Choose what opens when long-pressing an image thumbnail")
+                        .font(.caption)
+                        .foregroundColor(Color.secondary)
+                }
+
+                Spacer()
+
+                Picker("", selection: $imageSaveService.longPressImageAction) {
+                    ForEach(LongPressImageAction.allCases, id: \.self) { action in
+                        Label(action.displayName, systemImage: action.icon)
+                            .tag(action)
+                    }
+                }
+                .pickerStyle(.menu)
+                .onChange(of: imageSaveService.longPressImageAction) { _, _ in
+                    imageSaveService.saveSettings()
+                }
+            }
+            .padding(.vertical, 4)
         }
     }
-    
+
     // MARK: - Square API Section
     private var squareAPISection: some View {
         Section("Square API Compliance") {

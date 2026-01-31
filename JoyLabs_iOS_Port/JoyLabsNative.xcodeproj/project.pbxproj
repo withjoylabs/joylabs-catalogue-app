@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		005FD9C69B1BDD4ADCCE53C2 /* TeamDataModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98F2E6829B284312D54C99A7 /* TeamDataModel.swift */; };
 		07FA0F8F4F59535DAEBD861D /* ReorderEnvironmentKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A56785054025FCAA660B73E /* ReorderEnvironmentKey.swift */; };
+		0862C6F8F89B96710D5FEECE /* CameraExposureControlView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07C5B449551449C62AF2E095 /* CameraExposureControlView.swift */; };
 		12164AA2F419705C7AED0835 /* ReordersViewSwiftData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07327BB46D9122D3CFCDB559 /* ReordersViewSwiftData.swift */; };
 		135161F2D6150929CEF0A9D1 /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B03008BCC45D5E32B158F66F /* NotificationSettingsView.swift */; };
 		140CE30F96C5476776E42C34 /* UnifiedImagePickerModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CC3C5DBAC897BD5BAD446F8 /* UnifiedImagePickerModal.swift */; };
@@ -48,6 +49,7 @@
 		5B1D0578242346D4BABCD5F2 /* HeaderButtonStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3238AB7703FD77D6FF89132D /* HeaderButtonStyles.swift */; };
 		5C42100E0690BACD20C3D6F2 /* DuplicateDetectionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16B4FF1AB7482AE61C22D7F0 /* DuplicateDetectionService.swift */; };
 		606F2D4348DBD5B146CC3945 /* CentralItemUpdateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F11337D485EAEE728164CE7 /* CentralItemUpdateManager.swift */; };
+		60FC4082A315920D454D209C /* PhotoPresetManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 669F150DD6AD20EF9F6363C9 /* PhotoPresetManager.swift */; };
 		611221FE14DD319E9DC39D50 /* ItemEcommerceSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AFAF5D9F92448678D1A1EE2 /* ItemEcommerceSection.swift */; };
 		61990A719D89ED6304A77FBF /* ImageThumbnailGallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF5548E3D276CA66AF4421B8 /* ImageThumbnailGallery.swift */; };
 		62E17EEFBD0A30493327D374 /* ViewExtensions+ModalPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EFA46CC1207E812F353D29F /* ViewExtensions+ModalPresentation.swift */; };
@@ -120,6 +122,7 @@
 		C309C4756E80941769C46AB8 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93826EA70F24FEB3F6F59BD6 /* AppDelegate.swift */; };
 		C798D416ABF659B88BDA1C8E /* PushNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E3FB7296AC28F9B8969A75D /* PushNotificationService.swift */; };
 		C8B848A33B7BFFE84D0A142D /* LabelLivePrintService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7606A3222698687642B402D /* LabelLivePrintService.swift */; };
+		CA98D9E3DCEF6A854BD7B5F5 /* CameraExposureManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54090BBA908609B7E6B1458B /* CameraExposureManager.swift */; };
 		CC4CE3294C46EDAA954DC559 /* ItemDetailsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D583607765D3CA494A3F396E /* ItemDetailsViewModel.swift */; };
 		CCE5849C28576F280550C175 /* SwiftDataSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83DA115A5CBAC2BEC0885E7F /* SwiftDataSyncCoordinator.swift */; };
 		CD6879014287EB352EBD31B2 /* SquareCapabilitiesService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 611795A7DDE88A6A5621E9A0 /* SquareCapabilitiesService.swift */; };
@@ -155,6 +158,7 @@
 /* Begin PBXFileReference section */
 		02A73B5385BF767E2F503CFD /* AppLevelHIDScanner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AppLevelHIDScanner.swift; path = Components/AppLevelHIDScanner.swift; sourceTree = "<group>"; };
 		07327BB46D9122D3CFCDB559 /* ReordersViewSwiftData.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReordersViewSwiftData.swift; path = Views/ReordersViewSwiftData.swift; sourceTree = "<group>"; };
+		07C5B449551449C62AF2E095 /* CameraExposureControlView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CameraExposureControlView.swift; path = Components/Camera/CameraExposureControlView.swift; sourceTree = "<group>"; };
 		08C74DA26191FF85F4AB0866 /* SquareInventoryService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SquareInventoryService.swift; path = Core/Services/SquareInventoryService.swift; sourceTree = "<group>"; };
 		099140CF4DCC3454A9EC9A5C /* ItemDetailsModal.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsModal.swift; path = Components/ItemDetailsModal.swift; sourceTree = "<group>"; };
 		0AE1BE4622C5C0A85C6CAA3E /* ReorderService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderService.swift; path = Core/Services/ReorderService.swift; sourceTree = "<group>"; };
@@ -196,6 +200,7 @@
 		4F11337D485EAEE728164CE7 /* CentralItemUpdateManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CentralItemUpdateManager.swift; path = Core/Services/CentralItemUpdateManager.swift; sourceTree = "<group>"; };
 		4F36002786F7A8735897B044 /* InventoryModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = InventoryModels.swift; path = Models/InventoryModels.swift; sourceTree = "<group>"; };
 		522EA5712FAC74516DFC29CF /* NotificationsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NotificationsView.swift; path = Views/NotificationsView.swift; sourceTree = "<group>"; };
+		54090BBA908609B7E6B1458B /* CameraExposureManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CameraExposureManager.swift; path = Components/Camera/CameraExposureManager.swift; sourceTree = "<group>"; };
 		55BCF27BAD920DC02CC1E42D /* ToastWindowManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ToastWindowManager.swift; path = Core/Services/ToastWindowManager.swift; sourceTree = "<group>"; };
 		5A12C207F099F0E3A82B8ADA /* PushNotificationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PushNotificationService.swift; path = JoyLabsNative/Core/Services/PushNotificationService.swift; sourceTree = "<group>"; };
 		5A56785054025FCAA660B73E /* ReorderEnvironmentKey.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderEnvironmentKey.swift; path = Core/Environment/ReorderEnvironmentKey.swift; sourceTree = "<group>"; };
@@ -205,6 +210,7 @@
 		612C9E33A082AEB63A3A1DC3 /* ReorderBarcodeScanningManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderBarcodeScanningManager.swift; path = JoyLabsNative/ViewModels/ReorderBarcodeScanningManager.swift; sourceTree = "<group>"; };
 		6292A63C8F8D35F5B12A8F6A /* ReorderItemModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderItemModel.swift; path = Models/SwiftData/ReorderItemModel.swift; sourceTree = "<group>"; };
 		65695EAA6350279F084BF63B /* ItemDetailsPricingSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsPricingSection.swift; path = Components/ItemDetailsPricingSection.swift; sourceTree = "<group>"; };
+		669F150DD6AD20EF9F6363C9 /* PhotoPresetManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PhotoPresetManager.swift; path = Core/Services/PhotoPresetManager.swift; sourceTree = "<group>"; };
 		68CAE024F232AEDA149CF627 /* ItemDeleteSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDeleteSection.swift; path = Components/ItemDeleteSection.swift; sourceTree = "<group>"; };
 		6934794797FCA6EBD6A89E3F /* ModifierModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ModifierModel.swift; path = Models/SwiftData/ModifierModel.swift; sourceTree = "<group>"; };
 		6ECE051541206A85FCA7DCFC /* WebhookNotificationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WebhookNotificationService.swift; path = Core/Services/WebhookNotificationService.swift; sourceTree = "<group>"; };
@@ -450,6 +456,8 @@
 			children = (
 				D85824D6413B2ADDF4DBBCD0 /* AVCameraViewController.swift */,
 				DD26B8006A66AA069577A1B5 /* PhotoLibraryPicker.swift */,
+				54090BBA908609B7E6B1458B /* CameraExposureManager.swift */,
+				07C5B449551449C62AF2E095 /* CameraExposureControlView.swift */,
 			);
 			name = Camera;
 			sourceTree = "<group>";
@@ -722,6 +730,7 @@
 				8538789665F0E91648E2EB2B /* ScanHistoryService.swift */,
 				08C74DA26191FF85F4AB0866 /* SquareInventoryService.swift */,
 				611795A7DDE88A6A5621E9A0 /* SquareCapabilitiesService.swift */,
+				669F150DD6AD20EF9F6363C9 /* PhotoPresetManager.swift */,
 			);
 			name = Services;
 			sourceTree = "<group>";
@@ -993,6 +1002,9 @@
 				37D66F536CD33820071BF67F /* PhotoAdjustments.swift in Sources */,
 				F10CDC95CD01638156BC4B84 /* PhotoFilterService.swift in Sources */,
 				DF94ADF0A753E417B5408B44 /* PhotoEditorView.swift in Sources */,
+				60FC4082A315920D454D209C /* PhotoPresetManager.swift in Sources */,
+				CA98D9E3DCEF6A854BD7B5F5 /* CameraExposureManager.swift in Sources */,
+				0862C6F8F89B96710D5FEECE /* CameraExposureControlView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

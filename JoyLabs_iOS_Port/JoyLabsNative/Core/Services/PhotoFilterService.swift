@@ -4,7 +4,7 @@ import CoreImage.CIFilterBuiltins
 import Metal
 
 /// High-performance service for applying photo adjustments using CIFilters
-/// Uses professional-grade filters: CIExposureAdjust, CIVibrance for natural results
+/// All adjustment values expected in -1 to +1 range (displayed as -100 to +100)
 class PhotoFilterService {
     static let shared = PhotoFilterService()
 
@@ -16,7 +16,10 @@ class PhotoFilterService {
     private let colorControls = CIFilter.colorControls()
     private let vibranceFilter = CIFilter.vibrance()
     private let tempAndTint = CIFilter.temperatureAndTint()
+    private let highlightShadow = CIFilter.highlightShadowAdjust()
     private let unsharpMask = CIFilter.unsharpMask()
+    private let clarityFilter = CIFilter.unsharpMask()  // Separate instance for clarity
+    private let gaussianBlur = CIFilter.gaussianBlur()  // For negative sharpness
 
     private init() {
         // Use Metal for GPU-accelerated rendering
@@ -36,25 +39,41 @@ class PhotoFilterService {
 
         var output = ciImage
 
-        // Exposure (CIExposureAdjust - simulates camera F-stop, much more natural than brightness)
+        // MARK: - Light Adjustments
+
+        // Exposure: -1...1 → -3...+3 EV
         if adjustments.exposure != 0 {
             exposureFilter.inputImage = output
-            exposureFilter.ev = adjustments.exposure
+            exposureFilter.ev = adjustments.exposure * 3.0
             if let result = exposureFilter.outputImage {
                 output = result
             }
         }
 
-        // Contrast only (using colorControls but NOT its brightness/saturation)
-        if adjustments.contrast != 1.0 {
+        // Brightness + Contrast (CIColorControls)
+        if adjustments.brightness != 0 || adjustments.contrast != 0 {
             colorControls.inputImage = output
-            colorControls.brightness = 0      // Don't use - we have exposure
-            colorControls.contrast = adjustments.contrast
-            colorControls.saturation = 1      // Don't use - we have vibrance
+            colorControls.brightness = adjustments.brightness * 0.5  // Scale for natural look
+            colorControls.contrast = 1.0 + (adjustments.contrast * 0.5)  // -1...1 → 0.5...1.5
+            colorControls.saturation = 1.0  // Don't affect saturation here
             if let result = colorControls.outputImage {
                 output = result
             }
         }
+
+        // Highlights & Shadows
+        if adjustments.highlights != 0 || adjustments.shadows != 0 {
+            highlightShadow.inputImage = output
+            // CIHighlightShadowAdjust: highlightAmount 0-1 (1 = no change, 0 = reduce)
+            // shadowAmount 0-2 (0 = no change, positive = brighten shadows)
+            highlightShadow.highlightAmount = 1.0 - (adjustments.highlights * 0.5)  // Reduce highlights when positive
+            highlightShadow.shadowAmount = adjustments.shadows + 1.0  // Brighten shadows when positive
+            if let result = highlightShadow.outputImage {
+                output = result
+            }
+        }
+
+        // MARK: - Color Adjustments
 
         // Vibrance (CIVibrance - intelligent color boost, protects skin tones)
         if adjustments.vibrance != 0 {
@@ -65,23 +84,46 @@ class PhotoFilterService {
             }
         }
 
-        // Warmth (temperature)
-        if adjustments.warmth != 0 {
+        // Warmth + Tint (CITemperatureAndTint)
+        if adjustments.warmth != 0 || adjustments.tint != 0 {
             tempAndTint.inputImage = output
-            // Map -1...1 to 4000K...9000K (neutral = 6500K)
+            // Warmth: -1...1 → 4000K...9000K (neutral = 6500K)
             let temp = 6500 + (adjustments.warmth * 2500)
-            tempAndTint.neutral = CIVector(x: CGFloat(temp), y: 0)
+            // Tint: -1...1 → -100...+100 (green to magenta)
+            let tintValue = adjustments.tint * 100
+            tempAndTint.neutral = CIVector(x: CGFloat(temp), y: CGFloat(tintValue))
             if let result = tempAndTint.outputImage {
                 output = result
             }
         }
 
-        // Sharpness (CIUnsharpMask - industry standard, more visible than CISharpenLuminance)
-        if adjustments.sharpness > 0 {
-            unsharpMask.inputImage = output
-            unsharpMask.radius = 2.5  // Pixel radius for edge detection
-            unsharpMask.intensity = adjustments.sharpness * 2.0  // Map 0-1 to 0-2 for visible effect
-            if let result = unsharpMask.outputImage {
+        // MARK: - Detail Adjustments
+
+        // Sharpness: positive = sharpen, negative = blur
+        if adjustments.sharpness != 0 {
+            if adjustments.sharpness > 0 {
+                unsharpMask.inputImage = output
+                unsharpMask.radius = 2.5
+                unsharpMask.intensity = adjustments.sharpness * 2.0
+                if let result = unsharpMask.outputImage {
+                    output = result
+                }
+            } else {
+                // Negative sharpness = blur
+                gaussianBlur.inputImage = output
+                gaussianBlur.radius = abs(adjustments.sharpness) * 5.0  // Max 5px blur
+                if let result = gaussianBlur.outputImage {
+                    output = result
+                }
+            }
+        }
+
+        // Clarity: large-radius unsharp mask for micro-contrast
+        if adjustments.clarity != 0 {
+            clarityFilter.inputImage = output
+            clarityFilter.radius = 20  // Large radius for local contrast
+            clarityFilter.intensity = adjustments.clarity * 1.5  // Subtle effect
+            if let result = clarityFilter.outputImage {
                 output = result
             }
         }
