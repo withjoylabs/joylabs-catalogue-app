@@ -18,6 +18,13 @@ struct PhotoEditorView: View {
     @State private var adjustments: PhotoAdjustments = .default
     @State private var isProcessingFinal: Bool = false
 
+    // Zoom and pan state for crop
+    @State private var scale: CGFloat = 1.0
+    @State private var lastScale: CGFloat = 1.0
+    @State private var offset: CGSize = .zero
+    @State private var lastOffset: CGSize = .zero
+    private let maxZoom: CGFloat = 5.0  // Maximum zoom level
+
     // Preset management
     @StateObject private var presetManager = PhotoPresetManager.shared
     @State private var showingNameDialog: Bool = false
@@ -168,31 +175,113 @@ struct PhotoEditorView: View {
     // MARK: - Preview Image View
 
     private var previewImageView: some View {
-        ZStack {
-            if let preview = processedPreview {
-                Image(uiImage: preview)
-                    .resizable()
-                    .aspectRatio(1, contentMode: .fit)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-            } else {
-                Image(uiImage: originalImage)
-                    .resizable()
-                    .aspectRatio(1, contentMode: .fit)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-            }
+        GeometryReader { geometry in
+            let size = min(geometry.size.width, geometry.size.height)
 
-            if isProcessingFinal {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.black.opacity(0.5))
-                VStack(spacing: 8) {
-                    ProgressView()
-                        .tint(.white)
-                    Text("Processing...")
-                        .font(.caption)
-                        .foregroundColor(.white)
+            ZStack {
+                // Image with zoom and pan transforms
+                Group {
+                    if let preview = processedPreview {
+                        Image(uiImage: preview)
+                            .resizable()
+                            .aspectRatio(1, contentMode: .fill)
+                    } else {
+                        Image(uiImage: originalImage)
+                            .resizable()
+                            .aspectRatio(1, contentMode: .fill)
+                    }
+                }
+                .frame(width: size * scale, height: size * scale)
+                .offset(x: offset.width, y: offset.height)
+
+                // Processing overlay
+                if isProcessingFinal {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.black.opacity(0.5))
+                    VStack(spacing: 8) {
+                        ProgressView()
+                            .tint(.white)
+                        Text("Processing...")
+                            .font(.caption)
+                            .foregroundColor(.white)
+                    }
+                }
+
+                // Zoom indicator (shown when zoomed in)
+                if scale > 1.01 {
+                    VStack {
+                        HStack {
+                            Spacer()
+                            Text(String(format: "%.1fx", scale))
+                                .font(.caption2)
+                                .fontWeight(.medium)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.black.opacity(0.6))
+                                .clipShape(Capsule())
+                                .padding(8)
+                        }
+                        Spacer()
+                    }
+                }
+            }
+            .frame(width: size, height: size)
+            .clipped()
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .contentShape(Rectangle())
+            .gesture(
+                MagnificationGesture()
+                    .onChanged { value in
+                        let newScale = lastScale * value
+                        scale = min(max(1.0, newScale), maxZoom)
+                        // Re-constrain offset when scale changes
+                        offset = constrainedOffset(offset, for: scale, viewportSize: size)
+                    }
+                    .onEnded { _ in
+                        lastScale = scale
+                        lastOffset = offset
+                    }
+            )
+            .simultaneousGesture(
+                DragGesture()
+                    .onChanged { value in
+                        let newOffset = CGSize(
+                            width: lastOffset.width + value.translation.width,
+                            height: lastOffset.height + value.translation.height
+                        )
+                        offset = constrainedOffset(newOffset, for: scale, viewportSize: size)
+                    }
+                    .onEnded { _ in
+                        lastOffset = offset
+                    }
+            )
+            .onTapGesture(count: 2) {
+                // Double-tap to reset zoom
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    scale = 1.0
+                    lastScale = 1.0
+                    offset = .zero
+                    lastOffset = .zero
                 }
             }
         }
+        .aspectRatio(1, contentMode: .fit)
+    }
+
+    // MARK: - Crop Constraint Helpers
+
+    /// Constrain offset so image always fills viewport (no black background)
+    private func constrainedOffset(_ proposed: CGSize, for scale: CGFloat, viewportSize: CGFloat) -> CGSize {
+        // At scale 1.0, image exactly fills viewport - no panning allowed
+        // At scale > 1.0, allow panning up to (imageSize - viewportSize) / 2
+        let imageSize = viewportSize * scale
+        let maxOffset = max(0, (imageSize - viewportSize) / 2)
+
+        return CGSize(
+            width: min(max(proposed.width, -maxOffset), maxOffset),
+            height: min(max(proposed.height, -maxOffset), maxOffset)
+        )
     }
 
     // MARK: - Adjustment Sliders View
@@ -308,19 +397,93 @@ struct PhotoEditorView: View {
 
     private func resetAdjustments() {
         adjustments = .default
+        // Reset zoom and pan
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            scale = 1.0
+            lastScale = 1.0
+            offset = .zero
+            lastOffset = .zero
+        }
     }
 
     private func confirmEdits() {
         isProcessingFinal = true
 
+        // Capture current crop state
+        let currentScale = scale
+        let currentOffset = offset
+
         Task {
-            let finalImage = filterService.apply(adjustments, to: originalImage)
+            // 1. Apply filters to original image
+            let filteredImage = filterService.apply(adjustments, to: originalImage)
+
+            // 2. Apply crop if zoomed or panned
+            let finalImage: UIImage
+            if currentScale > 1.001 || abs(currentOffset.width) > 0.5 || abs(currentOffset.height) > 0.5 {
+                let cropRect = calculateCropRect(scale: currentScale, offset: currentOffset)
+                finalImage = cropImage(filteredImage, to: cropRect)
+            } else {
+                finalImage = filteredImage
+            }
 
             await MainActor.run {
                 isProcessingFinal = false
                 onConfirm(finalImage)
             }
         }
+    }
+
+    // MARK: - Crop Calculation
+
+    /// Calculate the crop rectangle in original image coordinates
+    /// Based on current zoom (scale) and pan (offset)
+    private func calculateCropRect(scale: CGFloat, offset: CGSize) -> CGRect {
+        // The original image was cropped to square in camera, so it's already 1:1
+        let originalSize = min(originalImage.size.width, originalImage.size.height)
+
+        // Scale factor between thumbnail (1200) and original
+        let scaleFactor = originalSize / thumbnailSize
+
+        // Visible region size in thumbnail coordinates
+        // At scale 2.0, we see half the image (600px of 1200px thumbnail)
+        let visibleSize = thumbnailSize / scale
+
+        // Center point in thumbnail coordinates
+        // offset is from center, so positive offset.width means image moved right,
+        // which means the visible region moved left (toward lower x)
+        let centerX = thumbnailSize / 2 - offset.width
+        let centerY = thumbnailSize / 2 - offset.height
+
+        // Crop rect in thumbnail coordinates (top-left origin)
+        let cropX = centerX - visibleSize / 2
+        let cropY = centerY - visibleSize / 2
+
+        // Scale to original image coordinates
+        return CGRect(
+            x: cropX * scaleFactor,
+            y: cropY * scaleFactor,
+            width: visibleSize * scaleFactor,
+            height: visibleSize * scaleFactor
+        )
+    }
+
+    /// Crop image to the specified rectangle
+    private func cropImage(_ image: UIImage, to rect: CGRect) -> UIImage {
+        // Normalize orientation first - CGImage.cropping operates on raw pixels
+        let normalizedImage = image.fixedOrientation()
+
+        guard let cgImage = normalizedImage.cgImage else { return image }
+
+        // Clamp rect to image bounds
+        let imageRect = CGRect(x: 0, y: 0, width: cgImage.width, height: cgImage.height)
+        let clampedRect = rect.intersection(imageRect)
+
+        guard !clampedRect.isEmpty,
+              let croppedCGImage = cgImage.cropping(to: clampedRect) else {
+            return image
+        }
+
+        return UIImage(cgImage: croppedCGImage, scale: image.scale, orientation: .up)
     }
 }
 
