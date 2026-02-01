@@ -352,7 +352,7 @@ class AVCameraViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = .secondarySystemGroupedBackground
+        view.backgroundColor = .black
 
         // Load persisted framing guide mode
         if let savedMode = UserDefaults.standard.object(forKey: framingGuideKey) as? Int,

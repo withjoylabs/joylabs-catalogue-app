@@ -1195,6 +1195,9 @@ struct VariationImageGallery: View {
     @State private var dropTargetId: String?
     @State private var dropSide: DropSide? = nil
 
+    // Force refresh when image is uploaded (faster than binding propagation)
+    @State private var refreshTrigger = UUID()
+
     private let thumbnailSize: CGFloat = 60  // Smaller than item-level (80px)
 
     var body: some View {
@@ -1309,6 +1312,19 @@ struct VariationImageGallery: View {
             }
         }
         .padding(.vertical, 8)
+        .id(refreshTrigger)  // Force rebuild when trigger changes
+        .onReceive(NotificationCenter.default.publisher(for: .imageUpdated)) { notification in
+            // When an image is uploaded, force immediate refresh
+            // This bypasses slow binding propagation
+            if let userInfo = notification.userInfo,
+               let action = userInfo["action"] as? String,
+               action == "upload" {
+                // Small delay to let binding update complete
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    refreshTrigger = UUID()
+                }
+            }
+        }
         .sheet(isPresented: $showingPreview) {
             if let imageId = selectedImageId {
                 ImagePreviewModal(
