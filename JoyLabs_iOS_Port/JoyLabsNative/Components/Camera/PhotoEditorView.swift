@@ -12,8 +12,9 @@ struct PhotoEditorView: View {
     let iPadViewportSize: CGFloat?
 
     // Cached images (created once on appear)
-    @State private var thumbnailCIImage: CIImage?
+    @State private var previewCIImage: CIImage?  // Smaller image for fast filter preview
     @State private var processedPreview: UIImage?
+    private let previewSize: CGFloat = 1200  // Retina quality for ~600pt display
 
     @State private var adjustments: PhotoAdjustments = .default
     @State private var isProcessingFinal: Bool = false
@@ -72,22 +73,15 @@ struct PhotoEditorView: View {
                 Divider()
                     .background(Color.gray.opacity(0.5))
 
-                // Preset Row (always at bottom, full width)
+                // Preset Row
                 presetRow
-                    .frame(height: 76)
+                    .frame(height: 70)
 
                 Divider()
                     .background(Color.gray.opacity(0.5))
 
-                // Reset button (compact)
-                Button(action: resetAdjustments) {
-                    HStack {
-                        Image(systemName: "arrow.counterclockwise")
-                        Text("Reset All")
-                    }
-                    .foregroundColor(.red)
-                }
-                .padding(.vertical, 8)
+                // Bottom action bar: Cancel | Reset | Done
+                bottomActionBar
             }
             .background(Color.black)
         }
@@ -110,26 +104,12 @@ struct PhotoEditorView: View {
 
     private var headerView: some View {
         HStack {
-            Button("Cancel") {
-                onCancel()
-            }
-            .foregroundColor(.white)
-
             Spacer()
-
             Text("Edit Photo")
                 .font(.subheadline)
                 .fontWeight(.semibold)
                 .foregroundColor(.white)
-
             Spacer()
-
-            Button("Done") {
-                confirmEdits()
-            }
-            .fontWeight(.semibold)
-            .foregroundColor(isProcessingFinal ? .gray : .white)
-            .disabled(isProcessingFinal)
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
@@ -341,6 +321,49 @@ struct PhotoEditorView: View {
         }
     }
 
+    // MARK: - Bottom Action Bar
+
+    private var bottomActionBar: some View {
+        HStack {
+            // Cancel button (left)
+            Button(action: { onCancel() }) {
+                Image(systemName: "xmark")
+                    .font(.title2)
+                    .fontWeight(.medium)
+            }
+            .modifier(PhotoEditorButtonStyle(isDisabled: false, color: .gray))
+            .buttonBorderShape(.circle)
+            .controlSize(.large)
+
+            Spacer()
+
+            // Reset All button (center)
+            Button(action: resetAdjustments) {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.counterclockwise")
+                    Text("Reset All")
+                }
+                .foregroundColor(.red)
+                .font(.subheadline)
+            }
+
+            Spacer()
+
+            // Done button (right)
+            Button(action: { confirmEdits() }) {
+                Image(systemName: "checkmark")
+                    .font(.title2)
+                    .fontWeight(.medium)
+            }
+            .modifier(PhotoEditorButtonStyle(isDisabled: isProcessingFinal, color: .green))
+            .buttonBorderShape(.circle)
+            .controlSize(.large)
+            .disabled(isProcessingFinal)
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
+    }
+
     // MARK: - Preset Actions
 
     private func applyPreset(_ preset: PhotoPreset) {
@@ -362,10 +385,23 @@ struct PhotoEditorView: View {
     // MARK: - Setup
 
     private func setupImages() {
-        // Use original image directly - no thumbnail scaling
-        // This ensures crop coordinates map exactly to original
-        thumbnailCIImage = CIImage(image: originalImage)
+        // Create smaller thumbnail for fast filter preview processing
+        // Crop calculation uses viewport math (not image pixels) so this is safe
+        let thumbnail = createPreviewThumbnail(originalImage, maxSize: previewSize)
+        previewCIImage = CIImage(image: thumbnail)
         applyFiltersToPreview()
+    }
+
+    private func createPreviewThumbnail(_ image: UIImage, maxSize: CGFloat) -> UIImage {
+        let size = min(image.size.width, image.size.height)
+        let scale = min(maxSize / size, 1.0)  // Never upscale
+        guard scale < 1.0 else { return image }
+
+        let newSize = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let renderer = UIGraphicsImageRenderer(size: newSize)
+        return renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: newSize))
+        }
     }
 
     // MARK: - Filter Processing
@@ -380,8 +416,8 @@ struct PhotoEditorView: View {
     }
 
     private func applyFiltersToPreview() {
-        guard let thumbnailCI = thumbnailCIImage else { return }
-        let processed = filterService.applyToCIImage(adjustments, ciImage: thumbnailCI)
+        guard let previewCI = previewCIImage else { return }
+        let processed = filterService.applyToCIImage(adjustments, ciImage: previewCI)
         if let preview = filterService.renderToUIImage(processed, scale: 1.0, orientation: .up) {
             processedPreview = preview
         }
@@ -597,6 +633,25 @@ struct AdjustmentSlider: View {
     private func formatValue(_ val: Float) -> String {
         let percent = Int(val * 100)
         return percent >= 0 ? "+\(percent)" : "\(percent)"
+    }
+}
+
+// MARK: - Photo Editor Button Style
+
+private struct PhotoEditorButtonStyle: ViewModifier {
+    let isDisabled: Bool
+    let color: Color
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content
+                .buttonStyle(.glassProminent)
+                .tint(isDisabled ? Color.gray.opacity(0.5) : color)
+        } else {
+            content
+                .buttonStyle(.borderedProminent)
+                .tint(isDisabled ? Color.gray.opacity(0.5) : color)
+        }
     }
 }
 

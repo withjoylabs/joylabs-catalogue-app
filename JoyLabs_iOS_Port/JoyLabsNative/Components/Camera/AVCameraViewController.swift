@@ -104,6 +104,18 @@ class AVCameraViewController: UIViewController {
     private var guideButtonTopConstraint: NSLayoutConstraint?
     private var guideButtonCenterXConstraint: NSLayoutConstraint?
 
+    // Circular action button constraint references (Cancel and Save at bottom)
+    // iPhone/iPad Portrait: bottom corners
+    private var cancelCircleBottomConstraint: NSLayoutConstraint?
+    private var cancelCircleLeadingConstraint: NSLayoutConstraint?
+    private var saveCircleBottomConstraint: NSLayoutConstraint?
+    private var saveCircleTrailingConstraint: NSLayoutConstraint?
+    // iPad Landscape: grouped below guide button
+    private var iPadLandscapeCancelTopConstraint: NSLayoutConstraint?
+    private var iPadLandscapeCancelTrailingConstraint: NSLayoutConstraint?
+    private var iPadLandscapeSaveTopConstraint: NSLayoutConstraint?
+    private var iPadLandscapeSaveLeadingConstraint: NSLayoutConstraint?
+
     // iPad-specific layout (fixed viewport size, different layouts for portrait/landscape)
     private var iPadViewportSize: CGFloat = 0
     private var isIPadLayout: Bool { UIDevice.current.userInterfaceIdiom == .pad }
@@ -201,27 +213,32 @@ class AVCameraViewController: UIViewController {
         return button
     }()
 
-    private lazy var doneButton: UIButton = {
+    // Circular action buttons (bottom of screen)
+    private lazy var cancelCircleButton: UIButton = {
         var config = UIButton.Configuration.filled()
-        config.title = "Upload"
-        config.baseBackgroundColor = .systemBlue
+        config.image = UIImage(systemName: "xmark")?.withConfiguration(
+            UIImage.SymbolConfiguration(pointSize: 20, weight: .medium)
+        )
+        config.cornerStyle = .capsule
+        config.baseBackgroundColor = .systemGray
         config.baseForegroundColor = .white
-        config.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 10, bottom: 6, trailing: 10)
-        config.cornerStyle = .medium
-
         let button = UIButton(configuration: config)
         button.translatesAutoresizingMaskIntoConstraints = false
-        button.addTarget(self, action: #selector(doneButtonTapped), for: .touchUpInside)
+        button.addTarget(self, action: #selector(cancelButtonTapped), for: .touchUpInside)
         return button
     }()
 
-    private lazy var cancelButton: UIButton = {
-        let button = UIButton(type: .system)
-        button.setTitle("Cancel", for: .normal)
-        button.setTitleColor(.white, for: .normal)
-        button.titleLabel?.font = .systemFont(ofSize: 17)
+    private lazy var saveCircleButton: UIButton = {
+        var config = UIButton.Configuration.filled()
+        config.image = UIImage(systemName: "checkmark")?.withConfiguration(
+            UIImage.SymbolConfiguration(pointSize: 20, weight: .medium)
+        )
+        config.cornerStyle = .capsule
+        config.baseBackgroundColor = .systemGreen
+        config.baseForegroundColor = .white
+        let button = UIButton(configuration: config)
         button.translatesAutoresizingMaskIntoConstraints = false
-        button.addTarget(self, action: #selector(cancelButtonTapped), for: .touchUpInside)
+        button.addTarget(self, action: #selector(doneButtonTapped), for: .touchUpInside)
         return button
     }()
 
@@ -449,11 +466,21 @@ class AVCameraViewController: UIViewController {
                 iPadLandscapeBadgeBottomConstraint,
                 iPadLandscapeBadgeCenterXConstraint,
                 iPadLandscapeGuideTopConstraint,
-                iPadLandscapeGuideCenterXConstraint
+                iPadLandscapeGuideCenterXConstraint,
+                // Circular button constraints (both orientations)
+                cancelCircleBottomConstraint,
+                cancelCircleLeadingConstraint,
+                saveCircleBottomConstraint,
+                saveCircleTrailingConstraint,
+                iPadLandscapeCancelTopConstraint,
+                iPadLandscapeCancelTrailingConstraint,
+                iPadLandscapeSaveTopConstraint,
+                iPadLandscapeSaveLeadingConstraint
             ].compactMap { $0 })
 
             if isPortrait {
                 // iPad Portrait: Everything stacked vertically, centered
+                // Circular buttons at bottom corners
                 NSLayoutConstraint.activate([
                     iPadPortraitPreviewCenterXConstraint!,
                     iPadPortraitBufferCenterXConstraint!,
@@ -462,10 +489,15 @@ class AVCameraViewController: UIViewController {
                     iPadPortraitBadgeBottomConstraint!,
                     iPadPortraitBadgeCenterXConstraint!,
                     iPadPortraitGuideLeadingConstraint!,
-                    iPadPortraitGuideCenterYConstraint!
+                    iPadPortraitGuideCenterYConstraint!,
+                    cancelCircleBottomConstraint!,
+                    cancelCircleLeadingConstraint!,
+                    saveCircleBottomConstraint!,
+                    saveCircleTrailingConstraint!
                 ])
             } else {
                 // iPad Landscape: Viewport+buffer on left, controls vertically centered on right
+                // Circular buttons grouped below guide button
                 NSLayoutConstraint.activate([
                     iPadLandscapePreviewLeadingConstraint!,
                     iPadLandscapeBufferLeadingConstraint!,
@@ -474,7 +506,11 @@ class AVCameraViewController: UIViewController {
                     iPadLandscapeBadgeBottomConstraint!,
                     iPadLandscapeBadgeCenterXConstraint!,
                     iPadLandscapeGuideTopConstraint!,
-                    iPadLandscapeGuideCenterXConstraint!
+                    iPadLandscapeGuideCenterXConstraint!,
+                    iPadLandscapeCancelTopConstraint!,
+                    iPadLandscapeCancelTrailingConstraint!,
+                    iPadLandscapeSaveTopConstraint!,
+                    iPadLandscapeSaveLeadingConstraint!
                 ])
             }
         } else {
@@ -539,10 +575,12 @@ class AVCameraViewController: UIViewController {
         // Capture button
         view.addSubview(captureButton)
 
-        // Top bar with cancel, title, done
-        view.addSubview(cancelButton)
+        // Header with centered title only
         view.addSubview(contextTitleLabel)
-        view.addSubview(doneButton)
+
+        // Circular action buttons (bottom of screen)
+        view.addSubview(cancelCircleButton)
+        view.addSubview(saveCircleButton)
 
         // Photo count badge on capture button
         view.addSubview(photoCountBadge)
@@ -556,18 +594,12 @@ class AVCameraViewController: UIViewController {
         view.addSubview(framingGuideToggleButton)
         guideToggleButton = framingGuideToggleButton
 
-        // Common constraints for top bar (same for iPad and iPhone)
+        // Common constraints for header (title spans full width)
         NSLayoutConstraint.activate([
-            cancelButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 16),
-            cancelButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-
-            contextTitleLabel.centerYAnchor.constraint(equalTo: cancelButton.centerYAnchor),
+            contextTitleLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 16),
             contextTitleLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            contextTitleLabel.leadingAnchor.constraint(greaterThanOrEqualTo: cancelButton.trailingAnchor, constant: 8),
-            contextTitleLabel.trailingAnchor.constraint(lessThanOrEqualTo: doneButton.leadingAnchor, constant: -4),
-
-            doneButton.centerYAnchor.constraint(equalTo: cancelButton.centerYAnchor),
-            doneButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            contextTitleLabel.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 16),
+            contextTitleLabel.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -16),
 
             // Capture button size (position set per-device)
             captureButton.widthAnchor.constraint(equalToConstant: 70),
@@ -576,6 +608,12 @@ class AVCameraViewController: UIViewController {
             // Guide toggle button size
             framingGuideToggleButton.widthAnchor.constraint(equalToConstant: 40),
             framingGuideToggleButton.heightAnchor.constraint(equalToConstant: 40),
+
+            // Circular action buttons size
+            cancelCircleButton.widthAnchor.constraint(equalToConstant: 50),
+            cancelCircleButton.heightAnchor.constraint(equalToConstant: 50),
+            saveCircleButton.widthAnchor.constraint(equalToConstant: 50),
+            saveCircleButton.heightAnchor.constraint(equalToConstant: 50),
 
             // Buffer empty placeholder
             bufferEmptyPlaceholder.widthAnchor.constraint(equalTo: thumbnailScrollView.widthAnchor),
@@ -631,13 +669,26 @@ class AVCameraViewController: UIViewController {
             // Activate size constraints (always active)
             // Note: capture button size is already in common constraints
             NSLayoutConstraint.activate([
-                previewView.topAnchor.constraint(equalTo: cancelButton.bottomAnchor, constant: 16),
+                previewView.topAnchor.constraint(equalTo: contextTitleLabel.bottomAnchor, constant: 16),
                 iPadPreviewWidthConstraint!,
                 iPadPreviewHeightConstraint!,
                 thumbnailScrollView.topAnchor.constraint(equalTo: previewView.bottomAnchor, constant: 16),
                 iPadBufferWidthConstraint!,
                 thumbnailScrollView.heightAnchor.constraint(equalToConstant: 80)
             ])
+
+            // iPad circular button constraints
+            // Portrait: bottom corners
+            cancelCircleBottomConstraint = cancelCircleButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20)
+            cancelCircleLeadingConstraint = cancelCircleButton.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 20)
+            saveCircleBottomConstraint = saveCircleButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20)
+            saveCircleTrailingConstraint = saveCircleButton.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -20)
+
+            // Landscape: grouped below guide button on right side
+            iPadLandscapeCancelTopConstraint = cancelCircleButton.topAnchor.constraint(equalTo: framingGuideToggleButton.bottomAnchor, constant: 20)
+            iPadLandscapeCancelTrailingConstraint = cancelCircleButton.trailingAnchor.constraint(equalTo: captureButton.centerXAnchor, constant: -8)
+            iPadLandscapeSaveTopConstraint = saveCircleButton.topAnchor.constraint(equalTo: framingGuideToggleButton.bottomAnchor, constant: 20)
+            iPadLandscapeSaveLeadingConstraint = saveCircleButton.leadingAnchor.constraint(equalTo: captureButton.centerXAnchor, constant: 8)
 
             // iPad PORTRAIT constraints (vertical stack, centered)
             iPadPortraitPreviewCenterXConstraint = previewView.centerXAnchor.constraint(equalTo: view.centerXAnchor)
@@ -676,7 +727,7 @@ class AVCameraViewController: UIViewController {
 
             NSLayoutConstraint.activate([
                 // Preview: full width, square aspect ratio
-                previewView.topAnchor.constraint(equalTo: cancelButton.bottomAnchor, constant: 16),
+                previewView.topAnchor.constraint(equalTo: contextTitleLabel.bottomAnchor, constant: 16),
                 previewView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
                 previewView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
                 previewView.heightAnchor.constraint(equalTo: previewView.widthAnchor),
@@ -686,6 +737,20 @@ class AVCameraViewController: UIViewController {
                 thumbnailScrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
                 thumbnailScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
                 thumbnailScrollView.heightAnchor.constraint(equalToConstant: 80)
+            ])
+
+            // iPhone circular button constraints (portrait only - bottom corners)
+            cancelCircleBottomConstraint = cancelCircleButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20)
+            cancelCircleLeadingConstraint = cancelCircleButton.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 20)
+            saveCircleBottomConstraint = saveCircleButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20)
+            saveCircleTrailingConstraint = saveCircleButton.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -20)
+
+            // Activate for iPhone (portrait only)
+            NSLayoutConstraint.activate([
+                cancelCircleBottomConstraint!,
+                cancelCircleLeadingConstraint!,
+                saveCircleBottomConstraint!,
+                saveCircleTrailingConstraint!
             ])
 
             // iPhone orientation-based constraints (updated in updateLayoutForOrientation)
@@ -715,9 +780,9 @@ class AVCameraViewController: UIViewController {
         view.bringSubviewToFront(captureButton)
         view.bringSubviewToFront(photoCountBadge)
         view.bringSubviewToFront(framingGuideToggleButton)
-        view.bringSubviewToFront(cancelButton)
         view.bringSubviewToFront(contextTitleLabel)
-        view.bringSubviewToFront(doneButton)
+        view.bringSubviewToFront(cancelCircleButton)
+        view.bringSubviewToFront(saveCircleButton)
         if let exposureControl = exposureControlView {
             view.bringSubviewToFront(exposureControl)
         }
@@ -1539,14 +1604,14 @@ class AVCameraViewController: UIViewController {
         }
         photoCountBadge.isHidden = count == 0
 
-        // Update done button
-        doneButton.isEnabled = !capturedPhotos.isEmpty
-        doneButton.alpha = capturedPhotos.isEmpty ? 0.5 : 1.0
+        // Update save button state
+        saveCircleButton.isEnabled = !capturedPhotos.isEmpty
+        saveCircleButton.alpha = capturedPhotos.isEmpty ? 0.5 : 1.0
 
         // Update configuration for color change
-        var config = doneButton.configuration ?? UIButton.Configuration.filled()
-        config.baseBackgroundColor = capturedPhotos.isEmpty ? .systemGray : .systemBlue
-        doneButton.configuration = config
+        var config = saveCircleButton.configuration ?? UIButton.Configuration.filled()
+        config.baseBackgroundColor = capturedPhotos.isEmpty ? .systemGray : .systemGreen
+        saveCircleButton.configuration = config
 
         // Show/hide empty state placeholder
         bufferEmptyPlaceholder.isHidden = !capturedPhotos.isEmpty
