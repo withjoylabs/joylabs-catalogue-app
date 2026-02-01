@@ -11,6 +11,11 @@ struct PhotoEditorView: View {
     /// iPad viewport size from camera (nil for iPhone)
     let iPadViewportSize: CGFloat?
 
+    // Direct upload support (bypasses buffer, uploads immediately)
+    let bufferCount: Int                          // Photos already in camera buffer
+    let existingBufferPhotos: [UIImage]           // Photos from camera buffer
+    let onDirectUpload: (([UIImage]) -> Void)?    // Upload current + buffer photos
+
     // Cached images (created once on appear)
     @State private var previewCIImage: CIImage?  // Smaller image for fast filter preview
     @State private var processedPreview: UIImage?
@@ -47,11 +52,20 @@ struct PhotoEditorView: View {
         return min(bounds.width, bounds.height) * 0.75
     }()
 
-    init(originalImage: UIImage, iPadViewportSize: CGFloat? = nil, onConfirm: @escaping (UIImage) -> Void, onCancel: @escaping () -> Void) {
+    init(originalImage: UIImage,
+         iPadViewportSize: CGFloat? = nil,
+         bufferCount: Int = 0,
+         existingBufferPhotos: [UIImage] = [],
+         onConfirm: @escaping (UIImage) -> Void,
+         onCancel: @escaping () -> Void,
+         onDirectUpload: (([UIImage]) -> Void)? = nil) {
         self.originalImage = originalImage
         self.iPadViewportSize = iPadViewportSize
+        self.bufferCount = bufferCount
+        self.existingBufferPhotos = existingBufferPhotos
         self.onConfirm = onConfirm
         self.onCancel = onCancel
+        self.onDirectUpload = onDirectUpload
     }
 
     var body: some View {
@@ -80,8 +94,8 @@ struct PhotoEditorView: View {
                 Divider()
                     .background(Color.gray.opacity(0.5))
 
-                // Bottom action bar: Cancel | Reset | Done
-                bottomActionBar
+                // Bottom action bar
+                bottomActionBar(isLandscape: isLandscape)
             }
             .background(Color.black)
         }
@@ -323,45 +337,105 @@ struct PhotoEditorView: View {
 
     // MARK: - Bottom Action Bar
 
-    private var bottomActionBar: some View {
-        HStack {
-            // Cancel button (left)
-            Button(action: { onCancel() }) {
-                Image(systemName: "xmark")
-                    .font(.title2)
-                    .fontWeight(.medium)
-            }
-            .modifier(PhotoEditorButtonStyle(isDisabled: false, color: .gray))
-            .buttonBorderShape(.circle)
-            .controlSize(.large)
-
-            Spacer()
-
-            // Reset All button (center)
-            Button(action: resetAdjustments) {
-                HStack(spacing: 6) {
-                    Image(systemName: "arrow.counterclockwise")
-                    Text("Reset All")
+    private func bottomActionBar(isLandscape: Bool) -> some View {
+        Group {
+            if isIPad && isLandscape {
+                // iPad Landscape: Buttons aligned to right half (matching slider panel)
+                HStack(spacing: 0) {
+                    Spacer() // Push buttons to right half
+                    HStack(spacing: 15) {
+                        actionButtons
+                    }
+                    .padding(.trailing, 16)
                 }
-                .foregroundColor(.red)
-                .font(.subheadline)
+            } else if isIPad {
+                // iPad Portrait: Centered compact layout with 15pt spacing
+                HStack(spacing: 15) {
+                    actionButtons
+                }
+            } else {
+                // iPhone: Spread layout with Spacers
+                HStack {
+                    cancelButton
+                    Spacer()
+                    resetButton
+                    Spacer()
+                    if onDirectUpload != nil {
+                        uploadButton
+                        Spacer()
+                    }
+                    doneButton
+                }
+                .padding(.horizontal, 20)
             }
-
-            Spacer()
-
-            // Done button (right)
-            Button(action: { confirmEdits() }) {
-                Image(systemName: "checkmark")
-                    .font(.title2)
-                    .fontWeight(.medium)
-            }
-            .modifier(PhotoEditorButtonStyle(isDisabled: isProcessingFinal, color: .green))
-            .buttonBorderShape(.circle)
-            .controlSize(.large)
-            .disabled(isProcessingFinal)
         }
-        .padding(.horizontal, 20)
         .padding(.vertical, 12)
+    }
+
+    /// All action buttons in a row (for iPad compact layout)
+    @ViewBuilder
+    private var actionButtons: some View {
+        cancelButton
+        resetButton
+        if onDirectUpload != nil {
+            uploadButton
+        }
+        doneButton
+    }
+
+    private var cancelButton: some View {
+        Button(action: { onCancel() }) {
+            Image(systemName: "xmark")
+                .font(.title2)
+                .fontWeight(.medium)
+        }
+        .modifier(PhotoEditorButtonStyle(isDisabled: false, color: .gray))
+        .buttonBorderShape(.circle)
+        .controlSize(.large)
+    }
+
+    private var resetButton: some View {
+        Button(action: resetAdjustments) {
+            Image(systemName: "arrow.counterclockwise")
+                .font(.title2)
+                .fontWeight(.medium)
+        }
+        .modifier(PhotoEditorButtonStyle(isDisabled: false, color: .red))
+        .buttonBorderShape(.circle)
+        .controlSize(.large)
+    }
+
+    private var uploadButton: some View {
+        Button(action: { directUpload() }) {
+            Image(systemName: "arrow.up")
+                .font(.title2)
+                .fontWeight(.medium)
+        }
+        .modifier(PhotoEditorButtonStyle(isDisabled: isProcessingFinal, color: .green))
+        .buttonBorderShape(.circle)
+        .controlSize(.large)
+        .disabled(isProcessingFinal)
+        .overlay(alignment: .topLeading) {
+            Text("\(bufferCount + 1)")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundColor(.white)
+                .frame(minWidth: 16, minHeight: 16)
+                .background(Color.red)
+                .clipShape(Circle())
+                .offset(x: -2, y: -2)
+        }
+    }
+
+    private var doneButton: some View {
+        Button(action: { confirmEdits() }) {
+            Image(systemName: "checkmark")
+                .font(.title2)
+                .fontWeight(.medium)
+        }
+        .modifier(PhotoEditorButtonStyle(isDisabled: isProcessingFinal, color: .blue))
+        .buttonBorderShape(.circle)
+        .controlSize(.large)
+        .disabled(isProcessingFinal)
     }
 
     // MARK: - Preset Actions
@@ -458,6 +532,41 @@ struct PhotoEditorView: View {
             await MainActor.run {
                 isProcessingFinal = false
                 onConfirm(finalImage)
+            }
+        }
+    }
+
+    /// Direct upload: process current photo and combine with buffer photos
+    private func directUpload() {
+        guard let uploadCallback = onDirectUpload else { return }
+
+        isProcessingFinal = true
+
+        // Capture current crop state
+        let currentScale = scale
+        let currentOffset = offset
+        let viewportSize = currentViewportSize
+
+        Task {
+            // 1. Apply filters to original image
+            let filteredImage = filterService.apply(adjustments, to: originalImage)
+
+            // 2. Apply crop if zoomed or panned
+            let finalImage: UIImage
+            if currentScale > 1.001 || abs(currentOffset.width) > 0.5 || abs(currentOffset.height) > 0.5 {
+                let cropRect = calculateCropRect(scale: currentScale, offset: currentOffset, viewportSize: viewportSize)
+                finalImage = cropImage(filteredImage, to: cropRect)
+            } else {
+                finalImage = filteredImage
+            }
+
+            // 3. Combine with existing buffer photos
+            var allPhotos = existingBufferPhotos
+            allPhotos.append(finalImage)
+
+            await MainActor.run {
+                isProcessingFinal = false
+                uploadCallback(allPhotos)
             }
         }
     }

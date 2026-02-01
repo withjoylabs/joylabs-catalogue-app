@@ -230,7 +230,7 @@ class AVCameraViewController: UIViewController {
 
     private lazy var saveCircleButton: UIButton = {
         var config = UIButton.Configuration.filled()
-        config.image = UIImage(systemName: "checkmark")?.withConfiguration(
+        config.image = UIImage(systemName: "arrow.up")?.withConfiguration(
             UIImage.SymbolConfiguration(pointSize: 20, weight: .medium)
         )
         config.cornerStyle = .capsule
@@ -261,12 +261,12 @@ class AVCameraViewController: UIViewController {
         let container = UIView()
         container.translatesAutoresizingMaskIntoConstraints = false
         container.backgroundColor = .systemRed
-        container.layer.cornerRadius = 12
+        container.layer.cornerRadius = 9
         container.isHidden = true  // Hidden when count is 0
 
         let label = UILabel()
         label.textColor = .white
-        label.font = .systemFont(ofSize: 14, weight: .bold)
+        label.font = .systemFont(ofSize: 10, weight: .bold)
         label.textAlignment = .center
         label.translatesAutoresizingMaskIntoConstraints = false
         label.tag = 999  // Tag to find label later
@@ -275,8 +275,8 @@ class AVCameraViewController: UIViewController {
         NSLayoutConstraint.activate([
             label.centerXAnchor.constraint(equalTo: container.centerXAnchor),
             label.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            container.widthAnchor.constraint(greaterThanOrEqualToConstant: 24),
-            container.heightAnchor.constraint(equalToConstant: 24)
+            container.widthAnchor.constraint(greaterThanOrEqualToConstant: 18),
+            container.heightAnchor.constraint(equalToConstant: 18)
         ])
 
         return container
@@ -678,25 +678,26 @@ class AVCameraViewController: UIViewController {
             ])
 
             // iPad circular button constraints
-            // Portrait: bottom corners
-            cancelCircleBottomConstraint = cancelCircleButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20)
-            cancelCircleLeadingConstraint = cancelCircleButton.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 20)
+            // Portrait: grouped together at bottom-right with 15pt spacing (like ItemDetailsModal)
             saveCircleBottomConstraint = saveCircleButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20)
             saveCircleTrailingConstraint = saveCircleButton.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -20)
+            cancelCircleBottomConstraint = cancelCircleButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20)
+            cancelCircleLeadingConstraint = cancelCircleButton.trailingAnchor.constraint(equalTo: saveCircleButton.leadingAnchor, constant: -15)
 
-            // Landscape: grouped below guide button on right side
-            iPadLandscapeCancelTopConstraint = cancelCircleButton.topAnchor.constraint(equalTo: framingGuideToggleButton.bottomAnchor, constant: 20)
-            iPadLandscapeCancelTrailingConstraint = cancelCircleButton.trailingAnchor.constraint(equalTo: captureButton.centerXAnchor, constant: -8)
+            // Landscape: stacked vertically below guide button (upload first, cancel below)
             iPadLandscapeSaveTopConstraint = saveCircleButton.topAnchor.constraint(equalTo: framingGuideToggleButton.bottomAnchor, constant: 20)
-            iPadLandscapeSaveLeadingConstraint = saveCircleButton.leadingAnchor.constraint(equalTo: captureButton.centerXAnchor, constant: 8)
+            iPadLandscapeSaveLeadingConstraint = saveCircleButton.centerXAnchor.constraint(equalTo: captureButton.centerXAnchor)
+            iPadLandscapeCancelTopConstraint = cancelCircleButton.topAnchor.constraint(equalTo: saveCircleButton.bottomAnchor, constant: 15)
+            iPadLandscapeCancelTrailingConstraint = cancelCircleButton.centerXAnchor.constraint(equalTo: captureButton.centerXAnchor)
 
             // iPad PORTRAIT constraints (vertical stack, centered)
             iPadPortraitPreviewCenterXConstraint = previewView.centerXAnchor.constraint(equalTo: view.centerXAnchor)
             iPadPortraitBufferCenterXConstraint = thumbnailScrollView.centerXAnchor.constraint(equalTo: view.centerXAnchor)
             iPadPortraitCaptureBottomConstraint = captureButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20)
             iPadPortraitCaptureCenterXConstraint = captureButton.centerXAnchor.constraint(equalTo: view.centerXAnchor)
-            iPadPortraitBadgeBottomConstraint = photoCountBadge.bottomAnchor.constraint(equalTo: captureButton.topAnchor, constant: -8)
-            iPadPortraitBadgeCenterXConstraint = photoCountBadge.centerXAnchor.constraint(equalTo: captureButton.centerXAnchor)
+            // Badge overlays upload button (top-leading, like photo editor)
+            iPadPortraitBadgeBottomConstraint = photoCountBadge.topAnchor.constraint(equalTo: saveCircleButton.topAnchor, constant: -2)
+            iPadPortraitBadgeCenterXConstraint = photoCountBadge.leadingAnchor.constraint(equalTo: saveCircleButton.leadingAnchor, constant: -2)
             iPadPortraitGuideLeadingConstraint = framingGuideToggleButton.leadingAnchor.constraint(equalTo: captureButton.trailingAnchor, constant: 12)
             iPadPortraitGuideCenterYConstraint = framingGuideToggleButton.centerYAnchor.constraint(equalTo: captureButton.centerYAnchor)
 
@@ -713,9 +714,9 @@ class AVCameraViewController: UIViewController {
             iPadLandscapeGuideTopConstraint = framingGuideToggleButton.topAnchor.constraint(equalTo: captureButton.bottomAnchor, constant: 12)
             iPadLandscapeGuideCenterXConstraint = framingGuideToggleButton.centerXAnchor.constraint(equalTo: captureButton.centerXAnchor)
 
-            // 3. Badge: above capture button
-            iPadLandscapeBadgeBottomConstraint = photoCountBadge.bottomAnchor.constraint(equalTo: captureButton.topAnchor, constant: -12)
-            iPadLandscapeBadgeCenterXConstraint = photoCountBadge.centerXAnchor.constraint(equalTo: captureButton.centerXAnchor)
+            // 3. Badge: overlays upload button (top-leading, like photo editor)
+            iPadLandscapeBadgeBottomConstraint = photoCountBadge.topAnchor.constraint(equalTo: saveCircleButton.topAnchor, constant: -2)
+            iPadLandscapeBadgeCenterXConstraint = photoCountBadge.leadingAnchor.constraint(equalTo: saveCircleButton.leadingAnchor, constant: -2)
 
             // Note: Sliders (exposure + zoom) positioned above badge in their setup methods
 
@@ -759,10 +760,11 @@ class AVCameraViewController: UIViewController {
             captureButtonTrailingConstraint = captureButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20)
             captureButtonCenterYConstraint = captureButton.centerYAnchor.constraint(equalTo: view.centerYAnchor)
 
-            badgeTrailingConstraint = photoCountBadge.trailingAnchor.constraint(equalTo: captureButton.leadingAnchor, constant: -12)
-            badgeCenterYConstraint = photoCountBadge.centerYAnchor.constraint(equalTo: captureButton.centerYAnchor)
-            badgeBottomConstraint = photoCountBadge.bottomAnchor.constraint(equalTo: captureButton.topAnchor, constant: -8)
-            badgeCenterXConstraint = photoCountBadge.centerXAnchor.constraint(equalTo: captureButton.centerXAnchor)
+            // Badge overlays upload button (top-leading, like photo editor)
+            badgeTrailingConstraint = photoCountBadge.topAnchor.constraint(equalTo: saveCircleButton.topAnchor, constant: -2)
+            badgeCenterYConstraint = photoCountBadge.leadingAnchor.constraint(equalTo: saveCircleButton.leadingAnchor, constant: -2)
+            badgeBottomConstraint = photoCountBadge.topAnchor.constraint(equalTo: saveCircleButton.topAnchor, constant: -2)
+            badgeCenterXConstraint = photoCountBadge.leadingAnchor.constraint(equalTo: saveCircleButton.leadingAnchor, constant: -2)
 
             bufferBottomToButtonConstraint = thumbnailScrollView.bottomAnchor.constraint(equalTo: captureButton.topAnchor, constant: -16)
             bufferBottomToViewConstraint = thumbnailScrollView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20)
@@ -1107,8 +1109,8 @@ class AVCameraViewController: UIViewController {
             iPadZoomPortraitCenterXConstraint = stack.centerXAnchor.constraint(equalTo: view.centerXAnchor)
             iPadZoomPortraitBottomConstraint = stack.bottomAnchor.constraint(equalTo: captureButton.topAnchor, constant: -12)
 
-            // Landscape: vertical stack, above badge, offset right from center (exposure goes to the left)
-            iPadZoomLandscapeBottomConstraint = stack.bottomAnchor.constraint(equalTo: photoCountBadge.topAnchor, constant: -16)
+            // Landscape: vertical stack, above capture button (70pt gap), offset right from center
+            iPadZoomLandscapeBottomConstraint = stack.bottomAnchor.constraint(equalTo: captureButton.topAnchor, constant: -70)
             iPadZoomLandscapeCenterXConstraint = stack.centerXAnchor.constraint(equalTo: captureButton.centerXAnchor, constant: 30)
 
             // Apply initial layout for iPad
@@ -1625,12 +1627,19 @@ class AVCameraViewController: UIViewController {
         let editorView = PhotoEditorView(
             originalImage: image,
             iPadViewportSize: viewportSize,
+            bufferCount: capturedPhotos.count,
+            existingBufferPhotos: capturedPhotos,
             onConfirm: { [weak self] editedImage in
                 self?.dismiss(animated: true)
                 self?.addPhotoToBuffer(editedImage)
             },
             onCancel: { [weak self] in
                 self?.dismiss(animated: true)
+            },
+            onDirectUpload: { [weak self] allPhotos in
+                // Don't dismiss editor - let origin dismiss camera
+                // iOS dismisses both; editor animates out since it's on top
+                self?.onPhotosCaptured?(allPhotos)
             }
         )
 
