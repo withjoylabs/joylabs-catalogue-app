@@ -23,6 +23,7 @@ struct PhotoEditorView: View {
     @State private var lastScale: CGFloat = 1.0
     @State private var offset: CGSize = .zero
     @State private var lastOffset: CGSize = .zero
+    @State private var currentViewportSize: CGFloat = 0  // Track for crop calculation
     private let maxZoom: CGFloat = 5.0  // Maximum zoom level
 
     // Preset management
@@ -34,7 +35,6 @@ struct PhotoEditorView: View {
     @State private var debounceTask: Task<Void, Never>?
 
     private let filterService = PhotoFilterService.shared
-    private let thumbnailSize: CGFloat = 1200  // Retina-quality preview
 
     private var isIPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
 
@@ -193,6 +193,7 @@ struct PhotoEditorView: View {
                 }
                 .frame(width: size * scale, height: size * scale)
                 .offset(x: offset.width, y: offset.height)
+                .drawingGroup()  // Rasterize for better gesture performance
 
                 // Processing overlay
                 if isProcessingFinal {
@@ -206,29 +207,24 @@ struct PhotoEditorView: View {
                             .foregroundColor(.white)
                     }
                 }
-
-                // Zoom indicator (shown when zoomed in)
-                if scale > 1.01 {
-                    VStack {
-                        HStack {
-                            Spacer()
-                            Text(String(format: "%.1fx", scale))
-                                .font(.caption2)
-                                .fontWeight(.medium)
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color.black.opacity(0.6))
-                                .clipShape(Capsule())
-                                .padding(8)
-                        }
-                        Spacer()
-                    }
-                }
             }
             .frame(width: size, height: size)
             .clipped()
             .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(alignment: .topTrailing) {
+                // Zoom indicator fixed to viewport (outside clipped content)
+                if scale > 1.01 {
+                    Text(String(format: "%.1fx", scale))
+                        .font(.caption2)
+                        .fontWeight(.medium)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.black.opacity(0.6))
+                        .clipShape(Capsule())
+                        .padding(8)
+                }
+            }
             .contentShape(Rectangle())
             .gesture(
                 MagnificationGesture()
@@ -264,6 +260,12 @@ struct PhotoEditorView: View {
                     offset = .zero
                     lastOffset = .zero
                 }
+            }
+            .onAppear {
+                currentViewportSize = size
+            }
+            .onChange(of: size) { _, newSize in
+                currentViewportSize = newSize
             }
         }
         .aspectRatio(1, contentMode: .fit)
@@ -360,20 +362,10 @@ struct PhotoEditorView: View {
     // MARK: - Setup
 
     private func setupImages() {
-        let thumbnail = createThumbnail(originalImage, maxSize: thumbnailSize)
-        thumbnailCIImage = CIImage(image: thumbnail)
+        // Use original image directly - no thumbnail scaling
+        // This ensures crop coordinates map exactly to original
+        thumbnailCIImage = CIImage(image: originalImage)
         applyFiltersToPreview()
-    }
-
-    private func createThumbnail(_ image: UIImage, maxSize: CGFloat) -> UIImage {
-        let scale = min(maxSize / image.size.width, maxSize / image.size.height, 1.0)
-        guard scale < 1.0 else { return image }
-
-        let newSize = CGSize(width: image.size.width * scale, height: image.size.height * scale)
-        let renderer = UIGraphicsImageRenderer(size: newSize)
-        return renderer.image { _ in
-            image.draw(in: CGRect(origin: .zero, size: newSize))
-        }
     }
 
     // MARK: - Filter Processing
@@ -412,6 +404,7 @@ struct PhotoEditorView: View {
         // Capture current crop state
         let currentScale = scale
         let currentOffset = offset
+        let viewportSize = currentViewportSize
 
         Task {
             // 1. Apply filters to original image
@@ -420,7 +413,7 @@ struct PhotoEditorView: View {
             // 2. Apply crop if zoomed or panned
             let finalImage: UIImage
             if currentScale > 1.001 || abs(currentOffset.width) > 0.5 || abs(currentOffset.height) > 0.5 {
-                let cropRect = calculateCropRect(scale: currentScale, offset: currentOffset)
+                let cropRect = calculateCropRect(scale: currentScale, offset: currentOffset, viewportSize: viewportSize)
                 finalImage = cropImage(filteredImage, to: cropRect)
             } else {
                 finalImage = filteredImage
@@ -436,34 +429,39 @@ struct PhotoEditorView: View {
     // MARK: - Crop Calculation
 
     /// Calculate the crop rectangle in original image coordinates
-    /// Based on current zoom (scale) and pan (offset)
-    private func calculateCropRect(scale: CGFloat, offset: CGSize) -> CGRect {
-        // The original image was cropped to square in camera, so it's already 1:1
+    /// Based on current zoom (scale) and pan (offset in viewport coordinates)
+    private func calculateCropRect(scale: CGFloat, offset: CGSize, viewportSize: CGFloat) -> CGRect {
+        // Original image size (already square from camera crop)
         let originalSize = min(originalImage.size.width, originalImage.size.height)
 
-        // Scale factor between thumbnail (1200) and original
-        let scaleFactor = originalSize / thumbnailSize
+        // Conversion ratio: viewport coords → original image coords
+        // Offset is applied to the SCALED image frame (viewportSize * scale), not base viewport
+        // Example: 500pt viewport, 4000px original, scale 2.0:
+        //   Scaled frame = 1000pt, max offset = 250pt
+        //   At offset 250pt: 250 * (4000 / 1000) = 1000px (correct)
+        let viewportToOriginal = originalSize / (viewportSize * scale)
 
-        // Visible region size in thumbnail coordinates
-        // At scale 2.0, we see half the image (600px of 1200px thumbnail)
-        let visibleSize = thumbnailSize / scale
+        // Visible region size in original image coordinates
+        // At scale 2.0, we see half the image
+        let visibleSize = originalSize / scale
 
-        // Center point in thumbnail coordinates
-        // offset is from center, so positive offset.width means image moved right,
-        // which means the visible region moved left (toward lower x)
-        let centerX = thumbnailSize / 2 - offset.width
-        let centerY = thumbnailSize / 2 - offset.height
+        // Convert offset from viewport coords to original image coords
+        // Positive offset.width = image moved right = crop region moved left (lower x)
+        let offsetInOriginal = CGSize(
+            width: offset.width * viewportToOriginal,
+            height: offset.height * viewportToOriginal
+        )
 
-        // Crop rect in thumbnail coordinates (top-left origin)
-        let cropX = centerX - visibleSize / 2
-        let cropY = centerY - visibleSize / 2
+        // Center point in original image coordinates
+        let centerX = originalSize / 2 - offsetInOriginal.width
+        let centerY = originalSize / 2 - offsetInOriginal.height
 
-        // Scale to original image coordinates
+        // Crop rect (top-left origin)
         return CGRect(
-            x: cropX * scaleFactor,
-            y: cropY * scaleFactor,
-            width: visibleSize * scaleFactor,
-            height: visibleSize * scaleFactor
+            x: centerX - visibleSize / 2,
+            y: centerY - visibleSize / 2,
+            width: visibleSize,
+            height: visibleSize
         )
     }
 
