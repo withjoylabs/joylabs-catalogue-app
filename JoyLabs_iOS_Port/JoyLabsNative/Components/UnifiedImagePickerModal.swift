@@ -885,15 +885,31 @@ struct UnifiedImagePickerModal: View {
                     }
                 } else {
                     // IMMEDIATE UPLOAD: Existing item with ID - upload processed image
-                    logger.info("[ImagePicker] Uploading processed image immediately for existing item: \(itemId)")
-                    
                     let fileName = "joylabs_square_\(Int(Date().timeIntervalSince1970))_\(Int.random(in: 1000...9999)).\(processedResult.format.fileExtension)"
 
-                    let (imageId, awsURL) = try await imageService.uploadImageWithId(
-                        imageData: processedResult.data,
-                        fileName: fileName,
-                        itemId: itemId
-                    )
+                    let imageId: String
+                    let awsURL: String
+
+                    // Check if this is a variation upload
+                    if case .scanViewVariationLongPress(let itemIdForVar, let variationName) = context {
+                        logger.info("[ImagePicker] Uploading to variation '\(variationName)' of item: \(itemIdForVar)")
+                        awsURL = try await imageService.uploadImageToVariation(
+                            imageData: processedResult.data,
+                            fileName: fileName,
+                            itemId: itemIdForVar,
+                            variationName: variationName
+                        )
+                        imageId = "variation_upload" // Variation upload returns URL only
+                    } else {
+                        logger.info("[ImagePicker] Uploading processed image immediately for existing item: \(itemId)")
+                        let result = try await imageService.uploadImageWithId(
+                            imageData: processedResult.data,
+                            fileName: fileName,
+                            itemId: itemId
+                        )
+                        imageId = result.imageId
+                        awsURL = result.awsURL
+                    }
 
                     let result = ImageUploadResult(
                         squareImageId: imageId,
@@ -927,6 +943,8 @@ struct UnifiedImagePickerModal: View {
         case .variationDetails(let variationId):
             return variationId
         case .scanViewLongPress(let itemId, _):
+            return itemId
+        case .scanViewVariationLongPress(let itemId, _):
             return itemId
         case .reordersViewLongPress(let itemId, _):
             return itemId

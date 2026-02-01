@@ -151,6 +151,107 @@ class SimpleImageService: ObservableObject {
         return (imageId, awsURL)
     }
 
+    /// Upload image to a specific variation (by name)
+    /// Looks up variation ID from item, then uploads image linked to that variation
+    func uploadImageToVariation(
+        imageData: Data,
+        fileName: String,
+        itemId: String,
+        variationName: String
+    ) async throws -> String {
+        logger.info("[SimpleImage] Uploading image for variation: \(variationName) of item: \(itemId)")
+
+        // Look up variation ID from SwiftData
+        let variationId = await findVariationId(itemId: itemId, variationName: variationName)
+
+        guard let variationId = variationId else {
+            logger.error("[SimpleImage] Could not find variation '\(variationName)' for item \(itemId)")
+            throw SimpleImageError.uploadFailed
+        }
+
+        logger.info("[SimpleImage] Found variation ID: \(variationId)")
+
+        // Validate image data
+        guard imageData.count > 0 else {
+            throw SimpleImageError.invalidImageData
+        }
+
+        // Generate idempotency key
+        let idempotencyKey = UUID().uuidString
+
+        // Detect MIME type from filename or data
+        let mimeType = detectMimeType(from: fileName, data: imageData)
+
+        // Upload to Square with variation ID (not item ID)
+        let response = try await httpClient.uploadImageToSquare(
+            imageData: imageData,
+            fileName: fileName,
+            itemId: variationId,  // Pass variation ID as the object to link
+            idempotencyKey: idempotencyKey,
+            mimeType: mimeType
+        )
+
+        guard let imageObject = response.image,
+              let awsURL = imageObject.imageData?.url else {
+            throw SimpleImageError.uploadFailed
+        }
+
+        let imageId = imageObject.id
+
+        logger.info("[SimpleImage] Variation image uploaded successfully: \(imageId)")
+
+        // Store image in SwiftData (links to variation via variationId)
+        try await createSwiftDataImageModel(
+            imageId: imageId,
+            awsURL: awsURL,
+            itemId: variationId
+        )
+
+        // Clear URLCache for this item to force refresh
+        clearCacheForItem(itemId: itemId)
+
+        // Send notification for UI refresh
+        NotificationCenter.default.post(
+            name: .imageUpdated,
+            object: nil,
+            userInfo: [
+                "itemId": itemId,
+                "variationId": variationId,
+                "imageId": imageId,
+                "imageURL": awsURL,
+                "action": "upload"
+            ]
+        )
+
+        return awsURL
+    }
+
+    /// Find variation ID by name within an item
+    private func findVariationId(itemId: String, variationName: String) async -> String? {
+        let db = databaseManager.getContext()
+
+        let descriptor = FetchDescriptor<CatalogItemModel>(
+            predicate: #Predicate { item in
+                item.id == itemId && !item.isDeleted
+            }
+        )
+
+        do {
+            let items = try db.fetch(descriptor)
+            guard let item = items.first,
+                  let variations = item.variations else {
+                return nil
+            }
+
+            // Find variation by name
+            let variation = variations.first { $0.name == variationName && !$0.isDeleted }
+            return variation?.id
+        } catch {
+            logger.error("[SimpleImage] Error finding variation: \(error)")
+            return nil
+        }
+    }
+
     /// Get primary image URL for an item using SwiftData relationships (Pure SwiftData approach)
     func getPrimaryImageURL(for itemId: String) async -> String? {
         // Use CatalogLookupService for Single Source of Truth
@@ -266,6 +367,7 @@ enum ImageUploadContext {
     case itemDetails(itemId: String?)
     case variationDetails(variationId: String)
     case scanViewLongPress(itemId: String, imageId: String?)
+    case scanViewVariationLongPress(itemId: String, variationName: String)
     case reordersViewLongPress(itemId: String, imageId: String?)
 
     var title: String {
@@ -276,6 +378,8 @@ enum ImageUploadContext {
             return "Add Variation Photo"
         case .scanViewLongPress, .reordersViewLongPress:
             return "Update Photo"
+        case .scanViewVariationLongPress(_, let variationName):
+            return "Add to \(variationName)"
         }
     }
 
@@ -283,7 +387,7 @@ enum ImageUploadContext {
         switch self {
         case .itemDetails, .variationDetails:
             return false
-        case .scanViewLongPress, .reordersViewLongPress:
+        case .scanViewLongPress, .reordersViewLongPress, .scanViewVariationLongPress:
             return true
         }
     }

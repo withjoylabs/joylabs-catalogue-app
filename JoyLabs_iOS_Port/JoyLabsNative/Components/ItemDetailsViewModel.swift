@@ -713,7 +713,7 @@ class ItemDetailsViewModel: ObservableObject {
         defer { isLoading = false }
         
         switch context {
-        case .editExisting(let itemId):
+        case .editExisting(let itemId, _):
             await loadExistingItem(itemId: itemId)
 
         case .createNew:
@@ -955,7 +955,7 @@ class ItemDetailsViewModel: ObservableObject {
         logger.info("Refreshing item data for \(itemId) after catalog sync")
         
         // Only refresh if we're currently editing this item and haven't made changes
-        guard case .editExisting(let currentItemId) = context,
+        guard case .editExisting(let currentItemId, _) = context,
               currentItemId == itemId,
               !hasChanges else {
             logger.info("Skipping refresh - either different item, unsaved changes, or not in edit mode")

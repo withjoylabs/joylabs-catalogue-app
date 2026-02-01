@@ -111,6 +111,26 @@ struct ScanButton: View {
 }
 
 // MARK: - Swipeable Search Result Card with Gestures
+/// Target for image upload (item vs variation)
+enum ImageUploadTarget: Equatable {
+    case item(id: String, name: String)
+    case variation(itemId: String, variationName: String)
+
+    var contextTitle: String {
+        switch self {
+        case .item(_, let name): return name
+        case .variation(_, let name): return name
+        }
+    }
+
+    var itemId: String {
+        switch self {
+        case .item(let id, _): return id
+        case .variation(let itemId, _): return itemId
+        }
+    }
+}
+
 struct SwipeableScanResultCard: View {
     let result: SearchResultItem
     let onAddToReorder: () -> Void
@@ -122,6 +142,7 @@ struct SwipeableScanResultCard: View {
     @State private var offset: CGFloat = 0
     @State private var isDragging = false
     @State private var currentImageId: String?  // Local state for dynamic image updates
+    @State private var uploadTarget: ImageUploadTarget?  // Target for camera/picker uploads
 
     @ObservedObject private var imageSaveService = ImageSaveService.shared
 
@@ -289,12 +310,23 @@ struct SwipeableScanResultCard: View {
                 imageId: currentImageId,
                 size: 50
             )
-            .onLongPressGesture {
-                switch imageSaveService.longPressImageAction {
-                case .camera:
-                    showingCamera = true
-                case .imagePicker:
-                    showingImagePicker = true
+            .contextMenu {
+                // Item option (always shown)
+                Button {
+                    uploadTarget = .item(id: result.id, name: result.name ?? "Item")
+                    triggerUploadAction()
+                } label: {
+                    Label("Add to \(result.name ?? "Item")", systemImage: "photo.badge.plus")
+                }
+
+                // Variation option (only if this is a named variation)
+                if let variationName = result.variationName, !variationName.isEmpty {
+                    Button {
+                        uploadTarget = .variation(itemId: result.id, variationName: variationName)
+                        triggerUploadAction()
+                    } label: {
+                        Label("Add to \(variationName)", systemImage: "photo.badge.plus.fill")
+                    }
                 }
             }
 
@@ -392,7 +424,7 @@ struct SwipeableScanResultCard: View {
             switch sheet {
             case .itemDetails(let item):
                 ItemDetailsModal(
-                    context: .editExisting(itemId: item.id),
+                    context: .editExisting(itemId: item.id, scrollToVariation: item.variationName),
                     onDismiss: {
                         activeSheet = nil
                     },
@@ -409,10 +441,7 @@ struct SwipeableScanResultCard: View {
         }
         .sheet(isPresented: $showingImagePicker) {
             UnifiedImagePickerModal(
-                context: .scanViewLongPress(
-                    itemId: result.id,
-                    imageId: result.images?.first?.id
-                ),
+                context: imagePickerContext,
                 onDismiss: {
                     showingImagePicker = false
                 },
@@ -432,18 +461,59 @@ struct SwipeableScanResultCard: View {
                 onCancel: {
                     showingCamera = false
                 },
-                contextTitle: result.name ?? "Item"
+                contextTitle: uploadTarget?.contextTitle ?? result.name ?? "Item"
             )
+        }
+    }
+
+    /// Trigger camera or image picker based on user setting
+    private func triggerUploadAction() {
+        switch imageSaveService.longPressImageAction {
+        case .camera:
+            showingCamera = true
+        case .imagePicker:
+            showingImagePicker = true
+        }
+    }
+
+    /// Generate image picker context based on upload target
+    private var imagePickerContext: ImageUploadContext {
+        guard let target = uploadTarget else {
+            return .scanViewLongPress(itemId: result.id, imageId: result.images?.first?.id)
+        }
+
+        switch target {
+        case .variation(let itemId, let variationName):
+            return .scanViewVariationLongPress(itemId: itemId, variationName: variationName)
+        case .item(let id, _):
+            return .scanViewLongPress(itemId: id, imageId: result.images?.first?.id)
         }
     }
 
     private func handleCameraPhotos(_ images: [UIImage]) {
         guard let firstImage = images.first,
               let imageData = firstImage.jpegData(compressionQuality: 0.9) else { return }
+
+        let target = uploadTarget ?? .item(id: result.id, name: result.name ?? "Item")
+
         Task {
             let imageService = SimpleImageService.shared
             let fileName = "camera_\(UUID().uuidString).jpg"
-            _ = try? await imageService.uploadImage(imageData: imageData, fileName: fileName, itemId: result.id)
+
+            switch target {
+            case .item(let id, _):
+                // Upload to item's main images
+                _ = try? await imageService.uploadImage(imageData: imageData, fileName: fileName, itemId: id)
+
+            case .variation(let itemId, let variationName):
+                // Upload to variation - need to look up variation ID first
+                _ = try? await imageService.uploadImageToVariation(
+                    imageData: imageData,
+                    fileName: fileName,
+                    itemId: itemId,
+                    variationName: variationName
+                )
+            }
 
             // Trigger search refresh to show updated thumbnail
             await MainActor.run {

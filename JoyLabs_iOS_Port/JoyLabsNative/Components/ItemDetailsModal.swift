@@ -4,10 +4,10 @@ import os.log
 // MARK: - Item Details Context
 /// Defines how the item details modal was accessed and what data to pre-fill
 enum ItemDetailsContext: Equatable {
-    case editExisting(itemId: String)
+    case editExisting(itemId: String, scrollToVariation: String? = nil)
     case createNew
     case createFromSearch(query: String, queryType: SearchQueryType)
-    
+
     var isCreating: Bool {
         switch self {
         case .editExisting:
@@ -16,7 +16,7 @@ enum ItemDetailsContext: Equatable {
             return true
         }
     }
-    
+
     var title: String {
         switch self {
         case .editExisting:
@@ -25,6 +25,16 @@ enum ItemDetailsContext: Equatable {
             return "Create New Item"
         case .createFromSearch:
             return "Create New Item"
+        }
+    }
+
+    /// Variation name to scroll to (if opening from variation scan)
+    var scrollToVariation: String? {
+        switch self {
+        case .editExisting(_, let variation):
+            return variation
+        default:
+            return nil
         }
     }
 }
@@ -69,9 +79,16 @@ struct ItemDetailsModal: View {
     // Price selection data for FAB buttons
     @State private var availablePrices: [(variationIndex: Int, variationName: String, price: String)] = []
     @State private var needsSaveAfterPrint = false
-    
-    
+
+    // Scroll to variation button visibility
+    @State private var showScrollToVariationButton = true
+
     private let logger = Logger(subsystem: "com.joylabs.native", category: "ItemDetailsModal")
+
+    /// Find variation index by name for scroll-to functionality
+    private func variationIndex(for name: String) -> Int? {
+        viewModel.variations.firstIndex { $0.name == name }
+    }
 
     // Dynamic title showing item name or fallback
     private var dynamicTitle: String {
@@ -119,6 +136,30 @@ struct ItemDetailsModal: View {
                 VStack {
                     Spacer()
 
+                    // Scroll to Variation button (shown when opened from variation scan)
+                    if showScrollToVariationButton,
+                       let variationName = context.scrollToVariation,
+                       let index = variationIndex(for: variationName) {
+                        Button {
+                            focusedField = .variationName(index)
+                            showScrollToVariationButton = false
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "arrow.down.circle.fill")
+                                Text("Scroll to \"\(variationName)\"")
+                            }
+                            .font(.subheadline.weight(.medium))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(Color.blue)
+                            .clipShape(Capsule())
+                            .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+                        }
+                        .padding(.bottom, 8)
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    }
+
                     FloatingActionButtons(
                         onCancel: handleCancel,
                         onPrint: handlePrint,
@@ -155,7 +196,7 @@ struct ItemDetailsModal: View {
             setupForContext()
             
             // Register with centralized item update manager for automatic refresh
-            if case .editExisting(let itemId) = context {
+            if case .editExisting(let itemId, _) = context {
                 CentralItemUpdateManager.shared.registerItemDetailsModal(itemId: itemId, viewModel: viewModel)
             }
         }
@@ -165,7 +206,7 @@ struct ItemDetailsModal: View {
             print("[ItemDetailsModal] onDisappear called")
             
             // Unregister from centralized item update manager
-            if case .editExisting(let itemId) = context {
+            if case .editExisting(let itemId, _) = context {
                 CentralItemUpdateManager.shared.unregisterItemDetailsModal(itemId: itemId)
             }
         }
