@@ -88,5 +88,9 @@ struct ItemDetailsPricingSection: View {
     private func addNewVariation() {
         let newVariation = ItemDetailsVariationData()
         viewModel.variations.append(newVariation)
+
+        // Focus on the new variation's name field
+        let newIndex = viewModel.variations.count - 1
+        focusedField = .variationName(newIndex)
     }
 }

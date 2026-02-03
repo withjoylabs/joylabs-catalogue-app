@@ -17,11 +17,11 @@ struct CategoryTaxSettingsView: View {
     var body: some View {
         List {
             descriptionSection
-            batchToggleSection
-            categoryListSection
             if !selectedCategories.isEmpty {
                 selectedTagsSection
             }
+            batchToggleSection
+            categoryListSection
         }
         .navigationTitle("Category Tax Settings")
         .navigationBarTitleDisplayMode(.inline)
