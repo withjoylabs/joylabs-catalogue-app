@@ -213,7 +213,7 @@ struct VariationCardPriceSection: View {
         if let firstAvailableLocation = viewModel.availableLocations.first(where: { !usedLocationIds.contains($0.id) }) {
             let newOverride = LocationOverrideData(
                 locationId: firstAvailableLocation.id,
-                priceMoney: MoneyData(dollars: 0.0),
+                priceMoney: nil,  // Don't default to $0.00 - let user enter price
                 trackInventory: false
             )
             
@@ -1047,7 +1047,7 @@ struct PriceOverrideRow: View {
     
     @State private var showDeleteConfirmation = false
     @State private var priceInCents: Int = 0
-    @State private var digitString: String = "0.00"
+    @State private var digitString: String = ""  // Empty by default, not "0.00"
     
     private var locationName: String {
         availableLocations.first { $0.id == override.locationId }?.name ?? "Unknown Location"
@@ -1150,19 +1150,27 @@ struct PriceOverrideRow: View {
             }
         }
         .onAppear {
-            // Initialize from existing price
-            priceInCents = override.priceMoney?.amount ?? 0
-            let dollars = priceInCents / 100
-            let cents = priceInCents % 100
-            digitString = String(format: "%d.%02d", dollars, cents)
+            // Initialize from existing price - show empty if no price set
+            if let amount = override.priceMoney?.amount, amount > 0 {
+                priceInCents = amount
+                let dollars = priceInCents / 100
+                let cents = priceInCents % 100
+                digitString = String(format: "%d.%02d", dollars, cents)
+            } else {
+                priceInCents = 0
+                digitString = ""  // Show empty field, not "0.00"
+            }
         }
         .onChange(of: override.priceMoney) { _, newValue in
             // Update display when external changes occur
-            if let newAmount = newValue?.amount, newAmount != priceInCents {
+            if let newAmount = newValue?.amount, newAmount > 0, newAmount != priceInCents {
                 priceInCents = newAmount
                 let dollars = priceInCents / 100
                 let cents = priceInCents % 100
                 digitString = String(format: "%d.%02d", dollars, cents)
+            } else if newValue == nil || (newValue?.amount ?? 0) == 0 {
+                priceInCents = 0
+                digitString = ""  // Show empty when cleared
             }
         }
         .alert("Delete Price Override", isPresented: $showDeleteConfirmation) {

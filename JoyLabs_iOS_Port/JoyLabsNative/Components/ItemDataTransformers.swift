@@ -432,9 +432,14 @@ class ItemDataTransformers {
     private static func transformLocationOverridesToAPI(_ locationOverrides: [LocationOverrideData]) -> [LocationOverride]? {
         guard !locationOverrides.isEmpty else { return nil }
 
-        // Only include overrides that have meaningful data (price or inventory tracking)
+        // Only include overrides that have meaningful data:
+        // - Valid price (> 0) for price overrides
+        // - Inventory tracking enabled
+        // CRITICAL: Do NOT send overrides with $0.00 or nil price as price overrides
         let validOverrides = locationOverrides.filter { override in
-            override.priceMoney != nil || override.trackingMode == .stockCount
+            let hasValidPrice = (override.priceMoney?.amount ?? 0) > 0
+            let hasInventoryTracking = override.trackingMode == .stockCount
+            return hasValidPrice || hasInventoryTracking
         }
 
         guard !validOverrides.isEmpty else { return nil }
@@ -449,10 +454,14 @@ class ItemDataTransformers {
                 trackInventoryValue = nil  // Don't include in overrides
             }
 
+            // CRITICAL: Only send price fields if we have a valid non-zero price
+            // This prevents Square from creating $0.00 price overrides when we only want inventory tracking
+            let hasValidPrice = (override.priceMoney?.amount ?? 0) > 0
+
             return LocationOverride(
                 locationId: override.locationId,
-                priceMoney: transformMoneyToAPI(override.priceMoney),
-                pricingType: override.priceMoney != nil ? "FIXED_PRICING" : nil,
+                priceMoney: hasValidPrice ? transformMoneyToAPI(override.priceMoney) : nil,
+                pricingType: hasValidPrice ? "FIXED_PRICING" : nil,
                 trackInventory: trackInventoryValue,
                 inventoryAlertType: override.inventoryAlertType?.rawValue,
                 inventoryAlertThreshold: override.inventoryAlertThreshold.map(Int64.init),

@@ -26,7 +26,9 @@ public class PushNotificationService: NSObject, ObservableObject {
     private var processedEventIds = Set<String>()
     private var recentLocalOperations: [String: Date] = [:]
     private let eventIdCleanupInterval: TimeInterval = 3600 // 1 hour
-    private let localOperationWindow: TimeInterval = 30 // 30 seconds
+    // REDUCED from 30s to 5s to prevent false positives on other devices
+    // Webhooks typically arrive within 1-2 seconds of the change
+    private let localOperationWindow: TimeInterval = 5
     private var lastEventCleanup = Date()
     
     // MARK: - Dependencies
@@ -642,10 +644,11 @@ extension PushNotificationService {
         cleanupOldLocalOperations()
         
         // Check if any recent local operation falls within the time window
-        for (_, localOpTime) in recentLocalOperations {
+        // Note: We match on timestamp because webhook payload doesn't include itemId
+        for (itemId, localOpTime) in recentLocalOperations {
             let timeDifference = abs(webhookTime.timeIntervalSince(localOpTime))
             if timeDifference <= localOperationWindow {
-                logger.debug("🔍 Found recent local operation within \(timeDifference)s of webhook")
+                logger.debug("🔍 Found recent local operation for item \(itemId) within \(timeDifference)s of webhook")
                 return true
             }
         }
@@ -683,7 +686,7 @@ extension PushNotificationService {
     
     /// Clean up old local operations to prevent memory growth
     private func cleanupOldLocalOperations() {
-        let cutoffTime = Date().addingTimeInterval(-localOperationWindow * 2) // Keep records for 2x the window
+        let cutoffTime = Date().addingTimeInterval(-localOperationWindow * 3) // Keep records for 3x the window (15 seconds)
         
         let oldCount = recentLocalOperations.count
         recentLocalOperations = recentLocalOperations.filter { $0.value > cutoffTime }

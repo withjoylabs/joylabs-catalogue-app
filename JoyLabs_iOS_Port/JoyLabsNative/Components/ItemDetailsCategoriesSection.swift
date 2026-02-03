@@ -140,20 +140,21 @@ struct ItemDetailsCategoriesSection: View {
                 selectedCategoryId: $viewModel.reportingCategoryId,
                 categories: viewModel.availableCategories,
                 title: "Reporting Category",
-                onCategorySelected: viewModel.addToRecentCategories
+                onCategorySelected: { categoryId in
+                    viewModel.addToRecentCategories(categoryId)
+                    applyTaxDefaultsForCategory(categoryId)
+                }
             )
             .nestedComponentModal()
         }
-        .onChange(of: viewModel.reportingCategoryId) { _, newCategoryId in
-            applyTaxDefaultsForCategory(newCategoryId)
-        }
     }
 
-    /// Apply tax defaults based on category selection
+    /// Apply tax defaults based on category selection (only called from explicit modal selection)
     private func applyTaxDefaultsForCategory(_ categoryId: String?) {
         guard let categoryId = categoryId else { return }
 
         let taxService = CategoryTaxDefaultsService.shared
+        taxService.load() // Ensure settings are loaded from UserDefaults
 
         if taxService.isNonTaxable(categoryId: categoryId) {
             // Non-taxable category: explicitly uncheck all taxes

@@ -36,6 +36,20 @@ final class CatalogItemModel {
     // Image IDs (per Square API: first ID is primary/icon image)
     var imageIds: [String]?
 
+    // CRITICAL: Direct access to IDs for UI without JSON parsing
+    // These enable proper checkbox state for taxes, modifiers, categories
+    var taxIds: [String]?  // Tax IDs for checkbox state
+    var modifierListIds: [String]?  // Modifier list IDs
+    var categoryIds: [String]?  // Category IDs from itemData.categories
+
+    // Additional Square API fields for complete webhook sync
+    var isTaxable: Bool?
+    var isAlcoholic: Bool?
+    var skipModifierScreen: Bool?
+    var abbreviation: String?
+    var productType: String?
+    var sortName: String?
+
     // Store complete Square API response for complex operations
     var dataJson: String?
 
@@ -98,6 +112,7 @@ final class CatalogItemModel {
     }
     
     // Update from Square API CatalogObject
+    // COMPREHENSIVE extraction - ensures webhook-synced items have ALL data
     func updateFromCatalogObject(_ object: CatalogObject) {
         self.updatedAt = Date()
         self.version = String(object.version ?? 0)
@@ -105,12 +120,15 @@ final class CatalogItemModel {
         self.presentAtAllLocations = object.presentAtAllLocations
         self.presentAtLocationIds = object.presentAtLocationIds
         self.absentAtLocationIds = object.absentAtLocationIds
-        
+
         if let itemData = object.itemData {
+            // Basic item fields
             self.name = itemData.name
             self.itemDescription = itemData.description
             self.categoryId = itemData.categoryId
             self.labelColor = itemData.labelColor
+
+            // Availability settings
             self.availableOnline = itemData.availableOnline
             self.availableForPickup = itemData.availableForPickup
             self.availableElectronically = itemData.availableElectronically
@@ -119,13 +137,52 @@ final class CatalogItemModel {
             // Per Square docs: imageIds[0] is the primary/icon image
             self.imageIds = itemData.imageIds
 
-            // Store full JSON for complex operations
+            // CRITICAL: Extract taxIds for UI checkbox state
+            // This enables taxes to display correctly without JSON parsing
+            self.taxIds = itemData.taxIds
+
+            // Extract modifier list IDs from modifierListInfo
+            if let modifierListInfo = itemData.modifierListInfo {
+                self.modifierListIds = modifierListInfo.compactMap { $0.modifierListId }
+            } else {
+                self.modifierListIds = nil
+            }
+
+            // Extract category IDs from categories array
+            if let categories = itemData.categories {
+                self.categoryIds = categories.map { $0.id }
+            } else {
+                self.categoryIds = nil
+            }
+
+            // Extract reporting category
+            self.reportingCategoryId = itemData.reportingCategory?.id
+
+            // Additional boolean flags
+            self.isTaxable = itemData.isTaxable
+            self.isAlcoholic = itemData.isAlcoholic
+            self.skipModifierScreen = itemData.skipModifierScreen
+
+            // String fields
+            self.abbreviation = itemData.abbreviation
+            self.productType = itemData.productType
+            self.sortName = itemData.sortName
+
+            // Pre-computed names for search/display (if provided by sync)
+            if let taxNames = itemData.taxNames {
+                self.taxNames = taxNames
+            }
+            if let modifierNames = itemData.modifierNames {
+                self.modifierNames = modifierNames
+            }
+
+            // Store full JSON for complex operations and toCatalogObject()
             if let jsonData = try? JSONEncoder().encode(object),
                let jsonString = String(data: jsonData, encoding: .utf8) {
                 self.dataJson = jsonString
             }
         }
-        
+
         // Store type at object level
         self.itemType = object.type
     }

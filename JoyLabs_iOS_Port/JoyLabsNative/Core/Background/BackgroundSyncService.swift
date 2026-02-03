@@ -379,6 +379,18 @@ actor BackgroundSyncService {
         if let existingVariation = try modelContext.fetch(descriptor).first {
             // Update existing variation
             existingVariation.updateFromCatalogObject(object)
+
+            // Ensure relationship to parent item is established (may have been missing)
+            if existingVariation.item == nil {
+                let itemDescriptor = FetchDescriptor<CatalogItemModel>(
+                    predicate: #Predicate { $0.id == variationData.itemId }
+                )
+                if let parentItem = try modelContext.fetch(itemDescriptor).first {
+                    existingVariation.item = parentItem
+                    logger.debug("[BackgroundSync] Linked existing variation \(object.id) to parent item \(variationData.itemId)")
+                }
+            }
+
             logger.debug("[BackgroundSync] Updated existing variation: \(object.id)")
         } else {
             // Insert new variation
@@ -392,6 +404,16 @@ actor BackgroundSyncService {
 
             variation.updateFromCatalogObject(object)
             modelContext.insert(variation)
+
+            // Link to parent item if it exists
+            let itemDescriptor = FetchDescriptor<CatalogItemModel>(
+                predicate: #Predicate { $0.id == variationData.itemId }
+            )
+            if let parentItem = try modelContext.fetch(itemDescriptor).first {
+                variation.item = parentItem
+                logger.debug("[BackgroundSync] Linked new variation \(object.id) to parent item \(variationData.itemId)")
+            }
+
             logger.debug("[BackgroundSync] Inserted new variation: \(object.id)")
         }
     }
