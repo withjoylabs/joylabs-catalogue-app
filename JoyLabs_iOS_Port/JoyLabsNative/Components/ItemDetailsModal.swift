@@ -136,8 +136,9 @@ struct ItemDetailsModal: View {
                 VStack {
                     Spacer()
 
-                    // Scroll to Variation button (shown when opened from variation scan)
+                    // Scroll to Variation button (shown when opened from variation scan with 2+ variations)
                     if showScrollToVariationButton,
+                       viewModel.variations.count > 1,
                        let variationName = context.scrollToVariation,
                        let index = variationIndex(for: variationName) {
                         Button {

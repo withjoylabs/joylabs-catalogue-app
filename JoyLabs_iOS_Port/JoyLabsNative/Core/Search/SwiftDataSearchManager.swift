@@ -531,6 +531,7 @@ class SwiftDataSearchManager: ObservableObject {
                 reportingCategoryId: item.reportingCategoryId,
                 categoryName: item.categoryName ?? item.reportingCategoryName,
                 variationName: variation?.name,
+                variationCount: item.variations?.filter { !$0.isDeleted }.count ?? 0,
                 images: buildCatalogImages(from: item.imageIds),
                 matchType: matchType,
                 matchContext: item.name,
@@ -556,6 +557,7 @@ class SwiftDataSearchManager: ObservableObject {
             reportingCategoryId: item.reportingCategoryId,
             categoryName: item.categoryName ?? item.reportingCategoryName,
             variationName: variation.name,
+            variationCount: item.variations?.filter { !$0.isDeleted }.count ?? 0,
             images: buildCatalogImages(from: item.imageIds),
             matchType: matchType,
             matchContext: matchType == "upc" ? variation.upc : variation.sku,
@@ -629,6 +631,7 @@ class SwiftDataSearchManager: ObservableObject {
                     reportingCategoryId: item.reportingCategoryId,
                     categoryName: item.categoryName ?? item.reportingCategoryName,
                     variationName: variation?.name,
+                    variationCount: item.variations?.filter { !$0.isDeleted }.count ?? 0,
                     images: buildCatalogImages(from: item.imageIds),
                     matchType: "case_upc",
                     matchContext: teamData.caseUpc,
@@ -690,6 +693,7 @@ class SwiftDataSearchManager: ObservableObject {
                     reportingCategoryId: item.reportingCategoryId,
                     categoryName: item.categoryName ?? item.reportingCategoryName,
                     variationName: variation?.name,
+                    variationCount: item.variations?.filter { !$0.isDeleted }.count ?? 0,
                     images: buildCatalogImages(from: item.imageIds),
                     matchType: existingResult.matchType,
                     matchContext: existingResult.matchContext,
@@ -840,6 +844,7 @@ class SwiftDataSearchManager: ObservableObject {
                     reportingCategoryId: item.reportingCategoryId,
                     categoryName: item.categoryName ?? item.reportingCategoryName,
                     variationName: variation.name,
+                    variationCount: item.variations?.filter { !$0.isDeleted }.count ?? 0,
                     images: buildCatalogImages(from: item.imageIds),
                     matchType: "upc",
                     matchContext: barcode,
@@ -850,19 +855,19 @@ class SwiftDataSearchManager: ObservableObject {
                 results.append(searchResult)
             }
         }
-        
+
         return results
     }
-    
+
     private func searchExactSKU(sku: String) async throws -> [SearchResultItem] {
         let descriptor = FetchDescriptor<ItemVariationModel>(
             predicate: #Predicate { variation in
                 !variation.isDeleted && variation.sku == sku
             }
         )
-        
+
         let variations = try modelContext.fetch(descriptor)
-        
+
         var results: [SearchResultItem] = []
         for variation in variations {
             if let item = variation.item, !item.isDeleted {
@@ -875,6 +880,7 @@ class SwiftDataSearchManager: ObservableObject {
                     reportingCategoryId: item.reportingCategoryId,
                     categoryName: item.categoryName ?? item.reportingCategoryName,
                     variationName: variation.name,
+                    variationCount: item.variations?.filter { !$0.isDeleted }.count ?? 0,
                     images: buildCatalogImages(from: item.imageIds),
                     matchType: "sku",
                     matchContext: sku,

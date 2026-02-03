@@ -305,30 +305,10 @@ struct SwipeableScanResultCard: View {
     private var scanResultContent: some View {
         return HStack(spacing: 12) {
             // Thumbnail image (left side) - using native iOS image system
-            // Long press to update image
-            NativeImageView.thumbnail(
-                imageId: currentImageId,
-                size: 50
-            )
-            .contextMenu {
-                // Item option (always shown)
-                Button {
-                    uploadTarget = .item(id: result.id, name: result.name ?? "Item")
-                    triggerUploadAction()
-                } label: {
-                    Label("Add to \(result.name ?? "Item")", systemImage: "photo.badge.plus")
-                }
-
-                // Variation option (only if this is a named variation)
-                if let variationName = result.variationName, !variationName.isEmpty {
-                    Button {
-                        uploadTarget = .variation(itemId: result.id, variationName: variationName)
-                        triggerUploadAction()
-                    } label: {
-                        Label("Add to \(variationName)", systemImage: "photo.badge.plus.fill")
-                    }
-                }
-            }
+            // Long press behavior depends on variation count:
+            // - Single variation: Go directly to camera/picker for item
+            // - Multiple variations: Show context menu to choose item or variation
+            thumbnailView
 
             // Main content section
             VStack(alignment: .leading, spacing: 6) {
@@ -487,6 +467,44 @@ struct SwipeableScanResultCard: View {
             return .scanViewVariationLongPress(itemId: itemId, variationName: variationName)
         case .item(let id, _):
             return .scanViewLongPress(itemId: id, imageId: result.images?.first?.id)
+        }
+    }
+
+    /// Thumbnail view with conditional long-press behavior
+    /// Single variation: Go directly to camera/picker
+    /// Multiple variations: Show context menu to choose target
+    @ViewBuilder
+    private var thumbnailView: some View {
+        let thumbnail = NativeImageView.thumbnail(
+            imageId: currentImageId,
+            size: 50
+        )
+
+        if result.variationCount > 1 {
+            // Multiple variations: Show context menu
+            thumbnail.contextMenu {
+                Button {
+                    uploadTarget = .item(id: result.id, name: result.name ?? "Item")
+                    triggerUploadAction()
+                } label: {
+                    Label("Add to \(result.name ?? "Item")", systemImage: "photo.badge.plus")
+                }
+
+                if let variationName = result.variationName, !variationName.isEmpty {
+                    Button {
+                        uploadTarget = .variation(itemId: result.id, variationName: variationName)
+                        triggerUploadAction()
+                    } label: {
+                        Label("Add to \(variationName)", systemImage: "photo.badge.plus.fill")
+                    }
+                }
+            }
+        } else {
+            // Single variation: Go directly to camera/picker for item
+            thumbnail.onLongPressGesture {
+                uploadTarget = .item(id: result.id, name: result.name ?? "Item")
+                triggerUploadAction()
+            }
         }
     }
 

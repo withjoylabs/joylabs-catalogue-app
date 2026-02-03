@@ -153,12 +153,49 @@ struct SearchResultItem: Identifiable, Hashable {
     let reportingCategoryId: String?  // Square's primary category for reporting purposes
     let categoryName: String?
     let variationName: String?
+    let variationCount: Int  // Total variations for this item (1 = single, 2+ = multiple)
     let images: [CatalogImage]?
     let matchType: String
     let matchContext: String?
     let isFromCaseUpc: Bool
     let caseUpcData: CaseUpcData?
     let hasTax: Bool
+
+    // Convenience initializer with default variationCount for compatibility
+    init(
+        id: String,
+        name: String?,
+        sku: String?,
+        price: Double?,
+        barcode: String?,
+        reportingCategoryId: String? = nil,
+        categoryId: String? = nil,  // Alias for reportingCategoryId (backwards compatibility)
+        categoryName: String?,
+        variationName: String?,
+        variationCount: Int = 1,  // Default to 1 for backwards compatibility
+        images: [CatalogImage]? = nil,
+        matchType: String = "unknown",
+        matchContext: String? = nil,
+        isFromCaseUpc: Bool = false,
+        caseUpcData: CaseUpcData? = nil,
+        hasTax: Bool = false
+    ) {
+        self.id = id
+        self.name = name
+        self.sku = sku
+        self.price = price
+        self.barcode = barcode
+        self.reportingCategoryId = reportingCategoryId ?? categoryId
+        self.categoryName = categoryName
+        self.variationName = variationName
+        self.variationCount = variationCount
+        self.images = images
+        self.matchType = matchType
+        self.matchContext = matchContext
+        self.isFromCaseUpc = isFromCaseUpc
+        self.caseUpcData = caseUpcData
+        self.hasTax = hasTax
+    }
 
     // Hashable conformance - includes ALL mutable fields so SwiftUI detects changes
     func hash(into hasher: inout Hasher) {
@@ -171,6 +208,7 @@ struct SearchResultItem: Identifiable, Hashable {
         hasher.combine(barcode)      // ✅ Now detects barcode changes
         hasher.combine(categoryName) // ✅ Now detects category changes
         hasher.combine(variationName) // ✅ Now detects variation name changes
+        hasher.combine(variationCount)
         hasher.combine(hasTax)       // ✅ Now detects tax status changes
     }
 
@@ -184,6 +222,7 @@ struct SearchResultItem: Identifiable, Hashable {
                lhs.barcode == rhs.barcode &&    // ✅ Now compares barcode
                lhs.categoryName == rhs.categoryName && // ✅ Now compares category
                lhs.variationName == rhs.variationName && // ✅ Now compares variation name
+               lhs.variationCount == rhs.variationCount &&
                lhs.hasTax == rhs.hasTax         // ✅ Now compares tax status
     }
 }
