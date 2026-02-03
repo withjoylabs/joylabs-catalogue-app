@@ -144,6 +144,29 @@ struct ItemDetailsCategoriesSection: View {
             )
             .nestedComponentModal()
         }
+        .onChange(of: viewModel.reportingCategoryId) { _, newCategoryId in
+            applyTaxDefaultsForCategory(newCategoryId)
+        }
+    }
+
+    /// Apply tax defaults based on category selection
+    private func applyTaxDefaultsForCategory(_ categoryId: String?) {
+        guard let categoryId = categoryId else { return }
+
+        let taxService = CategoryTaxDefaultsService.shared
+
+        if taxService.isNonTaxable(categoryId: categoryId) {
+            // Non-taxable category: explicitly uncheck all taxes
+            viewModel.taxIds.removeAll()
+            viewModel.staticData.isTaxable = false
+        } else {
+            // Taxable category: re-check taxes if "item is taxable" default is ON
+            if configManager.currentConfiguration.pricingFields.defaultIsTaxable {
+                viewModel.taxIds = viewModel.availableTaxes.compactMap { $0.id }
+                viewModel.staticData.isTaxable = true
+            }
+            // If defaultIsTaxable is OFF, leave taxes unchanged
+        }
     }
     
     private var selectedReportingCategoryName: String? {

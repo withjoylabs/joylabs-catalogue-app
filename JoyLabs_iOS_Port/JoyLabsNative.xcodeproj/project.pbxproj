@@ -25,6 +25,7 @@
 		2CF42B0F0F8F91EDA4B4A430 /* TaxModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E196ABB8315C31CEEDBA99 /* TaxModel.swift */; };
 		2FD1191823A920EBC8718583 /* ItemDetailsAdvancedSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7C7A71E405D29DA8DA233CD /* ItemDetailsAdvancedSection.swift */; };
 		2FFC68602BF59E53AB65E786 /* ItemSkipModifierSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A855C7304B8B6B42B9DEF4C /* ItemSkipModifierSection.swift */; };
+		30BA135D775BF99A37141290 /* CategoryTaxDefaultsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B91D4E72D1D2E0C1BC53E544 /* CategoryTaxDefaultsService.swift */; };
 		33ACA92EB8376CDDB719088F /* QuantityNumpad.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B4067D357704001C7A0D307 /* QuantityNumpad.swift */; };
 		343A5BEB820EB07235EEFE35 /* ItemDetailsPricingSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65695EAA6350279F084BF63B /* ItemDetailsPricingSection.swift */; };
 		365F26C4447BAB5ECB3E7AB8 /* ZoomableImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F87ABC339104C2473194A151 /* ZoomableImageView.swift */; };
@@ -119,6 +120,7 @@
 		B16F52C1BB357CBAD6DD310F /* ItemVariationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CD6C28B292452D52FE3946B /* ItemVariationModel.swift */; };
 		B279269216A213D7664CB81E /* VariationCardComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F3EB3C38F152ED431D193F3 /* VariationCardComponents.swift */; };
 		B839576176BE6BDF2B053D07 /* SquareDataConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DAB355F729C92CB2F1631E3 /* SquareDataConverter.swift */; };
+		BDD63E6D0E5656F396E1D9E3 /* CategoryTaxSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A614A394BB60EDF22D1F0C26 /* CategoryTaxSettingsView.swift */; };
 		C309C4756E80941769C46AB8 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93826EA70F24FEB3F6F59BD6 /* AppDelegate.swift */; };
 		C798D416ABF659B88BDA1C8E /* PushNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E3FB7296AC28F9B8969A75D /* PushNotificationService.swift */; };
 		C8B848A33B7BFFE84D0A142D /* LabelLivePrintService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7606A3222698687642B402D /* LabelLivePrintService.swift */; };
@@ -269,10 +271,12 @@
 		A1B2C3D4E5F6789012345868 /* LabelModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Models/LabelModels.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345870 /* LabelComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Components/LabelComponents.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345872 /* ReorderComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Components/ReorderComponents.swift; sourceTree = "<group>"; };
+		A614A394BB60EDF22D1F0C26 /* CategoryTaxSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CategoryTaxSettingsView.swift; path = Views/CategoryTaxSettingsView.swift; sourceTree = "<group>"; };
 		B03008BCC45D5E32B158F66F /* NotificationSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Components/NotificationSettingsView.swift; sourceTree = "<group>"; };
 		B137413ADDED6DCB13CE5BCB /* ModifierListModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ModifierListModel.swift; path = Models/SwiftData/ModifierListModel.swift; sourceTree = "<group>"; };
 		B59E873AFBCFBE04460F20A8 /* ShareableFileData.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ShareableFileData.swift; path = Components/ShareableFileData.swift; sourceTree = "<group>"; };
 		B7646D10B74DD6424D05604B /* ReorderFilterManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderFilterManager.swift; path = JoyLabsNative/ViewModels/ReorderFilterManager.swift; sourceTree = "<group>"; };
+		B91D4E72D1D2E0C1BC53E544 /* CategoryTaxDefaultsService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CategoryTaxDefaultsService.swift; path = Core/Services/CategoryTaxDefaultsService.swift; sourceTree = "<group>"; };
 		BA6CAB610624BBFC8C7C36B6 /* ItemDataTransformers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDataTransformers.swift; path = Components/ItemDataTransformers.swift; sourceTree = "<group>"; };
 		BF8BABE731647487EFC23A76 /* FieldVisibilityModifier.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FieldVisibilityModifier.swift; path = Components/FieldVisibilityModifier.swift; sourceTree = "<group>"; };
 		C10C1591BFB7D2F8055FE469 /* CatalogItemModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CatalogItemModel.swift; path = Models/SwiftData/CatalogItemModel.swift; sourceTree = "<group>"; };
@@ -361,6 +365,7 @@
 				11C6F817152E7F615D5CB415 /* LabelLiveSettingsView.swift */,
 				07327BB46D9122D3CFCDB559 /* ReordersViewSwiftData.swift */,
 				8D54BA6CB15FA90E0F4AF3C6 /* HistoryView.swift */,
+				A614A394BB60EDF22D1F0C26 /* CategoryTaxSettingsView.swift */,
 			);
 			name = Views;
 			sourceTree = "<group>";
@@ -731,6 +736,7 @@
 				08C74DA26191FF85F4AB0866 /* SquareInventoryService.swift */,
 				611795A7DDE88A6A5621E9A0 /* SquareCapabilitiesService.swift */,
 				669F150DD6AD20EF9F6363C9 /* PhotoPresetManager.swift */,
+				B91D4E72D1D2E0C1BC53E544 /* CategoryTaxDefaultsService.swift */,
 			);
 			name = Services;
 			sourceTree = "<group>";
@@ -1005,6 +1011,8 @@
 				60FC4082A315920D454D209C /* PhotoPresetManager.swift in Sources */,
 				CA98D9E3DCEF6A854BD7B5F5 /* CameraExposureManager.swift in Sources */,
 				0862C6F8F89B96710D5FEECE /* CameraExposureControlView.swift in Sources */,
+				30BA135D775BF99A37141290 /* CategoryTaxDefaultsService.swift in Sources */,
+				BDD63E6D0E5656F396E1D9E3 /* CategoryTaxSettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

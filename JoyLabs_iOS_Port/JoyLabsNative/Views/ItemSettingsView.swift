@@ -459,9 +459,23 @@ struct DefaultValuesDetailView: View {
                     isEnabled: true
                 )
             }
+
+            // Category-specific tax defaults
+            NavigationLink(destination: CategoryTaxSettingsView()) {
+                HStack {
+                    Text("Category Tax Settings")
+                    Spacer()
+                    let count = CategoryTaxDefaultsService.shared.count
+                    if count > 0 {
+                        Text("\(count) non-taxable")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
         }
     }
-    
+
     // MARK: - Classification Defaults Section  
     private var classificationDefaultsSection: some View {
         Section(header: HStack {
