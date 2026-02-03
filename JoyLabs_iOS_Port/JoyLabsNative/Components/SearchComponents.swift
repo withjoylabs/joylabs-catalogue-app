@@ -114,7 +114,7 @@ struct ScanButton: View {
 /// Target for image upload (item vs variation)
 enum ImageUploadTarget: Equatable {
     case item(id: String, name: String)
-    case variation(itemId: String, variationName: String)
+    case variation(variationId: String, variationName: String)
 
     var contextTitle: String {
         switch self {
@@ -123,10 +123,10 @@ enum ImageUploadTarget: Equatable {
         }
     }
 
-    var itemId: String {
+    var targetId: String {
         switch self {
         case .item(let id, _): return id
-        case .variation(let itemId, _): return itemId
+        case .variation(let variationId, _): return variationId
         }
     }
 }
@@ -463,8 +463,8 @@ struct SwipeableScanResultCard: View {
         }
 
         switch target {
-        case .variation(let itemId, let variationName):
-            return .scanViewVariationLongPress(itemId: itemId, variationName: variationName)
+        case .variation(let variationId, let variationName):
+            return .scanViewVariationLongPress(itemId: variationId, variationName: variationName)
         case .item(let id, _):
             return .scanViewLongPress(itemId: id, imageId: result.images?.first?.id)
         }
@@ -490,9 +490,10 @@ struct SwipeableScanResultCard: View {
                     Label("Add to \(result.name ?? "Item")", systemImage: "photo.badge.plus")
                 }
 
-                if let variationName = result.variationName, !variationName.isEmpty {
+                if let variationId = result.variationId,
+                   let variationName = result.variationName, !variationName.isEmpty {
                     Button {
-                        uploadTarget = .variation(itemId: result.id, variationName: variationName)
+                        uploadTarget = .variation(variationId: variationId, variationName: variationName)
                         triggerUploadAction()
                     } label: {
                         Label("Add to \(variationName)", systemImage: "photo.badge.plus.fill")
@@ -526,13 +527,12 @@ struct SwipeableScanResultCard: View {
                 // Upload to item's main images
                 _ = try? await imageService.uploadImage(imageData: imageData, fileName: fileName, itemId: id)
 
-            case .variation(let itemId, let variationName):
-                // Upload to variation - need to look up variation ID first
-                _ = try? await imageService.uploadImageToVariation(
+            case .variation(let variationId, _):
+                // Upload directly to variation by ID
+                _ = try? await imageService.uploadImage(
                     imageData: imageData,
                     fileName: fileName,
-                    itemId: itemId,
-                    variationName: variationName
+                    itemId: variationId
                 )
             }
 

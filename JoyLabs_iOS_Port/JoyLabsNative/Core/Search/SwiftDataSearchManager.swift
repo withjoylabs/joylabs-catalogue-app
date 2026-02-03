@@ -530,9 +530,10 @@ class SwiftDataSearchManager: ObservableObject {
                 barcode: variation?.upc,
                 reportingCategoryId: item.reportingCategoryId,
                 categoryName: item.categoryName ?? item.reportingCategoryName,
+                variationId: variation?.id,
                 variationName: variation?.name,
                 variationCount: item.variations?.filter { !$0.isDeleted }.count ?? 0,
-                images: buildCatalogImages(from: item.imageIds),
+                images: buildCatalogImages(from: variation?.imageIds ?? item.imageIds),
                 matchType: matchType,
                 matchContext: item.name,
                 isFromCaseUpc: false,
@@ -556,9 +557,10 @@ class SwiftDataSearchManager: ObservableObject {
             barcode: variation.upc,
             reportingCategoryId: item.reportingCategoryId,
             categoryName: item.categoryName ?? item.reportingCategoryName,
+            variationId: variation.id,
             variationName: variation.name,
             variationCount: item.variations?.filter { !$0.isDeleted }.count ?? 0,
-            images: buildCatalogImages(from: item.imageIds),
+            images: buildCatalogImages(from: variation.imageIds ?? item.imageIds),
             matchType: matchType,
             matchContext: matchType == "upc" ? variation.upc : variation.sku,
             isFromCaseUpc: false,
@@ -621,7 +623,7 @@ class SwiftDataSearchManager: ObservableObject {
             // Get the associated catalog item
             if let item = teamData.catalogItem, !item.isDeleted {
                 let variation = item.variations?.first { !$0.isDeleted }
-                
+
                 let searchResult = SearchResultItem(
                     id: item.id,
                     name: item.name,
@@ -630,9 +632,10 @@ class SwiftDataSearchManager: ObservableObject {
                     barcode: teamData.caseUpc,
                     reportingCategoryId: item.reportingCategoryId,
                     categoryName: item.categoryName ?? item.reportingCategoryName,
+                    variationId: variation?.id,
                     variationName: variation?.name,
                     variationCount: item.variations?.filter { !$0.isDeleted }.count ?? 0,
-                    images: buildCatalogImages(from: item.imageIds),
+                    images: buildCatalogImages(from: variation?.imageIds ?? item.imageIds),
                     matchType: "case_upc",
                     matchContext: teamData.caseUpc,
                     isFromCaseUpc: true,
@@ -654,7 +657,7 @@ class SwiftDataSearchManager: ObservableObject {
                     ),
                     hasTax: false
                 )
-                
+
                 results.append(searchResult)
             }
         }
@@ -682,7 +685,7 @@ class SwiftDataSearchManager: ObservableObject {
             if let item = try modelContext.fetch(descriptor).first {
                 let existingResult = searchResults[index]
                 let variation = item.variations?.first { !$0.isDeleted }
-                
+
                 // Create updated search result preserving match context
                 let updatedResult = SearchResultItem(
                     id: item.id,
@@ -692,16 +695,17 @@ class SwiftDataSearchManager: ObservableObject {
                     barcode: variation?.upc,
                     reportingCategoryId: item.reportingCategoryId,
                     categoryName: item.categoryName ?? item.reportingCategoryName,
+                    variationId: variation?.id,
                     variationName: variation?.name,
                     variationCount: item.variations?.filter { !$0.isDeleted }.count ?? 0,
-                    images: buildCatalogImages(from: item.imageIds),
+                    images: buildCatalogImages(from: variation?.imageIds ?? item.imageIds),
                     matchType: existingResult.matchType,
                     matchContext: existingResult.matchContext,
                     isFromCaseUpc: existingResult.isFromCaseUpc,
                     caseUpcData: existingResult.caseUpcData,
                     hasTax: (item.taxes?.count ?? 0) > 0
                 )
-                
+
                 searchResults[index] = updatedResult
                 logger.debug("[Search] Successfully updated item \(itemId)")
             }
@@ -843,9 +847,10 @@ class SwiftDataSearchManager: ObservableObject {
                     barcode: variation.upc,
                     reportingCategoryId: item.reportingCategoryId,
                     categoryName: item.categoryName ?? item.reportingCategoryName,
+                    variationId: variation.id,
                     variationName: variation.name,
                     variationCount: item.variations?.filter { !$0.isDeleted }.count ?? 0,
-                    images: buildCatalogImages(from: item.imageIds),
+                    images: buildCatalogImages(from: variation.imageIds ?? item.imageIds),
                     matchType: "upc",
                     matchContext: barcode,
                     isFromCaseUpc: false,
@@ -879,9 +884,10 @@ class SwiftDataSearchManager: ObservableObject {
                     barcode: variation.upc,
                     reportingCategoryId: item.reportingCategoryId,
                     categoryName: item.categoryName ?? item.reportingCategoryName,
+                    variationId: variation.id,
                     variationName: variation.name,
                     variationCount: item.variations?.filter { !$0.isDeleted }.count ?? 0,
-                    images: buildCatalogImages(from: item.imageIds),
+                    images: buildCatalogImages(from: variation.imageIds ?? item.imageIds),
                     matchType: "sku",
                     matchContext: sku,
                     isFromCaseUpc: false,

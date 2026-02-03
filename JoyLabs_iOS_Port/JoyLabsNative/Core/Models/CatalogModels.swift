@@ -152,6 +152,7 @@ struct SearchResultItem: Identifiable, Hashable {
     let barcode: String?
     let reportingCategoryId: String?  // Square's primary category for reporting purposes
     let categoryName: String?
+    let variationId: String?  // The specific variation ID that matched (for direct uploads)
     let variationName: String?
     let variationCount: Int  // Total variations for this item (1 = single, 2+ = multiple)
     let images: [CatalogImage]?
@@ -171,6 +172,7 @@ struct SearchResultItem: Identifiable, Hashable {
         reportingCategoryId: String? = nil,
         categoryId: String? = nil,  // Alias for reportingCategoryId (backwards compatibility)
         categoryName: String?,
+        variationId: String? = nil,
         variationName: String?,
         variationCount: Int = 1,  // Default to 1 for backwards compatibility
         images: [CatalogImage]? = nil,
@@ -187,6 +189,7 @@ struct SearchResultItem: Identifiable, Hashable {
         self.barcode = barcode
         self.reportingCategoryId = reportingCategoryId ?? categoryId
         self.categoryName = categoryName
+        self.variationId = variationId
         self.variationName = variationName
         self.variationCount = variationCount
         self.images = images
@@ -197,33 +200,35 @@ struct SearchResultItem: Identifiable, Hashable {
         self.hasTax = hasTax
     }
 
-    // Hashable conformance - includes ALL mutable fields so SwiftUI detects changes
+    // Hashable conformance - includes all fields so SwiftUI detects changes
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
         hasher.combine(matchType)
         hasher.combine(isFromCaseUpc)
-        hasher.combine(price)        // ✅ Now detects price changes
-        hasher.combine(name)         // ✅ Now detects name changes
-        hasher.combine(sku)          // ✅ Now detects SKU changes
-        hasher.combine(barcode)      // ✅ Now detects barcode changes
-        hasher.combine(categoryName) // ✅ Now detects category changes
-        hasher.combine(variationName) // ✅ Now detects variation name changes
+        hasher.combine(price)
+        hasher.combine(name)
+        hasher.combine(sku)
+        hasher.combine(barcode)
+        hasher.combine(categoryName)
+        hasher.combine(variationId)
+        hasher.combine(variationName)
         hasher.combine(variationCount)
-        hasher.combine(hasTax)       // ✅ Now detects tax status changes
+        hasher.combine(hasTax)
     }
 
     static func == (lhs: SearchResultItem, rhs: SearchResultItem) -> Bool {
-        return lhs.id == rhs.id && 
-               lhs.matchType == rhs.matchType && 
+        return lhs.id == rhs.id &&
+               lhs.matchType == rhs.matchType &&
                lhs.isFromCaseUpc == rhs.isFromCaseUpc &&
-               lhs.price == rhs.price &&        // ✅ Now compares price
-               lhs.name == rhs.name &&          // ✅ Now compares name  
-               lhs.sku == rhs.sku &&            // ✅ Now compares SKU
-               lhs.barcode == rhs.barcode &&    // ✅ Now compares barcode
-               lhs.categoryName == rhs.categoryName && // ✅ Now compares category
-               lhs.variationName == rhs.variationName && // ✅ Now compares variation name
+               lhs.price == rhs.price &&
+               lhs.name == rhs.name &&
+               lhs.sku == rhs.sku &&
+               lhs.barcode == rhs.barcode &&
+               lhs.categoryName == rhs.categoryName &&
+               lhs.variationId == rhs.variationId &&
+               lhs.variationName == rhs.variationName &&
                lhs.variationCount == rhs.variationCount &&
-               lhs.hasTax == rhs.hasTax         // ✅ Now compares tax status
+               lhs.hasTax == rhs.hasTax
     }
 }
 
