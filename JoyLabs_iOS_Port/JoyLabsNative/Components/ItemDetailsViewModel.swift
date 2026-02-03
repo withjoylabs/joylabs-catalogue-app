@@ -1279,8 +1279,10 @@ class ItemDetailsViewModel: ObservableObject {
 
                 // Load ALL fields from stored variation data (dataJson contains complete CatalogObject)
                 if let variationData = variationModel.toItemVariationData() {
-                    // Images
-                    variation.imageIds = variationData.imageIds ?? []
+                    // Images - prefer SwiftData property (updated by local uploads) over decoded JSON
+                    // SwiftData property is updated when images are uploaded locally
+                    // JSON data is updated when syncing from Square API
+                    variation.imageIds = variationModel.imageIds ?? variationData.imageIds ?? []
 
                     // CRITICAL: Inventory tracking fields (previously missing - caused "Unavailable" bug)
                     variation.trackInventory = variationData.trackInventory ?? false
@@ -1298,6 +1300,9 @@ class ItemDetailsViewModel: ObservableObject {
                     // Service fields
                     variation.serviceDuration = variationData.serviceDuration.map(Int.init)
                     variation.availableForBooking = variationData.availableForBooking ?? false
+                } else {
+                    // Fallback: Load imageIds directly from SwiftData property if no JSON data
+                    variation.imageIds = variationModel.imageIds ?? []
                 }
 
                 loadedVariations.append(variation)

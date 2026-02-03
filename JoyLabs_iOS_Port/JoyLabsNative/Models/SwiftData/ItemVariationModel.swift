@@ -36,7 +36,10 @@ final class ItemVariationModel {
     // Additional fields from SQLite implementation
     var basePriceMoney: String?  // JSON string
     var defaultUnitCost: String?  // JSON string
-    
+
+    // Variation-specific images (per Square API: variations can have their own images)
+    var imageIds: [String]?
+
     // Store complete variation data as JSON for complex operations
     var dataJson: String?
 
@@ -99,7 +102,10 @@ final class ItemVariationModel {
             self.sellable = variationData.sellable
             self.stockable = variationData.stockable
             self.measurementUnitId = variationData.measurementUnitId
-            
+
+            // Variation-specific images
+            self.imageIds = variationData.imageIds
+
             // Store full JSON for complex operations (store complete object, not just variationData)
             if let jsonData = try? JSONEncoder().encode(object),
                let jsonString = String(data: jsonData, encoding: .utf8) {

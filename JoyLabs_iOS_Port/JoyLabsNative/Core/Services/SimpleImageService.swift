@@ -260,28 +260,28 @@ class SimpleImageService: ObservableObject {
     
     // MARK: - Private Methods
     
-    /// Create SwiftData ImageModel and establish relationship with CatalogItemModel
+    /// Create SwiftData ImageModel and establish relationship with CatalogItemModel or ItemVariationModel
     private func createSwiftDataImageModel(imageId: String, awsURL: String, itemId: String) async throws {
         let db = databaseManager.getContext()
-        
+
         do {
             // Create new ImageModel
             let imageModel = ImageModel(id: imageId)
             imageModel.url = awsURL
-            imageModel.name = "joylabs_image_\(Int(Date().timeIntervalSince1970))" 
+            imageModel.name = "joylabs_image_\(Int(Date().timeIntervalSince1970))"
             imageModel.updatedAt = Date()
-            
-            // Find the catalog item to establish relationship
+
+            // Insert the image model first
+            db.insert(imageModel)
+
+            // Try to find a catalog item first
             let itemDescriptor = FetchDescriptor<CatalogItemModel>(
                 predicate: #Predicate { item in
                     item.id == itemId && !item.isDeleted
                 }
             )
-            
-            if let catalogItem = try db.fetch(itemDescriptor).first {
-                // Insert the image model
-                db.insert(imageModel)
 
+            if let catalogItem = try db.fetch(itemDescriptor).first {
                 // Add imageId to item's imageIds array
                 if catalogItem.imageIds == nil {
                     catalogItem.imageIds = []
@@ -289,14 +289,34 @@ class SimpleImageService: ObservableObject {
                 if !catalogItem.imageIds!.contains(imageId) {
                     catalogItem.imageIds!.insert(imageId, at: 0) // Insert at front to make it primary
                 }
-
-                // Save the context
                 try db.save()
-
-                logger.info("✅ Created ImageModel and cached URL: \(imageId) -> \(itemId)")
-            } else {
-                logger.warning("❌ Could not find catalog item \(itemId) for image")
+                logger.info("✅ Created ImageModel for ITEM: \(imageId) -> \(itemId)")
+                return
             }
+
+            // If not an item, try to find a variation
+            let variationDescriptor = FetchDescriptor<ItemVariationModel>(
+                predicate: #Predicate { variation in
+                    variation.id == itemId && !variation.isDeleted
+                }
+            )
+
+            if let variation = try db.fetch(variationDescriptor).first {
+                // Add imageId to variation's imageIds array
+                if variation.imageIds == nil {
+                    variation.imageIds = []
+                }
+                if !variation.imageIds!.contains(imageId) {
+                    variation.imageIds!.insert(imageId, at: 0) // Insert at front to make it primary
+                }
+                try db.save()
+                logger.info("✅ Created ImageModel for VARIATION: \(imageId) -> \(itemId)")
+                return
+            }
+
+            // Neither item nor variation found - still save the image model
+            try db.save()
+            logger.warning("⚠️ Created ImageModel but could not find item or variation: \(itemId)")
         } catch {
             logger.error("❌ Failed to create SwiftData image model: \(error)")
             throw error
