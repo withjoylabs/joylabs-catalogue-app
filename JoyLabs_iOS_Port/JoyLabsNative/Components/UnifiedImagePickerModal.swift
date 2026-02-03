@@ -963,6 +963,9 @@ struct UnifiedImagePickerModal: View {
                     let processedResult = try await imageProcessor.processImage(image)
 
                     await MainActor.run {
+                        // Save to camera roll if enabled
+                        imageSaveService.saveProcessedImage(processedResult.image)
+
                         let fileName = "joylabs_buffered_\(UUID().uuidString).\(processedResult.format.fileExtension)"
                         let pendingImage = PendingImageData(
                             imageData: processedResult.data,

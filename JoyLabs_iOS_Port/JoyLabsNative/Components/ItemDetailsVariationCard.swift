@@ -197,6 +197,11 @@ struct ItemDetailsVariationCard: View {
                     // Process image (format conversion and size validation)
                     let processedResult = try await imageProcessor.processImage(image)
 
+                    // Save to camera roll if enabled
+                    await MainActor.run {
+                        ImageSaveService.shared.saveProcessedImage(processedResult.image)
+                    }
+
                     if variation.id == nil || variation.id!.isEmpty {
                         // NEW VARIATION: Buffer image for upload after variation creation
                         await MainActor.run {

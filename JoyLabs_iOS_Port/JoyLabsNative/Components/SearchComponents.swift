@@ -512,6 +512,9 @@ struct SwipeableScanResultCard: View {
         guard let firstImage = images.first,
               let imageData = firstImage.jpegData(compressionQuality: 0.9) else { return }
 
+        // Save to camera roll if enabled
+        ImageSaveService.shared.saveProcessedImage(firstImage)
+
         let target = uploadTarget ?? .item(id: result.id, name: result.name ?? "Item")
 
         Task {

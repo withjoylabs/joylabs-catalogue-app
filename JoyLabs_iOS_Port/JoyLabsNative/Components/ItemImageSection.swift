@@ -288,6 +288,11 @@ struct ItemImageSection: View {
                     // Process image (format conversion and size validation)
                     let processedResult = try await imageProcessor.processImage(image)
 
+                    // Save to camera roll if enabled
+                    await MainActor.run {
+                        ImageSaveService.shared.saveProcessedImage(processedResult.image)
+                    }
+
                     if viewModel.staticData.id == nil || viewModel.staticData.id!.isEmpty {
                         // NEW ITEM: Buffer image for upload after item creation
                         await MainActor.run {
