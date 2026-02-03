@@ -245,17 +245,11 @@ class SwiftDataCatalogManager {
         
         // Update basic fields
         item.updateFromCatalogObject(object)
-        
-        // Extract and store pre-computed category names for search performance
-        if let categoryId = itemData.categoryId {
-            item.categoryName = try await getCategoryName(categoryId)
-        }
-        
-        if let reportingCategoryId = itemData.reportingCategory?.id {
-            item.reportingCategoryId = reportingCategoryId
-            item.reportingCategoryName = try await getCategoryName(reportingCategoryId)
-        }
-        
+
+        // NOTE: categoryName and reportingCategoryName are now COMPUTED PROPERTIES
+        // They fetch fresh data from CategoryModel, eliminating stale data issues
+        // No manual resolution needed - works automatically for all sync paths
+
         // Extract tax names for display
         if let taxIds = itemData.taxIds, !taxIds.isEmpty {
             let taxNames = try await getTaxNames(taxIds)

@@ -20,11 +20,33 @@ final class CatalogItemModel {
     @Attribute(.spotlight) var name: String?
     var itemDescription: String?
     @Attribute(.spotlight) var categoryId: String?
-    var categoryName: String?  // Pre-computed for search performance
     var reportingCategoryId: String?
-    var reportingCategoryName: String?  // Pre-computed for search performance
     var taxNames: String?  // Comma-separated for display
     var modifierNames: String?  // Comma-separated for display
+
+    // COMPUTED PROPERTIES: Category names fetched dynamically to avoid stale data
+    // These query fresh data every time, eliminating sync issues where names weren't resolved
+    var categoryName: String? {
+        // First try the relationship if established
+        if let name = category?.name { return name }
+        // Otherwise query by ID
+        guard let categoryId = categoryId, let context = modelContext else { return nil }
+        let descriptor = FetchDescriptor<CategoryModel>(
+            predicate: #Predicate { $0.id == categoryId && !$0.isDeleted }
+        )
+        return try? context.fetch(descriptor).first?.name
+    }
+
+    var reportingCategoryName: String? {
+        // First try the relationship if established
+        if let name = reportingCategory?.name { return name }
+        // Otherwise query by ID
+        guard let reportingCategoryId = reportingCategoryId, let context = modelContext else { return nil }
+        let descriptor = FetchDescriptor<CategoryModel>(
+            predicate: #Predicate { $0.id == reportingCategoryId && !$0.isDeleted }
+        )
+        return try? context.fetch(descriptor).first?.name
+    }
     
     // Additional fields from SQLite implementation
     var itemType: String?
