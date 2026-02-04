@@ -312,6 +312,7 @@ struct ItemDetailsButton: View {
     let title: String
     let icon: String?
     let style: ButtonStyle
+    let fullWidth: Bool
     let action: () -> Void
     
     enum ButtonStyle {
@@ -339,10 +340,11 @@ struct ItemDetailsButton: View {
         }
     }
     
-    init(title: String, icon: String? = nil, style: ButtonStyle = .primary, action: @escaping () -> Void) {
+    init(title: String, icon: String? = nil, style: ButtonStyle = .primary, fullWidth: Bool = true, action: @escaping () -> Void) {
         self.title = title
         self.icon = icon
         self.style = style
+        self.fullWidth = fullWidth
         self.action = action
     }
     
@@ -358,7 +360,7 @@ struct ItemDetailsButton: View {
                     .font(.itemDetailsSubheadline.weight(.medium))
             }
             .foregroundColor(style.foregroundColor)
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: fullWidth ? .infinity : nil)
             .padding(.horizontal, ItemDetailsSpacing.fieldPadding)
             .padding(.vertical, ItemDetailsSpacing.compactSpacing)
             .background(style.backgroundColor)

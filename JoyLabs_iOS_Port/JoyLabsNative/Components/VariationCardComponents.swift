@@ -282,7 +282,8 @@ struct VariationCardPriceSection: View {
                         ItemDetailsButton(
                             title: "Add Price Override",
                             icon: "plus.circle",
-                            style: .secondary
+                            style: .secondary,
+                            fullWidth: false
                         ) {
                             addPriceOverride()
                         }
