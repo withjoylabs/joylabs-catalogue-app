@@ -570,10 +570,16 @@ struct GroupedSearchResultCard: View {
     var body: some View {
         VStack(spacing: 0) {
             // Parent card - reuse existing SwipeableScanResultCard
+            // Print parent-only (no variation info) when swiping on parent card
             SwipeableScanResultCard(
                 result: group.parentResult,
                 onAddToReorder: { onAddToReorder(group.parentResult) },
-                onPrint: { onPrint(group.parentResult) },
+                onPrint: {
+                    // Create parent-only version without variation info for printing
+                    var parentOnly = group.parentResult
+                    parentOnly.variationName = nil
+                    onPrint(parentOnly)
+                },
                 onItemUpdated: onItemUpdated
             )
 
