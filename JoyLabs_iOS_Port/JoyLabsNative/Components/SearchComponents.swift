@@ -318,8 +318,11 @@ struct SwipeableScanResultCard: View {
 
             // Main content section
             VStack(alignment: .leading, spacing: 6) {
-                // Item name with variation - allow wrapping to full available width
-                Text(formatDisplayName(itemName: result.name, variationName: result.variationName))
+                // Item name with variation count (for multi-variation items) or nothing (for single)
+                Text(formatDisplayName(
+                    itemName: result.name,
+                    variationName: result.variationCount > 1 ? "\(result.variationCount) Variations" : nil
+                ))
                     .font(.system(size: 16, weight: .medium))
                     .foregroundColor(.primary)
                     .lineLimit(2)
@@ -576,8 +579,25 @@ struct GroupedSearchResultCard: View {
                 onAddToReorder: { onAddToReorder(group.parentResult) },
                 onPrint: {
                     // Create parent-only version without variation info for printing
-                    var parentOnly = group.parentResult
-                    parentOnly.variationName = nil
+                    let parent = group.parentResult
+                    let parentOnly = SearchResultItem(
+                        id: parent.id,
+                        name: parent.name,
+                        sku: parent.sku,
+                        price: parent.price,
+                        barcode: parent.barcode,
+                        reportingCategoryId: parent.reportingCategoryId,
+                        categoryName: parent.categoryName,
+                        variationId: parent.variationId,
+                        variationName: nil,  // Exclude variation name for parent print
+                        variationCount: parent.variationCount,
+                        images: parent.images,
+                        matchType: parent.matchType,
+                        matchContext: parent.matchContext,
+                        isFromCaseUpc: parent.isFromCaseUpc,
+                        caseUpcData: parent.caseUpcData,
+                        hasTax: parent.hasTax
+                    )
                     onPrint(parentOnly)
                 },
                 onItemUpdated: onItemUpdated
@@ -771,7 +791,17 @@ struct VariationResultRow: View {
                     .lineLimit(1)
 
                 HStack(spacing: 6) {
+                    // Variation ordinal from Square (0-indexed, so add 1 for display)
+                    Text("Variation \((variation.variationOrdinal ?? 0) + 1)")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+
+                    // Separator before UPC (if UPC exists)
                     if let barcode = variation.barcode, !barcode.isEmpty {
+                        Text("•")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+
                         Text(barcode)
                             .font(.system(size: 11))
                             .foregroundColor(.secondary)
@@ -780,7 +810,7 @@ struct VariationResultRow: View {
 
                     if let barcode = variation.barcode, !barcode.isEmpty,
                        let sku = variation.sku, !sku.isEmpty {
-                        Text("*")
+                        Text("•")
                             .font(.system(size: 11))
                             .foregroundColor(.secondary)
                     }

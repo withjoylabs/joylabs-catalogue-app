@@ -155,6 +155,7 @@ struct SearchResultItem: Identifiable, Hashable {
     let variationId: String?  // The specific variation ID that matched (for direct uploads)
     let variationName: String?
     let variationCount: Int  // Total variations for this item (1 = single, 2+ = multiple)
+    let variationOrdinal: Int?  // Actual variation position from Square (1-based)
     let images: [CatalogImage]?
     let matchType: String
     let matchContext: String?
@@ -175,6 +176,7 @@ struct SearchResultItem: Identifiable, Hashable {
         variationId: String? = nil,
         variationName: String?,
         variationCount: Int = 1,  // Default to 1 for backwards compatibility
+        variationOrdinal: Int? = nil,  // Actual variation position from Square
         images: [CatalogImage]? = nil,
         matchType: String = "unknown",
         matchContext: String? = nil,
@@ -192,6 +194,7 @@ struct SearchResultItem: Identifiable, Hashable {
         self.variationId = variationId
         self.variationName = variationName
         self.variationCount = variationCount
+        self.variationOrdinal = variationOrdinal
         self.images = images
         self.matchType = matchType
         self.matchContext = matchContext
@@ -213,6 +216,7 @@ struct SearchResultItem: Identifiable, Hashable {
         hasher.combine(variationId)
         hasher.combine(variationName)
         hasher.combine(variationCount)
+        hasher.combine(variationOrdinal)
         hasher.combine(hasTax)
     }
 
@@ -228,6 +232,7 @@ struct SearchResultItem: Identifiable, Hashable {
                lhs.variationId == rhs.variationId &&
                lhs.variationName == rhs.variationName &&
                lhs.variationCount == rhs.variationCount &&
+               lhs.variationOrdinal == rhs.variationOrdinal &&
                lhs.hasTax == rhs.hasTax
     }
 }

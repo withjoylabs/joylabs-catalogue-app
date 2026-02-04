@@ -537,6 +537,7 @@ class SwiftDataSearchManager: ObservableObject {
                 variationId: variation?.id,
                 variationName: variation?.name,
                 variationCount: item.variations?.filter { !$0.isDeleted }.count ?? 0,
+                variationOrdinal: variation?.ordinal,
                 images: buildCatalogImages(from: variation?.imageIds ?? item.imageIds),
                 matchType: matchType,
                 matchContext: item.name,
@@ -565,6 +566,7 @@ class SwiftDataSearchManager: ObservableObject {
             variationId: variation.id,
             variationName: variation.name,
             variationCount: item.variations?.filter { !$0.isDeleted }.count ?? 0,
+            variationOrdinal: variation.ordinal,
             images: buildCatalogImages(from: variation.imageIds),  // No fallback - show placeholder if nil
             matchType: matchType,
             matchContext: matchType == "upc" ? variation.upc : variation.sku,
@@ -640,6 +642,7 @@ class SwiftDataSearchManager: ObservableObject {
                     variationId: variation?.id,
                     variationName: variation?.name,
                     variationCount: item.variations?.filter { !$0.isDeleted }.count ?? 0,
+                    variationOrdinal: variation?.ordinal,
                     images: buildCatalogImages(from: variation?.imageIds ?? item.imageIds),
                     matchType: "case_upc",
                     matchContext: teamData.caseUpc,
@@ -703,6 +706,7 @@ class SwiftDataSearchManager: ObservableObject {
                     variationId: variation?.id,
                     variationName: variation?.name,
                     variationCount: item.variations?.filter { !$0.isDeleted }.count ?? 0,
+                    variationOrdinal: variation?.ordinal,
                     images: buildCatalogImages(from: variation?.imageIds ?? item.imageIds),
                     matchType: existingResult.matchType,
                     matchContext: existingResult.matchContext,
@@ -857,6 +861,7 @@ class SwiftDataSearchManager: ObservableObject {
                     variationId: variation.id,
                     variationName: variation.name,
                     variationCount: item.variations?.filter { !$0.isDeleted }.count ?? 0,
+                    variationOrdinal: variation.ordinal,
                     images: buildCatalogImages(from: variation.imageIds),  // No fallback
                     matchType: "upc",
                     matchContext: barcode,
@@ -894,6 +899,7 @@ class SwiftDataSearchManager: ObservableObject {
                     variationId: variation.id,
                     variationName: variation.name,
                     variationCount: item.variations?.filter { !$0.isDeleted }.count ?? 0,
+                    variationOrdinal: variation.ordinal,
                     images: buildCatalogImages(from: variation.imageIds),  // No fallback
                     matchType: "sku",
                     matchContext: sku,
