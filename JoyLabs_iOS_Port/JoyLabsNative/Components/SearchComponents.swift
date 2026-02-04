@@ -144,8 +144,6 @@ struct SwipeableScanResultCard: View {
     @State private var currentImageId: String?  // Local state for dynamic image updates
     @State private var uploadTarget: ImageUploadTarget?  // Target for camera/picker uploads
 
-    @ObservedObject private var imageSaveService = ImageSaveService.shared
-
     // Standard card height to ensure buttons match exactly
     private let cardHeight: CGFloat = 76
 
@@ -456,7 +454,7 @@ struct SwipeableScanResultCard: View {
 
     /// Trigger camera or image picker based on user setting
     private func triggerUploadAction() {
-        switch imageSaveService.longPressImageAction {
+        switch ImageSaveService.shared.longPressImageAction {
         case .camera:
             showingCamera = true
         case .imagePicker:
@@ -608,8 +606,6 @@ struct VariationResultRow: View {
     @State private var isDragging = false
     @State private var currentImageId: String?
     @State private var uploadTarget: ImageUploadTarget?
-
-    @ObservedObject private var imageSaveService = ImageSaveService.shared
 
     private let cardHeight: CGFloat = 64  // Slightly shorter than parent card
     private let indentWidth: CGFloat = 50  // Match parent thumbnail area (16px padding + ~34px to center arrow)
@@ -868,7 +864,7 @@ struct VariationResultRow: View {
     }
 
     private func triggerUploadAction() {
-        switch imageSaveService.longPressImageAction {
+        switch ImageSaveService.shared.longPressImageAction {
         case .camera:
             showingCamera = true
         case .imagePicker:

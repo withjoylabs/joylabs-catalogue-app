@@ -131,14 +131,23 @@ struct ItemDetailsModal: View {
             
             // Content area
             ZStack {
-                ItemDetailsContent(
-                    context: context,
-                    viewModel: viewModel,
-                    focusedField: $focusedField,
-                    onSave: handleSave,
-                    onDismiss: onDismiss,
-                    onVariationPrint: handleVariationPrint
-                )
+                if viewModel.isLoading {
+                    VStack {
+                        Spacer()
+                        ProgressView()
+                            .scaleEffect(1.5)
+                        Spacer()
+                    }
+                } else {
+                    ItemDetailsContent(
+                        context: context,
+                        viewModel: viewModel,
+                        focusedField: $focusedField,
+                        onSave: handleSave,
+                        onDismiss: onDismiss,
+                        onVariationPrint: handleVariationPrint
+                    )
+                }
 
                 // Floating Action Buttons (hidden during confirmation with animation)
                 VStack {

@@ -710,8 +710,7 @@ class ItemDetailsViewModel: ObservableObject {
         self.context = context
 
         isLoading = true
-        defer { isLoading = false }
-        
+
         switch context {
         case .editExisting(let itemId, _):
             await loadExistingItem(itemId: itemId)
@@ -726,8 +725,11 @@ class ItemDetailsViewModel: ObservableObject {
         // Reset change tracking for fresh load
         hasChanges = false
 
-        // Load critical dropdown data
-        await loadCriticalData()
+        // Show UI immediately after item loads - don't wait for dropdowns
+        isLoading = false
+
+        // Load critical dropdown data in background (UI updates reactively via @Published)
+        Task { await loadCriticalData() }
     }
     
     /// Save the current item data using SquareCRUDService
@@ -924,9 +926,10 @@ class ItemDetailsViewModel: ObservableObject {
                 await loadItemDataFromCatalogObject(catalogObject)
                 print("[ItemDetailsModal] Successfully loaded item from database: \(name)")
 
-                // Load inventory counts from Square API if inventory tracking is enabled
+                // Load inventory counts from Square API in background (non-blocking)
+                // UI will update reactively via @Published when inventory data arrives
                 if SquareCapabilitiesService.shared.inventoryTrackingEnabled && !variations.isEmpty {
-                    await fetchInventoryFromSquare()
+                    Task { await fetchInventoryFromSquare() }
                 }
 
             } else {
@@ -1493,6 +1496,9 @@ class ItemDetailsViewModel: ObservableObject {
     /// Load locations from local database (same pattern as other data)
     /// Load locations from app-wide cache (instant, no HTTP calls)
     private func loadLocations() async {
+        // Skip if locations already loaded (avoid duplicate loads)
+        guard availableLocations.isEmpty else { return }
+
         // Failsafe: If cache is empty, load from API first
         if LocationCacheManager.shared.locations.isEmpty {
             logger.info("Location cache empty - loading from API as fallback")
