@@ -205,10 +205,22 @@ struct ItemDetailsModal: View {
         .onAppear {
             print("[ItemDetailsModal] onAppear called for context: \(context)")
             setupForContext()
-            
+
             // Register with centralized item update manager for automatic refresh
             if case .editExisting(let itemId, _) = context {
                 CentralItemUpdateManager.shared.registerItemDetailsModal(itemId: itemId, viewModel: viewModel)
+            }
+        }
+        .onChange(of: viewModel.variations.count) { _, newCount in
+            // Auto-scroll to variation when hideScrollButton is true (user tapped variation row directly)
+            if hideScrollButton,
+               newCount > 1,
+               let variationName = context.scrollToVariation,
+               let index = variationIndex(for: variationName) {
+                // Slight delay to ensure view is ready
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    focusedField = .variationName(index)
+                }
             }
         }
         .onDisappear {

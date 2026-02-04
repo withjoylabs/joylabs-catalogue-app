@@ -288,8 +288,16 @@ struct SwipeableScanResultCard: View {
             }
         )
         .onAppear {
-            // Initialize currentImageId from result
-            currentImageId = result.images?.first?.id
+            // For hierarchical parent cards (multi-variation items), query parent item's image
+            // This ensures we show the parent's image, not the scanned variation's (which may be empty)
+            if result.variationCount > 1 {
+                if let item = CatalogLookupService.shared.getItem(id: result.id) {
+                    currentImageId = item.imageIds?.first
+                }
+            } else {
+                // Single variation - use result's images directly
+                currentImageId = result.images?.first?.id
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .imageUpdated)) { notification in
             // Update local imageId when this item's image changes
@@ -604,7 +612,7 @@ struct VariationResultRow: View {
     @ObservedObject private var imageSaveService = ImageSaveService.shared
 
     private let cardHeight: CGFloat = 64  // Slightly shorter than parent card
-    private let indentWidth: CGFloat = 40
+    private let indentWidth: CGFloat = 50  // Match parent thumbnail area (16px padding + ~34px to center arrow)
 
     var body: some View {
         ZStack {
@@ -648,9 +656,8 @@ struct VariationResultRow: View {
 
             // Foreground - indented variation content
             HStack(spacing: 0) {
-                // Indent with corner arrow
-                HStack(spacing: 4) {
-                    Spacer()
+                // Indent with corner arrow - centered to align with parent thumbnail center
+                HStack {
                     Image(systemName: "arrow.turn.down.right")
                         .font(.system(size: 14, weight: .regular))
                         .foregroundColor(.secondary)
