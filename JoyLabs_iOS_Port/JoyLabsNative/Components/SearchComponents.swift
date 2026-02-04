@@ -147,6 +147,11 @@ struct SwipeableScanResultCard: View {
     // Standard card height to ensure buttons match exactly
     private let cardHeight: CGFloat = 76
 
+    // Computed fallback: use currentImageId if set (from notifications), otherwise fallback to result
+    private var effectiveImageId: String? {
+        currentImageId ?? result.images?.first?.id
+    }
+
     var body: some View {
         ZStack {
             // Background layer - action buttons (behind main content)
@@ -286,15 +291,10 @@ struct SwipeableScanResultCard: View {
             }
         )
         .onAppear {
-            // For hierarchical parent cards (multi-variation items), query parent item's image
-            // This ensures we show the parent's image, not the scanned variation's (which may be empty)
-            if result.variationCount > 1 {
-                if let item = CatalogLookupService.shared.getItem(id: result.id) {
-                    currentImageId = item.imageIds?.first
-                }
-            } else {
-                // Single variation - use result's images directly
-                currentImageId = result.images?.first?.id
+            // Parent cards always show item's images via CatalogLookupService
+            // In Square, all items have at least 1 variation - item.imageIds is the parent's image set
+            if let item = CatalogLookupService.shared.getItem(id: result.id) {
+                currentImageId = item.imageIds?.first
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .imageUpdated)) { notification in
@@ -482,7 +482,7 @@ struct SwipeableScanResultCard: View {
     /// Thumbnail view - long-press always uploads to main item
     /// Variation-specific uploads happen from VariationResultRow
     private var thumbnailView: some View {
-        NativeImageView.thumbnail(imageId: currentImageId, size: 50)
+        NativeImageView.thumbnail(imageId: effectiveImageId, size: 50)
             .onLongPressGesture {
                 uploadTarget = .item(id: result.id, name: result.name ?? "Item")
                 triggerUploadAction()
@@ -490,33 +490,31 @@ struct SwipeableScanResultCard: View {
     }
 
     private func handleCameraPhotos(_ images: [UIImage]) {
-        guard let firstImage = images.first,
-              let imageData = firstImage.jpegData(compressionQuality: 0.9) else { return }
-
-        // Save to camera roll if enabled
-        ImageSaveService.shared.saveProcessedImage(firstImage)
+        guard !images.isEmpty else { return }
 
         let target = uploadTarget ?? .item(id: result.id, name: result.name ?? "Item")
+        let imageService = SimpleImageService.shared
 
         Task {
-            let imageService = SimpleImageService.shared
-            let fileName = "camera_\(UUID().uuidString).jpg"
+            for image in images {
+                guard let imageData = image.jpegData(compressionQuality: 0.9) else { continue }
 
-            switch target {
-            case .item(let id, _):
-                // Upload to item's main images
-                _ = try? await imageService.uploadImage(imageData: imageData, fileName: fileName, itemId: id)
+                // Save to camera roll if enabled
+                await MainActor.run {
+                    ImageSaveService.shared.saveProcessedImage(image)
+                }
 
-            case .variation(let variationId, _):
-                // Upload directly to variation by ID
-                _ = try? await imageService.uploadImage(
-                    imageData: imageData,
-                    fileName: fileName,
-                    itemId: variationId
-                )
+                let fileName = "camera_\(UUID().uuidString).jpg"
+
+                switch target {
+                case .item(let id, _):
+                    _ = try? await imageService.uploadImage(imageData: imageData, fileName: fileName, itemId: id)
+                case .variation(let variationId, _):
+                    _ = try? await imageService.uploadImage(imageData: imageData, fileName: fileName, itemId: variationId)
+                }
             }
 
-            // Trigger search refresh to show updated thumbnail
+            // Trigger search refresh after all uploads
             await MainActor.run {
                 onItemUpdated?()
             }
@@ -635,6 +633,11 @@ struct VariationResultRow: View {
 
     private let cardHeight: CGFloat = 64  // Slightly shorter than parent card
     private let indentWidth: CGFloat = 50  // Match parent thumbnail area (16px padding + ~34px to center arrow)
+
+    // Computed fallback: use currentImageId if set (from notifications), otherwise fallback to variation
+    private var effectiveImageId: String? {
+        currentImageId ?? variation.images?.first?.id
+    }
 
     var body: some View {
         ZStack {
@@ -774,7 +777,7 @@ struct VariationResultRow: View {
     private var variationContent: some View {
         HStack(spacing: 10) {
             // Thumbnail with long-press for upload
-            NativeImageView.thumbnail(imageId: currentImageId, size: 44)
+            NativeImageView.thumbnail(imageId: effectiveImageId, size: 44)
                 .onLongPressGesture {
                     uploadTarget = .variation(
                         variationId: variation.variationId ?? variation.id,
@@ -911,21 +914,22 @@ struct VariationResultRow: View {
     }
 
     private func handleCameraPhotos(_ images: [UIImage]) {
-        guard let firstImage = images.first,
-              let imageData = firstImage.jpegData(compressionQuality: 0.9) else { return }
-
-        ImageSaveService.shared.saveProcessedImage(firstImage)
+        guard !images.isEmpty else { return }
 
         let variationId = variation.variationId ?? variation.id
+        let imageService = SimpleImageService.shared
 
         Task {
-            let imageService = SimpleImageService.shared
-            let fileName = "camera_\(UUID().uuidString).jpg"
-            _ = try? await imageService.uploadImage(
-                imageData: imageData,
-                fileName: fileName,
-                itemId: variationId
-            )
+            for image in images {
+                guard let imageData = image.jpegData(compressionQuality: 0.9) else { continue }
+
+                await MainActor.run {
+                    ImageSaveService.shared.saveProcessedImage(image)
+                }
+
+                let fileName = "camera_\(UUID().uuidString).jpg"
+                _ = try? await imageService.uploadImage(imageData: imageData, fileName: fileName, itemId: variationId)
+            }
 
             await MainActor.run {
                 onItemUpdated?()

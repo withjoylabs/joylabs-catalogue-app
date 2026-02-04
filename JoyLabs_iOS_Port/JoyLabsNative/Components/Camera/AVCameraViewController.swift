@@ -780,11 +780,11 @@ class AVCameraViewController: UIViewController {
         // Bring UI elements to front (proper Z-order)
         view.bringSubviewToFront(thumbnailScrollView)
         view.bringSubviewToFront(captureButton)
-        view.bringSubviewToFront(photoCountBadge)
         view.bringSubviewToFront(framingGuideToggleButton)
         view.bringSubviewToFront(contextTitleLabel)
         view.bringSubviewToFront(cancelCircleButton)
         view.bringSubviewToFront(saveCircleButton)
+        view.bringSubviewToFront(photoCountBadge)  // Badge on top of upload button
         if let exposureControl = exposureControlView {
             view.bringSubviewToFront(exposureControl)
         }

@@ -101,8 +101,13 @@ struct UnifiedImagePickerModal: View {
         .fullScreenCover(isPresented: $showingCamera) {
             AVCameraViewControllerWrapper(
                 onPhotosCaptured: { images in
-                    addImagesToBuffer(images)
-                    showingCamera = false
+                    Task {
+                        await addImagesToBuffer(images)
+                        await handleBatchUpload()
+                        await MainActor.run {
+                            showingCamera = false
+                        }
+                    }
                 },
                 onCancel: {
                     showingCamera = false
@@ -113,9 +118,13 @@ struct UnifiedImagePickerModal: View {
             PhotoLibraryPicker(
                 selectionLimit: 15,
                 onImagesSelected: { images in
-                    // Add selected library photos to buffer
-                    addImagesToBuffer(images)
-                    showingPhotoLibraryPicker = false
+                    Task {
+                        await addImagesToBuffer(images)
+                        await handleBatchUpload()
+                        await MainActor.run {
+                            showingPhotoLibraryPicker = false
+                        }
+                    }
                 },
                 onCancel: {
                     showingPhotoLibraryPicker = false
@@ -953,31 +962,28 @@ struct UnifiedImagePickerModal: View {
 
     // MARK: - Multi-Photo Buffer Management
 
-    private func addImagesToBuffer(_ images: [UIImage]) {
+    private func addImagesToBuffer(_ images: [UIImage]) async {
         logger.info("[ImagePicker] Adding \(images.count) images to buffer")
 
         for image in images {
-            // Process image to Data
-            Task {
-                do {
-                    let processedResult = try await imageProcessor.processImage(image)
+            do {
+                let processedResult = try await imageProcessor.processImage(image)
 
-                    await MainActor.run {
-                        // Save to camera roll if enabled
-                        imageSaveService.saveProcessedImage(processedResult.image)
+                await MainActor.run {
+                    // Save to camera roll if enabled
+                    imageSaveService.saveProcessedImage(processedResult.image)
 
-                        let fileName = "joylabs_buffered_\(UUID().uuidString).\(processedResult.format.fileExtension)"
-                        let pendingImage = PendingImageData(
-                            imageData: processedResult.data,
-                            fileName: fileName,
-                            isPrimary: photoBuffer.isEmpty
-                        )
-                        photoBuffer.append(pendingImage)
-                        logger.info("[ImagePicker] Added image to buffer (total: \(photoBuffer.count))")
-                    }
-                } catch {
-                    logger.error("[ImagePicker] Failed to process image for buffer: \(error.localizedDescription)")
+                    let fileName = "joylabs_buffered_\(UUID().uuidString).\(processedResult.format.fileExtension)"
+                    let pendingImage = PendingImageData(
+                        imageData: processedResult.data,
+                        fileName: fileName,
+                        isPrimary: photoBuffer.isEmpty
+                    )
+                    photoBuffer.append(pendingImage)
+                    logger.info("[ImagePicker] Added image to buffer (total: \(photoBuffer.count))")
                 }
+            } catch {
+                logger.error("[ImagePicker] Failed to process image for buffer: \(error.localizedDescription)")
             }
         }
     }

@@ -187,6 +187,17 @@ struct ItemImageSection: View {
                     // Update local state - already updated via binding
                     logger.info("Successfully reordered images")
                     ToastNotificationService.shared.showSuccess("Image order updated")
+
+                    // Notify scan results to refresh thumbnail with new primary image
+                    NotificationCenter.default.post(
+                        name: .imageUpdated,
+                        object: nil,
+                        userInfo: [
+                            "itemId": itemId,
+                            "imageId": newOrder.first ?? "",
+                            "action": "reorder"
+                        ]
+                    )
                 }
             } catch {
                 await MainActor.run {

@@ -287,7 +287,7 @@ class SimpleImageService: ObservableObject {
                     catalogItem.imageIds = []
                 }
                 if !catalogItem.imageIds!.contains(imageId) {
-                    catalogItem.imageIds!.insert(imageId, at: 0) // Insert at front to make it primary
+                    catalogItem.imageIds!.append(imageId) // Append to end
                 }
                 try db.save()
                 logger.info("✅ Created ImageModel for ITEM: \(imageId) -> \(itemId)")
@@ -307,7 +307,7 @@ class SimpleImageService: ObservableObject {
                     variation.imageIds = []
                 }
                 if !variation.imageIds!.contains(imageId) {
-                    variation.imageIds!.insert(imageId, at: 0) // Insert at front to make it primary
+                    variation.imageIds!.append(imageId) // Append to end
                 }
                 try db.save()
                 logger.info("✅ Created ImageModel for VARIATION: \(imageId) -> \(itemId)")
