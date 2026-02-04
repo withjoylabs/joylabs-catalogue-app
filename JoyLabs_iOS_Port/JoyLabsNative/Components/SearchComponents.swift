@@ -470,43 +470,14 @@ struct SwipeableScanResultCard: View {
         }
     }
 
-    /// Thumbnail view with conditional long-press behavior
-    /// Single variation: Go directly to camera/picker
-    /// Multiple variations: Show context menu to choose target
-    @ViewBuilder
+    /// Thumbnail view - long-press always uploads to main item
+    /// Variation-specific uploads happen from VariationResultRow
     private var thumbnailView: some View {
-        let thumbnail = NativeImageView.thumbnail(
-            imageId: currentImageId,
-            size: 50
-        )
-
-        if result.variationCount > 1 {
-            // Multiple variations: Show context menu
-            thumbnail.contextMenu {
-                Button {
-                    uploadTarget = .item(id: result.id, name: result.name ?? "Item")
-                    triggerUploadAction()
-                } label: {
-                    Label("Add to \(result.name ?? "Item")", systemImage: "photo.badge.plus")
-                }
-
-                if let variationId = result.variationId,
-                   let variationName = result.variationName, !variationName.isEmpty {
-                    Button {
-                        uploadTarget = .variation(variationId: variationId, variationName: variationName)
-                        triggerUploadAction()
-                    } label: {
-                        Label("Add to \(variationName)", systemImage: "photo.badge.plus.fill")
-                    }
-                }
-            }
-        } else {
-            // Single variation: Go directly to camera/picker for item
-            thumbnail.onLongPressGesture {
+        NativeImageView.thumbnail(imageId: currentImageId, size: 50)
+            .onLongPressGesture {
                 uploadTarget = .item(id: result.id, name: result.name ?? "Item")
                 triggerUploadAction()
             }
-        }
     }
 
     private func handleCameraPhotos(_ images: [UIImage]) {
@@ -557,7 +528,7 @@ struct SwipeActionButton: View {
     let width: CGFloat
     let cardHeight: CGFloat
     let action: () -> Void
-    
+
     var body: some View {
         Button(action: action) {
             HStack {
@@ -566,23 +537,361 @@ struct SwipeActionButton: View {
                     Image(systemName: icon)
                         .font(.system(size: 20, weight: .medium))
                         .foregroundColor(.white)
-                    
+
                     Text(title)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(.white)
-                        .fixedSize(horizontal: true, vertical: false) // Prevent word wrapping
+                        .fixedSize(horizontal: true, vertical: false)
                         .lineLimit(1)
                 }
                 Spacer()
             }
         }
-        .frame(width: width, height: cardHeight) // Match exact card height
+        .frame(width: width, height: cardHeight)
         .background(color)
         .contentShape(Rectangle())
-        .clipped() // Prevent overflow
+        .clipped()
     }
 }
 
+// MARK: - Grouped Search Result Card (Parent/Variation Hierarchy)
+struct GroupedSearchResultCard: View {
+    let group: GroupedSearchResult
+    let onAddToReorder: (SearchResultItem) -> Void
+    let onPrint: (SearchResultItem) -> Void
+    let onItemUpdated: (() -> Void)?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Parent card - reuse existing SwipeableScanResultCard
+            SwipeableScanResultCard(
+                result: group.parentResult,
+                onAddToReorder: { onAddToReorder(group.parentResult) },
+                onPrint: { onPrint(group.parentResult) },
+                onItemUpdated: onItemUpdated
+            )
+
+            // Matching variations - only shown for multi-variation items
+            if group.shouldShowGrouped {
+                ForEach(group.matchingVariations) { variation in
+                    VariationResultRow(
+                        variation: variation,
+                        onAddToReorder: { onAddToReorder(variation) },
+                        onPrint: { onPrint(variation) },
+                        onItemUpdated: onItemUpdated
+                    )
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Variation Result Row (Indented child of parent item)
+struct VariationResultRow: View {
+    let variation: SearchResultItem
+    let onAddToReorder: () -> Void
+    let onPrint: () -> Void
+    let onItemUpdated: (() -> Void)?
+
+    @State private var activeSheet: SearchSheet?
+    @State private var showingImagePicker = false
+    @State private var showingCamera = false
+    @State private var offset: CGFloat = 0
+    @State private var isDragging = false
+    @State private var currentImageId: String?
+    @State private var uploadTarget: ImageUploadTarget?
+
+    @ObservedObject private var imageSaveService = ImageSaveService.shared
+
+    private let cardHeight: CGFloat = 64  // Slightly shorter than parent card
+    private let indentWidth: CGFloat = 40
+
+    var body: some View {
+        ZStack {
+            // Background layer - action buttons
+            HStack(spacing: 0) {
+                if offset > 0 {
+                    SwipeActionButton(
+                        icon: "printer.fill",
+                        title: "Print",
+                        color: .blue,
+                        width: offset,
+                        cardHeight: cardHeight,
+                        action: {
+                            onPrint()
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                offset = 0
+                            }
+                        }
+                    )
+                }
+
+                Spacer()
+
+                if offset < 0 {
+                    SwipeActionButton(
+                        icon: "plus.circle.fill",
+                        title: "Add",
+                        color: .green,
+                        width: abs(offset),
+                        cardHeight: cardHeight,
+                        action: {
+                            onAddToReorder()
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                offset = 0
+                            }
+                        }
+                    )
+                }
+            }
+            .frame(height: cardHeight)
+
+            // Foreground - indented variation content
+            HStack(spacing: 0) {
+                // Indent with corner arrow
+                HStack(spacing: 4) {
+                    Spacer()
+                    Image(systemName: "arrow.turn.down.right")
+                        .font(.system(size: 14, weight: .regular))
+                        .foregroundColor(.secondary)
+                }
+                .frame(width: indentWidth)
+
+                // Variation card content
+                variationContent
+            }
+            .frame(height: cardHeight)
+            .background(Color(.systemBackground))
+            .offset(x: offset)
+            .onTapGesture {
+                if abs(offset) > 5 {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        offset = 0
+                    }
+                } else {
+                    activeSheet = .itemDetails(variation)
+                }
+            }
+            .gesture(swipeGesture)
+        }
+        .clipped()
+        .overlay(
+            VStack {
+                Spacer()
+                Rectangle()
+                    .fill(Color(.separator))
+                    .frame(height: 0.5)
+            }
+        )
+        .onAppear {
+            // Query SwiftData for fresh variation image (no fallback to parent)
+            if let variationId = variation.variationId {
+                currentImageId = CatalogLookupService.shared.getVariationPrimaryImageId(variationId)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .imageUpdated)) { notification in
+            // Listen for image uploads to this specific variation
+            if let userInfo = notification.userInfo,
+               let targetId = userInfo["itemId"] as? String,
+               let variationId = variation.variationId,
+               targetId == variationId,
+               let newImageId = userInfo["imageId"] as? String {
+                currentImageId = newImageId
+            }
+        }
+        .sheet(item: $activeSheet) { sheet in
+            switch sheet {
+            case .itemDetails(let item):
+                ItemDetailsModal(
+                    context: .editExisting(
+                        itemId: item.id,
+                        scrollToVariation: item.variationName
+                    ),
+                    hideScrollButton: true,  // User tapped variation directly
+                    onDismiss: { activeSheet = nil },
+                    onSave: { _ in
+                        activeSheet = nil
+                        onItemUpdated?()
+                    }
+                )
+                .fullScreenModal()
+            }
+        }
+        .sheet(isPresented: $showingImagePicker) {
+            UnifiedImagePickerModal(
+                context: .scanViewVariationLongPress(
+                    itemId: variation.variationId ?? variation.id,
+                    variationName: variation.variationName ?? "Variation"
+                ),
+                onDismiss: { showingImagePicker = false },
+                onImageUploaded: { _ in showingImagePicker = false }
+            )
+            .imagePickerFormSheet()
+        }
+        .fullScreenCover(isPresented: $showingCamera) {
+            AVCameraViewControllerWrapper(
+                onPhotosCaptured: { images in
+                    handleCameraPhotos(images)
+                    showingCamera = false
+                },
+                onCancel: { showingCamera = false },
+                contextTitle: variation.variationName ?? "Variation"
+            )
+        }
+    }
+
+    private var variationContent: some View {
+        HStack(spacing: 10) {
+            // Thumbnail with long-press for upload
+            NativeImageView.thumbnail(imageId: currentImageId, size: 44)
+                .onLongPressGesture {
+                    uploadTarget = .variation(
+                        variationId: variation.variationId ?? variation.id,
+                        variationName: variation.variationName ?? "Variation"
+                    )
+                    triggerUploadAction()
+                }
+
+            // Variation info - NO category badge (inherited from parent)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(variation.variationName ?? "Variation")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
+
+                HStack(spacing: 6) {
+                    if let barcode = variation.barcode, !barcode.isEmpty {
+                        Text(barcode)
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
+
+                    if let barcode = variation.barcode, !barcode.isEmpty,
+                       let sku = variation.sku, !sku.isEmpty {
+                        Text("*")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    }
+
+                    if let sku = variation.sku, !sku.isEmpty {
+                        Text(sku)
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+
+                    Spacer()
+                }
+            }
+
+            Spacer()
+
+            // Price
+            if let price = variation.price, price.isFinite && !price.isNaN {
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("$\(price, specifier: "%.2f")")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.primary)
+
+                    if variation.hasTax {
+                        Text("+tax")
+                            .font(.system(size: 9))
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+    }
+
+    private var swipeGesture: some Gesture {
+        DragGesture(minimumDistance: 30)
+            .onChanged { value in
+                let translation = value.translation
+                let horizontalThreshold: CGFloat = 30
+                let angle = atan2(abs(translation.height), abs(translation.width))
+                let isHorizontalDrag = angle < 0.5
+
+                guard isHorizontalDrag && abs(translation.width) > horizontalThreshold else { return }
+
+                isDragging = true
+                let adjustedTranslation = translation.width > 0 ?
+                    translation.width - horizontalThreshold :
+                    translation.width + horizontalThreshold
+                let resistance: CGFloat = 0.5
+
+                if translation.width > 0 {
+                    offset = min(adjustedTranslation * resistance, 100)
+                } else {
+                    offset = max(adjustedTranslation * resistance, -100)
+                }
+            }
+            .onEnded { value in
+                let translation = value.translation
+                let horizontalThreshold: CGFloat = 30
+                let angle = atan2(abs(translation.height), abs(translation.width))
+                let isHorizontalDrag = angle < 0.5
+
+                guard isHorizontalDrag && abs(translation.width) > horizontalThreshold else {
+                    isDragging = false
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        offset = 0
+                    }
+                    return
+                }
+
+                isDragging = false
+                let adjustedTranslation = abs(translation.width) - horizontalThreshold
+
+                if adjustedTranslation > 120 {
+                    if translation.width > 0 {
+                        onPrint()
+                    } else {
+                        onAddToReorder()
+                    }
+                }
+
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    offset = 0
+                }
+            }
+    }
+
+    private func triggerUploadAction() {
+        switch imageSaveService.longPressImageAction {
+        case .camera:
+            showingCamera = true
+        case .imagePicker:
+            showingImagePicker = true
+        }
+    }
+
+    private func handleCameraPhotos(_ images: [UIImage]) {
+        guard let firstImage = images.first,
+              let imageData = firstImage.jpegData(compressionQuality: 0.9) else { return }
+
+        ImageSaveService.shared.saveProcessedImage(firstImage)
+
+        let variationId = variation.variationId ?? variation.id
+
+        Task {
+            let imageService = SimpleImageService.shared
+            let fileName = "camera_\(UUID().uuidString).jpg"
+            _ = try? await imageService.uploadImage(
+                imageData: imageData,
+                fileName: fileName,
+                itemId: variationId
+            )
+
+            await MainActor.run {
+                onItemUpdated?()
+            }
+        }
+    }
+}
 
 // MARK: - Product Info View
 struct ProductInfoView: View {

@@ -69,8 +69,16 @@ enum ItemField: Hashable {
 /// Main modal coordinator that handles all entry points for item details
 struct ItemDetailsModal: View {
     let context: ItemDetailsContext
+    let hideScrollButton: Bool
     let onDismiss: () -> Void
     let onSave: (ItemDetailsData) -> Void
+
+    init(context: ItemDetailsContext, hideScrollButton: Bool = false, onDismiss: @escaping () -> Void, onSave: @escaping (ItemDetailsData) -> Void) {
+        self.context = context
+        self.hideScrollButton = hideScrollButton
+        self.onDismiss = onDismiss
+        self.onSave = onSave
+    }
 
     @FocusState private var focusedField: ItemField?
 
@@ -137,7 +145,9 @@ struct ItemDetailsModal: View {
                     Spacer()
 
                     // Scroll to Variation button (shown when opened from variation scan with 2+ variations)
+                    // Hidden when hideScrollButton=true (user tapped variation card directly)
                     if showScrollToVariationButton,
+                       !hideScrollButton,
                        viewModel.variations.count > 1,
                        let variationName = context.scrollToVariation,
                        let index = variationIndex(for: variationName) {

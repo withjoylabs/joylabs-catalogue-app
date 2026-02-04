@@ -232,6 +232,18 @@ struct SearchResultItem: Identifiable, Hashable {
     }
 }
 
+// MARK: - Grouped Search Results (for parent/variation hierarchy display)
+struct GroupedSearchResult: Identifiable {
+    let id: String  // Parent item ID
+    let parentResult: SearchResultItem  // Parent item (first variation's data for display)
+    let matchingVariations: [SearchResultItem]  // Matching variations to show indented
+
+    // Only show grouped hierarchy if item has multiple variations
+    var shouldShowGrouped: Bool {
+        parentResult.variationCount > 1
+    }
+}
+
 // MARK: - Catalog Object Models
 struct CatalogObject: Codable {
     let id: String

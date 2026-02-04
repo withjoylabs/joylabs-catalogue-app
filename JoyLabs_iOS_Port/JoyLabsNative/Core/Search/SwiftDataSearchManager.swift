@@ -10,6 +10,7 @@ import os.log
 class SwiftDataSearchManager: ObservableObject {
     // MARK: - Published Properties
     @Published var searchResults: [SearchResultItem] = []
+    @Published var groupedSearchResults: [GroupedSearchResult] = []
     @Published var isSearching: Bool = false
     @Published var searchError: String?
     @Published var lastSearchTerm: String = ""
@@ -126,6 +127,7 @@ class SwiftDataSearchManager: ObservableObject {
                 // Show first page (50 results)
                 let firstPage = Array(allResults.prefix(pageSize))
                 searchResults = firstPage
+                updateGroupedResults()
                 hasMoreResults = allResults.count > pageSize
                 currentPage = 1
 
@@ -142,12 +144,13 @@ class SwiftDataSearchManager: ObservableObject {
                 searchError = error.localizedDescription
                 isSearching = false
                 searchResults = []
+                updateGroupedResults()
             }
-            
+
             return []
         }
     }
-    
+
     // MARK: - Native SwiftData Search (Database-Level Filtering)
 
     private func performNativeSwiftDataSearch(
@@ -210,6 +213,7 @@ class SwiftDataSearchManager: ObservableObject {
             // Show first page (50 results)
             let firstPage = Array(allResults.prefix(pageSize))
             searchResults = firstPage
+            updateGroupedResults()
             hasMoreResults = allResults.count > pageSize
             currentPage = 1
         }
@@ -548,6 +552,7 @@ class SwiftDataSearchManager: ObservableObject {
     }
 
     // SIMPLE: Create SearchResultItem from item and specific variation
+    // Note: Uses variation-specific images only (no fallback to parent) for variation rows
     private func createSearchResultFromItemAndVariation(_ item: CatalogItemModel, _ variation: ItemVariationModel, matchType: String) throws -> SearchResultItem {
         return SearchResultItem(
             id: item.id,
@@ -560,7 +565,7 @@ class SwiftDataSearchManager: ObservableObject {
             variationId: variation.id,
             variationName: variation.name,
             variationCount: item.variations?.filter { !$0.isDeleted }.count ?? 0,
-            images: buildCatalogImages(from: variation.imageIds ?? item.imageIds),
+            images: buildCatalogImages(from: variation.imageIds),  // No fallback - show placeholder if nil
             matchType: matchType,
             matchContext: matchType == "upc" ? variation.upc : variation.sku,
             isFromCaseUpc: false,
@@ -805,22 +810,24 @@ class SwiftDataSearchManager: ObservableObject {
             // Update UI with direct search results
             await MainActor.run {
                 searchResults = results
+                updateGroupedResults()
                 totalResultsCount = results.count
                 isSearching = false
             }
-            
+
             logger.debug("[Search] AppLevelHIDScanner found \(results.count) direct results")
             return results
-            
+
         } catch {
             logger.error("[Search] AppLevelHIDScanner search failed: \(error)")
-            
+
             await MainActor.run {
                 searchError = error.localizedDescription
                 isSearching = false
                 searchResults = []
+                updateGroupedResults()
             }
-            
+
             return []
         }
     }
@@ -850,7 +857,7 @@ class SwiftDataSearchManager: ObservableObject {
                     variationId: variation.id,
                     variationName: variation.name,
                     variationCount: item.variations?.filter { !$0.isDeleted }.count ?? 0,
-                    images: buildCatalogImages(from: variation.imageIds ?? item.imageIds),
+                    images: buildCatalogImages(from: variation.imageIds),  // No fallback
                     matchType: "upc",
                     matchContext: barcode,
                     isFromCaseUpc: false,
@@ -887,7 +894,7 @@ class SwiftDataSearchManager: ObservableObject {
                     variationId: variation.id,
                     variationName: variation.name,
                     variationCount: item.variations?.filter { !$0.isDeleted }.count ?? 0,
-                    images: buildCatalogImages(from: variation.imageIds ?? item.imageIds),
+                    images: buildCatalogImages(from: variation.imageIds),  // No fallback
                     matchType: "sku",
                     matchContext: sku,
                     isFromCaseUpc: false,
@@ -897,7 +904,7 @@ class SwiftDataSearchManager: ObservableObject {
                 results.append(searchResult)
             }
         }
-        
+
         return results
     }
     
@@ -911,6 +918,7 @@ class SwiftDataSearchManager: ObservableObject {
     func clearSearch() {
         searchTask?.cancel()
         searchResults = []
+        groupedSearchResults = []
         searchError = nil
         lastSearchTerm = ""
         currentSearchTerm = nil
@@ -949,6 +957,7 @@ class SwiftDataSearchManager: ObservableObject {
 
         let nextPage = Array(allSearchResults[startIndex..<endIndex])
         searchResults.append(contentsOf: nextPage)
+        updateGroupedResults()
 
         currentPage += 1
         hasMoreResults = endIndex < allSearchResults.count
@@ -975,5 +984,53 @@ class SwiftDataSearchManager: ObservableObject {
         }
 
         return combined
+    }
+
+    // MARK: - Result Grouping (Parent/Variation Hierarchy)
+
+    /// Groups flat search results by parent item ID for hierarchical display
+    /// Single-variation items have empty matchingVariations (display as flat card)
+    /// Multi-variation items show parent + all matching variations indented
+    private func groupResults(_ results: [SearchResultItem]) -> [GroupedSearchResult] {
+        // Group by parent item ID
+        var grouped: [String: [SearchResultItem]] = [:]
+        for result in results {
+            grouped[result.id, default: []].append(result)
+        }
+
+        // Convert to GroupedSearchResult, preserving order of first occurrence
+        var orderedGroups: [GroupedSearchResult] = []
+        var processedIds = Set<String>()
+
+        for result in results {
+            guard !processedIds.contains(result.id) else { continue }
+            processedIds.insert(result.id)
+
+            let variations = grouped[result.id] ?? []
+            let first = variations[0]
+
+            if first.variationCount > 1 {
+                // Multi-variation item: parent card + variation row(s)
+                orderedGroups.append(GroupedSearchResult(
+                    id: result.id,
+                    parentResult: first,
+                    matchingVariations: variations
+                ))
+            } else {
+                // Single variation: no sub-rows needed
+                orderedGroups.append(GroupedSearchResult(
+                    id: result.id,
+                    parentResult: first,
+                    matchingVariations: []
+                ))
+            }
+        }
+
+        return orderedGroups
+    }
+
+    /// Updates groupedSearchResults from current searchResults
+    private func updateGroupedResults() {
+        groupedSearchResults = groupResults(searchResults)
     }
 }

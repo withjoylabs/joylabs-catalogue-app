@@ -127,7 +127,24 @@ class CatalogLookupService {
     func getPrimaryImageURL(for itemId: String) async -> String? {
         return getPrimaryImageUrl(for: itemId)
     }
-    
+
+    /// Get primary image ID for a specific variation (no fallback to parent)
+    /// Returns nil if variation has no images - UI should show placeholder
+    func getVariationPrimaryImageId(_ variationId: String) -> String? {
+        let descriptor = FetchDescriptor<ItemVariationModel>(
+            predicate: #Predicate { variation in
+                variation.id == variationId && !variation.isDeleted
+            }
+        )
+
+        guard let variation = try? catalogContext.fetch(descriptor).first else {
+            return nil
+        }
+
+        // Return first image ID or nil - no fallback to parent
+        return variation.imageIds?.first
+    }
+
     /// Get current price for item (from variation data)
     func getCurrentPrice(for itemId: String) -> Double? {
         // Check cache first

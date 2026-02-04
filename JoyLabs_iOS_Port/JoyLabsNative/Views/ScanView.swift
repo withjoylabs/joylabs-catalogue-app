@@ -397,20 +397,20 @@ struct SearchResultsList: View {
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
-                ForEach(searchManager.searchResults) { result in
-                    SwipeableScanResultCard(
-                        result: result,
-                        onAddToReorder: {
-                            addItemToReorderList(result, quantity: 1)
+                ForEach(searchManager.groupedSearchResults) { group in
+                    GroupedSearchResultCard(
+                        group: group,
+                        onAddToReorder: { item in
+                            addItemToReorderList(item, quantity: 1)
                         },
-                        onPrint: {
-                            printItem(result)
+                        onPrint: { item in
+                            printItem(item)
                         },
                         onItemUpdated: {
-                            // Item updates now handled automatically via shared SwiftData container
+                            // Item updates handled automatically via shared SwiftData container
                         }
                     )
-                    .id(result.id)
+                    .id(group.id)
                 }
             }
         }
