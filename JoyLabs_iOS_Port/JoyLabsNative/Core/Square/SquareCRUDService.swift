@@ -119,7 +119,8 @@ class SquareCRUDService: ObservableObject {
     
     /// Update an existing catalog item with perfect synchronization
     /// Returns the updated object with new version from Square
-    func updateItem(_ itemDetails: ItemDetailsData) async throws -> CatalogObject {
+    /// - Parameter deletedVariationIds: IDs of variations explicitly deleted by user in the UI session
+    func updateItem(_ itemDetails: ItemDetailsData, deletedVariationIds: Set<String> = []) async throws -> CatalogObject {
         guard let itemId = itemDetails.id else {
             throw SquareCRUDError.missingItemId
         }
@@ -178,7 +179,14 @@ class SquareCRUDService: ObservableObject {
 
             // 6. DATABASE SYNC: Update local database with exact API response and ID mappings
             try await updateLocalDatabaseAfterUpdate(updatedObject, idMappings: response.idMappings)
-            
+
+            // 6b. MARK DELETED VARIATIONS: Explicitly mark user-deleted variations in database
+            // This is needed because Square doesn't delete variations when omitted from update
+            if !deletedVariationIds.isEmpty {
+                logger.info("[SquareCRUDService] Marking \(deletedVariationIds.count) user-deleted variations as deleted")
+                try await markVariationsAsDeleted(variationIds: deletedVariationIds)
+            }
+
             // 7. SUCCESS: Record operation result
             let result = CRUDOperationResult(
                 operation: .update,
@@ -1078,6 +1086,29 @@ extension SquareCRUDService {
             logger.error("❌ Failed to mark removed variations as deleted for item \(itemId): \(error)")
             throw error
         }
+    }
+
+    /// Mark specific variations as deleted in the database (user-deleted variations)
+    /// Called with explicit variation IDs that user deleted in the UI session
+    private func markVariationsAsDeleted(variationIds: Set<String>) async throws {
+        let db = databaseManager.getContext()
+
+        for variationId in variationIds {
+            let descriptor = FetchDescriptor<ItemVariationModel>(
+                predicate: #Predicate { variation in
+                    variation.id == variationId
+                }
+            )
+
+            if let variation = try db.fetch(descriptor).first {
+                variation.isDeleted = true
+                variation.updatedAt = Date()
+                logger.info("[SquareCRUDService] Marked user-deleted variation as deleted: \(variationId)")
+            }
+        }
+
+        try db.save()
+        logger.info("[SquareCRUDService] Successfully marked \(variationIds.count) user-deleted variations as deleted")
     }
 
     // MARK: - Image Management Operations

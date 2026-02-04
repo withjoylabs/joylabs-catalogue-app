@@ -652,13 +652,15 @@ struct VariationResultRow: View {
 
             // Foreground - indented variation content
             HStack(spacing: 0) {
-                // Indent with corner arrow - centered to align with parent thumbnail center
+                // Indent with corner arrow - right-aligned to sit closer to variation thumbnail
                 HStack {
+                    Spacer()
                     Image(systemName: "arrow.turn.down.right")
                         .font(.system(size: 14, weight: .regular))
                         .foregroundColor(.secondary)
                 }
-                .frame(width: indentWidth)
+                .frame(width: indentWidth, alignment: .trailing)
+                .padding(.trailing, 3)
 
                 // Variation card content
                 variationContent

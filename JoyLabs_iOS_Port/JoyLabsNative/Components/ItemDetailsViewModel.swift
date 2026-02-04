@@ -567,6 +567,9 @@ class ItemDetailsViewModel: ObservableObject {
     // Private state for applying defaults
     private var shouldApplyTaxDefaults = false
 
+    // Track original variation IDs to detect deletions at save time
+    private var originalVariationIds: Set<String> = []
+
     // Service dependencies
     private let databaseManager: SwiftDataCatalogManager
     private let crudService: SquareCRUDService
@@ -794,7 +797,16 @@ class ItemDetailsViewModel: ObservableObject {
             } else {
                 // UPDATE: Existing item
                 print("Updating existing item via Square API: \(staticData.id!)")
-                savedObject = try await crudService.updateItem(currentItemData)
+
+                // Compute which variations were deleted (original IDs - current IDs)
+                let currentVariationIds = Set(currentItemData.variations.compactMap { $0.id })
+                let deletedVariationIds = originalVariationIds.subtracting(currentVariationIds)
+
+                if !deletedVariationIds.isEmpty {
+                    print("[ItemDetailsViewModel] Variations deleted by user: \(deletedVariationIds)")
+                }
+
+                savedObject = try await crudService.updateItem(currentItemData, deletedVariationIds: deletedVariationIds)
                 print("✅ Item updated successfully: \(savedObject.id) (version: \(savedObject.safeVersion))")
             }
 
@@ -1321,6 +1333,9 @@ class ItemDetailsViewModel: ObservableObject {
             }
 
             self.variations = loadedVariations
+
+            // Capture original variation IDs to detect deletions at save time
+            self.originalVariationIds = Set(loadedVariations.compactMap { $0.id })
 
         } catch {
             logger.error("Failed to load variations: \(error)")
