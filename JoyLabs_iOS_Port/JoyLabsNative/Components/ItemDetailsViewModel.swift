@@ -539,17 +539,81 @@ class ItemDetailsViewModel: ObservableObject {
     
     // Less frequently changed fields remain in a struct to reduce @Published overhead
     @Published var staticData = ItemDetailsStaticData()
-    
+
+    // Original values for true change detection (comparison-based, industry standard)
+    private var originalName: String = ""
+    private var originalDescription: String = ""
+    private var originalAbbreviation: String = ""
+    private var originalReportingCategoryId: String?
+    private var originalCategoryIds: [String] = []
+    private var originalTaxIds: [String] = []
+    private var originalModifierListIds: [String] = []
+    private var originalVariations: [ItemDetailsVariationData] = []
+    private var originalStaticData = ItemDetailsStaticData()
+
     // System state
     @Published var isLoading = false
     @Published var isSaving = false
     @Published var error: String?
-    
+
     // UI state
     @Published var showAdvancedFeatures = false
-    
-    // Simple change tracking - set to true on any field change, false after save
-    @Published var hasChanges = false
+
+    // True change detection via comparison (not flag-based)
+    // Images excluded - they have their own separate CRUD process
+    var hasChanges: Bool {
+        // Compare text fields
+        if name != originalName { return true }
+        if description != originalDescription { return true }
+        if abbreviation != originalAbbreviation { return true }
+
+        // Compare selections
+        if reportingCategoryId != originalReportingCategoryId { return true }
+        if categoryIds != originalCategoryIds { return true }
+        if taxIds != originalTaxIds { return true }
+        if modifierListIds != originalModifierListIds { return true }
+
+        // Compare variations (count and content)
+        if variations.count != originalVariations.count { return true }
+        for (index, variation) in variations.enumerated() {
+            guard index < originalVariations.count else { return true }
+            let original = originalVariations[index]
+            if variation.name != original.name { return true }
+            if variation.sku != original.sku { return true }
+            if variation.upc != original.upc { return true }
+            if variation.priceMoney?.amount != original.priceMoney?.amount { return true }
+            if variation.pricingType != original.pricingType { return true }
+            if variation.trackInventory != original.trackInventory { return true }
+            if variation.locationOverrides.count != original.locationOverrides.count { return true }
+        }
+
+        // Compare static data fields that matter
+        if staticData.productType != originalStaticData.productType { return true }
+        if staticData.skipModifierScreen != originalStaticData.skipModifierScreen { return true }
+        if staticData.isTaxable != originalStaticData.isTaxable { return true }
+        if staticData.presentAtAllLocations != originalStaticData.presentAtAllLocations { return true }
+        if staticData.presentAtLocationIds != originalStaticData.presentAtLocationIds { return true }
+        if staticData.absentAtLocationIds != originalStaticData.absentAtLocationIds { return true }
+
+        // Fulfillment toggles
+        if staticData.isAvailableOnline != originalStaticData.isAvailableOnline { return true }
+        if staticData.isAvailableForPickup != originalStaticData.isAvailableForPickup { return true }
+        if staticData.availableElectronically != originalStaticData.availableElectronically { return true }
+        if staticData.isAlcoholic != originalStaticData.isAlcoholic { return true }
+
+        // Other availability toggles
+        if staticData.availableOnline != originalStaticData.availableOnline { return true }
+        if staticData.availableForPickup != originalStaticData.availableForPickup { return true }
+        if staticData.availableForBooking != originalStaticData.availableForBooking { return true }
+        if staticData.isAvailableForSale != originalStaticData.isAvailableForSale { return true }
+
+        // Inventory toggles
+        if staticData.trackInventory != originalStaticData.trackInventory { return true }
+        if staticData.sellable != originalStaticData.sellable { return true }
+        if staticData.stockable != originalStaticData.stockable { return true }
+
+        return false
+    }
 
     // Available locations (loaded from Square)
     @Published var availableLocations: [LocationData] = []
@@ -683,16 +747,20 @@ class ItemDetailsViewModel: ObservableObject {
     }
 
     // MARK: - Change Detection Methods
-    
-    func markAsChanged() {
-        hasChanges = true
+
+    /// Capture current state as the baseline for change detection
+    /// Called after loading item data or saving changes
+    private func captureOriginalState() {
+        originalName = name
+        originalDescription = description
+        originalAbbreviation = abbreviation
+        originalReportingCategoryId = reportingCategoryId
+        originalCategoryIds = categoryIds
+        originalTaxIds = taxIds
+        originalModifierListIds = modifierListIds
+        originalVariations = variations
+        originalStaticData = staticData
     }
-    
-    private func resetChanges() {
-        hasChanges = false
-    }
-    
-    // Removed checkInitialChanges - no longer needed with simple flag-based tracking
     
     // MARK: - Private Properties
     private var cancellables = Set<AnyCancellable>()
@@ -724,9 +792,6 @@ class ItemDetailsViewModel: ObservableObject {
         case .createFromSearch(let query, let queryType):
             setupNewItemFromSearch(query: query, queryType: queryType)
         }
-
-        // Reset change tracking for fresh load
-        hasChanges = false
 
         // Show UI immediately after item loads - don't wait for dropdowns
         isLoading = false
@@ -828,7 +893,7 @@ class ItemDetailsViewModel: ObservableObject {
                     }
                 }
 
-                self.hasChanges = false
+                self.captureOriginalState()
                 self.error = nil
             }
             print("✅ Item saved successfully")
@@ -852,7 +917,7 @@ class ItemDetailsViewModel: ObservableObject {
                 }
             }
 
-            // Keep hasChanges = true so user can retry
+            // hasChanges remains true (computed from unsaved modifications) so user can retry
             return nil
         }
     }
@@ -881,7 +946,6 @@ class ItemDetailsViewModel: ObservableObject {
             // Mark as deleted locally
             await MainActor.run {
                 self.staticData.isDeleted = true
-                self.hasChanges = false
             }
 
             return true
@@ -905,9 +969,9 @@ class ItemDetailsViewModel: ObservableObject {
     }
     
     private func setupChangeTracking() {
-        // Simplified change tracking - manual flag management for better performance
-        // UI components call markAsChanged() when user makes changes
-        // This eliminates complex publisher chains and improves responsiveness
+        // Change detection via computed property comparison (industry standard)
+        // hasChanges compares current values against originalValues captured at load/save
+        // No manual tracking needed - automatic detection of actual changes
     }
     
     private func validateName(_ name: String) {
@@ -1127,7 +1191,8 @@ class ItemDetailsViewModel: ObservableObject {
                 }
             }
 
-            // No need to check initial changes - using simple flag tracking
+            // Capture original state for true change detection
+            captureOriginalState()
         }
     }
 
@@ -1214,10 +1279,10 @@ class ItemDetailsViewModel: ObservableObject {
             shouldApplyTaxDefaults = true
         }
         
-        // Check initial change status for new items (should be false initially)
-        // No need to check initial changes - using simple flag tracking
+        // Capture original state for true change detection
+        captureOriginalState()
     }
-    
+
     private func setupNewItemFromSearch(query: String, queryType: SearchQueryType) {
         setupNewItem()
 
@@ -1233,6 +1298,9 @@ class ItemDetailsViewModel: ObservableObject {
         case .name:
             self.name = query
         }
+
+        // Re-capture after search query modifications
+        captureOriginalState()
     }
 
     // MARK: - Unified Image Integration

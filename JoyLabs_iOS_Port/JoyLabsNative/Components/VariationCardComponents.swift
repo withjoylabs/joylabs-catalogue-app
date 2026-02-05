@@ -218,7 +218,6 @@ struct VariationCardPriceSection: View {
             )
             
             variation.locationOverrides.append(newOverride)
-            viewModel.hasChanges = true
         }
     }
     
@@ -269,7 +268,6 @@ struct VariationCardPriceSection: View {
                         availableLocations: viewModel.availableLocations,
                         onDelete: {
                             variation.locationOverrides.remove(at: overrideIndex)
-                            viewModel.hasChanges = true
                         }
                     )
                 }

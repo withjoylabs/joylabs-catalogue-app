@@ -23,8 +23,7 @@ struct ItemDetailsBasicSection: View {
                             autoFocus: viewModel.context.isCreating,
                             focusedField: $focusedField,
                             fieldIdentifier: .itemName,
-                            onSubmit: moveToNextField,
-                            onChange: { viewModel.markAsChanged() }
+                            onSubmit: moveToNextField
                         )
                     }
 
@@ -45,9 +44,6 @@ struct ItemDetailsBasicSection: View {
                                     .autocorrectionDisabled()
                                     .focused($focusedField, equals: .description)
                                     .onSubmit(moveToNextField)
-                                    .onChange(of: viewModel.description) { _, _ in
-                                        viewModel.markAsChanged()
-                                    }
                             }
                             .id(ItemField.description)
                         }
@@ -65,8 +61,7 @@ struct ItemDetailsBasicSection: View {
                                 helpText: "Used on receipts and POS displays when space is limited",
                                 focusedField: $focusedField,
                                 fieldIdentifier: .abbreviation,
-                                onSubmit: moveToNextField,
-                                onChange: { viewModel.markAsChanged() }
+                                onSubmit: moveToNextField
                             )
                         }
                     }

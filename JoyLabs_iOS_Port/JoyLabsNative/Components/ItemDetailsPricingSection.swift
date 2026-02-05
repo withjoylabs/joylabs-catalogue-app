@@ -30,7 +30,6 @@ struct ItemDetailsPricingSection: View {
                                     // Safe bounds checking
                                     guard index < viewModel.variations.count else { return }
                                     viewModel.variations[index] = newValue
-                                    viewModel.hasChanges = true
                                 }
                             ),
                             index: index,
@@ -40,7 +39,6 @@ struct ItemDetailsPricingSection: View {
                                 // Safe removal with bounds checking
                                 guard index < viewModel.variations.count && viewModel.variations.count > 1 else { return }
                                 viewModel.variations.remove(at: index)
-                                viewModel.hasChanges = true
                             },
                             onPrint: { variation in
                                 printingVariationIndices.insert(index)
