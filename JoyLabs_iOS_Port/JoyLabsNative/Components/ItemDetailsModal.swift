@@ -220,6 +220,26 @@ struct ItemDetailsModal: View {
                 CentralItemUpdateManager.shared.registerItemDetailsModal(itemId: itemId, viewModel: viewModel)
             }
         }
+        .task {
+            // Wait for variations to load, then scroll if needed
+            // This handles cases where data loads before onChange can fire
+            guard hideScrollButton,
+                  let variationName = context.scrollToVariation else { return }
+
+            // Poll until variations are loaded (max 2 seconds)
+            for _ in 0..<20 {
+                if viewModel.variations.count > 1,
+                   let index = variationIndex(for: variationName) {
+                    // Small delay to ensure ScrollView is ready
+                    try? await Task.sleep(nanoseconds: 150_000_000)
+                    await MainActor.run {
+                        focusedField = .variationName(index)
+                    }
+                    return
+                }
+                try? await Task.sleep(nanoseconds: 100_000_000)
+            }
+        }
         .onChange(of: viewModel.variations.count) { _, newCount in
             // Auto-scroll to variation when hideScrollButton is true (user tapped variation row directly)
             if hideScrollButton,
