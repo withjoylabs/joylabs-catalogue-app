@@ -716,6 +716,14 @@ class SwiftDataSearchManager: ObservableObject {
                 )
 
                 searchResults[index] = updatedResult
+
+                // Also update the pagination backing array
+                if let allIndex = allSearchResults.firstIndex(where: { $0.id == itemId }) {
+                    allSearchResults[allIndex] = updatedResult
+                }
+
+                // Rebuild grouped results so the UI refreshes
+                updateGroupedResults()
                 logger.debug("[Search] Successfully updated item \(itemId)")
             }
         } catch {
@@ -725,6 +733,8 @@ class SwiftDataSearchManager: ObservableObject {
     
     func removeItemFromSearchResults(itemId: String) {
         searchResults.removeAll { $0.id == itemId }
+        allSearchResults.removeAll { $0.id == itemId }
+        updateGroupedResults()
     }
     
     /// Checks if a newly created item should appear in current search results
