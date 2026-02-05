@@ -527,7 +527,7 @@ actor SquareHTTPClient {
                     "caption": "Uploaded via JoyLabs iOS app"
                 ]
             ],
-            "is_primary": true  // Make this the primary image
+            "is_primary": false  // Append to existing images (first image is still primary by position)
         ]
 
         do {

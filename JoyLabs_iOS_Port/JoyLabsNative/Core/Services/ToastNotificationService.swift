@@ -70,13 +70,35 @@ class ToastNotificationService: ObservableObject {
         currentToast = toast
         windowManager.show(toast)
     }
-    
+
+    /// Show a loading toast (persists until dismissed)
+    /// Returns the toast ID for later dismissal
+    @discardableResult
+    func showLoading(_ message: String) -> UUID {
+        let toast = ToastNotification(
+            message: message,
+            type: .loading,
+            duration: 0  // 0 = no auto-dismiss
+        )
+        currentToast = toast
+        windowManager.show(toast)
+        return toast.id
+    }
+
     /// Dismiss current toast
     func dismiss() {
         if let toast = currentToast {
             windowManager.dismissToast(withId: toast.id)
         }
         currentToast = nil
+    }
+
+    /// Dismiss a specific toast by ID
+    func dismiss(id: UUID) {
+        windowManager.dismissToast(withId: id)
+        if currentToast?.id == id {
+            currentToast = nil
+        }
     }
     
     /// Clear all pending toasts
@@ -106,9 +128,11 @@ struct ToastNotification {
             return "exclamationmark.triangle.fill"
         case .info:
             return "info.circle.fill"
+        case .loading:
+            return ""  // Will use ProgressView instead
         }
     }
-    
+
     var color: Color {
         switch type {
         case .success:
@@ -118,6 +142,8 @@ struct ToastNotification {
         case .warning:
             return .orange
         case .info:
+            return .blue
+        case .loading:
             return .blue
         }
     }
@@ -129,6 +155,7 @@ enum ToastType {
     case error
     case warning
     case info
+    case loading  // Persists until manually dismissed
 }
 
 // Note: Toast presentation is now handled by ToastWindowManager

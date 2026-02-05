@@ -170,6 +170,17 @@ struct ItemDetailsVariationCard: View {
                     // Remove from local imageIds array
                     variation.imageIds.removeAll { $0 == imageId }
                     ToastNotificationService.shared.showSuccess("Image deleted")
+
+                    // Notify scan results to update thumbnail to new primary
+                    NotificationCenter.default.post(
+                        name: .imageUpdated,
+                        object: nil,
+                        userInfo: [
+                            "itemId": variationId,
+                            "imageId": variation.imageIds.first ?? "",
+                            "action": "delete"
+                        ]
+                    )
                 }
             } catch {
                 await MainActor.run {

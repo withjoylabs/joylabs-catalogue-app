@@ -994,8 +994,18 @@ struct UnifiedImagePickerModal: View {
             return
         }
 
-        logger.info("[ImagePicker] Starting batch upload for \(photoBuffer.count) images")
+        let uploadCount = photoBuffer.count
+        logger.info("[ImagePicker] Starting batch upload for \(uploadCount) images")
 
+        // Show loading toast
+        let loadingToastId = await MainActor.run {
+            let message = uploadCount == 1
+                ? "Uploading image..."
+                : "Uploading \(uploadCount) images..."
+            return ToastNotificationService.shared.showLoading(message)
+        }
+
+        var successCount = 0
         for pendingImage in photoBuffer {
             // Recreate UIImage from Data for upload
             guard let image = UIImage(data: pendingImage.imageData) else {
@@ -1003,14 +1013,26 @@ struct UnifiedImagePickerModal: View {
                 continue
             }
 
-            // Use existing handleUpload logic
+            // Use existing handleUpload logic (sequential maintains order)
             await handleUpload(image: image)
+            successCount += 1
         }
 
         // Clear buffer after successful batch upload
         await MainActor.run {
             photoBuffer.removeAll()
             logger.info("[ImagePicker] Buffer cleared after batch upload")
+
+            // Dismiss loading toast
+            ToastNotificationService.shared.dismiss(id: loadingToastId)
+
+            // Show success toast
+            if successCount > 0 {
+                let message = successCount == 1
+                    ? "Image uploaded"
+                    : "\(successCount) images uploaded"
+                ToastNotificationService.shared.showSuccess(message)
+            }
         }
     }
 

@@ -232,6 +232,17 @@ struct ItemImageSection: View {
 
                     logger.info("Successfully deleted image")
                     ToastNotificationService.shared.showSuccess("Image deleted")
+
+                    // Notify scan results to refresh thumbnail (primary may have changed)
+                    NotificationCenter.default.post(
+                        name: .imageUpdated,
+                        object: nil,
+                        userInfo: [
+                            "itemId": itemId,
+                            "imageId": viewModel.staticData.imageIds.first ?? "",
+                            "action": "delete"
+                        ]
+                    )
                 }
             } catch {
                 await MainActor.run {
@@ -292,55 +303,101 @@ struct ItemImageSection: View {
 
         let imageProcessor = ImageProcessor()
         let imageService = SimpleImageService.shared
+        let itemName = viewModel.name.isEmpty ? "Item" : viewModel.name
 
-        for image in images {
-            Task {
-                do {
-                    // Process image (format conversion and size validation)
-                    let processedResult = try await imageProcessor.processImage(image)
+        Task {
+            if viewModel.staticData.id == nil || viewModel.staticData.id!.isEmpty {
+                // NEW ITEM: Process images sequentially and buffer for later upload
+                let existingCount = viewModel.staticData.pendingImages.count
+                var processedCount = 0
 
-                    // Save to camera roll if enabled
-                    await MainActor.run {
-                        ImageSaveService.shared.saveProcessedImage(processedResult.image)
-                    }
+                for (offset, image) in images.enumerated() {
+                    do {
+                        let processedResult = try await imageProcessor.processImage(image)
+                        let fileName = "joylabs_camera_\(UUID().uuidString).\(processedResult.format.fileExtension)"
 
-                    if viewModel.staticData.id == nil || viewModel.staticData.id!.isEmpty {
-                        // NEW ITEM: Buffer image for upload after item creation
                         await MainActor.run {
-                            let fileName = "joylabs_camera_\(UUID().uuidString).\(processedResult.format.fileExtension)"
+                            ImageSaveService.shared.saveProcessedImage(processedResult.image)
                             let pendingImage = PendingImageData(
                                 imageData: processedResult.data,
                                 fileName: fileName,
-                                isPrimary: viewModel.staticData.pendingImages.isEmpty
+                                isPrimary: existingCount == 0 && offset == 0  // First image of first batch is primary
                             )
                             viewModel.staticData.pendingImages.append(pendingImage)
-                            logger.info("[ItemImageSection] Buffered camera image (total: \(viewModel.staticData.pendingImages.count))")
                         }
-                    } else {
-                        // EXISTING ITEM: Upload directly to Square
-                        logger.info("[ItemImageSection] Uploading camera image to Square")
-                        let (imageId, awsURL) = try await imageService.uploadImageWithId(
-                            imageData: processedResult.data,
-                            fileName: "joylabs_camera_\(UUID().uuidString).\(processedResult.format.fileExtension)",
-                            itemId: viewModel.staticData.id!
-                        )
+                        processedCount += 1
+                    } catch {
+                        logger.error("[ItemImageSection] Failed to process image: \(error)")
+                    }
+                }
+
+                await MainActor.run {
+                    if processedCount > 0 {
+                        let message = processedCount == 1
+                            ? "Image ready for \(itemName)"
+                            : "\(processedCount) images ready for \(itemName)"
+                        ToastNotificationService.shared.showSuccess(message)
+                    }
+                }
+            } else {
+                // EXISTING ITEM: Sequential process + upload (maintains order, prevents VERSION_MISMATCH)
+                let itemId = viewModel.staticData.id!
+
+                // Show loading toast
+                let loadingToastId = await MainActor.run {
+                    let message = images.count == 1
+                        ? "Uploading image to \(itemName)..."
+                        : "Uploading \(images.count) images to \(itemName)..."
+                    return ToastNotificationService.shared.showLoading(message)
+                }
+
+                var uploadedImageIds: [String] = []
+                var lastAwsURL: String?
+
+                // Process and upload each image sequentially (maintains order)
+                for image in images {
+                    do {
+                        let processedResult = try await imageProcessor.processImage(image)
 
                         await MainActor.run {
-                            // Add to imageIds array
-                            viewModel.staticData.imageIds.append(imageId)
-
-                            // Update legacy fields for compatibility
-                            viewModel.imageURL = awsURL
-                            viewModel.imageId = imageId
-
-                            logger.info("[ItemImageSection] Camera image uploaded: \(imageId)")
+                            ImageSaveService.shared.saveProcessedImage(processedResult.image)
                         }
+
+                        let fileName = "joylabs_camera_\(UUID().uuidString).\(processedResult.format.fileExtension)"
+                        let (imageId, awsURL) = try await imageService.uploadImageWithId(
+                            imageData: processedResult.data,
+                            fileName: fileName,
+                            itemId: itemId
+                        )
+                        uploadedImageIds.append(imageId)
+                        lastAwsURL = awsURL
+                    } catch {
+                        logger.error("[ItemImageSection] Failed to process/upload image: \(error)")
                     }
-                } catch {
-                    logger.error("[ItemImageSection] Failed to process camera image: \(error)")
-                    await MainActor.run {
-                        ToastNotificationService.shared.showError("Failed to process camera photo")
+                }
+
+                await MainActor.run {
+                    // Dismiss loading toast
+                    ToastNotificationService.shared.dismiss(id: loadingToastId)
+
+                    // Append uploaded images (in order)
+                    for imageId in uploadedImageIds {
+                        viewModel.staticData.imageIds.append(imageId)
                     }
+                    if let url = lastAwsURL, let lastId = uploadedImageIds.last {
+                        viewModel.imageURL = url
+                        viewModel.imageId = lastId
+                    }
+
+                    let count = uploadedImageIds.count
+                    if count > 0 {
+                        let message = count == 1
+                            ? "Image uploaded to \(itemName)"
+                            : "\(count) images uploaded to \(itemName)"
+                        ToastNotificationService.shared.showSuccess(message)
+                    }
+
+                    logger.info("[ItemImageSection] Uploaded \(count) images in order")
                 }
             }
         }

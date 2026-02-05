@@ -1845,16 +1845,40 @@ class ItemDetailsViewModel: ObservableObject {
 
     /// Upload pending images for newly created item
     /// Called after item creation to use newly assigned item/variation IDs
-    /// Similar to setInitialInventoryForNewItem pattern
+    /// Sequential uploads to prevent VERSION_MISMATCH errors
     private func uploadPendingImagesForNewItem(savedObject: CatalogObject, originalItemData: ItemDetailsData) async throws {
         let itemId = savedObject.id
+        let itemName = self.name.isEmpty ? "Item" : self.name
         logger.info("[ImageUpload] Uploading pending images for new item: \(itemId)")
 
         let imageService = SimpleImageService.shared
 
-        // 1. Upload item-level pending images
+        // Count total pending images for loading toast
+        let itemImageCount = self.staticData.pendingImages.count
+        var variationImageCount = 0
+        for variation in originalItemData.variations {
+            variationImageCount += variation.pendingImages.count
+        }
+        let totalImageCount = itemImageCount + variationImageCount
+
+        // Show loading toast if there are images to upload
+        var loadingToastId: UUID?
+        if totalImageCount > 0 {
+            loadingToastId = await MainActor.run {
+                let message = totalImageCount == 1
+                    ? "Uploading image for \(itemName)..."
+                    : "Uploading \(totalImageCount) images for \(itemName)..."
+                return ToastNotificationService.shared.showLoading(message)
+            }
+        }
+
+        var totalUploaded = 0
+
+        // 1. Upload item-level pending images sequentially (prevents VERSION_MISMATCH)
         if !self.staticData.pendingImages.isEmpty {
-            logger.info("[ImageUpload] Uploading \(self.staticData.pendingImages.count) item-level images")
+            let pendingCount = self.staticData.pendingImages.count
+            logger.info("[ImageUpload] Uploading \(pendingCount) item-level images sequentially")
+
             var uploadedImageIds: [String] = []
 
             for (index, pendingImage) in self.staticData.pendingImages.enumerated() {
@@ -1864,20 +1888,16 @@ class ItemDetailsViewModel: ObservableObject {
                         fileName: pendingImage.fileName,
                         itemId: itemId
                     )
-
                     uploadedImageIds.append(imageId)
-                    logger.info("[ImageUpload] ✅ Uploaded item image \(index + 1)/\(self.staticData.pendingImages.count): \(imageId)")
+                    totalUploaded += 1
+                    logger.info("[ImageUpload] Uploaded item image \(index + 1)/\(pendingCount)")
                 } catch {
-                    logger.error("[ImageUpload] ⚠️ Failed to upload item image \(index + 1): \(error)")
-                    // Continue with other images even if one fails
+                    logger.error("[ImageUpload] Failed to upload item image \(index + 1): \(error)")
                 }
             }
 
-            // Update item's imageIds via Square API to establish proper relationships
+            // Update local state
             if !uploadedImageIds.isEmpty {
-                logger.info("[ImageUpload] Attaching \(uploadedImageIds.count) images to item")
-                // Images are already attached during upload via Square API
-                // Update local state
                 await MainActor.run {
                     self.staticData.imageIds = uploadedImageIds
                     self.staticData.pendingImages.removeAll()
@@ -1885,9 +1905,21 @@ class ItemDetailsViewModel: ObservableObject {
             }
         }
 
-        // 2. Upload variation-level pending images
+        // 2. Upload variation-level pending images sequentially (prevents VERSION_MISMATCH)
         guard let itemData = savedObject.itemData,
               let savedVariations = itemData.variations else {
+            // Dismiss loading toast and show result
+            if let toastId = loadingToastId {
+                await MainActor.run {
+                    ToastNotificationService.shared.dismiss(id: toastId)
+                    if totalUploaded > 0 {
+                        let message = totalUploaded == 1
+                            ? "Image uploaded for \(itemName)"
+                            : "\(totalUploaded) images uploaded for \(itemName)"
+                        ToastNotificationService.shared.showSuccess(message)
+                    }
+                }
+            }
             return
         }
 
@@ -1898,7 +1930,9 @@ class ItemDetailsViewModel: ObservableObject {
             let originalVariation = originalItemData.variations[index]
 
             if !originalVariation.pendingImages.isEmpty {
-                logger.info("[ImageUpload] Uploading \(originalVariation.pendingImages.count) images for variation \(index + 1)")
+                let pendingCount = originalVariation.pendingImages.count
+                logger.info("[ImageUpload] Uploading \(pendingCount) images for variation \(index + 1) sequentially")
+
                 var uploadedImageIds: [String] = []
 
                 for (imageIndex, pendingImage) in originalVariation.pendingImages.enumerated() {
@@ -1908,12 +1942,11 @@ class ItemDetailsViewModel: ObservableObject {
                             fileName: pendingImage.fileName,
                             itemId: variationId
                         )
-
                         uploadedImageIds.append(imageId)
-                        logger.info("[ImageUpload] ✅ Uploaded variation image \(imageIndex + 1)/\(originalVariation.pendingImages.count): \(imageId)")
+                        totalUploaded += 1
+                        logger.info("[ImageUpload] Uploaded variation image \(imageIndex + 1)/\(pendingCount)")
                     } catch {
-                        logger.error("[ImageUpload] ⚠️ Failed to upload variation image: \(error)")
-                        // Continue with other images
+                        logger.error("[ImageUpload] Failed to upload variation image: \(error)")
                     }
                 }
 
@@ -1929,7 +1962,20 @@ class ItemDetailsViewModel: ObservableObject {
             }
         }
 
-        logger.info("[ImageUpload] ✅ Completed uploading all pending images")
+        // Dismiss loading toast and show result
+        if let toastId = loadingToastId {
+            await MainActor.run {
+                ToastNotificationService.shared.dismiss(id: toastId)
+                if totalUploaded > 0 {
+                    let message = totalUploaded == 1
+                        ? "Image uploaded for \(itemName)"
+                        : "\(totalUploaded) images uploaded for \(itemName)"
+                    ToastNotificationService.shared.showSuccess(message)
+                }
+            }
+        }
+
+        logger.info("[ImageUpload] Completed uploading \(totalUploaded) pending images")
     }
 
     // MARK: - Image Helper Methods

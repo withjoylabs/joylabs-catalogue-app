@@ -4,11 +4,13 @@ import Combine
 
 /// Enhanced toast notification data model for stacking
 struct ActiveToast: Identifiable, Equatable, @unchecked Sendable {
-    let id = UUID()
     let notification: ToastNotification
     let createdAt = Date()
     var dismissTimer: Timer?
-    
+
+    // Use notification's ID so dismiss(id:) can find the correct toast
+    var id: UUID { notification.id }
+
     static func == (lhs: ActiveToast, rhs: ActiveToast) -> Bool {
         lhs.id == rhs.id
     }
@@ -126,17 +128,20 @@ final class ToastWindowManager: ObservableObject {
         // Update the view with snappy animation
         updateToastDisplay()
         
-        // Set up auto-dismiss timer (2 seconds for snappy UX)
-        let toastId = activeToast.id
-        let timer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
-            Task { @MainActor in
-                self?.dismissToast(withId: toastId)
+        // Set up auto-dismiss timer (skip for loading toasts which persist until dismissed)
+        if toast.type != .loading {
+            let toastId = activeToast.id
+            let dismissDuration = toast.duration > 0 ? toast.duration : 2.0
+            let timer = Timer.scheduledTimer(withTimeInterval: dismissDuration, repeats: false) { [weak self] _ in
+                Task { @MainActor in
+                    self?.dismissToast(withId: toastId)
+                }
             }
-        }
-        
-        // Store timer reference
-        if let index = activeToasts.firstIndex(where: { $0.id == activeToast.id }) {
-            activeToasts[index].dismissTimer = timer
+
+            // Store timer reference
+            if let index = activeToasts.firstIndex(where: { $0.id == activeToast.id }) {
+                activeToasts[index].dismissTimer = timer
+            }
         }
     }
     
@@ -270,11 +275,18 @@ private struct EnhancedToastView: View {
     
     var body: some View {
         HStack(spacing: 12) {
-            // Icon with enhanced styling
-            Image(systemName: toast.icon)
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundColor(toast.color)
-                .frame(width: 24, height: 24)
+            // Icon with enhanced styling (ProgressView for loading type)
+            if toast.type == .loading {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: toast.color))
+                    .scaleEffect(0.8)
+                    .frame(width: 24, height: 24)
+            } else {
+                Image(systemName: toast.icon)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(toast.color)
+                    .frame(width: 24, height: 24)
+            }
             
             // Message with better typography
             Text(toast.message)
@@ -397,6 +409,7 @@ extension ToastNotification {
         switch type {
         case .error: return 4
         case .warning: return 3
+        case .loading: return 3  // Same as warning - persistent and important
         case .success: return 2
         case .info: return 1
         }

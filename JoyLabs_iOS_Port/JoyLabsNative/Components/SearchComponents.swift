@@ -303,7 +303,18 @@ struct SwipeableScanResultCard: View {
                let itemId = userInfo["itemId"] as? String,
                itemId == result.id,
                let newImageId = userInfo["imageId"] as? String {
-                currentImageId = newImageId
+                let action = userInfo["action"] as? String
+
+                if action == "upload" {
+                    // Only update on FIRST upload (when currentImageId is nil)
+                    // This ensures first image becomes primary, not the last
+                    if currentImageId == nil {
+                        currentImageId = newImageId
+                    }
+                } else {
+                    // For delete/reorder: always update to new primary
+                    currentImageId = newImageId.isEmpty ? nil : newImageId
+                }
             }
         }
     }
@@ -494,29 +505,71 @@ struct SwipeableScanResultCard: View {
 
         let target = uploadTarget ?? .item(id: result.id, name: result.name ?? "Item")
         let imageService = SimpleImageService.shared
+        let hadExistingImages = (result.images?.isEmpty == false)
+        let itemName = result.name ?? "Item"
 
         Task {
+            let targetId: String
+            let targetName: String
+            let isVariation: Bool
+
+            switch target {
+            case .item(let id, let name):
+                targetId = id
+                targetName = name
+                isVariation = false
+            case .variation(let variationId, let name):
+                targetId = variationId
+                targetName = name
+                isVariation = true
+            }
+
+            // Show loading toast
+            let loadingToastId = await MainActor.run {
+                let displayName = isVariation ? "\(targetName) of \(itemName)" : itemName
+                let message = images.count == 1
+                    ? "Uploading image to \(displayName)..."
+                    : "Uploading \(images.count) images to \(displayName)..."
+                return ToastNotificationService.shared.showLoading(message)
+            }
+
+            // Process and upload each image sequentially (maintains order)
+            var uploadedCount = 0
+
             for image in images {
                 guard let imageData = image.jpegData(compressionQuality: 0.9) else { continue }
 
-                // Save to camera roll if enabled
                 await MainActor.run {
                     ImageSaveService.shared.saveProcessedImage(image)
                 }
 
                 let fileName = "camera_\(UUID().uuidString).jpg"
-
-                switch target {
-                case .item(let id, _):
-                    _ = try? await imageService.uploadImage(imageData: imageData, fileName: fileName, itemId: id)
-                case .variation(let variationId, _):
-                    _ = try? await imageService.uploadImage(imageData: imageData, fileName: fileName, itemId: variationId)
+                if let _ = try? await imageService.uploadImageWithId(
+                    imageData: imageData,
+                    fileName: fileName,
+                    itemId: targetId
+                ) {
+                    uploadedCount += 1
                 }
             }
 
-            // Trigger search refresh after all uploads
             await MainActor.run {
-                onItemUpdated?()
+                // Dismiss loading toast
+                ToastNotificationService.shared.dismiss(id: loadingToastId)
+
+                // Show success toast
+                if uploadedCount > 0 {
+                    let displayName = isVariation ? "\(targetName) of \(itemName)" : itemName
+                    let message = uploadedCount == 1
+                        ? "Image uploaded to \(displayName)"
+                        : "\(uploadedCount) images uploaded to \(displayName)"
+                    ToastNotificationService.shared.showSuccess(message)
+                }
+
+                // Only refresh thumbnail if primary image changed (item had no images before)
+                if !hadExistingImages && uploadedCount > 0 {
+                    onItemUpdated?()
+                }
             }
         }
     }
@@ -730,7 +783,18 @@ struct VariationResultRow: View {
                let variationId = variation.variationId,
                targetId == variationId,
                let newImageId = userInfo["imageId"] as? String {
-                currentImageId = newImageId
+                let action = userInfo["action"] as? String
+
+                if action == "upload" {
+                    // Only update on FIRST upload (when currentImageId is nil)
+                    // This ensures first image becomes primary, not the last
+                    if currentImageId == nil {
+                        currentImageId = newImageId
+                    }
+                } else {
+                    // For delete/reorder: always update to new primary
+                    currentImageId = newImageId.isEmpty ? nil : newImageId
+                }
             }
         }
         .sheet(item: $activeSheet) { sheet in
@@ -917,9 +981,22 @@ struct VariationResultRow: View {
         guard !images.isEmpty else { return }
 
         let variationId = variation.variationId ?? variation.id
+        let variationName = variation.variationName ?? "Variation"
         let imageService = SimpleImageService.shared
+        let hadExistingImages = (variation.images?.isEmpty == false)
 
         Task {
+            // Show loading toast
+            let loadingToastId = await MainActor.run {
+                let message = images.count == 1
+                    ? "Uploading image to \(variationName)..."
+                    : "Uploading \(images.count) images to \(variationName)..."
+                return ToastNotificationService.shared.showLoading(message)
+            }
+
+            // Process and upload each image sequentially (maintains order)
+            var uploadedCount = 0
+
             for image in images {
                 guard let imageData = image.jpegData(compressionQuality: 0.9) else { continue }
 
@@ -928,11 +1005,31 @@ struct VariationResultRow: View {
                 }
 
                 let fileName = "camera_\(UUID().uuidString).jpg"
-                _ = try? await imageService.uploadImage(imageData: imageData, fileName: fileName, itemId: variationId)
+                if let _ = try? await imageService.uploadImageWithId(
+                    imageData: imageData,
+                    fileName: fileName,
+                    itemId: variationId
+                ) {
+                    uploadedCount += 1
+                }
             }
 
             await MainActor.run {
-                onItemUpdated?()
+                // Dismiss loading toast
+                ToastNotificationService.shared.dismiss(id: loadingToastId)
+
+                // Show success toast
+                if uploadedCount > 0 {
+                    let message = uploadedCount == 1
+                        ? "Image uploaded to \(variationName)"
+                        : "\(uploadedCount) images uploaded to \(variationName)"
+                    ToastNotificationService.shared.showSuccess(message)
+                }
+
+                // Only refresh thumbnail if primary image changed (variation had no images before)
+                if !hadExistingImages && uploadedCount > 0 {
+                    onItemUpdated?()
+                }
             }
         }
     }
