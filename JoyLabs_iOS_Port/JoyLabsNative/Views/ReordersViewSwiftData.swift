@@ -56,7 +56,8 @@ struct ReordersViewSwiftData: SwiftUI.View {
     @State private var filterOption: ReorderFilterOption = .all
     @State private var organizationOption: ReorderOrganizationOption = .none
     @State private var displayMode: ReorderDisplayMode = .list
-    
+    @State private var selectedCategories: Set<String> = []
+
     // Professional sheet management (restored original ReordersSheet enum)
     @State private var activeSheet: ReordersSheet?
     @State private var showingImagePicker = false
@@ -148,9 +149,14 @@ struct ReordersViewSwiftData: SwiftUI.View {
     var purchasedItems: Int { cachedStats.purchased }
     var totalQuantity: Int { cachedStats.quantity }
     
+    var availableCategories: [String] {
+        let categories = bridgedReorderItems.compactMap { $0.categoryName }
+        return Array(Set(categories)).sorted()
+    }
+
     // Professional filtered items (using original logic)
     var filteredItems: [ReorderItem] {
-        let filtered = bridgedReorderItems.filter { item in
+        var filtered = bridgedReorderItems.filter { item in
             switch filterOption {
             case .all:
                 return true
@@ -160,6 +166,15 @@ struct ReordersViewSwiftData: SwiftUI.View {
                 return item.status == .purchased
             case .received:
                 return item.status == .received
+            }
+        }
+
+        if !selectedCategories.isEmpty {
+            filtered = filtered.filter { item in
+                if let categoryName = item.categoryName {
+                    return selectedCategories.contains(categoryName)
+                }
+                return false
             }
         }
 
@@ -176,7 +191,7 @@ struct ReordersViewSwiftData: SwiftUI.View {
             }
         }
     }
-    
+
     // Professional organized items (using original sophisticated logic)
     var organizedItems: [(String, [ReorderItem])] {
         switch organizationOption {
@@ -228,6 +243,8 @@ struct ReordersViewSwiftData: SwiftUI.View {
                     filterOption: $filterOption,
                     organizationOption: $organizationOption,
                     displayMode: $displayMode,
+                    selectedCategories: $selectedCategories,
+                    availableCategories: availableCategories,
                     scannerSearchText: $barcodeManager.scannerSearchText,
                     isScannerFieldFocused: $isScannerFieldFocused,
                     onManagementAction: handleManagementAction,

@@ -85,6 +85,8 @@ struct ReordersView: SwiftUI.View {
                     filterOption: $viewModel.filterOption,
                     organizationOption: $viewModel.organizationOption,
                     displayMode: $viewModel.displayMode,
+                    selectedCategories: $viewModel.selectedCategories,
+                    availableCategories: viewModel.availableCategories,
                     scannerSearchText: $barcodeManager.scannerSearchText,
                     isScannerFieldFocused: $isScannerFieldFocused,
                     onManagementAction: viewModel.handleManagementAction,

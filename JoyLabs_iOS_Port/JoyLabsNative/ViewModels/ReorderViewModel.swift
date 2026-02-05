@@ -16,7 +16,8 @@ class ReorderViewModel: ObservableObject {
     @Published var filterOption: ReorderFilterOption = .all
     @Published var organizationOption: ReorderOrganizationOption = .none
     @Published var displayMode: ReorderDisplayMode = .list
-    
+    @Published var selectedCategories: Set<String> = []
+
     // Sheet management
     @Published var activeSheet: ReordersSheet?
     @Published var showingExportModal = false
@@ -39,10 +40,15 @@ class ReorderViewModel: ObservableObject {
     var unpurchasedItems: Int { reorderItems.filter { $0.status == .added }.count }
     var purchasedItems: Int { reorderItems.filter { $0.status == .purchased || $0.status == .received }.count }
     var totalQuantity: Int { reorderItems.reduce(0) { $0 + $1.quantity } }
-    
+
+    var availableCategories: [String] {
+        let categories = reorderItems.compactMap { $0.categoryName }
+        return Array(Set(categories)).sorted()
+    }
+
     // Filtered and sorted items
     var filteredItems: [ReorderItem] {
-        let filtered = reorderItems.filter { item in
+        var filtered = reorderItems.filter { item in
             switch filterOption {
             case .all:
                 return true
@@ -52,6 +58,15 @@ class ReorderViewModel: ObservableObject {
                 return item.status == .purchased
             case .received:
                 return item.status == .received
+            }
+        }
+
+        if !selectedCategories.isEmpty {
+            filtered = filtered.filter { item in
+                if let categoryName = item.categoryName {
+                    return selectedCategories.contains(categoryName)
+                }
+                return false
             }
         }
 

@@ -45,7 +45,7 @@ class SquareAPIServiceFactory {
     /// Get or create the SquareAPIService instance
     private func getOrCreateSquareAPIService() -> SquareAPIService {
         if let cachedService = cachedSquareAPIService {
-            logger.debug("[Factory] Returning cached SquareAPIService instance")
+            logger.trace("[Factory] Returning cached SquareAPIService instance")
             return cachedService
         }
 
@@ -62,7 +62,7 @@ class SquareAPIServiceFactory {
     
     private func getOrCreateDatabaseManager() -> SwiftDataCatalogManager {
         if let cachedManager = cachedDatabaseManager {
-            logger.debug("[Factory] Returning cached SwiftDataCatalogManager instance")
+            logger.trace("[Factory] Returning cached SwiftDataCatalogManager instance")
             return cachedManager
         }
         
@@ -87,7 +87,7 @@ class SquareAPIServiceFactory {
 
     private func getOrCreateSyncCoordinator() -> SwiftDataSyncCoordinator {
         if let cachedCoordinator = cachedSyncCoordinator {
-            logger.debug("[Factory] Returning cached SwiftDataSyncCoordinator instance")
+            logger.trace("[Factory] Returning cached SwiftDataSyncCoordinator instance")
             return cachedCoordinator
         }
 
@@ -105,7 +105,7 @@ class SquareAPIServiceFactory {
 
     private func getOrCreateCatalogSyncService() -> SwiftDataCatalogSyncService {
         if let cachedService = cachedCatalogSyncService {
-            logger.debug("[Factory] Returning cached SwiftDataCatalogSyncService instance")
+            logger.trace("[Factory] Returning cached SwiftDataCatalogSyncService instance")
             return cachedService
         }
 
@@ -123,7 +123,7 @@ class SquareAPIServiceFactory {
 
     private func getOrCreateTokenService() -> TokenService {
         if let cachedService = cachedTokenService {
-            logger.debug("[Factory] Returning cached TokenService instance")
+            logger.trace("[Factory] Returning cached TokenService instance")
             return cachedService
         }
 
@@ -140,7 +140,7 @@ class SquareAPIServiceFactory {
 
     private func getOrCreateHTTPClient() -> SquareHTTPClient {
         if let cachedClient = cachedHTTPClient {
-            logger.debug("[Factory] Returning cached SquareHTTPClient instance")
+            logger.trace("[Factory] Returning cached SquareHTTPClient instance")
             return cachedClient
         }
 
@@ -161,7 +161,7 @@ class SquareAPIServiceFactory {
 
     private func getOrCreateCRUDService() -> SquareCRUDService {
         if let cachedService = cachedCRUDService {
-            logger.debug("[Factory] Returning cached SquareCRUDService instance")
+            logger.trace("[Factory] Returning cached SquareCRUDService instance")
             return cachedService
         }
 
@@ -186,7 +186,7 @@ class SquareAPIServiceFactory {
 
     private func getOrCreateInventoryService() -> SquareInventoryService {
         if let cachedService = cachedInventoryService {
-            logger.debug("[Factory] Returning cached SquareInventoryService instance")
+            logger.trace("[Factory] Returning cached SquareInventoryService instance")
             return cachedService
         }
 

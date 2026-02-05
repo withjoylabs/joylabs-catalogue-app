@@ -13,8 +13,13 @@ struct ReorderContentView: View {
     @Binding var filterOption: ReorderFilterOption
     @Binding var organizationOption: ReorderOrganizationOption
     @Binding var displayMode: ReorderDisplayMode
+    @Binding var selectedCategories: Set<String>
+    let availableCategories: [String]
     @Binding var scannerSearchText: String
     @FocusState.Binding var isScannerFieldFocused: Bool
+
+    // Two-phase display mode: pill uses displayMode (immediate), content uses contentDisplayMode (deferred)
+    @State private var contentDisplayMode: ReorderDisplayMode = .list
 
     let onManagementAction: (ManagementAction) -> Void
     let onExportTap: () -> Void
@@ -29,7 +34,7 @@ struct ReorderContentView: View {
 
     var body: some View {
         List {
-            // Restore the essential scrollable header that I incorrectly removed
+            // Stats header - scrolls away (regular row)
             ReordersScrollableHeader(
                 totalItems: totalItems,
                 unpurchasedItems: unpurchasedItems,
@@ -41,38 +46,33 @@ struct ReorderContentView: View {
             .listRowInsets(EdgeInsets())
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
-            
-            // Filter row as second item
-            ReorderFilterRow(
-                sortOption: $sortOption,
-                filterOption: $filterOption,
-                organizationOption: $organizationOption,
-                displayMode: $displayMode
-            )
-            .listRowInsets(EdgeInsets())
-            .listRowBackground(Color(.systemBackground))
-            .listRowSeparator(.hidden)
-            
-            // Empty state
-            if reorderItems.isEmpty {
-                ReordersEmptyState()
-                    .frame(maxHeight: .infinity)
-                    .listRowInsets(EdgeInsets())
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-            } else {
-                // Group sections with sticky headers
-                ForEach(organizedItems, id: \.0) { groupData in
-                    let (sectionTitle, items) = groupData
-                    
-                    Section {
-                        // Render items based on display mode
-                        if displayMode == .list {
-                            // List view - one item per row
+
+            // Main content section — filter row is the sticky header
+            Section {
+                if reorderItems.isEmpty {
+                    ReordersEmptyState()
+                        .frame(maxHeight: .infinity)
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                } else {
+                    ForEach(organizedItems, id: \.0) { groupData in
+                        let (sectionTitle, items) = groupData
+
+                        // Group header as a styled row
+                        if !sectionTitle.isEmpty {
+                            stickyGroupHeader(title: sectionTitle, itemCount: items.count)
+                                .listRowInsets(EdgeInsets())
+                                .listRowBackground(Color.clear)
+                                .listRowSeparator(.hidden)
+                        }
+
+                        // Render items based on display mode (uses contentDisplayMode for deferred swap)
+                        if contentDisplayMode == .list {
                             ForEach(items, id: \.id) { item in
                                 SwipeableReorderCard(
                                     item: item,
-                                    displayMode: displayMode,
+                                    displayMode: contentDisplayMode,
                                     onStatusChange: { newStatus in
                                         onStatusChange(item.id, newStatus)
                                     },
@@ -101,20 +101,74 @@ struct ReorderContentView: View {
                                 .listRowSeparator(.hidden)
                             }
                         } else {
-                            // Photo grid view - needs special handling
-                            renderPhotoGrid(items: items, displayMode: displayMode)
+                            // Chunked grid rows — each row is its own List row for lazy loading
+                            let columnCount = contentDisplayMode.columnsPerRow
+                            let gridSpacing: CGFloat = UIDevice.current.userInterfaceIdiom == .pad ? 12 : 8
+
+                            ForEach(chunkedItems(items, columns: columnCount), id: \.first!.id) { rowItems in
+                                HStack(spacing: gridSpacing) {
+                                    ForEach(rowItems, id: \.id) { item in
+                                        ReorderPhotoCard(
+                                            item: item,
+                                            displayMode: contentDisplayMode,
+                                            onStatusChange: { newStatus in
+                                                onStatusChange(item.id, newStatus)
+                                            },
+                                            onQuantityChange: { newQuantity in
+                                                onQuantityChange(item.id, newQuantity)
+                                            },
+                                            onRemove: {
+                                                onRemoveItem(item.id)
+                                            },
+                                            onImageTap: {
+                                            },
+                                            onImageLongPress: { _ in
+                                                onImageLongPress(item)
+                                            },
+                                            onItemDetailsTap: {
+                                                let searchItem = createSearchResultItem(from: item)
+                                                onQuantityTap(searchItem)
+                                            },
+                                            onItemDetailsLongPress: { item in
+                                                onItemDetailsLongPress(item)
+                                            }
+                                        )
+                                        .frame(maxWidth: .infinity)
+                                    }
+                                    // Fill incomplete rows
+                                    if rowItems.count < columnCount {
+                                        ForEach(0..<(columnCount - rowItems.count), id: \.self) { _ in
+                                            Color.clear
+                                                .frame(maxWidth: .infinity)
+                                                .aspectRatio(1, contentMode: .fit)
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal, 16)
                                 .listRowInsets(EdgeInsets())
                                 .listRowBackground(Color.clear)
                                 .listRowSeparator(.hidden)
-                        }
-                    } header: {
-                        // Sticky group header (only if grouping is enabled)
-                        if !sectionTitle.isEmpty {
-                            stickyGroupHeader(title: sectionTitle, itemCount: items.count)
-                                .listRowInsets(EdgeInsets()) // Make header extend edge-to-edge
+                            }
                         }
                     }
                 }
+            } header: {
+                VStack(spacing: 0) {
+                    ReorderFilterRow(
+                        sortOption: $sortOption,
+                        filterOption: $filterOption,
+                        organizationOption: $organizationOption,
+                        displayMode: $displayMode,
+                        selectedCategories: $selectedCategories,
+                        availableCategories: availableCategories
+                    )
+
+                    if !selectedCategories.isEmpty {
+                        CategoryChipsRow(selectedCategories: $selectedCategories)
+                    }
+                }
+                .textCase(nil)
+                .listRowInsets(EdgeInsets())
             }
         }
         .listStyle(.plain)
@@ -123,6 +177,13 @@ struct ReorderContentView: View {
         .scrollContentBackground(.hidden) // Hide default List background
         .background(Color(.systemBackground)) // Solid background
         .background(Color(.systemBackground), ignoresSafeAreaEdges: .top) // Extend into status bar
+        .onAppear { contentDisplayMode = displayMode }
+        .onChange(of: displayMode) { _, newMode in
+            // Defer content swap to next frame so pill updates instantly first
+            DispatchQueue.main.async {
+                contentDisplayMode = newMode
+            }
+        }
     }
     
     // MARK: - Helper Views
@@ -147,44 +208,11 @@ struct ReorderContentView: View {
             .frame(maxWidth: .infinity)
     }
     
-    @ViewBuilder
-    private func renderPhotoGrid(items: [ReorderItem], displayMode: ReorderDisplayMode) -> some View {
-        let columnCount = displayMode.columnsPerRow
-        let spacing: CGFloat = UIDevice.current.userInterfaceIdiom == .pad ? 12 : 8
-        let columns = Array(repeating: GridItem(.flexible(), spacing: spacing), count: columnCount)
-        
-        LazyVGrid(columns: columns, spacing: spacing) {
-            ForEach(items, id: \.id) { item in
-                ReorderPhotoCard(
-                    item: item,
-                    displayMode: displayMode,
-                    onStatusChange: { newStatus in
-                        onStatusChange(item.id, newStatus)
-                    },
-                    onQuantityChange: { newQuantity in
-                        onQuantityChange(item.id, newQuantity)
-                    },
-                    onRemove: {
-                        onRemoveItem(item.id)
-                    },
-                    onImageTap: {
-                        // Image tap toggles bought status (handled in ReorderPhotoCard)
-                    },
-                    onImageLongPress: { _ in
-                        onImageLongPress(item)
-                    },
-                    onItemDetailsTap: {
-                        let searchItem = createSearchResultItem(from: item)
-                        onQuantityTap(searchItem)
-                    },
-                    onItemDetailsLongPress: { item in
-                        onItemDetailsLongPress(item)
-                    }
-                )
-            }
+    private func chunkedItems(_ items: [ReorderItem], columns: Int) -> [[ReorderItem]] {
+        guard columns > 0, !items.isEmpty else { return [] }
+        return stride(from: 0, to: items.count, by: columns).map {
+            Array(items[$0..<min($0 + columns, items.count)])
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, spacing)
     }
     // MARK: - Helper Function
     private func createSearchResultItem(from item: ReorderItem) -> SearchResultItem {

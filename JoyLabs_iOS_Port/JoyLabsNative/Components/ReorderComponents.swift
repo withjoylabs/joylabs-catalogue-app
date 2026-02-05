@@ -52,7 +52,7 @@ struct ReordersScrollableHeader: View {
             }
             .padding(.horizontal, 20)
             .padding(.top, 10)
-            .padding(.bottom, 16)
+            .padding(.bottom, 8)
         }
         .background(Color(.systemBackground))
     }
@@ -88,66 +88,63 @@ struct ReorderFilterRow: View {
     @Binding var filterOption: ReorderFilterOption
     @Binding var organizationOption: ReorderOrganizationOption
     @Binding var displayMode: ReorderDisplayMode
+    @Binding var selectedCategories: Set<String>
+    let availableCategories: [String]
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
-                // View Options (leftmost)
+            HStack(spacing: 8) {
+                // Organize options
                 Menu {
-                    // Organization options
-                    Section("Organization") {
-                        ForEach(ReorderOrganizationOption.allCases, id: \.self) { option in
-                            Button(action: {
-                                organizationOption = option
-                            }) {
-                                HStack {
-                                    Image(systemName: option.systemImageName)
-                                    Text(option.displayName)
-                                    if organizationOption == option {
-                                        Image(systemName: "checkmark")
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    Divider()
-
-                    // Display mode options
-                    Section("Display Mode") {
-                        ForEach(ReorderDisplayMode.allCases, id: \.self) { option in
-                            Button(action: {
-                                displayMode = option
-                            }) {
-                                HStack {
-                                    Image(systemName: option.systemImageName)
-                                    Text(option.displayName)
-                                    if displayMode == option {
-                                        Image(systemName: "checkmark")
-                                    }
+                    ForEach(ReorderOrganizationOption.allCases, id: \.self) { option in
+                        Button(action: {
+                            DispatchQueue.main.async { organizationOption = option }
+                        }) {
+                            HStack {
+                                Image(systemName: option.systemImageName)
+                                Text(option.displayName)
+                                if organizationOption == option {
+                                    Image(systemName: "checkmark")
                                 }
                             }
                         }
                     }
                 } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "rectangle.3.group")
-                            .font(.caption)
-                        Text("View")
-                            .font(.caption)
+                    filterPill(
+                        icon: "rectangle.3.group",
+                        text: organizationOption == .none ? "Organize" : organizationOption.displayName,
+                        isActive: organizationOption != .none
+                    )
+                }
+
+                // Display mode
+                Menu {
+                    ForEach(ReorderDisplayMode.allCases, id: \.self) { option in
+                        Button(action: {
+                            DispatchQueue.main.async { displayMode = option }
+                        }) {
+                            HStack {
+                                Image(systemName: option.systemImageName)
+                                Text(option.displayName)
+                                if displayMode == option {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Color(.systemGray5))
-                    .foregroundColor(.primary)
-                    .cornerRadius(16)
+                } label: {
+                    filterPill(
+                        icon: displayMode.systemImageName,
+                        text: displayMode.displayName,
+                        isActive: false
+                    )
                 }
 
                 // Sort options
                 Menu {
                     ForEach(ReorderSortOption.allCases, id: \.self) { option in
                         Button(action: {
-                            sortOption = option
+                            DispatchQueue.main.async { sortOption = option }
                         }) {
                             HStack {
                                 Text(option.displayName)
@@ -158,24 +155,18 @@ struct ReorderFilterRow: View {
                         }
                     }
                 } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: sortOption.systemImageName)
-                            .font(.caption)
-                        Text(sortOption.displayName)
-                            .font(.caption)
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Color(.systemGray5))
-                    .foregroundColor(.primary)
-                    .cornerRadius(16)
+                    filterPill(
+                        icon: sortOption.systemImageName,
+                        text: sortOption.displayName,
+                        isActive: false
+                    )
                 }
 
-                // Filter options
+                // Status filter
                 Menu {
                     ForEach(ReorderFilterOption.allCases, id: \.self) { option in
                         Button(action: {
-                            filterOption = option
+                            DispatchQueue.main.async { filterOption = option }
                         }) {
                             HStack {
                                 Text(option.displayName)
@@ -186,22 +177,125 @@ struct ReorderFilterRow: View {
                         }
                     }
                 } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "line.3.horizontal.decrease.circle")
-                            .font(.caption)
-                        Text(filterOption.displayName)
-                            .font(.caption)
+                    filterPill(
+                        icon: "line.3.horizontal.decrease.circle",
+                        text: filterOption.displayName,
+                        isActive: filterOption != .all
+                    )
+                }
+
+                // Category filter
+                if !availableCategories.isEmpty {
+                    Menu {
+                        Button(action: {
+                            DispatchQueue.main.async {
+                                if selectedCategories.count == availableCategories.count {
+                                    selectedCategories.removeAll()
+                                } else {
+                                    selectedCategories = Set(availableCategories)
+                                }
+                            }
+                        }) {
+                            HStack {
+                                Text(selectedCategories.count == availableCategories.count ? "Deselect All" : "Select All")
+                                Image(systemName: selectedCategories.count == availableCategories.count ? "xmark.circle" : "checkmark.circle")
+                            }
+                        }
+
+                        Divider()
+
+                        ForEach(availableCategories, id: \.self) { category in
+                            Button(action: {
+                                DispatchQueue.main.async {
+                                    if selectedCategories.contains(category) {
+                                        selectedCategories.remove(category)
+                                    } else {
+                                        selectedCategories.insert(category)
+                                    }
+                                }
+                            }) {
+                                HStack {
+                                    Text(category)
+                                    if selectedCategories.contains(category) {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        filterPill(
+                            icon: "tag",
+                            text: selectedCategories.isEmpty ? "Categories" : "\(selectedCategories.count) Selected",
+                            isActive: !selectedCategories.isEmpty
+                        )
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(filterOption == .all ? Color(.systemGray5) : Color.blue.opacity(0.1))
-                    .foregroundColor(filterOption == .all ? .primary : .blue)
-                    .cornerRadius(16)
                 }
             }
             .padding(.horizontal, 20)
         }
         .padding(.vertical, 8)
+        .background(Color(.systemBackground))
+    }
+
+    private func filterPill(icon: String, text: String, isActive: Bool) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.caption)
+            Text(text)
+                .font(.caption)
+        }
+        .fixedSize()
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(isActive ? Color.blue.opacity(0.1) : Color(.systemGray5))
+        .foregroundColor(isActive ? .blue : .primary)
+        .cornerRadius(16)
+    }
+}
+
+// MARK: - Category Chips Row
+struct CategoryChipsRow: View {
+    @Binding var selectedCategories: Set<String>
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(Array(selectedCategories).sorted(), id: \.self) { category in
+                    HStack(spacing: 4) {
+                        Text(category)
+                            .font(.caption)
+                            .lineLimit(1)
+                        Button(action: {
+                            selectedCategories.remove(category)
+                        }) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 9, weight: .bold))
+                        }
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color.blue.opacity(0.1))
+                    .foregroundColor(.blue)
+                    .cornerRadius(12)
+                }
+
+                if selectedCategories.count > 1 {
+                    Button(action: {
+                        selectedCategories.removeAll()
+                    }) {
+                        Text("Clear All")
+                            .font(.caption)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Color(.systemGray5))
+                            .foregroundColor(.secondary)
+                            .cornerRadius(12)
+                    }
+                }
+            }
+            .padding(.horizontal, 20)
+        }
+        .padding(.vertical, 6)
         .background(Color(.systemBackground))
     }
 }
