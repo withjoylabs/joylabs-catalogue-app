@@ -229,6 +229,10 @@ struct HistoryItemCard: View {
             return .green
         case .updated:
             return .blue
+        case .imagesUpdated:
+            return .purple
+        case .tagPrinted:
+            return .orange
         }
     }
     

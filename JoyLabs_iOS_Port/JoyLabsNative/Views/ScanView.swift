@@ -464,6 +464,19 @@ struct SearchResultsList: View {
                         let itemName = item.name ?? "Item"
                         let truncatedName = itemName.count > 20 ? String(itemName.prefix(17)) + "..." : itemName
                         ToastNotificationService.shared.showSuccess("\(truncatedName) label sent to printer")
+
+                        // Track in scan history
+                        ScanHistoryService.shared.addHistoryItem(
+                            itemId: item.id,
+                            name: item.name,
+                            sku: item.sku,
+                            price: item.price,
+                            barcode: item.barcode,
+                            categoryId: item.reportingCategoryId,
+                            categoryName: item.categoryName,
+                            operation: .tagPrinted,
+                            searchContext: nil
+                        )
                     } else {
                         // Error case - show error toast with user-friendly message
                         ToastNotificationService.shared.showError(error.errorDescription ?? "Print failed")

@@ -115,31 +115,45 @@ struct ScanHistoryItem: Identifiable, Codable, Hashable {
 enum ScanHistoryOperation: String, Codable, CaseIterable {
     case created = "created"
     case updated = "updated"
-    
+    case imagesUpdated = "images_updated"
+    case tagPrinted = "tag_printed"
+
     var displayName: String {
         switch self {
         case .created:
             return "Created"
         case .updated:
             return "Updated"
+        case .imagesUpdated:
+            return "Images Updated"
+        case .tagPrinted:
+            return "Tag Printed"
         }
     }
-    
+
     var systemImage: String {
         switch self {
         case .created:
             return "plus.circle.fill"
         case .updated:
             return "pencil.circle.fill"
+        case .imagesUpdated:
+            return "photo.circle.fill"
+        case .tagPrinted:
+            return "printer.fill"
         }
     }
-    
+
     var color: String {
         switch self {
         case .created:
             return "green"
         case .updated:
             return "blue"
+        case .imagesUpdated:
+            return "purple"
+        case .tagPrinted:
+            return "orange"
         }
     }
 }

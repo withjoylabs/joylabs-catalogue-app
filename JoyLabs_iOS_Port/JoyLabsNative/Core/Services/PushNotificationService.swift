@@ -217,7 +217,8 @@ public class PushNotificationService: NSObject, ObservableObject {
             
             let tokenData = [
                 "pushToken": token,
-                "platform": "ios"
+                "platform": "ios",
+                "deviceId": UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
             ]
             
             logger.info("📤 Request payload: \(tokenData)")

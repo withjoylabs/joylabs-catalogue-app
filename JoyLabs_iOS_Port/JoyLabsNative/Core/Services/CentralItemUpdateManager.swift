@@ -171,6 +171,8 @@ class CentralItemUpdateManager: ObservableObject {
                 await handleItemUpdate(itemId: itemId)
             case "delete":
                 await handleItemDeletion(itemId: itemId)
+            case "attachImage", "removeImage", "reorderImages":
+                await handleImageOperation(itemId: itemId)
             default:
                 print(" [CentralItemUpdateManager] Unknown operation: \(operation)")
             }
@@ -284,6 +286,17 @@ class CentralItemUpdateManager: ObservableObject {
         // Future views: Add handling here as needed
     }
     
+    /// Handles image operations (attach, remove, reorder) - tracks in scan history
+    private func handleImageOperation(itemId: String) async {
+        print("[CentralItemUpdateManager] Handling image operation for item: \(itemId)")
+
+        // Refresh item details modal if showing this item
+        await refreshItemDetailsModal(itemId: itemId)
+
+        // Scan History: Track image operations
+        await addItemToScanHistory(itemId: itemId, operation: .imagesUpdated)
+    }
+
     /// Handles image updates across all views
     private func handleImageUpdate() {
         print("[CentralItemUpdateManager] Handling image update across all views")

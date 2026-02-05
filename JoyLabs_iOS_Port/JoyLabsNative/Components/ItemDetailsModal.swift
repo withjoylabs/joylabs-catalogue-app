@@ -454,6 +454,23 @@ struct ItemDetailsModal: View {
             } catch LabelLivePrintError.printSuccess {
                 await MainActor.run {
                     ToastNotificationService.shared.showSuccess("Label printed successfully")
+
+                    // Track in scan history
+                    if let variationId = variation.id {
+                        let priceAmount = variation.priceMoney.map { Double($0.amount) / 100.0 }
+                        ScanHistoryService.shared.addHistoryItem(
+                            itemId: variationId,
+                            name: viewModel.name,
+                            sku: variation.sku,
+                            price: priceAmount,
+                            barcode: variation.upc,
+                            categoryId: viewModel.reportingCategoryId ?? viewModel.categoryIds.first,
+                            categoryName: nil,
+                            operation: .tagPrinted,
+                            searchContext: nil
+                        )
+                    }
+
                     completion(true)
                 }
             } catch {
@@ -464,7 +481,7 @@ struct ItemDetailsModal: View {
             }
         }
     }
-    
+
     /// Handles print with user-selected price from ActionSheet
     private func handlePrintWithSelectedPrice(_ selectedPrice: String) {
         let firstVariation = viewModel.itemData.variations[0]
@@ -522,6 +539,9 @@ struct ItemDetailsModal: View {
                 await MainActor.run {
                     print("Print completed successfully")
                     ToastNotificationService.shared.showSuccess("Label printed successfully")
+
+                    // Track in scan history
+                    addPrintToScanHistory(printData: printData)
                 }
             } catch {
                 await MainActor.run {
@@ -530,7 +550,7 @@ struct ItemDetailsModal: View {
             }
         }
     }
-    
+
     /// Performs print operation in background for concurrent Save & Print
     private func performPrintInBackground(with printData: PrintData) async {
         do {
@@ -544,6 +564,9 @@ struct ItemDetailsModal: View {
             await MainActor.run {
                 print("Background print completed successfully")
                 ToastNotificationService.shared.showSuccess("Label printed successfully")
+
+                // Track in scan history
+                addPrintToScanHistory(printData: printData)
             }
         } catch {
             await MainActor.run {
@@ -551,6 +574,27 @@ struct ItemDetailsModal: View {
                 // Don't show error to user since save succeeded and modal dismissed
             }
         }
+    }
+
+    /// Add print operation to scan history
+    private func addPrintToScanHistory(printData: PrintData) {
+        guard let itemId = viewModel.staticData.id, !itemId.isEmpty else { return }
+
+        // Get first variation's details for the history entry
+        let firstVariation = viewModel.variations.first
+        let priceAmount = firstVariation?.priceMoney.map { Double($0.amount) / 100.0 }
+
+        ScanHistoryService.shared.addHistoryItem(
+            itemId: itemId,
+            name: viewModel.name,
+            sku: firstVariation?.sku,
+            price: priceAmount,
+            barcode: firstVariation?.upc,
+            categoryId: viewModel.reportingCategoryId ?? viewModel.categoryIds.first,
+            categoryName: nil,
+            operation: .tagPrinted,
+            searchContext: nil
+        )
     }
 
     private func handlePrint() -> Bool {
