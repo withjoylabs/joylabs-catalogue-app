@@ -51,11 +51,19 @@ struct ReorderPhotoCard: View {
                                     onStatusChange(newStatus)
                                 }
                             }) {
-                                Image(systemName: getPhotoCardSystemImage())
-                                    .font(.system(size: min(imageSize * 0.15, 24))) // Responsive size
-                                    .foregroundColor(item.status == .purchased ? .green : Color(.systemGray3))
-                                    .background(Color(.systemBackground).opacity(0.8))
-                                    .clipShape(Circle())
+                                Group {
+                                    if item.status == .added {
+                                        Circle()
+                                            .strokeBorder(Color(.systemGray3), lineWidth: 1.5)
+                                    } else {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .font(.system(size: min(imageSize * 0.15, 24)))
+                                            .foregroundColor(.green)
+                                    }
+                                }
+                                .frame(width: min(imageSize * 0.15, 24), height: min(imageSize * 0.15, 24))
+                                .background(Color(.systemBackground).opacity(0.8))
+                                .clipShape(Circle())
                             }
                             .padding(6)
                             Spacer()
@@ -349,12 +357,4 @@ struct ReorderPhotoCard: View {
         }
     }
     
-    private func getPhotoCardSystemImage() -> String {
-        switch item.status {
-        case .added:
-            return "circle"
-        case .purchased, .received:
-            return "checkmark.circle.fill"
-        }
-    }
 }

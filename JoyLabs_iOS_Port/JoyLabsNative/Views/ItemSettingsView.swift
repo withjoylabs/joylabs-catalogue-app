@@ -343,8 +343,9 @@ struct PresetCard: View {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundColor(.blue)
                 } else {
-                    Image(systemName: "circle")
-                        .foregroundColor(Color.secondary)
+                    Circle()
+                        .strokeBorder(Color.secondary, lineWidth: 1.5)
+                        .frame(width: 20, height: 20)
                 }
             }
             .padding(.vertical, 8)

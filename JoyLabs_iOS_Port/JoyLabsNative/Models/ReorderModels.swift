@@ -96,13 +96,6 @@ enum ReorderItemStatus: String, CaseIterable, Codable {
         }
     }
     
-    var systemImageName: String {
-        switch self {
-        case .added: return "circle"
-        case .purchased: return "checkmark.circle.fill"
-        case .received: return "checkmark.circle.fill"
-        }
-    }
 }
 
 // MARK: - Reorder Priority

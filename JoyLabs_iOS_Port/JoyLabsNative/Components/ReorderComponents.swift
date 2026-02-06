@@ -98,7 +98,7 @@ struct ReorderFilterRow: View {
                 Menu {
                     ForEach(ReorderOrganizationOption.allCases, id: \.self) { option in
                         Button(action: {
-                            DispatchQueue.main.async { organizationOption = option }
+                            DispatchQueue.main.async { withAnimation(nil) { organizationOption = option } }
                         }) {
                             HStack {
                                 Image(systemName: option.systemImageName)
@@ -116,12 +116,13 @@ struct ReorderFilterRow: View {
                         isActive: organizationOption != .none
                     )
                 }
+                .id(organizationOption)
 
                 // Display mode
                 Menu {
                     ForEach(ReorderDisplayMode.allCases, id: \.self) { option in
                         Button(action: {
-                            DispatchQueue.main.async { displayMode = option }
+                            DispatchQueue.main.async { withAnimation(nil) { displayMode = option } }
                         }) {
                             HStack {
                                 Image(systemName: option.systemImageName)
@@ -139,12 +140,13 @@ struct ReorderFilterRow: View {
                         isActive: false
                     )
                 }
+                .id(displayMode)
 
                 // Sort options
                 Menu {
                     ForEach(ReorderSortOption.allCases, id: \.self) { option in
                         Button(action: {
-                            DispatchQueue.main.async { sortOption = option }
+                            DispatchQueue.main.async { withAnimation(nil) { sortOption = option } }
                         }) {
                             HStack {
                                 Text(option.displayName)
@@ -161,12 +163,13 @@ struct ReorderFilterRow: View {
                         isActive: false
                     )
                 }
+                .id(sortOption)
 
                 // Status filter
                 Menu {
                     ForEach(ReorderFilterOption.allCases, id: \.self) { option in
                         Button(action: {
-                            DispatchQueue.main.async { filterOption = option }
+                            DispatchQueue.main.async { withAnimation(nil) { filterOption = option } }
                         }) {
                             HStack {
                                 Text(option.displayName)
@@ -183,18 +186,19 @@ struct ReorderFilterRow: View {
                         isActive: filterOption != .all
                     )
                 }
+                .id(filterOption)
 
                 // Category filter
                 if !availableCategories.isEmpty {
                     Menu {
                         Button(action: {
-                            DispatchQueue.main.async {
+                            DispatchQueue.main.async { withAnimation(nil) {
                                 if selectedCategories.count == availableCategories.count {
                                     selectedCategories.removeAll()
                                 } else {
                                     selectedCategories = Set(availableCategories)
                                 }
-                            }
+                            } }
                         }) {
                             HStack {
                                 Text(selectedCategories.count == availableCategories.count ? "Deselect All" : "Select All")
@@ -206,13 +210,13 @@ struct ReorderFilterRow: View {
 
                         ForEach(availableCategories, id: \.self) { category in
                             Button(action: {
-                                DispatchQueue.main.async {
+                                DispatchQueue.main.async { withAnimation(nil) {
                                     if selectedCategories.contains(category) {
                                         selectedCategories.remove(category)
                                     } else {
                                         selectedCategories.insert(category)
                                     }
-                                }
+                                } }
                             }) {
                                 HStack {
                                     Text(category)

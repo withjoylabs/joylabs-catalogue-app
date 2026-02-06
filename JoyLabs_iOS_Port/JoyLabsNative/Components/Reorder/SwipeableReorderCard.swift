@@ -79,10 +79,17 @@ struct SwipeableReorderCard: View {
                         toggleStatus()
                     }
                 }) {
-                    Image(systemName: getRadioButtonSystemImage())
-                        .font(.system(size: 22))
-                        .foregroundColor(item.status == .added ? Color(.systemGray3) : .blue)
-                        .frame(width: 22, height: 22)
+                    Group {
+                        if item.status == .added {
+                            Circle()
+                                .strokeBorder(Color(.systemGray3), lineWidth: 1.5)
+                        } else {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 22))
+                                .foregroundColor(.blue)
+                        }
+                    }
+                    .frame(width: 22, height: 22)
                 }
                 .buttonStyle(PlainButtonStyle())
 
@@ -298,12 +305,4 @@ struct SwipeableReorderCard: View {
         }
     }
     
-    private func getRadioButtonSystemImage() -> String {
-        switch item.status {
-        case .added:
-            return "circle"
-        case .purchased, .received:
-            return "checkmark.circle.fill"
-        }
-    }
 }
