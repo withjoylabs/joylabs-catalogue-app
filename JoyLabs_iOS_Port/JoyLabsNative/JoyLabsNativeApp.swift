@@ -8,6 +8,7 @@ import Kingfisher
 @main
 struct JoyLabsNativeApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @Environment(\.scenePhase) private var scenePhase
     private let logger = Logger(subsystem: "com.joylabs.native", category: "App")
     
     // SwiftData model containers for persistent storage
@@ -78,6 +79,14 @@ struct JoyLabsNativeApp: App {
                 .onOpenURL { url in
                     logger.info("App received URL: \(url.absoluteString)")
                     handleIncomingURL(url)
+                }
+                .onChange(of: scenePhase) { _, newPhase in
+                    if newPhase == .active {
+                        logger.info("[App] Scene became active - triggering foreground catch-up sync")
+                        Task.detached(priority: .background) {
+                            await performAppLaunchCatchUpSync()
+                        }
+                    }
                 }
                 // Toast notifications now use UIWindow-based presentation for universal coverage
         }

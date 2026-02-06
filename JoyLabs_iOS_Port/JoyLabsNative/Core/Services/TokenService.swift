@@ -342,8 +342,9 @@ private class KeychainHelper {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: key,
             kSecValueData as String: data,
-            // Use more persistent accessibility for development
-            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlocked,
+            // AfterFirstUnlock allows background access when device is locked (after first unlock since boot)
+            // Required for background push notification sync to access tokens
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock,
             // Add service identifier for better isolation
             kSecAttrService as String: "com.joylabs.native.tokens"
         ]

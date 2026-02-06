@@ -59,6 +59,8 @@ struct ReordersView: SwiftUI.View {
     @FocusState private var isScannerFieldFocused: Bool
     @State private var showingImagePicker = false
     @State private var imagePickerItem: ReorderItem?
+    @State private var enlargementItem: ReorderItem?
+    @State private var showingEnlargement = false
 
     // Binding for focus state to pass up to ContentView
     let onFocusStateChanged: ((Bool) -> Void)?
@@ -96,7 +98,8 @@ struct ReordersView: SwiftUI.View {
                     onRemoveItem: viewModel.removeItem,
                     onBarcodeScanned: barcodeManager.handleBarcodeScanned,
                     onImageTap: { item in
-                        print("[ReordersView] Image tapped for item: \(item.name)")
+                        enlargementItem = item
+                        showingEnlargement = true
                     },
                     onImageLongPress: { item in
                         imagePickerItem = item
@@ -116,6 +119,11 @@ struct ReordersView: SwiftUI.View {
             // Notify ContentView of focus state changes for AppLevelHIDScanner
             onFocusStateChanged?(newValue)
         }
+        .onChange(of: viewModel.sortOption) { _, _ in viewModel.saveFilterPreferences() }
+        .onChange(of: viewModel.filterOption) { _, _ in viewModel.saveFilterPreferences() }
+        .onChange(of: viewModel.organizationOption) { _, _ in viewModel.saveFilterPreferences() }
+        .onChange(of: viewModel.displayMode) { _, _ in viewModel.saveFilterPreferences() }
+        .onChange(of: viewModel.selectedCategories) { _, _ in viewModel.saveFilterPreferences() }
         // No visible text fields to track in ReordersView
         .alert("Clear All Items", isPresented: $viewModel.showingClearAlert) {
                 Button("Cancel", role: .cancel) { }
@@ -206,8 +214,18 @@ struct ReordersView: SwiftUI.View {
                 .imagePickerFormSheet()
             }
         }
+        .sheet(isPresented: $showingEnlargement) {
+            if let item = enlargementItem, let imageId = item.imageId {
+                ImagePreviewModal(
+                    imageId: imageId,
+                    isPrimary: true,
+                    onDelete: nil,
+                    onDismiss: { showingEnlargement = false }
+                )
+            }
+        }
     }
-    
+
     // MARK: - Setup
     private func setupViewModels() {
         barcodeManager.setViewModel(viewModel)

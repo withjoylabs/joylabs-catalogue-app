@@ -51,17 +51,19 @@ struct ReordersViewSwiftData: SwiftUI.View {
     // SwiftData as single source of truth for data
     @Query(sort: \ReorderItemModel.addedDate, order: .reverse) private var reorderItems: [ReorderItemModel]
     
-    // Professional state management (restored from original)
-    @State private var sortOption: ReorderSortOption = .timeNewest
-    @State private var filterOption: ReorderFilterOption = .all
-    @State private var organizationOption: ReorderOrganizationOption = .none
-    @State private var displayMode: ReorderDisplayMode = .list
+    // Filter preferences persisted across sessions
+    @AppStorage("reorder_sort_option") private var sortOption: ReorderSortOption = .timeNewest
+    @AppStorage("reorder_filter_option") private var filterOption: ReorderFilterOption = .all
+    @AppStorage("reorder_organization_option") private var organizationOption: ReorderOrganizationOption = .none
+    @AppStorage("reorder_display_mode") private var displayMode: ReorderDisplayMode = .list
     @State private var selectedCategories: Set<String> = []
 
     // Professional sheet management (restored original ReordersSheet enum)
     @State private var activeSheet: ReordersSheet?
     @State private var showingImagePicker = false
     @State private var imagePickerItem: ReorderItem?
+    @State private var enlargementItem: ReorderItem?
+    @State private var showingEnlargement = false
     @State private var showingExportModal = false
     @State private var showingClearAlert = false
     @State private var showingMarkAllReceivedAlert = false
@@ -264,6 +266,16 @@ struct ReordersViewSwiftData: SwiftUI.View {
             setupServices()
             // PERFORMANCE: Initialize cache on appear
             updateCachedBridgedItems()
+            // Restore persisted category filter
+            if let data = UserDefaults.standard.data(forKey: "reorder_selected_categories"),
+               let categories = try? JSONDecoder().decode([String].self, from: data) {
+                selectedCategories = Set(categories)
+            }
+        }
+        .onChange(of: selectedCategories) { _, newValue in
+            if let data = try? JSONEncoder().encode(Array(newValue)) {
+                UserDefaults.standard.set(data, forKey: "reorder_selected_categories")
+            }
         }
         .onChange(of: reorderItems.count) { _, _ in
             // PERFORMANCE: Update cache when item count changes
@@ -367,8 +379,18 @@ struct ReordersViewSwiftData: SwiftUI.View {
                 .imagePickerFormSheet()
             }
         }
+        .sheet(isPresented: $showingEnlargement) {
+            if let item = enlargementItem, let imageId = item.imageId {
+                ImagePreviewModal(
+                    imageId: imageId,
+                    isPrimary: true,
+                    onDelete: nil,
+                    onDismiss: { showingEnlargement = false }
+                )
+            }
+        }
     }
-    
+
     // MARK: - Professional Setup and Helper Methods (Fully Restored)
     
     private func setupServices() {
@@ -474,7 +496,8 @@ struct ReordersViewSwiftData: SwiftUI.View {
     // MARK: - Professional Sheet Management (Restored)
 
     private func handleImageTap(_ item: ReorderItem) {
-        print("[ReordersViewSwiftData] Image tapped for item: \(item.name)")
+        enlargementItem = item
+        showingEnlargement = true
     }
 
     private func showImagePicker(_ item: ReorderItem) {

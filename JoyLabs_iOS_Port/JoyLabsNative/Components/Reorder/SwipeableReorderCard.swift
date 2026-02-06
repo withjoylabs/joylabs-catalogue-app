@@ -93,10 +93,10 @@ struct SwipeableReorderCard: View {
                 }
                 .buttonStyle(PlainButtonStyle())
 
-                // Thumbnail image - exact same size as scan page (50px) - tappable for enlargement, long-press for update
+                // Thumbnail image - slightly larger than scan page for readability
                 NativeImageView.thumbnail(
                     imageId: item.imageId,
-                    size: 50
+                    size: 55
                 )
                 .environment(\.modelContext, catalogContext)  // FIX: Override to catalog container for image queries
                 .contentShape(Rectangle())
@@ -109,10 +109,7 @@ struct SwipeableReorderCard: View {
                         }
                 )
                 .onTapGesture {
-                    // Tap to toggle checkbox (same as radio button)
-                    withAnimation(.spring(response: 0.2, dampingFraction: 0.7, blendDuration: 0)) {
-                        toggleStatus()
-                    }
+                    onImageTap()
                 }
 
                 // Main content section - with isolated touch target for item details long press

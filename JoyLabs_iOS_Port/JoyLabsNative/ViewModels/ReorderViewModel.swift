@@ -122,6 +122,44 @@ class ReorderViewModel: ObservableObject {
     init() {
         let databaseManager = SquareAPIServiceFactory.createDatabaseManager()
         self.searchManager = SwiftDataSearchManager(databaseManager: databaseManager)
+        loadFilterPreferences()
+    }
+
+    // MARK: - Filter Persistence
+
+    private func loadFilterPreferences() {
+        let defaults = UserDefaults.standard
+        if let raw = defaults.string(forKey: "reorder_sort_option"),
+           let value = ReorderSortOption(rawValue: raw) {
+            sortOption = value
+        }
+        if let raw = defaults.string(forKey: "reorder_filter_option"),
+           let value = ReorderFilterOption(rawValue: raw) {
+            filterOption = value
+        }
+        if let raw = defaults.string(forKey: "reorder_organization_option"),
+           let value = ReorderOrganizationOption(rawValue: raw) {
+            organizationOption = value
+        }
+        if let raw = defaults.string(forKey: "reorder_display_mode"),
+           let value = ReorderDisplayMode(rawValue: raw) {
+            displayMode = value
+        }
+        if let data = defaults.data(forKey: "reorder_selected_categories"),
+           let categories = try? JSONDecoder().decode([String].self, from: data) {
+            selectedCategories = Set(categories)
+        }
+    }
+
+    func saveFilterPreferences() {
+        let defaults = UserDefaults.standard
+        defaults.set(sortOption.rawValue, forKey: "reorder_sort_option")
+        defaults.set(filterOption.rawValue, forKey: "reorder_filter_option")
+        defaults.set(organizationOption.rawValue, forKey: "reorder_organization_option")
+        defaults.set(displayMode.rawValue, forKey: "reorder_display_mode")
+        if let data = try? JSONEncoder().encode(Array(selectedCategories)) {
+            defaults.set(data, forKey: "reorder_selected_categories")
+        }
     }
     
     // MARK: - Data Management
