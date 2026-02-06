@@ -145,6 +145,7 @@ struct ReorderContentView: View {
                                     }
                                 }
                                 .padding(.horizontal, 16)
+                                .padding(.vertical, 4)
                                 .listRowInsets(EdgeInsets())
                                 .listRowBackground(Color.clear)
                                 .listRowSeparator(.hidden)

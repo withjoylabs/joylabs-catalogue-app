@@ -201,18 +201,18 @@ enum ReorderDisplayMode: String, CaseIterable {
     var systemImageName: String {
         switch self {
         case .list: return "list.bullet"
-        case .photosLarge: return "rectangle.grid.1x2"
-        case .photosMedium: return "rectangle.grid.2x2"
-        case .photosSmall: return "rectangle.grid.3x2"
+        case .photosLarge: return "rectangle.grid.2x2"
+        case .photosMedium: return "square.grid.3x3"
+        case .photosSmall: return "square.grid.4x3.fill"
         }
     }
 
     var columnsPerRow: Int {
         switch self {
         case .list: return 1
-        case .photosLarge: return 1
-        case .photosMedium: return 2
-        case .photosSmall: return 3
+        case .photosLarge: return 2
+        case .photosMedium: return 3
+        case .photosSmall: return 4
         }
     }
 
