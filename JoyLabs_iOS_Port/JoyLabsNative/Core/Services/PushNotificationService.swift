@@ -556,9 +556,9 @@ extension PushNotificationService {
             logger.info("[PushNotification] Using sync result - Objects: \(objectsProcessed), Items: \(itemsProcessed)")
             
             if objectsProcessed == 0 {
-                title = "Catalog Sync"
-                message = "No changes found - catalog is up to date (webhook)"
-                logger.debug("[PushNotification] No changes notification created")
+                // Square sends redundant webhook events for multi-object changes — suppress "no changes" noise
+                logger.info("[PushNotification] Webhook sync found no changes - skipping notification")
+                return
             } else if objectsProcessed == 1 {
                 title = "Catalog Updated"
                 if itemsProcessed == 1 {

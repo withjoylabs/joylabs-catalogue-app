@@ -10,6 +10,9 @@ struct JoyLabsNativeApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @Environment(\.scenePhase) private var scenePhase
     private let logger = Logger(subsystem: "com.joylabs.native", category: "App")
+
+    /// Prevents duplicate sync on initial launch (Phase 2 handles it)
+    private static var hasCompletedInitialSync = false
     
     // SwiftData model containers for persistent storage
     let catalogContainer: ModelContainer
@@ -81,7 +84,7 @@ struct JoyLabsNativeApp: App {
                     handleIncomingURL(url)
                 }
                 .onChange(of: scenePhase) { _, newPhase in
-                    if newPhase == .active {
+                    if newPhase == .active, JoyLabsNativeApp.hasCompletedInitialSync {
                         logger.info("[App] Scene became active - triggering foreground catch-up sync")
                         Task.detached(priority: .background) {
                             await performAppLaunchCatchUpSync()
@@ -171,6 +174,7 @@ struct JoyLabsNativeApp: App {
 
             // Catch-up sync enabled - performs incremental sync on app launch
             await performAppLaunchCatchUpSync()
+            JoyLabsNativeApp.hasCompletedInitialSync = true
 
             // PHASE 3: Enable push token registration now that catch-up sync is complete
             await MainActor.run {
