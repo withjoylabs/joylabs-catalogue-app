@@ -99,7 +99,9 @@ struct ReordersView: SwiftUI.View {
                     onBarcodeScanned: barcodeManager.handleBarcodeScanned,
                     onImageTap: { item in
                         enlargementItem = item
-                        showingEnlargement = true
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            showingEnlargement = true
+                        }
                     },
                     onImageLongPress: { item in
                         imagePickerItem = item
@@ -216,12 +218,14 @@ struct ReordersView: SwiftUI.View {
         }
         .sheet(isPresented: $showingEnlargement) {
             if let item = enlargementItem, let imageId = item.imageId {
+                let catalogContext = SquareAPIServiceFactory.createDatabaseManager().getContext()
                 ImagePreviewModal(
                     imageId: imageId,
                     isPrimary: true,
                     onDelete: nil,
                     onDismiss: { showingEnlargement = false }
                 )
+                .environment(\.modelContext, catalogContext)
             }
         }
     }

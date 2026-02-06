@@ -381,12 +381,14 @@ struct ReordersViewSwiftData: SwiftUI.View {
         }
         .sheet(isPresented: $showingEnlargement) {
             if let item = enlargementItem, let imageId = item.imageId {
+                let catalogContext = SquareAPIServiceFactory.createDatabaseManager().getContext()
                 ImagePreviewModal(
                     imageId: imageId,
                     isPrimary: true,
                     onDelete: nil,
                     onDismiss: { showingEnlargement = false }
                 )
+                .environment(\.modelContext, catalogContext)
             }
         }
     }
@@ -497,7 +499,9 @@ struct ReordersViewSwiftData: SwiftUI.View {
 
     private func handleImageTap(_ item: ReorderItem) {
         enlargementItem = item
-        showingEnlargement = true
+        withAnimation(.easeOut(duration: 0.2)) {
+            showingEnlargement = true
+        }
     }
 
     private func showImagePicker(_ item: ReorderItem) {
