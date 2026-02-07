@@ -136,13 +136,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         }
     }
     
-    // MARK: - Sync Completion Notification
-
-    /// Signal that catch-up sync is complete (for logging purposes only)
-    func notifyCatchUpSyncComplete() {
-        logger.info("[AppDelegate] Catch-up sync completed")
-        // No longer blocks push token registration - tokens register immediately
-    }
+    // notifyCatchUpSyncComplete removed - was logging-only dead code
 }
 
 // MARK: - Notification Names

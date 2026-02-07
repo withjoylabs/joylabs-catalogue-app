@@ -450,8 +450,10 @@ actor SquareHTTPClient {
             request.httpBody = body
         }
         
-        // Skip verbose request details to reduce console noise
-        logger.trace("[HTTPClient] Request headers: \(request.allHTTPHeaderFields ?? [:])")
+        // Redact Authorization header to prevent token exposure in logs
+        var safeHeaders = request.allHTTPHeaderFields ?? [:]
+        if safeHeaders["Authorization"] != nil { safeHeaders["Authorization"] = "Bearer [REDACTED]" }
+        logger.trace("[HTTPClient] Request headers: \(safeHeaders)")
 
         // Perform request
         let (data, response) = try await session.data(for: request)

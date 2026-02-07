@@ -132,6 +132,7 @@
 		D26299835D6943163B61C770 /* ItemDetailsVariationCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB694A8277941E8AAF1C9EAE /* ItemDetailsVariationCard.swift */; };
 		DA2C7AD0C159A8D09EC5EB23 /* InventoryCountModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9996FF13D69154BA0C4B92AE /* InventoryCountModel.swift */; };
 		DA39CFBD36DCA1D81A5F2AB6 /* ItemCustomAttributesSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 109D8EF3405D7C8718DCDF2B /* ItemCustomAttributesSection.swift */; };
+		DBF183F7F26E61638281E2B7 /* AppStartupCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDB20F6E89605A3BD2F306C2 /* AppStartupCoordinator.swift */; };
 		DC0BF75906B9902A9E9F25EE /* ItemDetailsStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE43F36BB6F6797E1742AD7C /* ItemDetailsStyles.swift */; };
 		DE7797DDA441B2337759D272 /* BackgroundSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 739588DBABCE8E030965D277 /* BackgroundSyncService.swift */; };
 		DE9B0804171D8F8469343090 /* SquareImageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECE3FAA42B58C68978179AFA /* SquareImageService.swift */; };
@@ -140,6 +141,7 @@
 		E3F8E057597710C8B1BFE0A7 /* SwiftDataCatalogSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 757EBA38D7F86CC18DF29B8C /* SwiftDataCatalogSyncService.swift */; };
 		E3FEC6909CEE89C39A3D9C3A /* CSVGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72B794CCD01B67AB70408743 /* CSVGenerator.swift */; };
 		E9A6D95E709090B8AEE36C79 /* NotificationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 522EA5712FAC74516DFC29CF /* NotificationsView.swift */; };
+		E9FAB1C4110C2FB68C99EC91 /* AppSplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 736907CA3B95D036A98C70D9 /* AppSplashView.swift */; };
 		EAF11475F8FA6178769828DA /* ItemEnabledLocationsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E05265C6905F14EE507527F2 /* ItemEnabledLocationsSection.swift */; };
 		ECF91328F9AC5D2B917E3F1B /* WebhookNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6ECE051541206A85FCA7DCFC /* WebhookNotificationService.swift */; };
 		ED26015D9D316CE76E920B0D /* ModifierListModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B137413ADDED6DCB13CE5BCB /* ModifierListModel.swift */; };
@@ -218,6 +220,7 @@
 		6ECE051541206A85FCA7DCFC /* WebhookNotificationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WebhookNotificationService.swift; path = Core/Services/WebhookNotificationService.swift; sourceTree = "<group>"; };
 		7034F57676BBD40AAF7206B6 /* ItemTaxSettingsSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemTaxSettingsSection.swift; path = Components/ItemTaxSettingsSection.swift; sourceTree = "<group>"; };
 		72B794CCD01B67AB70408743 /* CSVGenerator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CSVGenerator.swift; path = Utils/CSVGenerator.swift; sourceTree = "<group>"; };
+		736907CA3B95D036A98C70D9 /* AppSplashView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AppSplashView.swift; path = Views/AppSplashView.swift; sourceTree = "<group>"; };
 		739588DBABCE8E030965D277 /* BackgroundSyncService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BackgroundSyncService.swift; path = Core/Background/BackgroundSyncService.swift; sourceTree = "<group>"; };
 		757EBA38D7F86CC18DF29B8C /* SwiftDataCatalogSyncService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SwiftDataCatalogSyncService.swift; path = Core/Square/SwiftDataCatalogSyncService.swift; sourceTree = "<group>"; };
 		75FC10AFED4E5423B76916D5 /* ItemAvailabilitySection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemAvailabilitySection.swift; path = Components/ItemAvailabilitySection.swift; sourceTree = "<group>"; };
@@ -299,6 +302,7 @@
 		EB0227910810C3E530F27519 /* ItemFulfillmentSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemFulfillmentSection.swift; path = Components/ItemFulfillmentSection.swift; sourceTree = "<group>"; };
 		EB32D29A7FF02592B9894919 /* QuantitySelectionModal.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = QuantitySelectionModal.swift; path = Components/QuantitySelectionModal.swift; sourceTree = "<group>"; };
 		ECE3FAA42B58C68978179AFA /* SquareImageService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SquareImageService.swift; path = Core/Square/SquareImageService.swift; sourceTree = "<group>"; };
+		EDB20F6E89605A3BD2F306C2 /* AppStartupCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AppStartupCoordinator.swift; path = Core/Services/AppStartupCoordinator.swift; sourceTree = "<group>"; };
 		F32EEA3114D99A383F2B69FC /* ReorderPhotoCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderPhotoCard.swift; path = JoyLabsNative/Components/Reorder/ReorderPhotoCard.swift; sourceTree = "<group>"; };
 		F3AB0B112C7C896B90A35A69 /* NativeImageView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NativeImageView.swift; path = Components/NativeImageView.swift; sourceTree = "<group>"; };
 		F41835B4957DA654FE6627F7 /* ItemProductTypeSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemProductTypeSection.swift; path = Components/ItemProductTypeSection.swift; sourceTree = "<group>"; };
@@ -366,6 +370,7 @@
 				07327BB46D9122D3CFCDB559 /* ReordersViewSwiftData.swift */,
 				8D54BA6CB15FA90E0F4AF3C6 /* HistoryView.swift */,
 				A614A394BB60EDF22D1F0C26 /* CategoryTaxSettingsView.swift */,
+				736907CA3B95D036A98C70D9 /* AppSplashView.swift */,
 			);
 			name = Views;
 			sourceTree = "<group>";
@@ -737,6 +742,7 @@
 				611795A7DDE88A6A5621E9A0 /* SquareCapabilitiesService.swift */,
 				669F150DD6AD20EF9F6363C9 /* PhotoPresetManager.swift */,
 				B91D4E72D1D2E0C1BC53E544 /* CategoryTaxDefaultsService.swift */,
+				EDB20F6E89605A3BD2F306C2 /* AppStartupCoordinator.swift */,
 			);
 			name = Services;
 			sourceTree = "<group>";
@@ -1013,6 +1019,8 @@
 				0862C6F8F89B96710D5FEECE /* CameraExposureControlView.swift in Sources */,
 				30BA135D775BF99A37141290 /* CategoryTaxDefaultsService.swift in Sources */,
 				BDD63E6D0E5656F396E1D9E3 /* CategoryTaxSettingsView.swift in Sources */,
+				DBF183F7F26E61638281E2B7 /* AppStartupCoordinator.swift in Sources */,
+				E9FAB1C4110C2FB68C99EC91 /* AppSplashView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

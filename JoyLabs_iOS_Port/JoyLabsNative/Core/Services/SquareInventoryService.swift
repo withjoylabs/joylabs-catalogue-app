@@ -27,7 +27,8 @@ class SquareInventoryService {
     /// - Returns: Array of inventory counts
     func fetchInventoryCounts(
         catalogObjectIds: [String],
-        locationIds: [String]? = nil
+        locationIds: [String]? = nil,
+        limit: Int? = nil
     ) async throws -> [InventoryCountData] {
         logger.info("[InventoryService] Fetching inventory counts for \(catalogObjectIds.count) variations")
 
@@ -38,6 +39,10 @@ class SquareInventoryService {
 
         if let locationIds = locationIds {
             requestBody["location_ids"] = locationIds
+        }
+
+        if let limit = limit {
+            requestBody["limit"] = limit
         }
 
         let requestData = try JSONSerialization.data(withJSONObject: requestBody)

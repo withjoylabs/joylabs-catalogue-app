@@ -40,7 +40,8 @@ class SquareCapabilitiesService: ObservableObject {
             // We'll use an empty array which should return quickly without data
             _ = try await inventoryService.fetchInventoryCounts(
                 catalogObjectIds: [],
-                locationIds: nil
+                locationIds: nil,
+                limit: 1
             )
 
             // Success - inventory tracking is enabled

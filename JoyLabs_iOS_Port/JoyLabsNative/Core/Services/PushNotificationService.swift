@@ -36,7 +36,7 @@ public class PushNotificationService: NSObject, ObservableObject {
     private let baseURL = "https://gki8kva7e3.execute-api.us-west-1.amazonaws.com/production/api"
 
     // Background sync service for non-blocking operations
-    private var backgroundSyncService: BackgroundSyncService?
+    private(set) var backgroundSyncService: BackgroundSyncService?
     
     // MARK: - Initialization
     private override init() {
@@ -46,10 +46,8 @@ public class PushNotificationService: NSObject, ObservableObject {
 
     /// Initialize background sync service for non-blocking operations
     func initializeBackgroundSyncService(container: ModelContainer, squareAPIService: SquareAPIService) {
-        Task {
-            self.backgroundSyncService = BackgroundSyncService(modelContainer: container, squareAPIService: squareAPIService)
-            logger.info("[PushNotification] Background sync service initialized")
-        }
+        self.backgroundSyncService = BackgroundSyncService(modelContainer: container, squareAPIService: squareAPIService)
+        logger.info("[PushNotification] Background sync service initialized")
     }
     
     // MARK: - Public Interface
@@ -226,7 +224,9 @@ public class PushNotificationService: NSObject, ObservableObject {
             request.httpBody = try JSONSerialization.data(withJSONObject: tokenData)
             
             logger.info("🌐 Making HTTP PUT request to: \(url)")
-            logger.debug("[PushNotification] Request headers: \(request.allHTTPHeaderFields ?? [:])")
+            var safeHeaders = request.allHTTPHeaderFields ?? [:]
+            if safeHeaders["Authorization"] != nil { safeHeaders["Authorization"] = "Bearer [REDACTED]" }
+            logger.debug("[PushNotification] Request headers: \(safeHeaders)")
             logger.debug("[PushNotification] Request body size: \(request.httpBody?.count ?? 0) bytes")
             
             let (data, response) = try await URLSession.shared.data(for: request)
