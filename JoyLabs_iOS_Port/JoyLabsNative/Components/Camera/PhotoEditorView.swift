@@ -40,7 +40,18 @@ struct PhotoEditorView: View {
     // Debounce task
     @State private var debounceTask: Task<Void, Never>?
 
+    // Background removal state
+    @State private var isBackgroundRemoved = false
+    @State private var isGeneratingMask = false
+    @State private var foregroundMaskFull: CIImage?
+    @State private var foregroundMaskPreview: CIImage?
+    @State private var selectedBgColor: CodableColor? = BackgroundSwatchManager.defaultWhite
+    @State private var isTransparentBg = false
+    @State private var edgeFeathering: Float = 0.3
+    @StateObject private var swatchManager = BackgroundSwatchManager.shared
+
     private let filterService = PhotoFilterService.shared
+    private let bgRemovalService = BackgroundRemovalService.shared
 
     private var isIPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
 
@@ -101,6 +112,12 @@ struct PhotoEditorView: View {
         }
         .onAppear { setupImages() }
         .onChange(of: adjustments) { _, _ in debouncedApplyFilters() }
+        .onChange(of: selectedBgColor) { _, _ in debouncedApplyFilters() }
+        .onChange(of: isTransparentBg) { _, _ in debouncedApplyFilters() }
+        .onChange(of: edgeFeathering) { _, newVal in
+            debouncedApplyFilters()
+            if isBackgroundRemoved { swatchManager.saveEdgeFeathering(newVal) }
+        }
         .alert("Save Preset", isPresented: $showingNameDialog) {
             TextField("Preset name", text: $newPresetName)
             Button("Cancel", role: .cancel) {
@@ -140,9 +157,12 @@ struct PhotoEditorView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
 
-            // Adjustment sliders (scrollable)
+            // Adjustment sliders (scrollable, fills remaining space)
             adjustmentSlidersView
-                .frame(height: 260)
+                .frame(minHeight: 120)
+
+            // Background removal section
+            backgroundSection
         }
     }
 
@@ -156,10 +176,11 @@ struct PhotoEditorView: View {
                 .padding(.leading, 16)
                 .padding(.vertical, 8)
 
-            // RIGHT: Adjustment sliders (scrollable, vertically centered)
+            // RIGHT: Adjustment sliders + Background section (vertically centered)
             VStack(spacing: 0) {
                 Spacer(minLength: 0)
                 adjustmentSlidersView
+                backgroundSection
                 Spacer(minLength: 0)
             }
             .padding(.trailing, 16)
@@ -173,6 +194,12 @@ struct PhotoEditorView: View {
             let size = min(geometry.size.width, geometry.size.height)
 
             ZStack {
+                // Checkerboard for transparent background
+                if isBackgroundRemoved && isTransparentBg {
+                    CheckerboardView()
+                        .frame(width: size, height: size)
+                }
+
                 // Image with zoom and pan transforms
                 Group {
                     if let preview = processedPreview {
@@ -278,6 +305,30 @@ struct PhotoEditorView: View {
             width: min(max(proposed.width, -maxOffset), maxOffset),
             height: min(max(proposed.height, -maxOffset), maxOffset)
         )
+    }
+
+    // MARK: - Background Section
+
+    private var backgroundSection: some View {
+        VStack(spacing: 4) {
+            BackgroundToolView(
+                isBackgroundRemoved: $isBackgroundRemoved,
+                isGeneratingMask: $isGeneratingMask,
+                onRemove: removeBackground,
+                onRestore: restoreBackground
+            )
+
+            if isBackgroundRemoved {
+                BackgroundOptionsView(
+                    selectedBgColor: $selectedBgColor,
+                    isTransparentBg: $isTransparentBg,
+                    edgeFeathering: $edgeFeathering,
+                    swatchManager: swatchManager
+                )
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: isBackgroundRemoved)
     }
 
     // MARK: - Adjustment Sliders View
@@ -456,6 +507,47 @@ struct PhotoEditorView: View {
         UINotificationFeedbackGenerator().notificationOccurred(.success)
     }
 
+    // MARK: - Background Removal Actions
+
+    private func removeBackground() {
+        isGeneratingMask = true
+        Task {
+            do {
+                let maskFull = try await bgRemovalService.generateMask(from: originalImage)
+                await MainActor.run {
+                    foregroundMaskFull = maskFull
+                    // Scale mask to preview size
+                    if let previewCI = previewCIImage {
+                        foregroundMaskPreview = bgRemovalService.scaleMask(maskFull, toFit: previewCI.extent)
+                    }
+                    isBackgroundRemoved = true
+                    isGeneratingMask = false
+                    // Default to white background
+                    selectedBgColor = BackgroundSwatchManager.defaultWhite
+                    isTransparentBg = false
+                    // Restore persisted edge feathering
+                    edgeFeathering = swatchManager.savedEdgeFeathering
+                    applyFiltersToPreview()
+                }
+            } catch {
+                await MainActor.run {
+                    isGeneratingMask = false
+                }
+            }
+        }
+    }
+
+    private func restoreBackground() {
+        swatchManager.saveEdgeFeathering(edgeFeathering)
+        isBackgroundRemoved = false
+        foregroundMaskFull = nil
+        foregroundMaskPreview = nil
+        selectedBgColor = BackgroundSwatchManager.defaultWhite
+        isTransparentBg = false
+        edgeFeathering = 0.3
+        applyFiltersToPreview()
+    }
+
     // MARK: - Setup
 
     private func setupImages() {
@@ -491,7 +583,19 @@ struct PhotoEditorView: View {
 
     private func applyFiltersToPreview() {
         guard let previewCI = previewCIImage else { return }
-        let processed = filterService.applyToCIImage(adjustments, ciImage: previewCI)
+        var processed = filterService.applyToCIImage(adjustments, ciImage: previewCI)
+
+        // Composite with background if removed
+        if isBackgroundRemoved, let mask = foregroundMaskPreview {
+            let bgColor: CIColor? = isTransparentBg ? nil : selectedBgColor?.ciColor
+            processed = bgRemovalService.composite(
+                filteredImage: processed,
+                mask: mask,
+                backgroundColor: bgColor,
+                edgeFeathering: edgeFeathering
+            )
+        }
+
         if let preview = filterService.renderToUIImage(processed, scale: 1.0, orientation: .up) {
             processedPreview = preview
         }
@@ -506,6 +610,17 @@ struct PhotoEditorView: View {
             offset = .zero
             lastOffset = .zero
         }
+        // Persist edge feathering before clearing
+        if isBackgroundRemoved {
+            swatchManager.saveEdgeFeathering(edgeFeathering)
+        }
+        // Reset background removal
+        isBackgroundRemoved = false
+        foregroundMaskFull = nil
+        foregroundMaskPreview = nil
+        selectedBgColor = BackgroundSwatchManager.defaultWhite
+        isTransparentBg = false
+        edgeFeathering = 0.3
     }
 
     private func confirmEdits() {
@@ -516,11 +631,30 @@ struct PhotoEditorView: View {
         let currentOffset = offset
         let viewportSize = currentViewportSize
 
+        // Capture BG removal state
+        let bgRemoved = isBackgroundRemoved
+        let maskFull = foregroundMaskFull
+        let bgColor: CIColor? = isTransparentBg ? nil : selectedBgColor?.ciColor
+        let feathering = edgeFeathering
+
         Task {
             // 1. Apply filters to original image
-            let filteredImage = filterService.apply(adjustments, to: originalImage)
+            var filteredImage = filterService.apply(adjustments, to: originalImage)
 
-            // 2. Apply crop if zoomed or panned
+            // 2. Composite with background if removed
+            if bgRemoved, let mask = maskFull, let ciFiltered = CIImage(image: filteredImage) {
+                let composited = bgRemovalService.composite(
+                    filteredImage: ciFiltered,
+                    mask: mask,
+                    backgroundColor: bgColor,
+                    edgeFeathering: feathering
+                )
+                if let rendered = bgRemovalService.renderToUIImage(composited) {
+                    filteredImage = rendered
+                }
+            }
+
+            // 3. Apply crop if zoomed or panned
             let finalImage: UIImage
             if currentScale > 1.001 || abs(currentOffset.width) > 0.5 || abs(currentOffset.height) > 0.5 {
                 let cropRect = calculateCropRect(scale: currentScale, offset: currentOffset, viewportSize: viewportSize)
@@ -547,11 +681,30 @@ struct PhotoEditorView: View {
         let currentOffset = offset
         let viewportSize = currentViewportSize
 
+        // Capture BG removal state
+        let bgRemoved = isBackgroundRemoved
+        let maskFull = foregroundMaskFull
+        let bgColor: CIColor? = isTransparentBg ? nil : selectedBgColor?.ciColor
+        let feathering = edgeFeathering
+
         Task {
             // 1. Apply filters to original image
-            let filteredImage = filterService.apply(adjustments, to: originalImage)
+            var filteredImage = filterService.apply(adjustments, to: originalImage)
 
-            // 2. Apply crop if zoomed or panned
+            // 2. Composite with background if removed
+            if bgRemoved, let mask = maskFull, let ciFiltered = CIImage(image: filteredImage) {
+                let composited = bgRemovalService.composite(
+                    filteredImage: ciFiltered,
+                    mask: mask,
+                    backgroundColor: bgColor,
+                    edgeFeathering: feathering
+                )
+                if let rendered = bgRemovalService.renderToUIImage(composited) {
+                    filteredImage = rendered
+                }
+            }
+
+            // 3. Apply crop if zoomed or panned
             let finalImage: UIImage
             if currentScale > 1.001 || abs(currentOffset.width) > 0.5 || abs(currentOffset.height) > 0.5 {
                 let cropRect = calculateCropRect(scale: currentScale, offset: currentOffset, viewportSize: viewportSize)
@@ -560,7 +713,7 @@ struct PhotoEditorView: View {
                 finalImage = filteredImage
             }
 
-            // 3. Combine with existing buffer photos
+            // 4. Combine with existing buffer photos
             var allPhotos = existingBufferPhotos
             allPhotos.append(finalImage)
 

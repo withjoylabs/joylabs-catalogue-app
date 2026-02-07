@@ -35,12 +35,14 @@
 		39D14EE39E617F642FD943A9 /* ExportOptionsModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11E2C4538C893D6DC9BF4311 /* ExportOptionsModal.swift */; };
 		3BBC4FF8ED45BE409B7E36BF /* DiscountModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 772E9D5C057E6CFA53E18852 /* DiscountModel.swift */; };
 		3D033F23814EAC17F1F30659 /* ItemSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DC776666D9E1A98076720A2 /* ItemSettingsView.swift */; };
+		3E2046308124A612F7F7894B /* BackgroundToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DB36784930EFB8D45E9682A /* BackgroundToolView.swift */; };
 		4017A953F9FBBE7E588A972C /* TokenService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B48CACD7CFD81508BCDBFB9 /* TokenService.swift */; };
 		40F3A250FFE903C7168EECC4 /* ShareSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F54CA42167200D8C7C3A550A /* ShareSheetView.swift */; };
 		41826807649EF63DBBA03CCD /* FieldConfigurationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D71532DF527344EFA478B1B3 /* FieldConfigurationManager.swift */; };
 		4236D7318DCE1F0A794C7A50 /* ItemTaxSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7034F57676BBD40AAF7206B6 /* ItemTaxSettingsSection.swift */; };
 		43A12C33A2000D835D11605B /* ItemDataTransformers.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA6CAB610624BBFC8C7C36B6 /* ItemDataTransformers.swift */; };
 		45740EBFB0E2D2CA4CCEC956 /* WebhookSignatureValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F37514B9AC1E1E45F886FEB /* WebhookSignatureValidator.swift */; };
+		482F6338FD646B0473EFBD8A /* BackgroundSwatchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAE9D8C4D740AC08275B43E6 /* BackgroundSwatchManager.swift */; };
 		4B74843754CDBD240D53D5FC /* ReorderStatisticsCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C929C41C8E9A90056B333C4 /* ReorderStatisticsCalculator.swift */; };
 		4E9DC0AFA4C7DF303C097202 /* ItemAvailabilitySection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75FC10AFED4E5423B76916D5 /* ItemAvailabilitySection.swift */; };
 		509D7C5335FB93F6B698E5D0 /* AppLevelHIDScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02A73B5385BF767E2F503CFD /* AppLevelHIDScanner.swift */; };
@@ -70,12 +72,14 @@
 		823B57DE36146918AC79FFAE /* ShareableFileData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B59E873AFBCFBE04460F20A8 /* ShareableFileData.swift */; };
 		85126E4554FBE0F2C78D3609 /* ToastNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1645309EC63E18A4589C1AC3 /* ToastNotificationService.swift */; };
 		8796DF07A71B45B6C419C13A /* SwipeableReorderCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9656EA400096ADC30614CEB4 /* SwipeableReorderCard.swift */; };
+		8807DFC70395C6EB79BDE587 /* BackgroundRemovalService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BCB3982F2AAE08016F07DD1 /* BackgroundRemovalService.swift */; };
 		8B116CC361677097DC4B1FBF /* SyncStatusModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4981CED987E3E9524BAF9231 /* SyncStatusModel.swift */; };
 		8C7B8A0752F820E8136FADDE /* SwiftDataTypeAliases.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13EC93BCF0BD62D28B142C6C /* SwiftDataTypeAliases.swift */; };
 		8F3E31087D2D8735D8CF5ED8 /* PDFGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D98DAE4298918395B51B620F /* PDFGenerator.swift */; };
 		905F0111BFADB010745559BD /* DeferredImageUploadManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CCA9B512044EB597E9B73C7 /* DeferredImageUploadManager.swift */; };
 		9189A53F265287C2C25FF411 /* ItemDetailsBasicSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5A87F50DC4826C17C46DD0 /* ItemDetailsBasicSection.swift */; };
 		92151EA89C79EBB198799E77 /* ItemImageSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2D5FAE44721EA24C8E50126 /* ItemImageSection.swift */; };
+		9461C39F73C5B7B8A192E9C2 /* CheckerboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B422D89B00746C0FCBA28536 /* CheckerboardView.swift */; };
 		95D3B3258E2DBEA210DD741B /* ModifierModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6934794797FCA6EBD6A89E3F /* ModifierModel.swift */; };
 		99246C9B894AF2AE6D86F627 /* SquareCRUDService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35AB2C1793F03C8E7C4FDE80 /* SquareCRUDService.swift */; };
 		99776EE3F97CD95D3C775838 /* ItemFieldConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = D96C042150C12C4387D96347 /* ItemFieldConfiguration.swift */; };
@@ -119,6 +123,7 @@
 		AD8B808F513840B42B80FC25 /* ImageModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9205940EA8E08457B4F5C3D5 /* ImageModel.swift */; };
 		B16F52C1BB357CBAD6DD310F /* ItemVariationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CD6C28B292452D52FE3946B /* ItemVariationModel.swift */; };
 		B279269216A213D7664CB81E /* VariationCardComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F3EB3C38F152ED431D193F3 /* VariationCardComponents.swift */; };
+		B38B8AE098372C61261E0F6D /* BackgroundOptionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D2F20C3357E4CF6BEBA727 /* BackgroundOptionsView.swift */; };
 		B839576176BE6BDF2B053D07 /* SquareDataConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DAB355F729C92CB2F1631E3 /* SquareDataConverter.swift */; };
 		BDD63E6D0E5656F396E1D9E3 /* CategoryTaxSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A614A394BB60EDF22D1F0C26 /* CategoryTaxSettingsView.swift */; };
 		C309C4756E80941769C46AB8 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93826EA70F24FEB3F6F59BD6 /* AppDelegate.swift */; };
@@ -189,6 +194,7 @@
 		2A2A3DC27985204BE78FB447 /* SwiftDataCatalogManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SwiftDataCatalogManager.swift; path = Core/Database/SwiftDataCatalogManager.swift; sourceTree = "<group>"; };
 		2A855C7304B8B6B42B9DEF4C /* ItemSkipModifierSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemSkipModifierSection.swift; path = Components/ItemSkipModifierSection.swift; sourceTree = "<group>"; };
 		2B0C0220C8486FC50DA6F922 /* NotificationPermissionView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NotificationPermissionView.swift; path = JoyLabsNative/Views/NotificationPermissionView.swift; sourceTree = "<group>"; };
+		2BCB3982F2AAE08016F07DD1 /* BackgroundRemovalService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BackgroundRemovalService.swift; path = Components/Camera/BackgroundRemovalService.swift; sourceTree = "<group>"; };
 		3151236638CB10CA4CF5127B /* CategoryModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CategoryModel.swift; path = Models/SwiftData/CategoryModel.swift; sourceTree = "<group>"; };
 		3238AB7703FD77D6FF89132D /* HeaderButtonStyles.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = HeaderButtonStyles.swift; path = Components/HeaderButtonStyles.swift; sourceTree = "<group>"; };
 		35AB2C1793F03C8E7C4FDE80 /* SquareCRUDService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SquareCRUDService.swift; path = Core/Square/SquareCRUDService.swift; sourceTree = "<group>"; };
@@ -209,6 +215,7 @@
 		5A12C207F099F0E3A82B8ADA /* PushNotificationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PushNotificationService.swift; path = JoyLabsNative/Core/Services/PushNotificationService.swift; sourceTree = "<group>"; };
 		5A56785054025FCAA660B73E /* ReorderEnvironmentKey.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderEnvironmentKey.swift; path = Core/Environment/ReorderEnvironmentKey.swift; sourceTree = "<group>"; };
 		5BF09157ED1FEE7951EC8474 /* SimpleImageService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SimpleImageService.swift; path = Core/Services/SimpleImageService.swift; sourceTree = "<group>"; };
+		5DB36784930EFB8D45E9682A /* BackgroundToolView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BackgroundToolView.swift; path = Components/Camera/BackgroundToolView.swift; sourceTree = "<group>"; };
 		5E3FB7296AC28F9B8969A75D /* PushNotificationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PushNotificationService.swift; path = JoyLabsNative/Core/Services/PushNotificationService.swift; sourceTree = "<group>"; };
 		611795A7DDE88A6A5621E9A0 /* SquareCapabilitiesService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SquareCapabilitiesService.swift; path = Core/Services/SquareCapabilitiesService.swift; sourceTree = "<group>"; };
 		612C9E33A082AEB63A3A1DC3 /* ReorderBarcodeScanningManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderBarcodeScanningManager.swift; path = JoyLabsNative/ViewModels/ReorderBarcodeScanningManager.swift; sourceTree = "<group>"; };
@@ -275,8 +282,10 @@
 		A1B2C3D4E5F6789012345870 /* LabelComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Components/LabelComponents.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345872 /* ReorderComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyLabsNative/Components/ReorderComponents.swift; sourceTree = "<group>"; };
 		A614A394BB60EDF22D1F0C26 /* CategoryTaxSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CategoryTaxSettingsView.swift; path = Views/CategoryTaxSettingsView.swift; sourceTree = "<group>"; };
+		AAE9D8C4D740AC08275B43E6 /* BackgroundSwatchManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BackgroundSwatchManager.swift; path = Core/Services/BackgroundSwatchManager.swift; sourceTree = "<group>"; };
 		B03008BCC45D5E32B158F66F /* NotificationSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Components/NotificationSettingsView.swift; sourceTree = "<group>"; };
 		B137413ADDED6DCB13CE5BCB /* ModifierListModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ModifierListModel.swift; path = Models/SwiftData/ModifierListModel.swift; sourceTree = "<group>"; };
+		B422D89B00746C0FCBA28536 /* CheckerboardView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CheckerboardView.swift; path = Components/Camera/CheckerboardView.swift; sourceTree = "<group>"; };
 		B59E873AFBCFBE04460F20A8 /* ShareableFileData.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ShareableFileData.swift; path = Components/ShareableFileData.swift; sourceTree = "<group>"; };
 		B7646D10B74DD6424D05604B /* ReorderFilterManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReorderFilterManager.swift; path = JoyLabsNative/ViewModels/ReorderFilterManager.swift; sourceTree = "<group>"; };
 		B91D4E72D1D2E0C1BC53E544 /* CategoryTaxDefaultsService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CategoryTaxDefaultsService.swift; path = Core/Services/CategoryTaxDefaultsService.swift; sourceTree = "<group>"; };
@@ -288,6 +297,7 @@
 		CB4FFBEDCA62E7D539B408D1 /* SwiftDataSearchManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SwiftDataSearchManager.swift; path = Core/Search/SwiftDataSearchManager.swift; sourceTree = "<group>"; };
 		CE43F36BB6F6797E1742AD7C /* ItemDetailsStyles.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsStyles.swift; path = Components/ItemDetailsStyles.swift; sourceTree = "<group>"; };
 		CF5548E3D276CA66AF4421B8 /* ImageThumbnailGallery.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ImageThumbnailGallery.swift; path = Components/ImageThumbnailGallery.swift; sourceTree = "<group>"; };
+		D0D2F20C3357E4CF6BEBA727 /* BackgroundOptionsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BackgroundOptionsView.swift; path = Components/Camera/BackgroundOptionsView.swift; sourceTree = "<group>"; };
 		D583607765D3CA494A3F396E /* ItemDetailsViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ItemDetailsViewModel.swift; path = Components/ItemDetailsViewModel.swift; sourceTree = "<group>"; };
 		D71532DF527344EFA478B1B3 /* FieldConfigurationManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FieldConfigurationManager.swift; path = Components/FieldConfigurationManager.swift; sourceTree = "<group>"; };
 		D7606A3222698687642B402D /* LabelLivePrintService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LabelLivePrintService.swift; path = Core/Services/LabelLivePrintService.swift; sourceTree = "<group>"; };
@@ -468,6 +478,10 @@
 				DD26B8006A66AA069577A1B5 /* PhotoLibraryPicker.swift */,
 				54090BBA908609B7E6B1458B /* CameraExposureManager.swift */,
 				07C5B449551449C62AF2E095 /* CameraExposureControlView.swift */,
+				2BCB3982F2AAE08016F07DD1 /* BackgroundRemovalService.swift */,
+				5DB36784930EFB8D45E9682A /* BackgroundToolView.swift */,
+				D0D2F20C3357E4CF6BEBA727 /* BackgroundOptionsView.swift */,
+				B422D89B00746C0FCBA28536 /* CheckerboardView.swift */,
 			);
 			name = Camera;
 			sourceTree = "<group>";
@@ -743,6 +757,7 @@
 				669F150DD6AD20EF9F6363C9 /* PhotoPresetManager.swift */,
 				B91D4E72D1D2E0C1BC53E544 /* CategoryTaxDefaultsService.swift */,
 				EDB20F6E89605A3BD2F306C2 /* AppStartupCoordinator.swift */,
+				AAE9D8C4D740AC08275B43E6 /* BackgroundSwatchManager.swift */,
 			);
 			name = Services;
 			sourceTree = "<group>";
@@ -1021,6 +1036,11 @@
 				BDD63E6D0E5656F396E1D9E3 /* CategoryTaxSettingsView.swift in Sources */,
 				DBF183F7F26E61638281E2B7 /* AppStartupCoordinator.swift in Sources */,
 				E9FAB1C4110C2FB68C99EC91 /* AppSplashView.swift in Sources */,
+				8807DFC70395C6EB79BDE587 /* BackgroundRemovalService.swift in Sources */,
+				3E2046308124A612F7F7894B /* BackgroundToolView.swift in Sources */,
+				B38B8AE098372C61261E0F6D /* BackgroundOptionsView.swift in Sources */,
+				9461C39F73C5B7B8A192E9C2 /* CheckerboardView.swift in Sources */,
+				482F6338FD646B0473EFBD8A /* BackgroundSwatchManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

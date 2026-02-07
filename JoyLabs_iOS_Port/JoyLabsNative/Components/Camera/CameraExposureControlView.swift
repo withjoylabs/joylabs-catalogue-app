@@ -1,8 +1,8 @@
 import UIKit
 import AVFoundation
 
-/// Simple exposure compensation bar with EV slider and reset button
-/// Reset button positioned outside the main slider element for proper centering
+/// Exposure compensation bar with EV slider, lock toggle, and reset button.
+/// Lock button toggles between continuous auto-exposure and locked exposure.
 class CameraExposureControlView: UIView {
 
     private var manager: CameraExposureManager?
@@ -45,6 +45,17 @@ class CameraExposureControlView: UIView {
         stack.alignment = .center
         stack.translatesAutoresizingMaskIntoConstraints = false
         return stack
+    }()
+
+    private lazy var lockButton: UIButton = {
+        let button = UIButton(type: .system)
+        button.setImage(UIImage(systemName: "lock.open"), for: .normal)
+        button.tintColor = .white
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.addTarget(self, action: #selector(lockTapped), for: .touchUpInside)
+        button.widthAnchor.constraint(equalToConstant: 22).isActive = true
+        button.heightAnchor.constraint(equalToConstant: 22).isActive = true
+        return button
     }()
 
     private lazy var exposureIcon: UIImageView = {
@@ -123,18 +134,17 @@ class CameraExposureControlView: UIView {
         // Slider goes inside container, container goes in stack
         sliderContainer.addSubview(exposureSlider)
 
-        // Content stack: [icon] [sliderContainer] [label] - order changes with orientation
+        // Content stack: [lock] [icon] [sliderContainer] [label]
+        contentStack.addArrangedSubview(lockButton)
         contentStack.addArrangedSubview(exposureIcon)
         contentStack.addArrangedSubview(sliderContainer)
         contentStack.addArrangedSubview(exposureLabel)
 
         // Create dimension constraints (will update values in updateLayoutForOrientation)
-        viewWidthConstraint = widthAnchor.constraint(equalToConstant: 260)
+        viewWidthConstraint = widthAnchor.constraint(equalToConstant: 290)
         viewHeightConstraint = heightAnchor.constraint(equalToConstant: 44)
 
         // Slider container constraints - swaps dimensions for orientation
-        // Portrait: 140 wide × 30 tall (holds horizontal slider)
-        // Landscape: 30 wide × 140 tall (holds rotated slider)
         sliderContainerWidthConstraint = sliderContainer.widthAnchor.constraint(equalToConstant: 140)
         sliderContainerHeightConstraint = sliderContainer.heightAnchor.constraint(equalToConstant: 30)
 
@@ -183,9 +193,9 @@ class CameraExposureControlView: UIView {
         resetButtonCenterXConstraint?.isActive = false
 
         if isVertical {
-            // Landscape: 44 wide × 260 tall, vertical stack
+            // Landscape: 44 wide × 290 tall, vertical stack
             viewWidthConstraint?.constant = 44
-            viewHeightConstraint?.constant = 260
+            viewHeightConstraint?.constant = 290
 
             // Container: 30 wide × 140 tall (holds rotated slider)
             sliderContainerWidthConstraint?.constant = 30
@@ -194,10 +204,12 @@ class CameraExposureControlView: UIView {
             contentStack.axis = .vertical
             contentStack.spacing = 8
 
-            // Reorder: icon (top), sliderContainer, label (bottom)
+            // Reorder: lock (top), icon, sliderContainer, label (bottom)
+            contentStack.removeArrangedSubview(lockButton)
             contentStack.removeArrangedSubview(exposureIcon)
             contentStack.removeArrangedSubview(sliderContainer)
             contentStack.removeArrangedSubview(exposureLabel)
+            contentStack.addArrangedSubview(lockButton)
             contentStack.addArrangedSubview(exposureIcon)
             contentStack.addArrangedSubview(sliderContainer)
             contentStack.addArrangedSubview(exposureLabel)
@@ -209,8 +221,8 @@ class CameraExposureControlView: UIView {
             resetButtonTopConstraint?.isActive = true
             resetButtonCenterXConstraint?.isActive = true
         } else {
-            // Portrait: 260 wide × 44 tall, horizontal stack
-            viewWidthConstraint?.constant = 260
+            // Portrait: 290 wide × 44 tall, horizontal stack
+            viewWidthConstraint?.constant = 290
             viewHeightConstraint?.constant = 44
 
             // Container: 140 wide × 30 tall (holds horizontal slider)
@@ -220,10 +232,12 @@ class CameraExposureControlView: UIView {
             contentStack.axis = .horizontal
             contentStack.spacing = 8
 
-            // Order: icon, sliderContainer, label
+            // Order: lock, icon, sliderContainer, label
+            contentStack.removeArrangedSubview(lockButton)
             contentStack.removeArrangedSubview(exposureIcon)
             contentStack.removeArrangedSubview(sliderContainer)
             contentStack.removeArrangedSubview(exposureLabel)
+            contentStack.addArrangedSubview(lockButton)
             contentStack.addArrangedSubview(exposureIcon)
             contentStack.addArrangedSubview(sliderContainer)
             contentStack.addArrangedSubview(exposureLabel)
@@ -249,9 +263,29 @@ class CameraExposureControlView: UIView {
 
         exposureSlider.value = manager.exposureBias
         updateExposureLabel(manager.exposureBias)
+        updateLockButton()
+    }
+
+    /// Update lock button appearance from manager state (call after external lock changes)
+    func updateLockButton() {
+        guard let manager = manager else { return }
+        if manager.isExposureLocked {
+            lockButton.setImage(UIImage(systemName: "lock.fill"), for: .normal)
+            lockButton.tintColor = .systemYellow
+        } else {
+            lockButton.setImage(UIImage(systemName: "lock.open"), for: .normal)
+            lockButton.tintColor = .white
+        }
     }
 
     // MARK: - Actions
+
+    @objc private func lockTapped() {
+        guard let manager = manager, let device = device else { return }
+        manager.toggleLock(device: device)
+        updateLockButton()
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
 
     @objc private func exposureSliderChanged(_ slider: UISlider) {
         let roundedBias = round(slider.value * 10) / 10
@@ -274,7 +308,6 @@ class CameraExposureControlView: UIView {
     }
 
     private func updateExposureLabel(_ bias: Float) {
-        // Show "0.0" for zero, otherwise show sign
         if bias == 0 {
             exposureLabel.text = "0.0"
             exposureLabel.textColor = .white

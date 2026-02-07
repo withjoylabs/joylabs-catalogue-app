@@ -80,6 +80,7 @@ class AVCameraViewController: UIViewController {
     private var zoomSelectorStackView: UIStackView?
     private var zoomSelectorBackground: UIView?
     private var pinchStartZoom: CGFloat = 1.0
+    private var meteringIndicatorView: UIView?
 
     // Zoom selector constraint references for orientation-based layout
     private var zoomSelectorCenterXConstraint: NSLayoutConstraint?
@@ -852,6 +853,16 @@ class AVCameraViewController: UIViewController {
         logger.info("[Camera] Using device: \(camera.localizedName) (\(camera.deviceType.rawValue))")
         currentDevice = camera
 
+        // Disable automatic HDR/tone mapping for predictable manual exposure control
+        do {
+            try camera.lockForConfiguration()
+            camera.automaticallyAdjustsVideoHDREnabled = false
+            camera.isVideoHDREnabled = false
+            camera.unlockForConfiguration()
+        } catch {
+            logger.error("[Camera] Failed to configure HDR settings: \(error)")
+        }
+
         // Only add input if not already added
         if captureSession.inputs.isEmpty {
             do {
@@ -921,6 +932,7 @@ class AVCameraViewController: UIViewController {
             self.setupZoomSelectorUI()
             self.setupExposureControlConstraints()
             self.setupPinchZoom()
+            self.setupTapToMeter()
 
             // Configure exposure control view with manager and device
             if let device = self.currentDevice {
@@ -1466,6 +1478,70 @@ class AVCameraViewController: UIViewController {
             device.unlockForConfiguration()
         } catch {
             logger.error("[Camera] Zoom failed: \(error)")
+        }
+    }
+
+    // MARK: - Tap-to-Meter
+
+    private func setupTapToMeter() {
+        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleTapToMeter(_:)))
+        previewView.addGestureRecognizer(tapGesture)
+    }
+
+    @objc private func handleTapToMeter(_ gesture: UITapGestureRecognizer) {
+        guard let device = currentDevice, let previewLayer = previewLayer else { return }
+
+        let tapPoint = gesture.location(in: previewView)
+
+        // Convert tap location to device coordinate space (0-1 range)
+        let devicePoint = previewLayer.captureDevicePointConverted(fromLayerPoint: tapPoint)
+
+        // Meter exposure from the tapped point
+        exposureManager.setExposurePoint(devicePoint, device: device)
+
+        // Show yellow metering indicator at tap location
+        showMeteringIndicator(at: tapPoint)
+
+        // Update lock button appearance in case lock state affects UI
+        exposureControlView?.updateLockButton()
+
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
+    private func showMeteringIndicator(at point: CGPoint) {
+        // Remove existing indicator
+        meteringIndicatorView?.removeFromSuperview()
+
+        let size: CGFloat = 80
+        let indicator = UIView(frame: CGRect(
+            x: point.x - size / 2,
+            y: point.y - size / 2,
+            width: size,
+            height: size
+        ))
+        indicator.backgroundColor = .clear
+        indicator.layer.borderColor = UIColor.systemYellow.cgColor
+        indicator.layer.borderWidth = 1.5
+        indicator.alpha = 0
+
+        previewView.addSubview(indicator)
+        meteringIndicatorView = indicator
+
+        // Animate in: scale down from 1.4 to 1.0 + fade in
+        indicator.transform = CGAffineTransform(scaleX: 1.4, y: 1.4)
+        UIView.animate(withDuration: 0.2, delay: 0, options: .curveEaseOut) {
+            indicator.alpha = 1.0
+            indicator.transform = .identity
+        } completion: { _ in
+            // Hold briefly, then fade out
+            UIView.animate(withDuration: 0.3, delay: 1.2, options: .curveEaseIn) {
+                indicator.alpha = 0
+            } completion: { _ in
+                indicator.removeFromSuperview()
+                if self.meteringIndicatorView === indicator {
+                    self.meteringIndicatorView = nil
+                }
+            }
         }
     }
 
